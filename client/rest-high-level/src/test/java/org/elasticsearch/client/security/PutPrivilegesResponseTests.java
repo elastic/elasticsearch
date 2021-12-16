@@ -21,21 +21,22 @@ import static org.hamcrest.Matchers.is;
 public class PutPrivilegesResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        final String json = "{\n"
-            + "  \"app02\": {\n"
-            + "    \"all\": {\n"
-            + "      \"created\": true\n"
-            + "    }\n"
-            + "  },\n"
-            + "  \"app01\": {\n"
-            + "    \"read\": {\n"
-            + "      \"created\": false\n"
-            + "    },\n"
-            + "    \"write\": {\n"
-            + "      \"created\": true\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        final String json = """
+            {
+              "app02": {
+                "all": {
+                  "created": true
+                }
+              },
+              "app01": {
+                "read": {
+                  "created": false
+                },
+                "write": {
+                  "created": true
+                }
+              }
+            }""";
 
         final PutPrivilegesResponse putPrivilegesResponse = PutPrivilegesResponse.fromXContent(
             createParser(XContentType.JSON.xContent(), json)

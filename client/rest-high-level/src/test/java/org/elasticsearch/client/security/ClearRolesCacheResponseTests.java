@@ -27,10 +27,10 @@ public class ClearRolesCacheResponseTests extends ESTestCase {
 
     public void testParseFromXContent() throws IOException {
         final ElasticsearchException exception = new ElasticsearchException("test");
-        final String nodesHeader = "\"_nodes\": { \"total\": 2, \"successful\": 1, \"failed\": 1, \"failures\": [ "
-            + Strings.toString(exception)
-            + "] },";
-        final String clusterName = "\"cluster_name\": \"cn\",";
+        final String nodesHeader = """
+            "_nodes": { "total": 2, "successful": 1, "failed": 1, "failures": [ %s] },""".formatted(Strings.toString(exception));
+        final String clusterName = """
+            "cluster_name": "cn",""";
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
                 NamedXContentRegistry.EMPTY,
@@ -54,7 +54,9 @@ public class ClearRolesCacheResponseTests extends ESTestCase {
             XContentParser parser = JsonXContent.jsonXContent.createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                "{" + nodesHeader + clusterName + "\"nodes\" : { \"id1\": { \"name\": \"a\"}, \"id2\": { \"name\": \"b\"}}}"
+                """
+                    {%s%s"nodes" : { "id1": { "name": "a"}, "id2": { "name": "b"}}}
+                    """.formatted(nodesHeader, clusterName)
             )
         ) {
 

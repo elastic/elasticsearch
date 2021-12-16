@@ -965,78 +965,77 @@ public class MetadataTests extends ESTestCase {
         assertLeafs(subFieldsDef, subFields);
     }
 
-    private static final String FIND_MAPPINGS_TEST_ITEM = "{\n"
-        + "  \"_doc\": {\n"
-        + "      \"_routing\": {\n"
-        + "        \"required\":true\n"
-        + "      },"
-        + "      \"_source\": {\n"
-        + "        \"enabled\":false\n"
-        + "      },"
-        + "      \"properties\": {\n"
-        + "        \"name\": {\n"
-        + "          \"properties\": {\n"
-        + "            \"first\": {\n"
-        + "              \"type\": \"keyword\"\n"
-        + "            },\n"
-        + "            \"last\": {\n"
-        + "              \"type\": \"keyword\"\n"
-        + "            }\n"
-        + "          }\n"
-        + "        },\n"
-        + "        \"birth\": {\n"
-        + "          \"type\": \"date\"\n"
-        + "        },\n"
-        + "        \"age\": {\n"
-        + "          \"type\": \"integer\"\n"
-        + "        },\n"
-        + "        \"ip\": {\n"
-        + "          \"type\": \"ip\"\n"
-        + "        },\n"
-        + "        \"suggest\" : {\n"
-        + "          \"type\": \"completion\"\n"
-        + "        },\n"
-        + "        \"address\": {\n"
-        + "          \"type\": \"object\",\n"
-        + "          \"properties\": {\n"
-        + "            \"street\": {\n"
-        + "              \"type\": \"keyword\"\n"
-        + "            },\n"
-        + "            \"location\": {\n"
-        + "              \"type\": \"geo_point\"\n"
-        + "            },\n"
-        + "            \"area\": {\n"
-        + "              \"type\": \"geo_shape\",  \n"
-        + "              \"tree\": \"quadtree\",\n"
-        + "              \"precision\": \"1m\"\n"
-        + "            }\n"
-        + "          }\n"
-        + "        },\n"
-        + "        \"properties\": {\n"
-        + "          \"type\": \"nested\",\n"
-        + "          \"properties\": {\n"
-        + "            \"key\" : {\n"
-        + "              \"type\": \"text\",\n"
-        + "              \"fields\": {\n"
-        + "                \"keyword\" : {\n"
-        + "                  \"type\" : \"keyword\"\n"
-        + "                }\n"
-        + "              }\n"
-        + "            },\n"
-        + "            \"value\" : {\n"
-        + "              \"type\": \"text\",\n"
-        + "              \"fields\": {\n"
-        + "                \"keyword\" : {\n"
-        + "                  \"type\" : \"keyword\"\n"
-        + "                }\n"
-        + "              }\n"
-        + "            }\n"
-        + "          }\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  }\n"
-        + "}";
+    private static final String FIND_MAPPINGS_TEST_ITEM = """
+        {
+          "_doc": {
+              "_routing": {
+                "required":true
+              },      "_source": {
+                "enabled":false
+              },      "properties": {
+                "name": {
+                  "properties": {
+                    "first": {
+                      "type": "keyword"
+                    },
+                    "last": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "birth": {
+                  "type": "date"
+                },
+                "age": {
+                  "type": "integer"
+                },
+                "ip": {
+                  "type": "ip"
+                },
+                "suggest" : {
+                  "type": "completion"
+                },
+                "address": {
+                  "type": "object",
+                  "properties": {
+                    "street": {
+                      "type": "keyword"
+                    },
+                    "location": {
+                      "type": "geo_point"
+                    },
+                    "area": {
+                      "type": "geo_shape", \s
+                      "tree": "quadtree",
+                      "precision": "1m"
+                    }
+                  }
+                },
+                "properties": {
+                  "type": "nested",
+                  "properties": {
+                    "key" : {
+                      "type": "text",
+                      "fields": {
+                        "keyword" : {
+                          "type" : "keyword"
+                        }
+                      }
+                    },
+                    "value" : {
+                      "type": "text",
+                      "fields": {
+                        "keyword" : {
+                          "type" : "keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }""";
 
     public void testTransientSettingsOverridePersistentSettings() {
         final Setting<String> setting = Setting.simpleString("key");

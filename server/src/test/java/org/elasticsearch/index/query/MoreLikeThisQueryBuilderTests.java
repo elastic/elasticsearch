@@ -427,29 +427,30 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"more_like_this\" : {\n"
-            + "    \"fields\" : [ \"title\", \"description\" ],\n"
-            + "    \"like\" : [ \"and potentially some more text here as well\", {\n"
-            + "      \"_index\" : \"imdb\",\n"
-            + "      \"_id\" : \"1\"\n"
-            + "    }, {\n"
-            + "      \"_index\" : \"imdb\",\n"
-            + "      \"_id\" : \"2\"\n"
-            + "    } ],\n"
-            + "    \"max_query_terms\" : 12,\n"
-            + "    \"min_term_freq\" : 1,\n"
-            + "    \"min_doc_freq\" : 5,\n"
-            + "    \"max_doc_freq\" : 2147483647,\n"
-            + "    \"min_word_length\" : 0,\n"
-            + "    \"max_word_length\" : 0,\n"
-            + "    \"minimum_should_match\" : \"30%\",\n"
-            + "    \"boost_terms\" : 0.0,\n"
-            + "    \"include\" : false,\n"
-            + "    \"fail_on_unsupported_field\" : true,\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "more_like_this" : {
+                "fields" : [ "title", "description" ],
+                "like" : [ "and potentially some more text here as well", {
+                  "_index" : "imdb",
+                  "_id" : "1"
+                }, {
+                  "_index" : "imdb",
+                  "_id" : "2"
+                } ],
+                "max_query_terms" : 12,
+                "min_term_freq" : 1,
+                "min_doc_freq" : 5,
+                "max_doc_freq" : 2147483647,
+                "min_word_length" : 0,
+                "max_word_length" : 0,
+                "minimum_should_match" : "30%",
+                "boost_terms" : 0.0,
+                "include" : false,
+                "fail_on_unsupported_field" : true,
+                "boost" : 1.0
+              }
+            }""";
 
         MoreLikeThisQueryBuilder parsed = (MoreLikeThisQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

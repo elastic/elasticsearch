@@ -27,8 +27,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
@@ -170,37 +170,26 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  */
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractNamedWriteableTestCase<T> {
     /**
-     * Builds an {@link InternalAggregation.ReduceContextBuilder} that is valid but empty.
+     * Builds an {@link AggregationReduceContext} that is valid but empty.
      */
-    public static InternalAggregation.ReduceContextBuilder emptyReduceContextBuilder() {
+    public static AggregationReduceContext.Builder emptyReduceContextBuilder() {
         return emptyReduceContextBuilder(PipelineTree.EMPTY);
     }
 
     /**
-     * Builds an {@link InternalAggregation.ReduceContextBuilder} that is valid and nearly
+     * Builds an {@link AggregationReduceContext} that is valid and nearly
      * empty <strong>except</strong> that it contain {@link PipelineAggregator}s.
      */
-    public static InternalAggregation.ReduceContextBuilder emptyReduceContextBuilder(PipelineTree pipelineTree) {
-        return new InternalAggregation.ReduceContextBuilder() {
+    public static AggregationReduceContext.Builder emptyReduceContextBuilder(PipelineTree pipelineTree) {
+        return new AggregationReduceContext.Builder() {
             @Override
-            public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(
-                    BigArrays.NON_RECYCLING_INSTANCE,
-                    null,
-                    () -> pipelineTree,
-                    () -> false
-                );
+            public AggregationReduceContext forPartialReduction() {
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false);
             }
 
             @Override
-            public ReduceContext forFinalReduction() {
-                return InternalAggregation.ReduceContext.forFinalReduction(
-                    BigArrays.NON_RECYCLING_INSTANCE,
-                    null,
-                    b -> {},
-                    pipelineTree,
-                    () -> false
-                );
+            public AggregationReduceContext forFinalReduction() {
+                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, pipelineTree, () -> false);
             }
         };
     }
@@ -374,12 +363,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             List<InternalAggregation> toPartialReduce = toReduce.subList(0, r);
             // Sort aggs so that unmapped come last. This mimicks the behavior of InternalAggregations.reduce()
             toPartialReduce.sort(INTERNAL_AGG_COMPARATOR);
-            InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
-                bigArrays,
-                mockScriptService,
-                () -> PipelineAggregator.PipelineTree.EMPTY,
-                () -> false
-            );
+            AggregationReduceContext context = new AggregationReduceContext.ForPartial(bigArrays, mockScriptService, () -> false);
             @SuppressWarnings("unchecked")
             T reduced = (T) toPartialReduce.get(0).reduce(toPartialReduce, context);
             int initialBucketCount = 0;
@@ -404,7 +388,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             DEFAULT_MAX_BUCKETS,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
         );
-        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
             bucketConsumer,

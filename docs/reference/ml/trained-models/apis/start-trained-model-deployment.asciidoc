@@ -1,0 +1,113 @@
+[role="xpack"]
+[[start-trained-model-deployment]]
+= Start trained model deployment API
+[subs="attributes"]
+++++
+<titleabbrev>Start trained model deployment</titleabbrev>
+++++
+
+experimental::[]
+
+Starts a new trained model deployment.
+
+[[start-trained-model-deployment-request]]
+== {api-request-title}
+
+`POST _ml/trained_models/<model_id>/deployment/_start`
+
+[[start-trained-model-deployment-prereq]]
+== {api-prereq-title}
+Requires the `manage_ml` cluster privilege. This privilege is included in the
+`machine_learning_admin` built-in role.
+
+[[start-trained-model-deployment-desc]]
+== {api-description-title}
+
+Currently only `pytorch` models are supported for deployment. When deployed,
+the model attempts allocation to every machine learning node.
+
+[[start-trained-model-deployment-path-params]]
+== {api-path-parms-title}
+
+`<model_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+[[start-trained-model-deployment-query-params]]
+== {api-query-parms-title}
+
+`inference_threads`::
+(Optional, integer)
+Sets the number of threads used by the inference process. This generally increases
+the inference speed. The inference process is a compute-bound process; any number
+greater than the number of available hardware threads on the machine does not increase the
+inference speed. If this setting is greater than the number of hardware threads
+it will automatically be changed to a value less than the number of hardware threads.
+Defaults to 1.
+
+`model_threads`::
+(Optional, integer)
+The number of threads used when sending inference requests to the model.
+Increasing this value generally increases the throughput.
+If this setting is greater than the number of hardware threads
+it will automatically be changed to a value less than the number of hardware threads.
+Defaults to 1.
+
+[NOTE]
+=============================================
+If the sum of `inference_threads` and `model_threads` is greater than the number of
+hardware threads then the number of `inference_threads` will be reduced.
+=============================================
+
+`queue_capacity`::
+(Optional, integer)
+Controls how many inference requests are allowed in the queue at a time. Once the
+number of requests exceeds this value, new requests are rejected with a 429 error.
+Defaults to 1024.
+
+`timeout`::
+(Optional, time)
+Controls the amount of time to wait for the model to deploy. Defaults
+to 20 seconds.
+
+`wait_for`::
+(Optional, string)
+Specifies the allocation status to wait for before returning. Defaults to
+`started`. The value `starting` indicates deployment is starting but not yet on
+any node. The value `started` indicates the model has started on at least one
+node. The value `fully_allocated` indicates the deployment has started on all
+valid nodes.
+
+[[start-trained-model-deployment-example]]
+== {api-examples-title}
+
+The following example starts a new deployment for a
+`elastic__distilbert-base-uncased-finetuned-conll03-english` trained model:
+
+[source,console]
+--------------------------------------------------
+POST _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/deployment/_start?wait_for=started&timeout=1m
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+    "allocation": {
+        "task_parameters": {
+            "model_id": "elastic__distilbert-base-uncased-finetuned-conll03-english",
+            "model_bytes": 265632637
+        },
+        "routing_table": {
+            "uckeG3R8TLe2MMNBQ6AGrw": {
+                "routing_state": "started",
+                "reason": ""
+            }
+        },
+        "allocation_state": "started",
+        "start_time": "2021-11-02T11:50:34.766591Z"
+    }
+}
+----

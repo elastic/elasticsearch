@@ -187,11 +187,15 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
                 int type = in.read();
                 switch (type) {
-                    case (byte) 's':
+                    case (byte) 's': // parse a string
                         result.put(name, in.readBytesRef().utf8ToString());
                         break;
-                    case (byte) 'l':
+                    case (byte) 'l': // parse a long
                         result.put(name, in.readLong());
+                        break;
+                    case (byte) 'u': // parse an unsigned_long
+                        Object ul = DocValueFormat.UnsignedLongShiftedDocValueFormat.INSTANCE.format(in.readLong());
+                        result.put(name, ul);
                         break;
                     default:
                         throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
@@ -203,7 +207,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static BytesReference encodeTsidValue(String value) {
+    public static BytesReference encodeTsidValue(String value) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.write((byte) 's');
             /*
@@ -224,9 +228,19 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static BytesReference encodeTsidValue(long value) {
+    public static BytesReference encodeTsidValue(long value) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.write((byte) 'l');
+            out.writeLong(value);
+            return out.bytes();
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
+        }
+    }
+
+    public static BytesReference encodeTsidUnsignedLongValue(long value) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.write((byte) 'u');
             out.writeLong(value);
             return out.bytes();
         } catch (IOException e) {

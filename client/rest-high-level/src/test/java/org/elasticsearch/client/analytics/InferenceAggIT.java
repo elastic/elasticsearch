@@ -104,7 +104,8 @@ public class InferenceAggIT extends ESRestHighLevelClientTestCase {
 
     private void indexData(String index) throws IOException {
         CreateIndexRequest create = new CreateIndexRequest(index);
-        create.mapping("{\"properties\": {\"fruit\": {\"type\": \"keyword\"}," + "\"cost\": {\"type\": \"double\"}}}", XContentType.JSON);
+        create.mapping("""
+            {"properties": {"fruit": {"type": "keyword"}, "cost": {"type": "double"}}}""", XContentType.JSON);
         highLevelClient().indices().create(create, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest(index).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         bulk.add(new IndexRequest().source(XContentType.JSON, "fruit", "apple", "cost", "1.2"));

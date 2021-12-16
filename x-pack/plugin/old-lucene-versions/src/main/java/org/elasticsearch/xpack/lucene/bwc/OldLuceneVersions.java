@@ -7,18 +7,10 @@
 
 package org.elasticsearch.xpack.lucene.bwc;
 
-import org.apache.lucene.backward_codecs.lucene70.Lucene70Codec;
-import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.ChecksumIndexInput;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.util.StringHelper;
-import org.apache.lucene.util.Version;
-import org.elasticsearch.Build;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.IndexModule;
@@ -28,6 +20,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -38,83 +31,69 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin {
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        if (Build.CURRENT.isSnapshot()) {
+        if (indexModule.indexSettings().getIndexVersionCreated().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
             indexModule.addIndexEventListener(new IndexEventListener() {
                 @Override
                 public void afterFilesRestoredFromRepository(IndexShard indexShard) {
-                    maybeConvertToNewFormat(indexShard);
+                    convertToNewFormat(indexShard);
                 }
             });
         }
     }
 
-    private static void maybeConvertToNewFormat(IndexShard indexShard) {
+    /**
+     * The trick used to allow newer Lucene versions to read older Lucene indices is to convert the old directory to a directory that new
+     * Lucene versions happily operate on. The way newer Lucene versions happily comply with reading older data is to put in place a
+     * segments file that the newer Lucene version can open, using codecs that allow reading everything from the old files, making it
+     * available under the newer interfaces. The way this works is to read in the old segments file using a special class
+     * {@link OldSegmentInfos} that supports reading older Lucene {@link SegmentInfos}, and then write out an updated segments file that
+     * newer Lucene versions can understand.
+     */
+    private static void convertToNewFormat(IndexShard indexShard) {
         indexShard.store().incRef();
         try {
-            try {
-                Version version = getLuceneVersion(indexShard.store().directory());
-                // Lucene version in [7.0.0, 8.0.0)
-                if (version != null
-                    && version.onOrAfter(Version.fromBits(7, 0, 0))
-                    && version.onOrAfter(Version.fromBits(8, 0, 0)) == false) {
-                    final OldSegmentInfos oldSegmentInfos = OldSegmentInfos.readLatestCommit(indexShard.store().directory(), 7);
-                    final SegmentInfos segmentInfos = convertLucene7x(oldSegmentInfos);
-                    // write upgraded segments file
-                    segmentInfos.commit(indexShard.store().directory());
+            final OldSegmentInfos oldSegmentInfos = OldSegmentInfos.readLatestCommit(indexShard.store().directory(), 6);
+            final SegmentInfos segmentInfos = convertToNewerLuceneVersion(oldSegmentInfos);
+            // write upgraded segments file
+            segmentInfos.commit(indexShard.store().directory());
 
-                    // validate that what we have written can be read using standard path
-                    // TODO: norelease: remove this when development completes
-                    SegmentInfos segmentInfos1 = SegmentInfos.readLatestCommit(indexShard.store().directory());
+            // what we have written can be read using standard path
+            assert SegmentInfos.readLatestCommit(indexShard.store().directory()) != null;
 
-                    // clean older segments file
-                    Lucene.pruneUnreferencedFiles(segmentInfos1.getSegmentsFileName(), indexShard.store().directory());
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            // clean older segments file
+            Lucene.pruneUnreferencedFiles(segmentInfos.getSegmentsFileName(), indexShard.store().directory());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         } finally {
             indexShard.store().decRef();
         }
     }
 
-    private static Version getLuceneVersion(Directory directory) throws IOException {
-        final String segmentFileName = SegmentInfos.getLastCommitSegmentsFileName(directory);
-        if (segmentFileName != null) {
-            long generation = SegmentInfos.generationFromSegmentsFileName(segmentFileName);
-            try (ChecksumIndexInput input = directory.openChecksumInput(segmentFileName, IOContext.READ)) {
-                CodecUtil.checkHeader(input, "segments", 0, Integer.MAX_VALUE);
-                byte[] id = new byte[StringHelper.ID_LENGTH];
-                input.readBytes(id, 0, id.length);
-                CodecUtil.checkIndexHeaderSuffix(input, Long.toString(generation, Character.MAX_RADIX));
-
-                Version luceneVersion = Version.fromBits(input.readVInt(), input.readVInt(), input.readVInt());
-                int indexCreatedVersion = input.readVInt();
-                return luceneVersion;
-            } catch (Exception e) {
-                // ignore
-            }
-        }
-        return null;
-    }
-
-    private static SegmentInfos convertLucene7x(OldSegmentInfos oldSegmentInfos) {
+    private static SegmentInfos convertToNewerLuceneVersion(OldSegmentInfos oldSegmentInfos) {
         final SegmentInfos segmentInfos = new SegmentInfos(org.apache.lucene.util.Version.LATEST.major);
         segmentInfos.setNextWriteGeneration(oldSegmentInfos.getGeneration() + 1);
         final Map<String, String> map = new HashMap<>(oldSegmentInfos.getUserData());
-        map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
-        map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
-        map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
-        map.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, "-1");
+        if (map.containsKey(Engine.HISTORY_UUID_KEY) == false) {
+            map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
+        }
+        if (map.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) == false) {
+            map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
+        }
+        if (map.containsKey(SequenceNumbers.MAX_SEQ_NO) == false) {
+            map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
+        }
+        if (map.containsKey(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) == false) {
+            map.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, "-1");
+        }
         segmentInfos.setUserData(map, true);
         for (SegmentCommitInfo infoPerCommit : oldSegmentInfos.asList()) {
-            SegmentInfo info = infoPerCommit.info;
-            SegmentInfo newInfo = wrap(info);
+            final SegmentInfo newInfo = BWCCodec.wrap(infoPerCommit.info);
 
             segmentInfos.add(
                 new SegmentCommitInfo(
                     newInfo,
                     infoPerCommit.getDelCount(),
-                    0,
+                    infoPerCommit.getSoftDelCount(),
                     infoPerCommit.getDelGen(),
                     infoPerCommit.getFieldInfosGen(),
                     infoPerCommit.getDocValuesGen(),
@@ -123,31 +102,6 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin {
             );
         }
         return segmentInfos;
-    }
-
-    static SegmentInfo wrap(SegmentInfo segmentInfo) {
-        // Use Version.LATEST instead of original version, otherwise SegmentCommitInfo will bark when processing (N-1 limitation)
-        // TODO: alternatively store the original version information in attributes?
-        byte[] id = segmentInfo.getId();
-        if (id == null) {
-            id = StringHelper.randomId();
-        }
-        Codec codec = segmentInfo.getCodec() instanceof Lucene70Codec ? new BWCLucene70Codec() : segmentInfo.getCodec();
-        SegmentInfo segmentInfo1 = new SegmentInfo(
-            segmentInfo.dir,
-            org.apache.lucene.util.Version.LATEST,
-            org.apache.lucene.util.Version.LATEST,
-            segmentInfo.name,
-            segmentInfo.maxDoc(),
-            segmentInfo.getUseCompoundFile(),
-            codec,
-            segmentInfo.getDiagnostics(),
-            id,
-            segmentInfo.getAttributes(),
-            null
-        );
-        segmentInfo1.setFiles(segmentInfo.files());
-        return segmentInfo1;
     }
 
     @Override

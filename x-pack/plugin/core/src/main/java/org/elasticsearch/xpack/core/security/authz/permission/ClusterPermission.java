@@ -248,7 +248,8 @@ public class ClusterPermission {
 
         @Override
         protected boolean doImplies(final ActionBasedPermissionCheck permissionCheck) {
-            if (permissionCheck instanceof final ActionRequestBasedPermissionCheck otherCheck) {
+            if (permissionCheck instanceof ActionRequestBasedPermissionCheck) {
+                final ActionRequestBasedPermissionCheck otherCheck = (ActionRequestBasedPermissionCheck) permissionCheck;
                 return this.clusterPrivilege.equals(otherCheck.clusterPrivilege);
             }
             return false;

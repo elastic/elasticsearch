@@ -36,26 +36,18 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
     }
 
     public void testStacktraceWithJson() throws IOException {
-
-        String json = "{"
-            + LINE_SEPARATOR
-            + "  \"terms\" : {"
-            + LINE_SEPARATOR
-            + "    \"user\" : ["
-            + LINE_SEPARATOR
-            + "      \"u1\","
-            + LINE_SEPARATOR
-            + "      \"u2\","
-            + LINE_SEPARATOR
-            + "      \"u3\""
-            + LINE_SEPARATOR
-            + "    ],"
-            + LINE_SEPARATOR
-            + "    \"boost\" : 1.0"
-            + LINE_SEPARATOR
-            + "  }"
-            + LINE_SEPARATOR
-            + "}";
+        String json = """
+            {
+              "terms": {
+                "user": [
+                  "u1",
+                  "u2",
+                  "u3"
+                ],
+                "boost": 1.0
+              }
+            }\
+            """.lines().collect(Collectors.joining(System.lineSeparator()));
         Exception thrown = new Exception(json);
         LogEvent event = Log4jLogEvent.newBuilder().setMessage(new SimpleMessage("message")).setThrown(thrown).build();
 

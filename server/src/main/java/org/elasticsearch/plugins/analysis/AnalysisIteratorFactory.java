@@ -13,5 +13,10 @@ import java.util.List;
 public interface AnalysisIteratorFactory {
     String name();
 
-    PortableAnalyzeIterator newInstance(List<AnalyzeToken> tokens, AnalyzeState prevState);
+    default PortableAnalyzeIterator newInstance(List<AnalyzeToken> tokens, AnalyzeState prevState) {
+        return null;
+    }
+    default PortableAnalyzeIterator newInstance(String text, AnalyzeState prevState) {
+        return null;
+    }
 }

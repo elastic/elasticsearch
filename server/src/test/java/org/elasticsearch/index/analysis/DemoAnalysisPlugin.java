@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.classic.ClassicTokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.LetterTokenizer;
@@ -24,8 +23,6 @@ import org.elasticsearch.plugins.analysis.AnalysisIteratorFactory;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.singletonMap;
-
 public class DemoAnalysisPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
@@ -40,6 +37,13 @@ public class DemoAnalysisPlugin extends Plugin implements AnalysisPlugin {
         return Map.of(
             "demo", DemoIteratorFactory::new,
             "demo_normalizer", DemoNormalizerIteratorFactory::new
+        );
+    }
+
+    @Override
+    public Map<String, AnalysisModule.AnalysisProvider<AnalysisIteratorFactory>> getTokenizerIterators() {
+        return Map.of(
+            "demo_tokenizer", DemoTokenizerIteratorFactory::new
         );
     }
 

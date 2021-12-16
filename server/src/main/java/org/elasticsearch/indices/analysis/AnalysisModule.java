@@ -253,6 +253,9 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = new NamedRegistry<>("tokenizer");
         tokenizers.register("standard", StandardTokenizerFactory::new);
         tokenizers.extractAndRegister(plugins, AnalysisPlugin::getTokenizers);
+
+        // Somehow you need to wrap each plugin tokenizer into wrappedtokenizer. Likely you'll need custom tokenizer factory
+
         return tokenizers;
     }
 

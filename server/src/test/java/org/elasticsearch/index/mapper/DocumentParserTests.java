@@ -552,8 +552,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }));
         assertNull(doc.rootDoc().getField("foo.bar.baz"));
         assertEquals(
-            "{\"_doc\":{\"dynamic\":\"false\","
-                + "\"runtime\":{\"foo.bar.baz\":{\"type\":\"keyword\"},\"foo.baz\":{\"type\":\"keyword\"}}}}",
+            """
+                {"_doc":{"dynamic":"false","runtime":{"foo.bar.baz":{"type":"keyword"},"foo.baz":{"type":"keyword"}}}}""",
             Strings.toString(doc.dynamicMappingsUpdate())
         );
     }
@@ -805,7 +805,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value(0).value(1).endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
         RuntimeField foo = doc.dynamicMappingsUpdate().getRoot().getRuntimeField("foo");
-        assertEquals("{\"foo\":{\"type\":\"long\"}}", Strings.toString(foo));
+        assertEquals("""
+            {"foo":{"type":"long"}}""", Strings.toString(foo));
     }
 
     public void testDynamicRuntimeDoubleArray() throws Exception {
@@ -813,7 +814,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value(0.25).value(1.43).endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
         RuntimeField foo = doc.dynamicMappingsUpdate().getRoot().getRuntimeField("foo");
-        assertEquals("{\"foo\":{\"type\":\"double\"}}", Strings.toString(foo));
+        assertEquals("""
+            {"foo":{"type":"double"}}""", Strings.toString(foo));
     }
 
     public void testDynamicRuntimeStringArray() throws Exception {
@@ -821,7 +823,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value("test1").value("test2").endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
         RuntimeField foo = doc.dynamicMappingsUpdate().getRoot().getRuntimeField("foo");
-        assertEquals("{\"foo\":{\"type\":\"keyword\"}}", Strings.toString(foo));
+        assertEquals("""
+            {"foo":{"type":"keyword"}}""", Strings.toString(foo));
     }
 
     public void testDynamicRuntimeBooleanArray() throws Exception {
@@ -829,7 +832,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value(true).value(false).endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
         RuntimeField foo = doc.dynamicMappingsUpdate().getRoot().getRuntimeField("foo");
-        assertEquals("{\"foo\":{\"type\":\"boolean\"}}", Strings.toString(foo));
+        assertEquals("""
+            {"foo":{"type":"boolean"}}""", Strings.toString(foo));
     }
 
     public void testDynamicRuntimeDateArray() throws Exception {
@@ -837,7 +841,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value("2020-12-15").value("2020-12-09").endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
         RuntimeField foo = doc.dynamicMappingsUpdate().getRoot().getRuntimeField("foo");
-        assertEquals("{\"foo\":{\"type\":\"date\"}}", Strings.toString(foo));
+        assertEquals("""
+            {"foo":{"type":"date"}}""", Strings.toString(foo));
     }
 
     public void testMappedGeoPointArray() throws Exception {

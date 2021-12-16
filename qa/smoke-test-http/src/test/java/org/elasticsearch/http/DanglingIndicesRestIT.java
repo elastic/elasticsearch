@@ -218,19 +218,20 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         assert indices.length > 0;
 
         for (String index : indices) {
-            String indexSettings = "{"
-                + "  \"settings\": {"
-                + "    \"index\": {"
-                + "      \"number_of_shards\": 1,"
-                + "      \"number_of_replicas\": 2,"
-                + "      \"routing\": {"
-                + "        \"allocation\": {"
-                + "          \"total_shards_per_node\": 1"
-                + "        }"
-                + "      }"
-                + "    }"
-                + "  }"
-                + "}";
+            String indexSettings = """
+                {
+                  "settings": {
+                    "index": {
+                      "number_of_shards": 1,
+                      "number_of_replicas": 2,
+                      "routing": {
+                        "allocation": {
+                          "total_shards_per_node": 1
+                        }
+                      }
+                    }
+                  }
+                }""";
             Request request = new Request("PUT", "/" + index);
             request.setJsonEntity(indexSettings);
             assertOK(getRestClient().performRequest(request));

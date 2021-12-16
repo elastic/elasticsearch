@@ -838,7 +838,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         // if the remote cluster doesn't allow watcher, then we only check for it and we're done
         if (remoteClusterAllowsWatcher) {
             // X-Pack exists and Watcher can be used
-            enqueueResponse(webServer, 200, "{\"features\":{\"watcher\":{\"available\":true,\"enabled\":true}}}");
+            enqueueResponse(webServer, 200, """
+                {"features":{"watcher":{"available":true,"enabled":true}}}""");
 
             // if we have an active license that's not Basic, then we should add watches
             if (currentLicenseAllowsWatcher) {
@@ -854,11 +855,9 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         } else {
             // X-Pack exists but Watcher just cannot be used
             if (randomBoolean()) {
-                final String responseBody = randomFrom(
-                    "{\"features\":{\"watcher\":{\"available\":false,\"enabled\":true}}}",
-                    "{\"features\":{\"watcher\":{\"available\":true,\"enabled\":false}}}",
-                    "{}"
-                );
+                final String responseBody = randomFrom("""
+                    {"features":{"watcher":{"available":false,"enabled":true}}}""", """
+                    {"features":{"watcher":{"available":true,"enabled":false}}}""", "{}");
 
                 enqueueResponse(webServer, 200, responseBody);
             } else {

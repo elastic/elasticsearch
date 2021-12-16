@@ -435,311 +435,306 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         );
 
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, false);
-        final String expectedJson = String.format(
-            Locale.ROOT,
-            "{"
-                + "  \"cluster_uuid\": \"_cluster\","
-                + "  \"timestamp\": \"2017-08-07T12:03:22.133Z\","
-                + "  \"interval_ms\": 1506593717631,"
-                + "  \"type\": \"cluster_stats\","
-                + "  \"source_node\": {"
-                + "    \"uuid\": \"_uuid\","
-                + "    \"host\": \"_host\","
-                + "    \"transport_address\": \"_addr\","
-                + "    \"ip\": \"_ip\","
-                + "    \"name\": \"_name\","
-                + "    \"timestamp\": \"2017-08-31T08:46:30.855Z\""
-                + "  },"
-                + "  \"cluster_name\": \"_cluster_name\","
-                + "  \"version\": \"_version\","
-                + "  \"license\": {"
-                + "    \"status\": \"expired\","
-                + "    \"uid\": \"442ca961-9c00-4bb2-b5c9-dfaacd547403\","
-                + "    \"type\": \"trial\","
-                + "    \"issue_date\": \"2016-01-01T00:00:00.000Z\","
-                + "    \"issue_date_in_millis\": 1451606400000,"
-                + "    \"expiry_date\": \"2017-08-07T12:03:22.133Z\","
-                + "    \"expiry_date_in_millis\": 1502107402133,"
-                + "    \"max_nodes\": 2,"
-                + "    \"max_resource_units\": null,"
-                + "    \"issued_to\": \"customer\","
-                + "    \"issuer\": \"elasticsearch\","
-                + "    \"start_date_in_millis\": -1%s"
-                + "  },"
-                + "  \"cluster_stats\": {"
-                + "    \"cluster_uuid\": \"_cluster\","
-                + "    \"timestamp\": 1451606400000,"
-                + "    \"status\": \"red\","
-                + "    \"indices\": {"
-                + "      \"count\": 1,"
-                + "      \"shards\": {"
-                + "        \"total\": 1,"
-                + "        \"primaries\": 1,"
-                + "        \"replication\": 0.0,"
-                + "        \"index\": {"
-                + "          \"shards\": {"
-                + "            \"min\": 1,"
-                + "            \"max\": 1,"
-                + "            \"avg\": 1.0"
-                + "          },"
-                + "          \"primaries\": {"
-                + "            \"min\": 1,"
-                + "            \"max\": 1,"
-                + "            \"avg\": 1.0"
-                + "          },"
-                + "          \"replication\": {"
-                + "            \"min\": 0.0,"
-                + "            \"max\": 0.0,"
-                + "            \"avg\": 0.0"
-                + "          }"
-                + "        }"
-                + "      },"
-                + "      \"docs\": {"
-                + "        \"count\": 0,"
-                + "        \"deleted\": 0"
-                + "      },"
-                + "      \"store\": {"
-                + "        \"size_in_bytes\": 0,"
-                + "        \"total_data_set_size_in_bytes\": 0,"
-                + "        \"reserved_in_bytes\": 0"
-                + "      },"
-                + "      \"fielddata\": {"
-                + "        \"memory_size_in_bytes\": 0,"
-                + "        \"evictions\": 0"
-                + "      },"
-                + "      \"query_cache\": {"
-                + "        \"memory_size_in_bytes\": 0,"
-                + "        \"total_count\": 0,"
-                + "        \"hit_count\": 0,"
-                + "        \"miss_count\": 0,"
-                + "        \"cache_size\": 0,"
-                + "        \"cache_count\": 0,"
-                + "        \"evictions\": 0"
-                + "      },"
-                + "      \"completion\": {"
-                + "        \"size_in_bytes\": 0"
-                + "      },"
-                + "      \"segments\": {"
-                + "        \"count\": 0,"
-                + "        \"memory_in_bytes\": 0,"
-                + "        \"terms_memory_in_bytes\": 0,"
-                + "        \"stored_fields_memory_in_bytes\": 0,"
-                + "        \"term_vectors_memory_in_bytes\": 0,"
-                + "        \"norms_memory_in_bytes\": 0,"
-                + "        \"points_memory_in_bytes\": 0,"
-                + "        \"doc_values_memory_in_bytes\": 0,"
-                + "        \"index_writer_memory_in_bytes\": 0,"
-                + "        \"version_map_memory_in_bytes\": 0,"
-                + "        \"fixed_bit_set_memory_in_bytes\": 0,"
-                + "        \"max_unsafe_auto_id_timestamp\": -9223372036854775808,"
-                + "        \"file_sizes\": {}"
-                + "      },"
-                + "      \"mappings\":{"
-                + "        \"field_types\":[],"
-                + "        \"runtime_field_types\":[]"
-                + "      },"
-                + "      \"analysis\":{"
-                + "        \"char_filter_types\":[],"
-                + "        \"tokenizer_types\":[],"
-                + "        \"filter_types\":[],"
-                + "        \"analyzer_types\":[],"
-                + "        \"built_in_char_filters\":[],"
-                + "        \"built_in_tokenizers\":[],"
-                + "        \"built_in_filters\":[],"
-                + "        \"built_in_analyzers\":[]"
-                + "      },"
-                + "      \"versions\":[]"
-                + "    },"
-                + "    \"nodes\": {"
-                + "      \"count\": {"
-                + "        \"total\": 1,"
-                + "        \"coordinating_only\": 0,"
-                + "        \"data\": 0,"
-                + "        \"data_cold\": 0,"
-                + "        \"data_content\": 0,"
-                + "        \"data_frozen\": 0,"
-                + "        \"data_hot\": 0,"
-                + "        \"data_warm\": 0,"
-                + "        \"ingest\": 0,"
-                + "        \"master\": 1,"
-                + "        \"ml\": 0,"
-                + "        \"remote_cluster_client\": 0,"
-                + "        \"transform\": 0,"
-                + "        \"voting_only\": 0"
-                + "      },"
-                + "      \"versions\": ["
-                + "        \"%s\""
-                + "      ],"
-                + "      \"os\": {"
-                + "        \"available_processors\": 32,"
-                + "        \"allocated_processors\": 16,"
-                + "        \"names\": ["
-                + "          {"
-                + "            \"name\": \"_os_name\","
-                + "            \"count\": 1"
-                + "          }"
-                + "        ],"
-                + "        \"pretty_names\": ["
-                + "          {"
-                + "            \"pretty_name\": \"_pretty_os_name\","
-                + "            \"count\": 1"
-                + "          }"
-                + "        ],"
-                + "        \"architectures\": ["
-                + "          {"
-                + "            \"arch\": \"_architecture\","
-                + "            \"count\": 1"
-                + "          }"
-                + "        ],"
-                + "        \"mem\": {"
-                + "          \"total_in_bytes\": 100,"
-                + "          \"adjusted_total_in_bytes\": 99,"
-                + "          \"free_in_bytes\": 79,"
-                + "          \"used_in_bytes\": 21,"
-                + "          \"free_percent\": 79,"
-                + "          \"used_percent\": 21"
-                + "        }"
-                + "      },"
-                + "      \"process\": {"
-                + "        \"cpu\": {"
-                + "          \"percent\": 3"
-                + "        },"
-                + "        \"open_file_descriptors\": {"
-                + "          \"min\": 42,"
-                + "          \"max\": 42,"
-                + "          \"avg\": 42"
-                + "        }"
-                + "      },"
-                + "      \"jvm\": {"
-                + "        \"max_uptime_in_millis\": 10800000,"
-                + "        \"versions\": ["
-                + "          {"
-                + "            \"version\": \"_jvm_version\","
-                + "            \"vm_name\": \"_jvm_vm_name\","
-                + "            \"vm_version\": \"_jvm_vm_version\","
-                + "            \"vm_vendor\": \"_jvm_vm_vendor\","
-                + "            \"bundled_jdk\": true,"
-                + "            \"using_bundled_jdk\": true,"
-                + "            \"count\": 1"
-                + "          }"
-                + "        ],"
-                + "        \"mem\": {"
-                + "          \"heap_used_in_bytes\": 536870912,"
-                + "          \"heap_max_in_bytes\": 25769803776"
-                + "        },"
-                + "        \"threads\": 9"
-                + "      },"
-                + "      \"fs\": {"
-                + "        \"total_in_bytes\": 100,"
-                + "        \"free_in_bytes\": 49,"
-                + "        \"available_in_bytes\": 51"
-                + "      },"
-                + "      \"plugins\": ["
-                + "        {"
-                + "          \"name\": \"_plugin\","
-                + "          \"version\": \"_plugin_version\","
-                + "          \"elasticsearch_version\": \"%s\","
-                + "          \"java_version\": \"1.8\","
-                + "          \"description\": \"_plugin_desc\","
-                + "          \"classname\": \"_plugin_class\","
-                + "          \"extended_plugins\": [],"
-                + "          \"has_native_controller\": false,"
-                + "          \"licensed\": false,"
-                + "          \"type\": \"isolated\""
-                + "        }"
-                + "      ],"
-                + "      \"network_types\": {"
-                + "        \"transport_types\": {"
-                + "          \"_transport\": 1"
-                + "        },"
-                + "        \"http_types\": {"
-                + "          \"_http\": 1"
-                + "        }"
-                + "      },"
-                + "      \"discovery_types\": {"
-                + "        \"_disco\": 1"
-                + "      },"
-                + "      \"packaging_types\": ["
-                + "        {"
-                + "          \"flavor\": \"default\","
-                + "          \"type\": \"docker\","
-                + "          \"count\": 1"
-                + "        }"
-                + "      ],"
-                + "      \"ingest\": {"
-                + "        \"number_of_pipelines\": 0,"
-                + "        \"processor_stats\": {}"
-                + "      },"
-                + "      \"indexing_pressure\": {"
-                + "         \"memory\": {"
-                + "             \"current\" :{"
-                + "                 \"combined_coordinating_and_primary_in_bytes\": 0,"
-                + "                 \"coordinating_in_bytes\": 0,"
-                + "                 \"primary_in_bytes\": 0,"
-                + "                 \"replica_in_bytes\": 0,"
-                + "                 \"all_in_bytes\": 0"
-                + "             },"
-                + "             \"total\": {"
-                + "                 \"combined_coordinating_and_primary_in_bytes\": 0,"
-                + "                 \"coordinating_in_bytes\": 0,"
-                + "                 \"primary_in_bytes\": 0,"
-                + "                 \"replica_in_bytes\": 0,"
-                + "                 \"all_in_bytes\": 0,"
-                + "                 \"coordinating_rejections\": 0,"
-                + "                 \"primary_rejections\": 0,"
-                + "                 \"replica_rejections\": 0"
-                + "             },"
-                + "             \"limit_in_bytes\": 0"
-                + "         }"
-                + "       }"
-                + "    }"
-                + "  },"
-                + "  \"cluster_state\": {"
-                + "    \"nodes_hash\": 1314980060,"
-                + "    \"status\": \"green\","
-                + "    \"cluster_uuid\": \"_cluster\","
-                + "    \"version\": 12,"
-                + "    \"state_uuid\": \"_state_uuid\","
-                + "    \"master_node\": \"_node\","
-                + "    \"nodes\": {"
-                + "      \"_node_id\": {"
-                + "        \"name\": \"_node_name\","
-                + "        \"ephemeral_id\": \"_ephemeral_id\","
-                + "        \"transport_address\": \"0.0.0.0:9300\","
-                + "        \"attributes\": {"
-                + "          \"attr\": \"value\""
-                + "        },"
-                + "        \"roles\" : ["
-                + "          \"master\""
-                + "        ]"
-                + "      }"
-                + "    }"
-                + "  },"
-                + "  \"cluster_settings\": {"
-                + "    \"cluster\": {"
-                + "      \"metadata\": {"
-                + "        \"display_name\": \"my_prod_cluster\""
-                + "      }"
-                + "    }"
-                + "  },"
-                + "  \"stack_stats\": {"
-                + "    \"apm\": {"
-                + "      \"found\": %s"
-                + "    },"
-                + "    \"xpack\": {"
-                + "      \"monitoring\": {"
-                + "        \"available\": true,"
-                + "        \"enabled\": true,"
-                + "        \"collection_enabled\": false"
-                + "      }"
-                + "    }"
-                + "  }"
-                + "}",
-            needToEnableTLS ? ",\"cluster_needs_tls\": true" : "",
-            mockNodeVersion,
-            Version.CURRENT,
-            apmIndicesExist
-        );
+        final String expectedJson = """
+            {
+              "cluster_uuid": "_cluster",
+              "timestamp": "2017-08-07T12:03:22.133Z",
+              "interval_ms": 1506593717631,
+              "type": "cluster_stats",
+              "source_node": {
+                "uuid": "_uuid",
+                "host": "_host",
+                "transport_address": "_addr",
+                "ip": "_ip",
+                "name": "_name",
+                "timestamp": "2017-08-31T08:46:30.855Z"
+              },
+              "cluster_name": "_cluster_name",
+              "version": "_version",
+              "license": {
+                "status": "expired",
+                "uid": "442ca961-9c00-4bb2-b5c9-dfaacd547403",
+                "type": "trial",
+                "issue_date": "2016-01-01T00:00:00.000Z",
+                "issue_date_in_millis": 1451606400000,
+                "expiry_date": "2017-08-07T12:03:22.133Z",
+                "expiry_date_in_millis": 1502107402133,
+                "max_nodes": 2,
+                "max_resource_units": null,
+                "issued_to": "customer",
+                "issuer": "elasticsearch",
+                "start_date_in_millis": -1
+                %s
+              },
+              "cluster_stats": {
+                "cluster_uuid": "_cluster",
+                "timestamp": 1451606400000,
+                "status": "red",
+                "indices": {
+                  "count": 1,
+                  "shards": {
+                    "total": 1,
+                    "primaries": 1,
+                    "replication": 0.0,
+                    "index": {
+                      "shards": {
+                        "min": 1,
+                        "max": 1,
+                        "avg": 1.0
+                      },
+                      "primaries": {
+                        "min": 1,
+                        "max": 1,
+                        "avg": 1.0
+                      },
+                      "replication": {
+                        "min": 0.0,
+                        "max": 0.0,
+                        "avg": 0.0
+                      }
+                    }
+                  },
+                  "docs": {
+                    "count": 0,
+                    "deleted": 0
+                  },
+                  "store": {
+                    "size_in_bytes": 0,
+                    "total_data_set_size_in_bytes": 0,
+                    "reserved_in_bytes": 0
+                  },
+                  "fielddata": {
+                    "memory_size_in_bytes": 0,
+                    "evictions": 0
+                  },
+                  "query_cache": {
+                    "memory_size_in_bytes": 0,
+                    "total_count": 0,
+                    "hit_count": 0,
+                    "miss_count": 0,
+                    "cache_size": 0,
+                    "cache_count": 0,
+                    "evictions": 0
+                  },
+                  "completion": {
+                    "size_in_bytes": 0
+                  },
+                  "segments": {
+                    "count": 0,
+                    "memory_in_bytes": 0,
+                    "terms_memory_in_bytes": 0,
+                    "stored_fields_memory_in_bytes": 0,
+                    "term_vectors_memory_in_bytes": 0,
+                    "norms_memory_in_bytes": 0,
+                    "points_memory_in_bytes": 0,
+                    "doc_values_memory_in_bytes": 0,
+                    "index_writer_memory_in_bytes": 0,
+                    "version_map_memory_in_bytes": 0,
+                    "fixed_bit_set_memory_in_bytes": 0,
+                    "max_unsafe_auto_id_timestamp": -9223372036854775808,
+                    "file_sizes": {}
+                  },
+                  "mappings": {
+                    "field_types": [],
+                    "runtime_field_types": []
+                  },
+                  "analysis": {
+                    "char_filter_types": [],
+                    "tokenizer_types": [],
+                    "filter_types": [],
+                    "analyzer_types": [],
+                    "built_in_char_filters": [],
+                    "built_in_tokenizers": [],
+                    "built_in_filters": [],
+                    "built_in_analyzers": []
+                  },
+                  "versions": []
+                },
+                "nodes": {
+                  "count": {
+                    "total": 1,
+                    "coordinating_only": 0,
+                    "data": 0,
+                    "data_cold": 0,
+                    "data_content": 0,
+                    "data_frozen": 0,
+                    "data_hot": 0,
+                    "data_warm": 0,
+                    "ingest": 0,
+                    "master": 1,
+                    "ml": 0,
+                    "remote_cluster_client": 0,
+                    "transform": 0,
+                    "voting_only": 0
+                  },
+                  "versions": [
+                    "%s"
+                  ],
+                  "os": {
+                    "available_processors": 32,
+                    "allocated_processors": 16,
+                    "names": [
+                      {
+                        "name": "_os_name",
+                        "count": 1
+                      }
+                    ],
+                    "pretty_names": [
+                      {
+                        "pretty_name": "_pretty_os_name",
+                        "count": 1
+                      }
+                    ],
+                    "architectures": [
+                      {
+                        "arch": "_architecture",
+                        "count": 1
+                      }
+                    ],
+                    "mem": {
+                      "total_in_bytes": 100,
+                      "adjusted_total_in_bytes": 99,
+                      "free_in_bytes": 79,
+                      "used_in_bytes": 21,
+                      "free_percent": 79,
+                      "used_percent": 21
+                    }
+                  },
+                  "process": {
+                    "cpu": {
+                      "percent": 3
+                    },
+                    "open_file_descriptors": {
+                      "min": 42,
+                      "max": 42,
+                      "avg": 42
+                    }
+                  },
+                  "jvm": {
+                    "max_uptime_in_millis": 10800000,
+                    "versions": [
+                      {
+                        "version": "_jvm_version",
+                        "vm_name": "_jvm_vm_name",
+                        "vm_version": "_jvm_vm_version",
+                        "vm_vendor": "_jvm_vm_vendor",
+                        "bundled_jdk": true,
+                        "using_bundled_jdk": true,
+                        "count": 1
+                      }
+                    ],
+                    "mem": {
+                      "heap_used_in_bytes": 536870912,
+                      "heap_max_in_bytes": 25769803776
+                    },
+                    "threads": 9
+                  },
+                  "fs": {
+                    "total_in_bytes": 100,
+                    "free_in_bytes": 49,
+                    "available_in_bytes": 51
+                  },
+                  "plugins": [
+                    {
+                      "name": "_plugin",
+                      "version": "_plugin_version",
+                      "elasticsearch_version": "%s",
+                      "java_version": "1.8",
+                      "description": "_plugin_desc",
+                      "classname": "_plugin_class",
+                      "extended_plugins": [],
+                      "has_native_controller": false,
+                      "licensed": false,
+                      "type": "isolated"
+                    }
+                  ],
+                  "network_types": {
+                    "transport_types": {
+                      "_transport": 1
+                    },
+                    "http_types": {
+                      "_http": 1
+                    }
+                  },
+                  "discovery_types": {
+                    "_disco": 1
+                  },
+                  "packaging_types": [
+                    {
+                      "flavor": "default",
+                      "type": "docker",
+                      "count": 1
+                    }
+                  ],
+                  "ingest": {
+                    "number_of_pipelines": 0,
+                    "processor_stats": {}
+                  },
+                  "indexing_pressure": {
+                    "memory": {
+                      "current": {
+                        "combined_coordinating_and_primary_in_bytes": 0,
+                        "coordinating_in_bytes": 0,
+                        "primary_in_bytes": 0,
+                        "replica_in_bytes": 0,
+                        "all_in_bytes": 0
+                      },
+                      "total": {
+                        "combined_coordinating_and_primary_in_bytes": 0,
+                        "coordinating_in_bytes": 0,
+                        "primary_in_bytes": 0,
+                        "replica_in_bytes": 0,
+                        "all_in_bytes": 0,
+                        "coordinating_rejections": 0,
+                        "primary_rejections": 0,
+                        "replica_rejections": 0
+                      },
+                      "limit_in_bytes": 0
+                    }
+                  }
+                }
+              },
+              "cluster_state": {
+                "nodes_hash": 1314980060,
+                "status": "green",
+                "cluster_uuid": "_cluster",
+                "version": 12,
+                "state_uuid": "_state_uuid",
+                "master_node": "_node",
+                "nodes": {
+                  "_node_id": {
+                    "name": "_node_name",
+                    "ephemeral_id": "_ephemeral_id",
+                    "transport_address": "0.0.0.0:9300",
+                    "attributes": {
+                      "attr": "value"
+                    },
+                    "roles": [
+                      "master"
+                    ]
+                  }
+                }
+              },
+              "cluster_settings": {
+                "cluster": {
+                  "metadata": {
+                    "display_name": "my_prod_cluster"
+                  }
+                }
+              },
+              "stack_stats": {
+                "apm": {
+                  "found": %s
+                },
+                "xpack": {
+                  "monitoring": {
+                    "available": true,
+                    "enabled": true,
+                    "collection_enabled": false
+                  }
+                }
+              }
+            }""".formatted(needToEnableTLS ? ",\"cluster_needs_tls\": true" : "", mockNodeVersion, Version.CURRENT, apmIndicesExist);
         assertEquals(stripWhitespace(expectedJson), xContent.utf8ToString());
     }
 

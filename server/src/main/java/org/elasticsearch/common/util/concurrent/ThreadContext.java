@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -40,6 +39,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
+import static org.elasticsearch.tasks.Task.HEADERS_TO_COPY;
 
 /**
  * A ThreadContext is a map of string headers and a transient map of keyed objects that are associated with
@@ -110,14 +110,8 @@ public final class ThreadContext implements Writeable {
          * Otherwise when context is stash, it should be empty.
          */
 
-        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID) || context.requestHeaders.containsKey(Task.TRACE_ID)) {
-            Map<String, String> map = new HashMap<>(2, 1);
-            if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
-                map.put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID));
-            }
-            if (context.requestHeaders.containsKey(Task.TRACE_ID)) {
-                map.put(Task.TRACE_ID, context.requestHeaders.get(Task.TRACE_ID));
-            }
+        if (HEADERS_TO_COPY.stream().anyMatch(header -> context.requestHeaders.containsKey(header))) {
+            Map<String, String> map = headers(context, HEADERS_TO_COPY);
             ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putHeaders(map);
             threadLocal.set(threadContextStruct);
         } else {
@@ -129,6 +123,16 @@ public final class ThreadContext implements Writeable {
             // uncaught exception
             threadLocal.set(context);
         };
+    }
+
+    private Map<String, String> headers(ThreadContextStruct context, Set<String> headersToCopy) {
+        Map<String, String> map = new HashMap<>(headersToCopy.size(), 1);
+        for (String header : headersToCopy) {
+            if (context.requestHeaders.containsKey(header)) {
+                map.put(header, context.requestHeaders.get(header));
+            }
+        }
+        return map;
     }
 
     /**

@@ -11,7 +11,7 @@ package org.elasticsearch.index.fielddata;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.fielddata.ScriptDocValues.GeoPoints;
-import org.elasticsearch.index.fielddata.ScriptDocValues.GeoPointsSupplier;
+import org.elasticsearch.script.field.GeoPointDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -63,7 +63,7 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
 
         GeoPoint[][] points = { { new GeoPoint(lat1, lon1), new GeoPoint(lat2, lon2) } };
         final MultiGeoPointValues values = wrap(points);
-        final ScriptDocValues.GeoPoints script = new ScriptDocValues.GeoPoints(new GeoPointsSupplier(values));
+        final ScriptDocValues.GeoPoints script = (GeoPoints) new GeoPointDocValuesField(values, "test").getScriptDocValues();
 
         script.getSupplier().setNextDocId(1);
         assertEquals(true, script.isEmpty());
@@ -81,11 +81,11 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
         final double lon = randomLon();
         GeoPoint[][] points = { { new GeoPoint(lat, lon) } };
         final MultiGeoPointValues values = wrap(points);
-        final ScriptDocValues.GeoPoints script = new ScriptDocValues.GeoPoints(new GeoPointsSupplier(values));
+        final ScriptDocValues.GeoPoints script = (GeoPoints) new GeoPointDocValuesField(values, "test").getScriptDocValues();
         script.getSupplier().setNextDocId(0);
 
         GeoPoint[][] points2 = { new GeoPoint[0] };
-        final ScriptDocValues.GeoPoints emptyScript = new ScriptDocValues.GeoPoints(new GeoPointsSupplier(wrap(points2)));
+        final ScriptDocValues.GeoPoints emptyScript = (GeoPoints) new GeoPointDocValuesField(wrap(points2), "test").getScriptDocValues();
         emptyScript.getSupplier().setNextDocId(0);
 
         final double otherLat = randomLat();
@@ -116,7 +116,7 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
                 points[d][i] = new GeoPoint(randomLat(), randomLon());
             }
         }
-        final ScriptDocValues.GeoPoints geoPoints = new GeoPoints(new GeoPointsSupplier(wrap(points)));
+        final ScriptDocValues.GeoPoints geoPoints = (GeoPoints) new GeoPointDocValuesField(wrap(points), "test").getScriptDocValues();
         for (int d = 0; d < points.length; d++) {
             geoPoints.getSupplier().setNextDocId(d);
             if (points[d].length > 0) {

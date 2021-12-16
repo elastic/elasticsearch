@@ -193,7 +193,8 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         ClusterState clusterState = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("index-name", "0.0"));
         ElasticsearchMappings.addDocMappingIfMissing(
             "index-name",
-            () -> "{\"_doc\":{\"properties\":{\"some-field\":{\"type\":\"long\"}}}}",
+            () -> """
+                {"_doc":{"properties":{"some-field":{"type":"long"}}}}""",
             client,
             clusterState,
             MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
@@ -207,7 +208,8 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
         PutMappingRequest request = requestCaptor.getValue();
         assertThat(request.indices(), equalTo(new String[] { "index-name" }));
-        assertThat(request.source(), equalTo("{\"_doc\":{\"properties\":{\"some-field\":{\"type\":\"long\"}}}}"));
+        assertThat(request.source(), equalTo("""
+            {"_doc":{"properties":{"some-field":{"type":"long"}}}}"""));
     }
 
     private ClusterState getClusterStateWithMappingsWithMetadata(Map<String, Object> namesAndVersions) {

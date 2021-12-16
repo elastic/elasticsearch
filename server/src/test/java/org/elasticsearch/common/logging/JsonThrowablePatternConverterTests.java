@@ -17,6 +17,7 @@ import org.hamcrest.Matchers;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -36,26 +37,18 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
     }
 
     public void testStacktraceWithJson() throws IOException {
-
-        String json = "{"
-            + LINE_SEPARATOR
-            + "  \"terms\" : {"
-            + LINE_SEPARATOR
-            + "    \"user\" : ["
-            + LINE_SEPARATOR
-            + "      \"u1\","
-            + LINE_SEPARATOR
-            + "      \"u2\","
-            + LINE_SEPARATOR
-            + "      \"u3\""
-            + LINE_SEPARATOR
-            + "    ],"
-            + LINE_SEPARATOR
-            + "    \"boost\" : 1.0"
-            + LINE_SEPARATOR
-            + "  }"
-            + LINE_SEPARATOR
-            + "}";
+        String json = """
+            {
+              "terms": {
+                "user": [
+                  "u1",
+                  "u2",
+                  "u3"
+                ],
+                "boost": 1.0
+              }
+            }\
+            """.lines().collect(Collectors.joining(LINE_SEPARATOR));
         Exception thrown = new Exception(json);
         LogEvent event = Log4jLogEvent.newBuilder().setMessage(new SimpleMessage("message")).setThrown(thrown).build();
 

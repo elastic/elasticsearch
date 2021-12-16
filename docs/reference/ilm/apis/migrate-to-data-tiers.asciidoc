@@ -16,11 +16,11 @@ as indicated in the <<migrate-index-allocation-filters, Migrate index allocation
 filters to node roles>> page.
 
 This API provides an automated way of executing three out of the four manual steps listed
-in the <<data-tier-migration, migration guide>>:
+in the <<migrate-index-allocation-filters, migration guide>>:
 
 . <<stop-setting-custom-hot-attribute, Stop setting the custom hot attribute on new indices>>
 . <<remove-custom-allocation-settings, Remove custom allocation settings from existing {ilm-init} policies>>
-. <<set-tier-preference, Replace custom allocation settings from existing indices>> with the corresponding <<data-tier-shard-filtering,tier preference>>
+. <<set-tier-preference, Replace custom allocation settings from existing indices>> with the corresponding <<tier-preference-allocation-filter,tier preference>>
 
 [[ilm-migrate-to-data-tiers-request]]
 ==== {api-request-title}
@@ -137,4 +137,4 @@ If the request succeeds, a response like the following will be received:
 <1> Shows the name of the legacy index template that was deleted. This will be missing
 if no legacy index template was deleted.
 <2> The ILM policies that were updated.
-<3> The indices that were migrated to <<data-tier-shard-filtering,tier preference>> routing.
+<3> The indices that were migrated to <<tier-preference-allocation-filter,tier preference>> routing.

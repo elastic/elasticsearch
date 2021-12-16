@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -109,38 +110,59 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
         listener.buildResponse(response, builder);
 
         String json = Strings.toString(builder);
-        assertThat(
-            json,
-            equalTo(
-                "{"
-                    + "\"cluster\":[\"monitor\",\"manage_ml\",\"manage_watcher\"],"
-                    + "\"global\":["
-                    + "{\"application\":{\"manage\":{\"applications\":[\"app01\",\"app02\"]}}}"
-                    + "],"
-                    + "\"indices\":["
-                    + "{\"names\":[\"index-1\",\"index-2\",\"index-3-*\"],"
-                    + "\"privileges\":[\"read\",\"write\"],"
-                    + "\"field_security\":["
-                    + "{\"grant\":[\"*\"],\"except\":[\"private.*\"]},"
-                    + "{\"grant\":[\"public.*\"]}"
-                    + "],"
-                    + "\"query\":["
-                    + "\"{ \\\"term\\\": { \\\"access\\\": \\\"public\\\" } }\","
-                    + "\"{ \\\"term\\\": { \\\"access\\\": \\\"standard\\\" } }\""
-                    + "],"
-                    + "\"allow_restricted_indices\":false"
-                    + "},"
-                    + "{\"names\":[\"index-4\"],\"privileges\":[\"all\"],\"allow_restricted_indices\":true}"
-                    + "],"
-                    + "\"applications\":["
-                    + "{\"application\":\"app01\",\"privileges\":[\"read\",\"write\"],\"resources\":[\"*\"]},"
-                    + "{\"application\":\"app01\",\"privileges\":[\"admin\"],\"resources\":[\"department/1\"]},"
-                    + "{\"application\":\"app02\",\"privileges\":[\"all\"],\"resources\":[\"tenant/42\",\"tenant/99\"]}"
-                    + "],"
-                    + "\"run_as\":[\"app-user-*\",\"backup-user\"]"
-                    + "}"
-            )
-        );
+        assertThat(json, equalTo(XContentHelper.stripWhitespace("""
+            {
+              "cluster": [ "monitor", "manage_ml", "manage_watcher" ],
+              "global": [
+                {
+                  "application": {
+                    "manage": {
+                      "applications": [ "app01", "app02" ]
+                    }
+                  }
+                }
+              ],
+              "indices": [
+                {
+                  "names": [ "index-1", "index-2", "index-3-*" ],
+                  "privileges": [ "read", "write" ],
+                  "field_security": [
+                    {
+                      "grant": [ "*" ],
+                      "except": [ "private.*" ]
+                    },
+                    {
+                      "grant": [ "public.*" ]
+                    }
+                  ],
+                  "query": [ "{ \\"term\\": { \\"access\\": \\"public\\" } }", "{ \\"term\\": { \\"access\\": \\"standard\\" } }" ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [ "index-4" ],
+                  "privileges": [ "all" ],
+                  "allow_restricted_indices": true
+                }
+              ],
+              "applications": [
+                {
+                  "application": "app01",
+                  "privileges": [ "read", "write" ],
+                  "resources": [ "*" ]
+                },
+                {
+                  "application": "app01",
+                  "privileges": [ "admin" ],
+                  "resources": [ "department/1" ]
+                },
+                {
+                  "application": "app02",
+                  "privileges": [ "all" ],
+                  "resources": [ "tenant/42", "tenant/99" ]
+                }
+              ],
+              "run_as": [ "app-user-*", "backup-user" ]
+            }""")));
     }
 
 }

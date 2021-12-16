@@ -58,8 +58,7 @@ public class TestMatchers extends Matchers {
             @Override
             public void describeMismatch(Object item, Description description) {
                 super.describeMismatch(item, description);
-                if (item instanceof Throwable) {
-                    Throwable e = (Throwable) item;
+                if (item instanceof Throwable e) {
                     final StackTraceElement at = e.getStackTrace()[0];
                     description.appendText(" at ").appendText(at.toString());
                 }

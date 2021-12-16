@@ -96,7 +96,8 @@ public class XContentBuilderTests extends ESTestCase {
             xContentBuilder.startObject();
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.endObject();
-            assertThat(Strings.toString(xContentBuilder), equalTo("{\"foo\":{\"test\":\"value\"}}"));
+            assertThat(Strings.toString(xContentBuilder), equalTo("""
+                {"foo":{"test":"value"}}"""));
         }
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -104,7 +105,8 @@ public class XContentBuilderTests extends ESTestCase {
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.rawField("foo1", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.endObject();
-            assertThat(Strings.toString(xContentBuilder), equalTo("{\"foo\":{\"test\":\"value\"},\"foo1\":{\"test\":\"value\"}}"));
+            assertThat(Strings.toString(xContentBuilder), equalTo("""
+                {"foo":{"test":"value"},"foo1":{"test":"value"}}"""));
         }
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -112,7 +114,8 @@ public class XContentBuilderTests extends ESTestCase {
             xContentBuilder.field("test", "value");
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.endObject();
-            assertThat(Strings.toString(xContentBuilder), equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"}}"));
+            assertThat(Strings.toString(xContentBuilder), equalTo("""
+                {"test":"value","foo":{"test":"value"}}"""));
         }
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -121,10 +124,8 @@ public class XContentBuilderTests extends ESTestCase {
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.field("test1", "value1");
             xContentBuilder.endObject();
-            assertThat(
-                Strings.toString(xContentBuilder),
-                equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"test1\":\"value1\"}")
-            );
+            assertThat(Strings.toString(xContentBuilder), equalTo("""
+                {"test":"value","foo":{"test":"value"},"test1":"value1"}"""));
         }
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -134,10 +135,8 @@ public class XContentBuilderTests extends ESTestCase {
             xContentBuilder.rawField("foo1", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.field("test1", "value1");
             xContentBuilder.endObject();
-            assertThat(
-                Strings.toString(xContentBuilder),
-                equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"foo1\":{\"test\":\"value\"},\"test1\":\"value1\"}")
-            );
+            assertThat(Strings.toString(xContentBuilder), equalTo("""
+                {"test":"value","foo":{"test":"value"},"foo1":{"test":"value"},"test1":"value1"}"""));
         }
     }
 
@@ -170,7 +169,8 @@ public class XContentBuilderTests extends ESTestCase {
         gen.close();
 
         String sData = bos.bytes().utf8ToString();
-        assertThat(sData, equalTo("{\"name\":\"something\", source : { test : \"value\" },\"name2\":\"something2\"}"));
+        assertThat(sData, equalTo("""
+            {"name":"something", source : { test : "value" },"name2":"something2"}"""));
     }
 
     public void testByteConversion() throws Exception {
@@ -311,19 +311,36 @@ public class XContentBuilderTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
         builder.startObject().field("test", "foo").startObject("foo").field("foobar", "boom").endObject().endObject();
         String string = Strings.toString(builder);
-        assertEquals("{\n" + "  \"test\" : \"foo\",\n" + "  \"foo\" : {\n" + "    \"foobar\" : \"boom\"\n" + "  }\n" + "}", string);
+        assertEquals("""
+            {
+              "test" : "foo",
+              "foo" : {
+                "foobar" : "boom"
+              }
+            }""", string);
 
         builder = XContentFactory.contentBuilder(XContentType.YAML).prettyPrint();
         builder.startObject().field("test", "foo").startObject("foo").field("foobar", "boom").endObject().endObject();
         string = Strings.toString(builder);
-        assertEquals("---\n" + "test: \"foo\"\n" + "foo:\n" + "  foobar: \"boom\"\n", string);
+        assertEquals("""
+            ---
+            test: "foo"
+            foo:
+              foobar: "boom"
+            """, string);
     }
 
     public void testRenderGeoPoint() throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
         builder.startObject().field("foo").value(new GeoPoint(1, 2)).endObject();
         String string = Strings.toString(builder);
-        assertEquals("{\n" + "  \"foo\" : {\n" + "    \"lat\" : 1.0,\n" + "    \"lon\" : 2.0\n" + "  }\n" + "}", string.trim());
+        assertEquals("""
+            {
+              "foo" : {
+                "lat" : 1.0,
+                "lon" : 2.0
+              }
+            }""", string.trim());
     }
 
     public void testWriteMapWithNullKeys() throws IOException {

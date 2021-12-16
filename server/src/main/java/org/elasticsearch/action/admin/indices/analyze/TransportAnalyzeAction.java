@@ -140,14 +140,14 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
 
         IndexSettings settings = indexService == null ? null : indexService.getIndexSettings();
 
-        AnalysisPipeline pipeline = analysisRegistry.buildAnalyzerPipeline(
+        AnalysisPipeline pipeline = null; /*analysisRegistry.buildAnalyzerPipeline(
             settings,
             request.tokenizer(),
             request.charFilters(),
             request.tokenFilters()
-        );
+        );*/
 
-        if (pipeline != null) {
+        if (pipeline != null && false) {
             if (request.explain()) {
                 DetailedPipelineAnalysisPackage detailedAnalysis = pipeline.details(
                     request.field(),

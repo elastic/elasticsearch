@@ -5,10 +5,10 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.index.mapper;
+
+package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -19,12 +19,11 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TestStableAnalysisPluginIT extends ESIntegTestCase {
-
+public class TestStableAnalysisPluginAPIIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
-            AnalysisStempelPlugin.class
+            DemoAnalysisPlugin.class
         );
     }
 
@@ -89,7 +88,7 @@ public class TestStableAnalysisPluginIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareCreate(index));
 
-        for (String filter : List.of("demo", "demo_legacy", "demo")) {
+        for (String filter : List.of("demo_legacy", "demo")) {
             for (AnalysisTestcases testcase : testCases) {
                 AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index).tokenizer("standard")
                     .addTokenFilter("lowercase")
@@ -155,6 +154,31 @@ public class TestStableAnalysisPluginIT extends ESIntegTestCase {
                     assertEquals(testcase.tokens[i].getEndOffset(), finalTokens[i].getEndOffset());
                     assertEquals(testcase.tokens[i].getPosition(), finalTokens[i].getPosition());
                     assertEquals(testcase.tokens[i].getPositionLength(), finalTokens[i].getPositionLength());
+                }
+            }
+        }
+    }
+
+    public void testBasicUsageNormalizers() {
+        String index = "foo";
+
+        assertAcked(client().admin().indices().prepareCreate(index));
+
+        for (String filter : List.of("demo_legacy", "demo")) {
+            for (AnalysisTestcases testcase : testCases) {
+                AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index)
+                    .addTokenFilter("lowercase")
+                    .addTokenFilter(filter)
+                    .addTokenFilter("uppercase")
+                    .text(testcase.phrases);
+
+                AnalyzeAction.Response result = client().admin().indices().analyze(analyzeRequest).actionGet();
+
+                assertFalse(result.getTokens().isEmpty());
+                assertEquals(2, result.getTokens().size());
+
+                for (int i = 0; i < result.getTokens().size(); i++) {
+                    assertThat(testcase.tokens[i], equalTo(result.getTokens().get(i)));
                 }
             }
         }

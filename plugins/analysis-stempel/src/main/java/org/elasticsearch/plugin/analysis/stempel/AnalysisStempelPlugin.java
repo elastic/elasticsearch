@@ -13,15 +13,12 @@ import org.apache.lucene.analysis.core.UpperCaseFilter;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.pl.DemoIteratorFactory;
-import org.elasticsearch.index.analysis.pl.DemoTokenFilterFactory;
 import org.elasticsearch.index.analysis.pl.PolishAnalyzerProvider;
 import org.elasticsearch.index.analysis.pl.PolishStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.pl.PolishStopTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.analysis.AnalysisIteratorFactory;
 
 import java.util.List;
 import java.util.Map;
@@ -33,18 +30,12 @@ public class AnalysisStempelPlugin extends Plugin implements AnalysisPlugin {
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
         return Map.of(
             "polish_stem", PolishStemTokenFilterFactory::new,
-            "polish_stop", PolishStopTokenFilterFactory::new,
-            "demo_legacy", DemoTokenFilterFactory::new);
+            "polish_stop", PolishStopTokenFilterFactory::new);
     }
 
     @Override
     public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
         return singletonMap("polish", PolishAnalyzerProvider::new);
-    }
-
-    @Override
-    public Map<String, AnalysisProvider<AnalysisIteratorFactory>> getIterators() {
-        return singletonMap("demo", DemoIteratorFactory::new);
     }
 
     @Override

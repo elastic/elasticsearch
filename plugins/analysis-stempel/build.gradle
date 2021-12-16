@@ -7,7 +7,6 @@
  */
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The Stempel (Polish) Analysis plugin integrates Lucene stempel (polish) analysis module into elasticsearch.'

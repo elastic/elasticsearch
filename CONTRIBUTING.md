@@ -299,7 +299,7 @@ Please follow these formatting guidelines:
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause
   the build to fail.
 * If *absolutely* necessary, you can disable formatting for regions of code
-  with the `// @formatter:off` and `// @formatter:on` directives, but
+  with the `// tag::noformat` and `// end::noformat` directives, but
   only do this where the benefit clearly outweighs the decrease in formatting
   consistency.
 * Note that Javadoc and block comments i.e. `/* ... */` are not formatted,

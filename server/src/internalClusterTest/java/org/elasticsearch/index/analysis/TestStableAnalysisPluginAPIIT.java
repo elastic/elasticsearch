@@ -206,4 +206,50 @@ public class TestStableAnalysisPluginAPIIT extends ESIntegTestCase {
             }
         }
     }
+
+    public void testDetailUsageNormalizers() {
+        String index = "foo";
+
+        assertAcked(client().admin().indices().prepareCreate(index));
+
+        for (String filter : List.of("demo_legacy_normalizer", "demo_normalizer")) {
+            for (AnalysisTestcases testcase : normalizerTestcases) {
+                AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index)
+                    .addTokenFilter("lowercase")
+                    .addTokenFilter(filter)
+                    .addTokenFilter("uppercase")
+                    .explain(true)
+                    .text(testcase.phrases);
+
+                AnalyzeAction.Response result = client().admin().indices().analyze(analyzeRequest).actionGet();
+
+                assertNull(result.getTokens());
+                assertEquals("keyword", result.detail().tokenizer().getName());
+
+                int numTokens = testcase.phrases.length;
+                assertEquals(numTokens, result.detail().tokenizer().getTokens().length);
+                assertEquals(3, result.detail().tokenfilters().length);
+                assertEquals(numTokens, result.detail().tokenfilters()[0].getTokens().length);
+
+                int filterCount = result.detail().tokenfilters().length;
+                AnalyzeAction.AnalyzeToken[] finalTokens = result.detail().tokenfilters()[filterCount-1].getTokens();
+                assertEquals(2, finalTokens.length);
+
+                for (int i = 0; i < finalTokens.length; i++) {
+                    assertEquals(3, finalTokens[i].getAttributes().size());
+
+                    assertEquals(testcase.tokens[i].getPositionLength(), finalTokens[i].getAttributes().get("positionLength"));
+                    assertEquals(1, finalTokens[i].getAttributes().get("termFrequency"));
+                    assertTrue(finalTokens[i].getAttributes().get("bytes") instanceof String);
+                    assertTrue(((String)finalTokens[i].getAttributes().get("bytes")).length() > 0);
+
+                    assertEquals(testcase.tokens[i].getTerm(), finalTokens[i].getTerm());
+                    assertEquals(testcase.tokens[i].getStartOffset(), finalTokens[i].getStartOffset());
+                    assertEquals(testcase.tokens[i].getEndOffset(), finalTokens[i].getEndOffset());
+                    assertEquals(testcase.tokens[i].getPosition(), finalTokens[i].getPosition());
+                    assertEquals(testcase.tokens[i].getPositionLength(), finalTokens[i].getPositionLength());
+                }
+            }
+        }
+    }
 }

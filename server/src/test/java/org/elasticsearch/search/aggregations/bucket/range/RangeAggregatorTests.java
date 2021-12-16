@@ -121,6 +121,55 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/81749")
+    public void testFloatRangeKeys() throws IOException {
+        final String fieldName = "test";
+        MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.FLOAT);
+        testCase(
+            new RangeAggregationBuilder("0").field(fieldName).addRange(5, 6).addRange(6, 10.6).keyed(true),
+            new MatchAllDocsQuery(),
+            iw -> {
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, NumericUtils.floatToSortableInt(10))));
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, NumericUtils.floatToSortableInt(5.5F))));
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, NumericUtils.floatToSortableInt(6.7F))));
+            },
+            result -> {
+                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals("5.0-6.0", ranges.get(0).getKeyAsString());
+                assertEquals("6.0-10.6", ranges.get(1).getKeyAsString());
+                assertEquals(1, ranges.get(0).getDocCount());
+                assertEquals(2, ranges.get(1).getDocCount());
+            },
+            field
+        );
+    }
+
+    public void testDoubleRangeKeys() throws IOException {
+        final String fieldName = "test";
+        MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.DOUBLE);
+        testCase(
+            new RangeAggregationBuilder("0").field(fieldName).addRange(5, 6).addRange(6, 10.6).keyed(true),
+            new MatchAllDocsQuery(),
+            iw -> {
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, NumericUtils.doubleToSortableLong(10))));
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, NumericUtils.doubleToSortableLong(5.5D))));
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, NumericUtils.doubleToSortableLong(6.7D))));
+            },
+            result -> {
+                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals("5.0-6.0", ranges.get(0).getKeyAsString());
+                assertEquals("6.0-10.6", ranges.get(1).getKeyAsString());
+                assertEquals(1, ranges.get(0).getDocCount());
+                assertEquals(2, ranges.get(1).getDocCount());
+            },
+            field
+        );
+    }
+
     /**
      * Confirm that a non-representable decimal stored as a float correctly follows the half-open interval rule
      */

@@ -22,6 +22,7 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -108,10 +109,10 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
         // Create pipeline
         Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/my_pipeline");
-        putPipelineRequest.setJsonEntity("""
+        putPipelineRequest.setJsonEntity(String.format(Locale.ROOT, """
             {
               "processors": [ { "enrich": { "policy_name": "my_policy", "field": "%s", "target_field": "entry" } } ]
-            }""".formatted(field));
+            }""", field));
         assertOK(client().performRequest(putPipelineRequest));
 
         // Index document using pipeline with enrich processor:
@@ -248,7 +249,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     }
 
     public static String createSourceIndexMapping() {
-        return """
+        return String.format(Locale.ROOT, """
             "properties": {
                 "host": {
                   "type": "keyword"
@@ -282,7 +283,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
                   "type": "ip_range"
                 }
               }
-            """.formatted(randomBoolean() ? "" : ", \"format\": \"yyyy-MM-dd\"");
+            """, randomBoolean() ? "" : ", \"format\": \"yyyy-MM-dd\"");
     }
 
     protected static Map<String, Object> toMap(Response response) throws IOException {

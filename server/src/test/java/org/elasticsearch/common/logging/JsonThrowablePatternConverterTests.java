@@ -47,7 +47,7 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
                 "boost": 1.0
               }
             }\
-            """.lines().collect(Collectors.joining(System.lineSeparator()));
+            """.lines().collect(Collectors.joining(LINE_SEPARATOR));
         Exception thrown = new Exception(json);
         LogEvent event = Log4jLogEvent.newBuilder().setMessage(new SimpleMessage("message")).setThrown(thrown).build();
 

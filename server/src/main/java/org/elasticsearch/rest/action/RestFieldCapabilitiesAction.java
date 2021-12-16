@@ -14,6 +14,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.search.CCSVersionCheckHelper;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -55,6 +56,7 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
                 PARSER.parse(parser, fieldRequest, null);
             }
         });
+        CCSVersionCheckHelper.checkCCSVersionCompatibility(request, fieldRequest);
         return channel -> client.fieldCaps(fieldRequest, new RestToXContentListener<>(channel));
     }
 

@@ -248,7 +248,17 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     @Override
     protected void updateRemoteCluster(String clusterAlias, Settings settings) {
         CountDownLatch latch = new CountDownLatch(1);
-        updateRemoteCluster(clusterAlias, settings, ActionListener.wrap(latch::countDown));
+        updateRemoteCluster(clusterAlias, settings, ActionListener.runAfter(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void o) {
+                logger.debug("connected to new remote cluster {}", clusterAlias);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug("connection to new remote cluster {} failed", clusterAlias);
+            }
+        }, latch::countDown));
 
         try {
             // Wait 10 seconds for a connections. We must use a latch instead of a future because we

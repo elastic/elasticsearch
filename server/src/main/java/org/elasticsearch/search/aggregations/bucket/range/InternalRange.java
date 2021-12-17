@@ -52,7 +52,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         ) {
             this.keyed = keyed;
             this.format = format;
-            this.key = key;
+            this.key = key != null ? key : generateKey(from, to, format);;
             this.from = from;
             this.to = to;
             this.docCount = docCount;
@@ -144,6 +144,13 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
+        }
+
+        private static String generateKey(double from, double to, DocValueFormat format) {
+            StringBuilder builder = new StringBuilder().append(Double.isInfinite(from) ? "*" : format.format(from))
+                .append("-")
+                .append(Double.isInfinite(to) ? "*" : format.format(to));
+            return builder.toString();
         }
 
         @Override

@@ -66,13 +66,6 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         return rangeFactory.getValueSourceType();
     }
 
-    protected String generateRangeKey(double from, double to, DocValueFormat format) {
-        StringBuilder builder = new StringBuilder().append(Double.isInfinite(from) ? "*" : format.format(from))
-            .append("-")
-            .append(Double.isInfinite(to) ? "*" : format.format(to));
-        return builder.toString();
-    }
-
     /**
      * Resolve any strings in the ranges so we have a number value for the from
      * and to of each range. The ranges are also sorted before being returned.

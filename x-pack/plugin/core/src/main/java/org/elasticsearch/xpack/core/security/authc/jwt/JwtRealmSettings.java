@@ -46,11 +46,7 @@ public class JwtRealmSettings {
         "PS512"
     );
 
-    public static final List<String> SUPPORTED_CLIENT_AUTHENTICATION_TYPE = List.of(
-        "sharedsecret",
-        "ssl",
-        "none"
-    );
+    public static final List<String> SUPPORTED_CLIENT_AUTHENTICATION_TYPE = List.of("sharedsecret", "ssl", "none");
 
     // All settings
 
@@ -59,52 +55,48 @@ public class JwtRealmSettings {
         // Standard realm settings: order, enabled
         set.addAll(RealmSettings.getStandardSettings(TYPE));
         // JWT Issuer settings
-        set.addAll(List.of(
-            ALLOWED_ISSUER,
-            ALLOWED_SIGNATURE_ALGORITHMS,
-            ALLOWED_CLOCK_SKEW,
-            JWKSET_PATH
-        ));
+        set.addAll(List.of(ALLOWED_ISSUER, ALLOWED_SIGNATURE_ALGORITHMS, ALLOWED_CLOCK_SKEW, JWKSET_PATH));
         // JWT Audience settings
-        set.addAll(List.of(
-            ALLOWED_AUDIENCES
-        ));
+        set.addAll(List.of(ALLOWED_AUDIENCES));
         // JWT End-user settings
-        set.addAll(List.of(
-            PRINCIPAL_CLAIM.getClaim(),
-            PRINCIPAL_CLAIM.getPattern(),
-            GROUPS_CLAIM.getClaim(),
-            GROUPS_CLAIM.getPattern(),
-            POPULATE_USER_METADATA
-        ));
+        set.addAll(
+            List.of(
+                PRINCIPAL_CLAIM.getClaim(),
+                PRINCIPAL_CLAIM.getPattern(),
+                GROUPS_CLAIM.getClaim(),
+                GROUPS_CLAIM.getPattern(),
+                POPULATE_USER_METADATA
+            )
+        );
         // Client TLS settings for incoming connections (subset of SSLConfigurationSettings)
-        set.addAll(List.of(
-            CLIENT_AUTHENTICATION_TYPE,
-            CLIENT_AUTHENTICATION_TRUSTSTORE_PATH,
-            CLIENT_AUTHENTICATION_TRUSTSTORE_PASSWORD,
-            CLIENT_AUTHENTICATION_LEGACY_TRUSTSTORE_PASSWORD,
-            CLIENT_AUTHENTICATION_TRUSTSTORE_ALGORITHM,
-            CLIENT_AUTHENTICATION_TRUSTSTORE_TYPE,
-            CLIENT_AUTHENTICATION_CERT_AUTH_PATH
-        ));
+        set.addAll(
+            List.of(
+                CLIENT_AUTHENTICATION_TYPE,
+                CLIENT_AUTHENTICATION_TRUSTSTORE_PATH,
+                CLIENT_AUTHENTICATION_TRUSTSTORE_PASSWORD,
+                CLIENT_AUTHENTICATION_LEGACY_TRUSTSTORE_PASSWORD,
+                CLIENT_AUTHENTICATION_TRUSTSTORE_ALGORITHM,
+                CLIENT_AUTHENTICATION_TRUSTSTORE_TYPE,
+                CLIENT_AUTHENTICATION_CERT_AUTH_PATH
+            )
+        );
         // Delegated authorization settings: authorization_realms
         set.addAll(DelegatedAuthorizationSettings.getSettings(TYPE));
         // JWT Cache settings
-        set.addAll(List.of(
-            CACHE_TTL,
-            CACHE_MAX_USERS
-        ));
+        set.addAll(List.of(CACHE_TTL, CACHE_MAX_USERS));
         // Standard HTTP settings for outgoing connections to get JWT issuer jwkset_path
-        set.addAll(List.of(
-            HTTP_CONNECT_TIMEOUT,
-            HTTP_CONNECTION_READ_TIMEOUT,
-            HTTP_SOCKET_TIMEOUT,
-            HTTP_MAX_CONNECTIONS,
-            HTTP_MAX_ENDPOINT_CONNECTIONS,
-            HTTP_PROXY_HOST,
-            HTTP_PROXY_PORT,
-            HTTP_PROXY_SCHEME
-        ));
+        set.addAll(
+            List.of(
+                HTTP_CONNECT_TIMEOUT,
+                HTTP_CONNECTION_READ_TIMEOUT,
+                HTTP_SOCKET_TIMEOUT,
+                HTTP_MAX_CONNECTIONS,
+                HTTP_MAX_ENDPOINT_CONNECTIONS,
+                HTTP_PROXY_HOST,
+                HTTP_PROXY_PORT,
+                HTTP_PROXY_SCHEME
+            )
+        );
         // Standard TLS connection settings for outgoing connections to get JWT issuer jwkset_path
         set.addAll(SSLConfigurationSettings.getRealmSettings(TYPE));
         return set;
@@ -182,8 +174,8 @@ public class JwtRealmSettings {
         SSLConfigurationSettings.TRUSTSTORE_ALGORITHM.affixSetting(CLIENT_AUTHENTICATION_PREFIX, "");
     public static final Setting.AffixSetting<Optional<String>> CLIENT_AUTHENTICATION_TRUSTSTORE_TYPE =
         SSLConfigurationSettings.TRUSTSTORE_TYPE.affixSetting(CLIENT_AUTHENTICATION_PREFIX, "");
-    public static final Setting.AffixSetting<List<String>> CLIENT_AUTHENTICATION_CERT_AUTH_PATH =
-        SSLConfigurationSettings.CERT_AUTH_PATH.affixSetting(CLIENT_AUTHENTICATION_PREFIX, "");
+    public static final Setting.AffixSetting<List<String>> CLIENT_AUTHENTICATION_CERT_AUTH_PATH = SSLConfigurationSettings.CERT_AUTH_PATH
+        .affixSetting(CLIENT_AUTHENTICATION_PREFIX, "");
     // Note: <allowed_issuer>.client_authentication_shared_secret not defined here. It goes in the Elasticsearch keystore setting.
 
     // Individual Cache settings

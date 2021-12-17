@@ -1965,19 +1965,19 @@ fragment components. The value for this setting should be provided by your JWT
 Issuer.
 // end::jwt-allowed-issuer-tag[]
 
-// tag::jwt-allowed-signature-algorithm-tag[]
-`allowed_clock_skew` {ess-icon}::
+// tag::jwt-allowed-signature-algorithms-tag[]
+`allowed_signature_algorithms` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 The signature algorithm that will be used by {es} in order to verify the
-signature of the id tokens it will receive from the JWT Issuer.
+signature of the JWT it will receive from the JWT Issuer.
 Defaults to `RSA256`.
-// end::jwt-allowed-signature-algorithm-tag[]
+// end::jwt-allowed-signature-algorithms-tag[]
 
 // tag::jwt-allowed-clock-skew-tag[]
 `allowed_clock_skew` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 The maximum allowed clock skew to be taken into consideration when validating
-id tokens with regards to their creation and expiration times.
+JWTs with regards to their creation and expiration times.
 // end::jwt-allowed-clock-skew-tag[]
 
 // tag::jwt-jwkset-path-tag[]
@@ -2000,11 +2000,10 @@ File-based resources are polled at a frequency determined by the global {es}
 // tag::jwt-allowed-audiences-tag[]
 `allowed_audiences` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-A list of verifiable Identifiers for your JWT client applications.
+A list of allowed JWT audiences that {es} should verify.
 
-The OAuth 2.0 Client Identifier that was assigned to the
-OpenID Connect Relying Party application during registration
-at the OpenID Connect Provider.
+{es} will only consume JWTs that were intended for these audiences.
+( as denoted by the `aud` claim in the JWT) .
 // end::jwt-allowed-audiences-tag[]
 
 // tag::jwt-claims-principal-tag[]
@@ -2059,37 +2058,36 @@ See <<authorization_realms>>.
 
 `cache.ttl`::
 (<<static-cluster-setting,Static>>)
-Specifies the time-to-live for cached user entries. A user and a hash of its
-credentials are cached for this period of time. Use the
+Specifies the time-to-live for cached entries of JWT and client credential.
+Successful authentications will be cached for this period of time. Use the
 standard {es} <<time-units,time units>>).
 Defaults to `20m`.
 
 `cache.max_users`::
 (<<static-cluster-setting,Static>>)
-Specifies the maximum number of user entries that the cache can contain.
-Defaults to `100000`.
+Specifies the maximum number of JWT and client credential entries that the
+cache can contain. Defaults to `100000`.
 
 // tag::jwt-http-connect-timeout-tag[]
 `http.connect_timeout` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Controls the behavior of the http client used for back-channel communication to
-the JWT Issuer endpoints. Specifies the timeout until a connection
- is established. A value of zero means the timeout is not used. Defaults to `5s`.
+Controls the behavior of the http client used for fetching the JSON Web Key Set
+from remote a URL. A value of zero means the timeout is not used. Defaults to `5s`.
 // end::jwt-http-connect-timeout-tag[]
 
 // tag::jwt-http-read-timeout-tag[]
 `http.connection_read_timeout` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Controls the behavior of the http client used for back-channel communication to
-the JWT Issuer endpoints. Specifies the timeout used when
+Controls the behavior of the http client used for fetching the JSON Web Key Set
+from remote a URL. Specifies the timeout used when
 requesting a connection from the connection manager. Defaults to `5s`
 // end::jwt-http-read-timeout-tag[]
 
 // tag::jwt-http-socket-timeout[]
 `http.socket_timeout` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Controls the behavior of the http client used for back-channel communication to
-the JWT Issuer endpoints. Specifies the socket timeout (SO_TIMEOUT)
+Controls the behavior of the http client used for fetching the JSON Web Key Set
+from remote a URL. Specifies the socket timeout (SO_TIMEOUT)
 in milliseconds, which is the timeout for waiting for data or, put differently,
 a maximum period inactivity between two consecutive data packets). Defaults to
 `5s`.
@@ -2098,44 +2096,25 @@ a maximum period inactivity between two consecutive data packets). Defaults to
 // tag::jwt-http-max-connections-tag[]
 `http.max_connections` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Controls the behavior of the http client used for back-channel communication to
-the JWT Issuer endpoints. Specifies the maximum number of
+Controls the behavior of the http client used for fetching the JSON Web Key Set
+from remote a URL. Specifies the maximum number of
 connections allowed across all endpoints.
 // end::jwt-http-max-connections-tag[]
 
 // tag::jwt-http-max-endpoint-connections-tag[]
 `http.max_endpoint_connections` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Controls the behavior of the http client used for back-channel communication to
-the JWT Issuer endpoints. Specifies the maximum number of
+Controls the behavior of the http client used for fetching the JSON Web Key Set
+from remote a URL. Specifies the maximum number of
 connections allowed per endpoint.
 // end::jwt-http-max-endpoint-connections-tag[]
-
-`http.proxy.scheme`::
-(<<static-cluster-setting,Static>>)
-Specifies the protocol to use to connect to the proxy server that will be
-used by the http client for all back-channel communication to the JWT Issuer
-endpoints. Defaults to `http`. Allowed values are `http` or `https`.
-
-`http.proxy.host`::
-(<<static-cluster-setting,Static>>)
-Specifies the address of the proxy server that will be used by the internal
-http client for all back-channel communication to the JWT Issuer
-endpoints. This includes requests to fetch the JSON Web Key Set from the
-JWT Issuer if `jwkset_path` is set as a URL.
-
-`http.proxy.port`::
-(<<static-cluster-setting,Static>>)
-Specifies the port of the proxy server that will be used by the http
-client for all backchannel communication to the JWT Provider
-endpoints. Defaults to `80`.
 
 [discrete]
 [[ref-jwt-ssl-settings]]
 ===== JWT realm SSL settings
 // tag::jwt-ssl-description-tag[]
-The following settings can be used to configure SSL for all outgoing http connections
-to the JWT Issuer endpoints.
+The following settings can be used to configure SSL for fetching the JSON Web Key Set
+from remote a URL.
 
 NOTE: These settings are _only_ used for the back-channel communication between
 {es} and the JWT Issuer

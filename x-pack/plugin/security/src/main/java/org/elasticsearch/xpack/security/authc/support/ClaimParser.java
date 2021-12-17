@@ -24,6 +24,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+/**
+ * Helper class for parsing JWT claims.
+ */
 public final class ClaimParser {
     private final String name;
     private final Function<JWTClaimsSet, List<String>> parser;

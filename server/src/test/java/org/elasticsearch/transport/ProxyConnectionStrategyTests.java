@@ -416,10 +416,10 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
             Setting<?> concreteSetting = restrictedSetting.v1().getConcreteSettingForNamespace(clusterName);
             Settings invalid = Settings.builder().put(settings).put(concreteSetting.getKey(), restrictedSetting.v2()).build();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> service.validate(invalid, true));
-            String expected = "Setting \""
-                + concreteSetting.getKey()
-                + "\" cannot be used with the configured "
-                + "\"cluster.remote.cluster_name.mode\" [required=PROXY, configured=SNIFF]";
+            String expected = """
+                Setting "%s" cannot be used with the configured "cluster.remote.cluster_name.mode" \
+                [required=PROXY, configured=SNIFF]\
+                """.formatted(concreteSetting.getKey());
             assertEquals(expected, iae.getMessage());
         }
     }

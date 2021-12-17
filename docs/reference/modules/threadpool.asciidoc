@@ -112,6 +112,7 @@ There are several thread pools, but the important ones include:
     `min(5 * (`<<node.processors, `# of allocated processors`>>`), 50)`
     and queue_size of `1000`.
 
+Thread Pool settings are static and can be changed by editing your `elasticsearch.yml`.
 Changing a specific thread pool can be done by setting its type-specific
 parameters; for example, changing the number of threads in the `write` thread
 pool:

@@ -104,76 +104,75 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
         );
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        final String expected = XContentHelper.stripWhitespace(
-            "{"
-                + "  \"cluster_uuid\": \"_cluster\","
-                + "  \"timestamp\": \"2017-08-09T08:18:59.402Z\","
-                + "  \"interval_ms\": 1506593717631,"
-                + "  \"type\": \"indices_stats\","
-                + "  \"source_node\": {"
-                + "    \"uuid\": \"_uuid\","
-                + "    \"host\": \"_host\","
-                + "    \"transport_address\": \"_addr\","
-                + "    \"ip\": \"_ip\","
-                + "    \"name\": \"_name\","
-                + "    \"timestamp\": \"2017-08-31T08:46:30.855Z\""
-                + "  },"
-                + "  \"indices_stats\": {"
-                + "    \"_all\": {"
-                + "      \"primaries\": {"
-                + "        \"docs\": {"
-                + "          \"count\": 2"
-                + "        },"
-                + "        \"store\": {"
-                + "          \"size_in_bytes\": 4"
-                + "        },"
-                + "        \"indexing\": {"
-                + "          \"index_total\": 6,"
-                + "          \"index_time_in_millis\": 8,"
-                + "          \"is_throttled\": true,"
-                + "          \"throttle_time_in_millis\": 10"
-                + "        },"
-                + "        \"search\": {"
-                + "          \"query_total\": 12,"
-                + "          \"query_time_in_millis\": 14"
-                + "        },"
-                + "        \"bulk\": {"
-                + "          \"total_operations\": 0,"
-                + "          \"total_time_in_millis\": 0,"
-                + "          \"total_size_in_bytes\": 0,"
-                + "          \"avg_time_in_millis\": 0,"
-                + "          \"avg_size_in_bytes\": 0"
-                + "        }"
-                + "      },"
-                + "      \"total\": {"
-                + "        \"docs\": {"
-                + "          \"count\": 3"
-                + "        },"
-                + "        \"store\": {"
-                + "          \"size_in_bytes\": 6"
-                + "        },"
-                + "        \"indexing\": {"
-                + "          \"index_total\": 9,"
-                + "          \"index_time_in_millis\": 12,"
-                + "          \"is_throttled\": true,"
-                + "          \"throttle_time_in_millis\": 15"
-                + "        },"
-                + "        \"search\": {"
-                + "          \"query_total\": 18,"
-                + "          \"query_time_in_millis\": 21"
-                + "        },"
-                + "        \"bulk\": {"
-                + "          \"total_operations\": 0,"
-                + "          \"total_time_in_millis\": 0,"
-                + "          \"total_size_in_bytes\": 0,"
-                + "          \"avg_time_in_millis\": 0,"
-                + "          \"avg_size_in_bytes\": 0"
-                + "        }"
-                + "      }"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        final String expected = XContentHelper.stripWhitespace("""
+            {
+              "cluster_uuid": "_cluster",
+              "timestamp": "2017-08-09T08:18:59.402Z",
+              "interval_ms": 1506593717631,
+              "type": "indices_stats",
+              "source_node": {
+                "uuid": "_uuid",
+                "host": "_host",
+                "transport_address": "_addr",
+                "ip": "_ip",
+                "name": "_name",
+                "timestamp": "2017-08-31T08:46:30.855Z"
+              },
+              "indices_stats": {
+                "_all": {
+                  "primaries": {
+                    "docs": {
+                      "count": 2
+                    },
+                    "store": {
+                      "size_in_bytes": 4
+                    },
+                    "indexing": {
+                      "index_total": 6,
+                      "index_time_in_millis": 8,
+                      "is_throttled": true,
+                      "throttle_time_in_millis": 10
+                    },
+                    "search": {
+                      "query_total": 12,
+                      "query_time_in_millis": 14
+                    },
+                    "bulk": {
+                      "total_operations": 0,
+                      "total_time_in_millis": 0,
+                      "total_size_in_bytes": 0,
+                      "avg_time_in_millis": 0,
+                      "avg_size_in_bytes": 0
+                    }
+                  },
+                  "total": {
+                    "docs": {
+                      "count": 3
+                    },
+                    "store": {
+                      "size_in_bytes": 6
+                    },
+                    "indexing": {
+                      "index_total": 9,
+                      "index_time_in_millis": 12,
+                      "is_throttled": true,
+                      "throttle_time_in_millis": 15
+                    },
+                    "search": {
+                      "query_total": 18,
+                      "query_time_in_millis": 21
+                    },
+                    "bulk": {
+                      "total_operations": 0,
+                      "total_time_in_millis": 0,
+                      "total_size_in_bytes": 0,
+                      "avg_time_in_millis": 0,
+                      "avg_size_in_bytes": 0
+                    }
+                  }
+                }
+              }
+            }""");
         assertEquals(expected, xContent.utf8ToString());
     }
 

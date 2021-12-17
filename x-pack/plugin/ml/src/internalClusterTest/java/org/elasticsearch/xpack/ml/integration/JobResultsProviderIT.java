@@ -675,10 +675,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         // Add a snapshot WITHOUT a min version.
         client().prepareIndex(AnomalyDetectorsIndex.jobResultsAliasedName("other_job"))
             .setId(ModelSnapshot.documentId("other_job", "11"))
-            .setSource(
-                "{\"job_id\":\"other_job\"," + "\"snapshot_id\":\"11\", \"snapshot_doc_count\":1,\"retain\":false}",
-                XContentType.JSON
-            )
+            .setSource("""
+                {"job_id":"other_job","snapshot_id":"11", "snapshot_doc_count":1,"retain":false}""", XContentType.JSON)
             .get();
 
         client().admin()

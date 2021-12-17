@@ -49,23 +49,13 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     @Override
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
-
-        return super.configUsers()
-            + "user1:"
-            + usersPasswdHashed
-            + "\n"
-            + "user2:"
-            + usersPasswdHashed
-            + "\n"
-            + "user3:"
-            + usersPasswdHashed
-            + "\n"
-            + "user4:"
-            + usersPasswdHashed
-            + "\n"
-            + "user5:"
-            + usersPasswdHashed
-            + "\n";
+        return super.configUsers() + """
+            user1:%s
+            user2:%s
+            user3:%s
+            user4:%s
+            user5:%s
+            """.formatted(usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
     }
 
     @Override
@@ -75,37 +65,39 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return super.configRoles()
-            + "\nrole1:\n"
-            + "  cluster: [ none ]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ none ]\n"
-            + "role2:\n"
-            + "  cluster:\n"
-            + "   - all\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ ALL ]\n"
-            + "      field_security:\n"
-            + "         grant: [ field1, id ]\n"
-            + "      query: '{\"term\" : {\"field1\" : \"value1\"}}'\n"
-            + "role3:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ ALL ]\n"
-            + "      field_security:\n"
-            + "         grant: [ field2, id ]\n"
-            + "      query: '{\"term\" : {\"field2\" : \"value2\"}}'\n"
-            + "role4:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ ALL ]\n"
-            + "      field_security:\n"
-            + "         grant: [ field1, id ]\n"
-            + "      query: '{\"term\" : {\"field2\" : \"value2\"}}'\n";
+        return super.configRoles() + """
+
+            role1:
+              cluster: [ none ]
+              indices:
+                - names: '*'
+                  privileges: [ none ]
+            role2:
+              cluster:
+               - all
+              indices:
+                - names: '*'
+                  privileges: [ ALL ]
+                  field_security:
+                     grant: [ field1, id ]
+                  query: '{"term" : {"field1" : "value1"}}'
+            role3:
+              cluster: [ all ]
+              indices:
+                - names: '*'
+                  privileges: [ ALL ]
+                  field_security:
+                     grant: [ field2, id ]
+                  query: '{"term" : {"field2" : "value2"}}'
+            role4:
+              cluster: [ all ]
+              indices:
+                - names: '*'
+                  privileges: [ ALL ]
+                  field_security:
+                     grant: [ field1, id ]
+                  query: '{"term" : {"field2" : "value2"}}'
+            """;
     }
 
     @Override

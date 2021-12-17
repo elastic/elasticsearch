@@ -44,6 +44,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -486,18 +487,16 @@ public class TranslogTests extends ESTestCase {
                 builder.startObject();
                 copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
-                assertThat(
-                    Strings.toString(builder),
-                    equalTo(
-                        "{\"translog\":{\"operations\":4,\"size_in_bytes\":"
-                            + 326
-                            + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":"
-                            + 271
-                            + ",\"earliest_last_modified_age\":"
-                            + stats.getEarliestLastModifiedAge()
-                            + "}}"
-                    )
-                );
+                assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace("""
+                    {
+                      "translog": {
+                        "operations": 4,
+                        "size_in_bytes": 326,
+                        "uncommitted_operations": 4,
+                        "uncommitted_size_in_bytes": 271,
+                        "earliest_last_modified_age": %s
+                      }
+                    }""".formatted(stats.getEarliestLastModifiedAge()))));
             }
         }
         translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(randomLongBetween(3, Long.MAX_VALUE));

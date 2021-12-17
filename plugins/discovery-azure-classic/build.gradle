@@ -116,6 +116,7 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',
           'org.apache.log.Logger',
+          'javax.jms.Message',
           'org.eclipse.persistence.descriptors.ClassDescriptor',
           'org.eclipse.persistence.internal.oxm.MappingNodeValue',
           'org.eclipse.persistence.internal.oxm.TreeObjectBuilder',

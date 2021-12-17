@@ -167,11 +167,11 @@ public class PluginCliTests extends PackagingTestCase {
      */
     public void test40InstallOfModularizedPluginsSucceedsButDoesNothing() {
         for (String pluginId : List.of("repository-azure", "repository-gcs", "repository-s3")) {
-            String stdout = installation.executables().pluginTool.run("install " + pluginId).stdout;
-            assertThat(stdout, containsString("[" + pluginId + "] is no longer a plugin"));
+            String stderr = installation.executables().pluginTool.run("install " + pluginId).stderr;
+            assertThat(stderr, containsString("[" + pluginId + "] is no longer a plugin"));
 
-            stdout = installation.executables().pluginTool.run("list").stdout;
-            assertThat(stdout.trim(), is(emptyString()));
+            stderr = installation.executables().pluginTool.run("list").stderr;
+            assertThat(stderr.trim(), is(emptyString()));
         }
     }
 
@@ -180,12 +180,12 @@ public class PluginCliTests extends PackagingTestCase {
      * succeeds, but does nothing.
      */
     public void test41RemovalOfModularizedPluginsSucceedsButDoesNothing() {
-        String stdout = installation.executables().pluginTool.run("list").stdout;
-        assertThat(stdout.trim(), is(emptyString()));
+        String stderr = installation.executables().pluginTool.run("list").stderr;
+        assertThat(stderr.trim(), is(emptyString()));
 
         for (String pluginId : List.of("repository-azure", "repository-gcs", "repository-s3")) {
-            stdout = installation.executables().pluginTool.run("remove " + pluginId).stdout;
-            assertThat(stdout, containsString("[" + pluginId + "] is no longer a plugin"));
+            stderr = installation.executables().pluginTool.run("remove " + pluginId).stderr;
+            assertThat(stderr, containsString("[" + pluginId + "] is no longer a plugin"));
         }
     }
 }

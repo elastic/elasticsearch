@@ -16,6 +16,9 @@ import org.elasticsearch.test.rest.yaml.ObjectPath;
 import java.time.Instant;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -133,7 +136,6 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time"), notNullValue());
     }
 
-    @AwaitsFix(bugUrl = "fix simulate api to add start_time and end_time settings")
     public void testSimulateTsdbDataStreamTemplate() throws Exception {
         var putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
         putComposableIndexTemplateRequest.setJsonEntity(TEMPLATE);
@@ -143,13 +145,15 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         var response = client().performRequest(simulateIndexTemplateRequest);
         assertOK(response);
         var responseBody = entityAsMap(response);
+        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index"), aMapWithSize(4));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_shards"), equalTo("2"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_replicas"), equalTo("0"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.mode"), equalTo("time_series"));
-        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.time_series.start_time"), notNullValue());
-        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.time_series.end_time"), notNullValue());
-        assertThat(ObjectPath.evaluate(responseBody, "overlapping"), hasSize(1));
-        assertThat(ObjectPath.evaluate(responseBody, "overlapping.0.name"), equalTo("1"));
+        assertThat(
+            ObjectPath.evaluate(responseBody, "template.settings.index.routing_path"),
+            contains("metricset", "time_series_dimension")
+        );
+        assertThat(ObjectPath.evaluate(responseBody, "overlapping"), empty());
     }
 
 }

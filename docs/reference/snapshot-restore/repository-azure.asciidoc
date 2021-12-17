@@ -1,11 +1,8 @@
 [[repository-azure]]
-=== Azure Repository Plugin
+=== Azure Repository
 
-The Azure Repository plugin adds support for using https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction[Azure Blob storage] as a repository for
+You can use https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction[Azure Blob storage] as a repository for
 {ref}/modules-snapshots.html[Snapshot/Restore].
-
-:plugin_name: repository-azure
-include::install_remove.asciidoc[]
 
 [[repository-azure-usage]]
 ==== Azure Repository
@@ -35,7 +32,7 @@ For more information about these settings, see
 [IMPORTANT]
 .Supported Azure Storage Account types
 ===============================================
-The Azure Repository plugin works with all Standard storage accounts
+The Azure repository type works with all Standard storage accounts
 
 * Standard Locally Redundant Storage - `Standard_LRS`
 * Standard Zone-Redundant Storage - `Standard_ZRS`

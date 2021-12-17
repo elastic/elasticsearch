@@ -1,16 +1,13 @@
 [[repository-gcs]]
-=== Google Cloud Storage Repository Plugin
+=== Google Cloud Storage Repository
 
-The GCS repository plugin adds support for using the https://cloud.google.com/storage/[Google Cloud Storage]
+You can use the https://cloud.google.com/storage/[Google Cloud Storage]
 service as a repository for {ref}/modules-snapshots.html[Snapshot/Restore].
-
-:plugin_name: repository-gcs
-include::install_remove.asciidoc[]
 
 [[repository-gcs-usage]]
 ==== Getting started
 
-The plugin uses the https://github.com/GoogleCloudPlatform/google-cloud-java/tree/master/google-cloud-clients/google-cloud-storage[Google Cloud Java Client for Storage]
+This repository type uses the https://github.com/GoogleCloudPlatform/google-cloud-java/tree/master/google-cloud-clients/google-cloud-storage[Google Cloud Java Client for Storage]
 to connect to the Storage service. If you are using
 https://cloud.google.com/storage/[Google Cloud Storage] for the first time, you
 must connect to the https://console.cloud.google.com/[Google Cloud Platform Console]
@@ -23,8 +20,8 @@ Cloud Storage Service for your project.
 The Google Cloud Storage service uses the concept of a
 https://cloud.google.com/storage/docs/key-terms[bucket] as a container for all
 the data. Buckets are usually created using the
-https://console.cloud.google.com/[Google Cloud Platform Console]. The plugin
-does not automatically create buckets.
+https://console.cloud.google.com/[Google Cloud Platform Console]. This
+repository type does not automatically create buckets.
 
 To create a new bucket:
 
@@ -43,10 +40,10 @@ https://cloud.google.com/storage/docs/quickstart-console#create_a_bucket[Google 
 [[repository-gcs-service-authentication]]
 ===== Service Authentication
 
-The plugin must authenticate the requests it makes to the Google Cloud Storage
+The repository must authenticate the requests it makes to the Google Cloud Storage
 service. It is common for Google client libraries to employ a strategy named https://cloud.google.com/docs/authentication/production#providing_credentials_to_your_application[application default credentials].
 However, that strategy is only **partially supported** by Elasticsearch. The
-plugin operates under the Elasticsearch process, which runs with the security
+repository operates under the Elasticsearch process, which runs with the security
 manager enabled. The security manager obstructs the "automatic" credential discovery
 when the environment variable `GOOGLE_APPLICATION_CREDENTIALS` is used to point to a
 local file on disk. It can, however, retrieve the service account that is attached to
@@ -62,7 +59,7 @@ You have to obtain and provide https://cloud.google.com/iam/docs/overview#servic
 manually.
 
 For detailed information about generating JSON service account files, see the https://cloud.google.com/storage/docs/authentication?hl=en#service_accounts[Google Cloud documentation].
-Note that the PKCS12 format is not supported by this plugin.
+Note that the PKCS12 format is not supported by this repository type.
 
 Here is a summary of the steps:
 
@@ -93,7 +90,7 @@ A JSON service account file looks like this:
 ----
 // NOTCONSOLE
 
-To provide this file to the plugin, it must be stored in the {ref}/secure-settings.html[Elasticsearch keystore]. You must
+To provide this file to the repository, it must be stored in the {ref}/secure-settings.html[Elasticsearch keystore]. You must
 add a `file` setting with the name `gcs.client.NAME.credentials_file` using the `add-file` subcommand.
  `NAME` is the name of the client configuration for the repository. The implicit client
 name is `default`, but a different client name can be specified in the

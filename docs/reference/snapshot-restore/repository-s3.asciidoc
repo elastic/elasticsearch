@@ -1,20 +1,16 @@
 [[repository-s3]]
-=== S3 Repository Plugin
+=== S3 Repository
 
-The S3 repository plugin adds support for using AWS S3 as a repository for
-{ref}/modules-snapshots.html[Snapshot/Restore].
+You can use AWS S3 as a repository for {ref}/modules-snapshots.html[Snapshot/Restore].
 
 *If you are looking for a hosted solution of Elasticsearch on AWS, please visit
 https://www.elastic.co/cloud/.*
 
-:plugin_name: repository-s3
-include::install_remove.asciidoc[]
-
 [[repository-s3-usage]]
 ==== Getting Started
 
-The plugin provides a repository type named `s3` which may be used when creating
-a repository. The repository defaults to using
+To register an S3 repository, specify the type as `s3` when creating
+the repository. The repository defaults to using
 https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html[ECS
 IAM Role] or
 https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[EC2
@@ -84,7 +80,7 @@ bin/elasticsearch-keystore remove s3.client.default.secret_key
 bin/elasticsearch-keystore remove s3.client.default.session_token
 ----
 
-*All* client secure settings of this plugin are
+*All* client secure settings of this repository type are
 {ref}/secure-settings.html#reloadable-secure-settings[reloadable]. After you
 reload the settings, the internal `s3` clients, used to transfer the snapshot
 contents, will utilize the latest settings from the keystore. Any existing `s3`
@@ -125,7 +121,7 @@ settings belong in the `elasticsearch.yml` file.
 `protocol`::
 
     The protocol to use to connect to S3. Valid values are either `http` or
-    `https`. Defaults to `https`. When using HTTPS, this plugin validates the
+    `https`. Defaults to `https`. When using HTTPS, this repository type validates the
     repository's certificate chain using the JVM-wide truststore. Ensure that
     the root certificate authority is in this truststore using the JVM's
     `keytool` tool.
@@ -208,7 +204,7 @@ pattern then you should set this setting to `true` when upgrading.
 ===== S3-compatible services
 
 There are a number of storage systems that provide an S3-compatible API, and
-the `repository-s3` plugin allows you to use these systems in place of AWS S3.
+the `repository-s3` type allows you to use these systems in place of AWS S3.
 To do so, you should set the `s3.client.CLIENT_NAME.endpoint` setting to the
 system's endpoint. This setting accepts IP addresses and hostnames and may
 include a port. For example, the endpoint may be `172.17.0.2` or
@@ -216,13 +212,13 @@ include a port. For example, the endpoint may be `172.17.0.2` or
 `http` if the endpoint does not support HTTPS.
 
 https://minio.io[MinIO] is an example of a storage system that provides an
-S3-compatible API. The `repository-s3` plugin allows {es} to work with
+S3-compatible API. The `repository-s3` type allows {es} to work with
 MinIO-backed repositories as well as repositories stored on AWS S3. Other
 S3-compatible storage systems may also work with {es}, but these are not
 covered by the {es} test suite.
 
 Note that some storage systems claim to be S3-compatible without correctly
-supporting the full S3 API. The `repository-s3` plugin requires full
+supporting the full S3 API. The `repository-s3` type requires full
 compatibility with S3. In particular it must support the same set of API
 endpoints, return the same errors in case of failures, and offer a consistency
 model no weaker than S3's when accessed concurrently by multiple nodes.
@@ -328,8 +324,8 @@ include::repository-shared-settings.asciidoc[]
     storage class for newly created objects, resulting in a mixed usage of
     storage classes. Additionally, S3 Lifecycle Policies can be used to manage
     the storage class of existing objects. Due to the extra complexity with the
-    Glacier class lifecycle, it is not currently supported by the plugin. For
-    more information about the different classes, see
+    Glacier class lifecycle, it is not currently supported by this
+    repository type. For more information about the different classes, see
     https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS
     Storage Classes Guide]
 

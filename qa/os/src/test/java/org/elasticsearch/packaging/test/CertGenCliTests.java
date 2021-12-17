@@ -125,6 +125,7 @@ public class CertGenCliTests extends PackagingTestCase {
             newSettings.keySet().stream().map(k -> k + ": " + newSettings.get(k)).collect(Collectors.toList()),
             TRUNCATE_EXISTING
         );
+        logger.info(String.join("\n", Files.readAllLines(installation.config("elasticsearch.yml"))));
 
         assertWhileRunning(() -> {
             final String password = setElasticPassword();

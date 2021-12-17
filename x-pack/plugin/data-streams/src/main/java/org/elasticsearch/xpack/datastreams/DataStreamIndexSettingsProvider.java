@@ -21,6 +21,8 @@ import java.util.Optional;
 
 public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
 
+    private static final DateFormatter FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+
     @Override
     public Settings getAdditionalIndexSettings(
         String indexName,
@@ -41,10 +43,9 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 Instant start = Instant.ofEpochMilli(resolvedAt).minusMillis(lookAheadTime.getMillis());
                 Instant end = Instant.ofEpochMilli(resolvedAt).plusMillis(lookAheadTime.getMillis());
 
-                DateFormatter formatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
                 Settings.Builder builder = Settings.builder();
-                builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), formatter.format(start));
-                builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), formatter.format(end));
+                builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
+                builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
                 return builder.build();
             }
         }

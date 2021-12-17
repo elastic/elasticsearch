@@ -14,6 +14,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.hamcrest.Matchers.equalTo;
@@ -23,7 +24,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     public void testGetAdditionalIndexSettings() {
         String dataStreamName = "logs-app1";
 
-        long now = Instant.now().toEpochMilli();
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default
         Settings settings = builder().put("index.mode", "time_series").build();
         var provider = new DataStreamIndexSettingsProvider();
@@ -31,17 +32,17 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             true,
-            now,
+            now.toEpochMilli(),
             settings
         );
-        assertThat(result.getAsLong(IndexSettings.TIME_SERIES_START_TIME.getKey(), -1L), equalTo(now - lookAheadTime.getMillis()));
-        assertThat(result.getAsLong(IndexSettings.TIME_SERIES_END_TIME.getKey(), -1L), equalTo(now + lookAheadTime.getMillis()));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
     }
 
     public void testGetAdditionalIndexSettingsLookAheadTime() {
         String dataStreamName = "logs-app1";
 
-        long now = Instant.now().toEpochMilli();
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         TimeValue lookAheadTime = TimeValue.timeValueMinutes(30);
         Settings settings = builder().put("index.mode", "time_series").put("index.look_ahead_time", lookAheadTime.getStringRep()).build();
         var provider = new DataStreamIndexSettingsProvider();
@@ -49,12 +50,12 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             true,
-            now,
+            now.toEpochMilli(),
             settings
         );
         assertThat(result.size(), equalTo(2));
-        assertThat(result.getAsLong(IndexSettings.TIME_SERIES_START_TIME.getKey(), -1L), equalTo(now - lookAheadTime.getMillis()));
-        assertThat(result.getAsLong(IndexSettings.TIME_SERIES_END_TIME.getKey(), -1L), equalTo(now + lookAheadTime.getMillis()));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
     }
 
     public void testGetAdditionalIndexSettingsNoTimeSeries() {

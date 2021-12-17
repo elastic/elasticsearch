@@ -116,9 +116,11 @@ The desired number of nodes for model allocation.
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
-`model_size`:::
+`model_size_bytes`:::
 (<<byte-units,byte value>>)
-The size of the loaded model in bytes.
+The native memory size required to load this model in bytes.
+Note that this value may be significantly larger than the model
+size on disk.
 
 `nodes`:::
 (array of objects)

@@ -317,7 +317,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
         listener.onResponse(
             new AllocationStats(
                 task.getModelId(),
-                ByteSizeValue.ofBytes(task.getParams().getModelBytes()),
+                ByteSizeValue.ofBytes(task.estimateMemoryUsageBytes()),
                 task.getParams().getInferenceThreads(),
                 task.getParams().getModelThreads(),
                 task.getParams().getQueueCapacity(),

@@ -45,16 +45,16 @@ import java.util.stream.Collectors;
 public class CustomWordEmbedding implements LenientlyParsedPreProcessor, StrictlyParsedPreProcessor {
 
     public static class StringLengthAndEmbedding {
-        final int stringLen;
+        final int utf8StringLen;
         final double[] embedding;
 
-        public StringLengthAndEmbedding(int stringLen, double[] embedding) {
-            this.stringLen = stringLen;
+        public StringLengthAndEmbedding(int utf8StringLen, double[] embedding) {
+            this.utf8StringLen = utf8StringLen;
             this.embedding = embedding;
         }
 
-        public int getStringLen() {
-            return stringLen;
+        public int getUtf8StringLen() {
+            return utf8StringLen;
         }
 
         public double[] getEmbedding() {
@@ -290,6 +290,10 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
             embeddings.add(
                 new StringLengthAndEmbedding(
                     // Don't count white spaces as bytes for the prediction
+                    // We ues utf-8 length here as
+                    // * The original C++ implementation does this when measuring string length
+                    // * Languages with complex characters (like zh) convey more information per a single utf-16 character and
+                    // using utf-8 length captures that.
                     str.trim().getBytes(StandardCharsets.UTF_8).length,
                     concatEmbeddings(
                         FEATURE_EXTRACTORS.stream()

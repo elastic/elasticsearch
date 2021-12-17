@@ -88,9 +88,8 @@ class JdbcHttpClient {
     Tuple<String, List<List<Object>>> nextPage(String cursor, RequestMeta meta) throws SQLException {
         SqlQueryRequest sqlRequest = new SqlQueryRequest(
             cursor,
+            TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
             TimeValue.timeValueMillis(meta.pageTimeoutInMs()),
-            TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
-            TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
             new RequestInfo(Mode.JDBC),
             conCfg.binaryCommunication()
         );

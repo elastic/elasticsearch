@@ -550,7 +550,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             BytesReference bytes = context.getMetadataMapper(TimeSeriesIdFieldMapper.NAME) != null
                 ? TimeSeriesIdFieldMapper.encodeTsidUnsignedLongValue(numericValue)
                 : null;
-            context.doc().addDimensionBytes(fieldType().name(), bytes);
+            context.doc().addDimension(fieldType().name(), bytes, false);
         }
 
         List<Field> fields = new ArrayList<>();

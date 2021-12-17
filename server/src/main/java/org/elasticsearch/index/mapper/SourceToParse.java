@@ -52,7 +52,7 @@ public class SourceToParse {
         return this.source;
     }
 
-    public String id() {
+    public String id() { // TODO migrate callers that use this to describe the document to a new method
         return this.id;
     }
 

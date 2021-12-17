@@ -15,6 +15,7 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -545,7 +546,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         shard -> new ArrayList<>()
                     );
                     shardRequests.add(new BulkItemRequest(i, docWriteRequest));
-                } catch (ElasticsearchParseException | IllegalArgumentException | IndexNotFoundException | RoutingMissingException e) {
+                } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException | ResourceNotFoundException e) {
                     String name = ia != null ? ia.getName() : docWriteRequest.index();
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(name, docWriteRequest.id(), e);
                     BulkItemResponse bulkItemResponse = BulkItemResponse.failure(i, docWriteRequest.opType(), failure);

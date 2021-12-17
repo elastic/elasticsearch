@@ -52,10 +52,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.StandardIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.LocalCheckpointTrackerTests;
@@ -941,10 +941,6 @@ public class TranslogTests extends ESTestCase {
 
     private Term newUid(ParsedDocument doc) {
         return new Term("_id", Uid.encodeId(doc.id()));
-    }
-
-    private Term newUid(String id) {
-        return new Term("_id", Uid.encodeId(id));
     }
 
     public void testVerifyTranslogIsNotDeleted() throws IOException {
@@ -3340,7 +3336,7 @@ public class TranslogTests extends ESTestCase {
         seqID.seqNo.setLongValue(randomSeqNum);
         seqID.seqNoDocValue.setLongValue(randomSeqNum);
         seqID.primaryTerm.setLongValue(randomPrimaryTerm);
-        Field idField = new Field("_id", Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE);
+        Field idField = StandardIdFieldMapper.idField("1"); // TODO figure out what to do about tsdbid. It could be different.
         Field versionField = new NumericDocValuesField("_version", 1);
         LuceneDocument document = new LuceneDocument();
         document.add(new TextField("value", "test", Field.Store.YES));
@@ -3365,7 +3361,7 @@ public class TranslogTests extends ESTestCase {
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             0
         );
-        Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomPrimaryTerm, randomSeqNum, true);
+        Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomPrimaryTerm, randomSeqNum, true, eIndex.id());
         Translog.Index index = new Translog.Index(eIndex, eIndexResult);
 
         Version wireVersion = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
@@ -3389,7 +3385,7 @@ public class TranslogTests extends ESTestCase {
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             0
         );
-        Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomPrimaryTerm, randomSeqNum, true);
+        Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomPrimaryTerm, randomSeqNum, true, doc.id());
         Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);
 
         out = new BytesStreamOutput();

@@ -16,16 +16,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.StandardIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TsdbIdFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
@@ -74,6 +78,21 @@ public enum IndexMode {
         public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
+        }
+
+        @Override
+        public IdFieldMapper buildNoFieldDataIdFieldMapper() {
+            return StandardIdFieldMapper.NO_FIELD_DATA;
+        }
+
+        @Override
+        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
+            return new StandardIdFieldMapper(fieldDataEnabled);
+        }
+
+        @Override
+        public boolean calculatesIdFromSource() {
+            return false;
         }
     },
     TIME_SERIES {
@@ -137,6 +156,21 @@ public enum IndexMode {
         @Override
         public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
             return TimeSeriesIdFieldMapper.INSTANCE;
+        }
+
+        @Override
+        public IdFieldMapper buildNoFieldDataIdFieldMapper() {
+            return TsdbIdFieldMapper.INSTANCE;
+        }
+
+        @Override
+        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
+            return TsdbIdFieldMapper.INSTANCE;
+        }
+
+        @Override
+        public boolean calculatesIdFromSource() {
+            return true;
         }
     };
 
@@ -203,10 +237,16 @@ public enum IndexMode {
     @Nullable
     public abstract CompressedXContent getDefaultMapping();
 
+    public abstract IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled);
+
+    public abstract IdFieldMapper buildNoFieldDataIdFieldMapper();
+
     /**
      * Return an instance of the {@link TimeSeriesIdFieldMapper} that generates
      * the _tsid field. The field mapper will be added to the list of the metadata
      * field mappers for the index.
      */
     public abstract MetadataFieldMapper buildTimeSeriesIdFieldMapper();
+
+    public abstract boolean calculatesIdFromSource();
 }

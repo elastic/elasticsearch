@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
@@ -20,6 +21,7 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.LuceneDocument.DimensionInfo;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
@@ -138,34 +140,41 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public void postParse(DocumentParserContext context) throws IOException {
         assert fieldType().isIndexed() == false;
 
-        // SortedMap is expected to be sorted by key (field name)
-        SortedMap<String, BytesReference> dimensionFields = context.doc().getDimensionBytes();
-        if (dimensionFields.isEmpty()) {
+        SortedMap<BytesRef, DimensionInfo> dimensions = context.doc().getDimensions();
+        if (dimensions.isEmpty()) {
             throw new IllegalArgumentException("Dimension fields are missing.");
         }
 
+        IndexableField[] timestampFields = context.rootDoc().getFields(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        if (timestampFields.length == 0) {
+            throw new IllegalArgumentException(
+                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
+            );
+        }
+
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeVInt(dimensionFields.size());
-            for (Map.Entry<String, BytesReference> entry : dimensionFields.entrySet()) {
-                String fieldName = entry.getKey();
-                BytesRef fieldNameBytes = new BytesRef(fieldName);
-                int len = fieldNameBytes.length;
-                if (len > DIMENSION_NAME_LIMIT) {
+            out.writeVInt(dimensions.size());
+            for (Map.Entry<BytesRef, DimensionInfo> entry : dimensions.entrySet()) {
+                if (entry.getKey().length > DIMENSION_NAME_LIMIT) {
                     throw new IllegalArgumentException(
-                        "Dimension name must be less than [" + DIMENSION_NAME_LIMIT + "] bytes but [" + fieldName + "] was [" + len + "]."
+                        "Dimension name must be less than ["
+                            + DIMENSION_NAME_LIMIT
+                            + "] bytes but ["
+                            + entry.getKey().utf8ToString()
+                            + "] was ["
+                            + entry.getKey().length
+                            + "]."
                     );
                 }
                 // Write field name in utf-8 instead of writeString's utf-16-ish thing
-                out.writeBytesRef(fieldNameBytes);
-                entry.getValue().writeTo(out);
+                out.writeBytesRef(entry.getKey());
+                entry.getValue().tsidBytes().writeTo(out);
             }
 
-            BytesReference timeSeriesId = out.bytes();
-            if (timeSeriesId.length() > LIMIT) {
-                throw new IllegalArgumentException(NAME + " longer than [" + LIMIT + "] bytes [" + timeSeriesId.length() + "].");
+            if (out.size() > LIMIT) {
+                throw new IllegalArgumentException(NAME + " longer than [" + LIMIT + "] bytes [" + out.size() + "].");
             }
-            assert timeSeriesId != null : "In time series mode _tsid cannot be null";
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
+            context.doc().add(new SortedSetDocValuesField(fieldType().name(), out.bytes().toBytesRef()));
         }
     }
 

@@ -53,10 +53,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.engine.SegmentsStats;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.StandardIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -256,12 +256,12 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final int initialNumberOfDocs = randomIntBetween(10, 1000);
         for (int i = 0; i < initialNumberOfDocs; i++) {
             final Engine.Index index = getIndex(Integer.toString(i));
-            operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, SequenceNumbers.UNASSIGNED_SEQ_NO, true)));
+            operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, SequenceNumbers.UNASSIGNED_SEQ_NO, true, index.id())));
         }
         final int numberOfDocsWithValidSequenceNumbers = randomIntBetween(10, 1000);
         for (int i = initialNumberOfDocs; i < initialNumberOfDocs + numberOfDocsWithValidSequenceNumbers; i++) {
             final Engine.Index index = getIndex(Integer.toString(i));
-            operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i - initialNumberOfDocs, true)));
+            operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i - initialNumberOfDocs, true, index.id())));
         }
         final long startingSeqNo = randomIntBetween(0, numberOfDocsWithValidSequenceNumbers - 1);
         final long endingSeqNo = randomLongBetween(startingSeqNo, numberOfDocsWithValidSequenceNumbers - 1);
@@ -330,7 +330,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final List<Translog.Operation> ops = new ArrayList<>();
         for (int numOps = between(1, 256), i = 0; i < numOps; i++) {
             final Engine.Index index = getIndex(Integer.toString(i));
-            ops.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i, true)));
+            ops.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i, true, index.id())));
         }
         final AtomicBoolean wasFailed = new AtomicBoolean();
         RecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler() {
@@ -464,10 +464,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         assertThat(receivedSeqNos, equalTo(sentSeqNos));
     }
 
-    private Engine.Index getIndex(final String id) {
+    private Engine.Index getIndex(String id) {
         final LuceneDocument document = new LuceneDocument();
         document.add(new TextField("test", "test", Field.Store.YES));
-        final Field idField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
+        final Field idField = StandardIdFieldMapper.idField(id);  // TODO tsdbid field could be different.
         final Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
         final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(idField);

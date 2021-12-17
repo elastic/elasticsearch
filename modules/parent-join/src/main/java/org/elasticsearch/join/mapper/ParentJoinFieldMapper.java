@@ -14,6 +14,7 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -69,10 +70,13 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     private static void checkIndexCompatibility(IndexSettings settings, String name) {
+        String indexName = settings.getIndex().getName();
         if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
-            throw new IllegalStateException(
-                "cannot create join field [" + name + "] " + "for the partitioned index " + "[" + settings.getIndex().getName() + "]"
-            );
+            throw new IllegalStateException("cannot create join field [" + name + "] for the partitioned index " + "[" + indexName + "]");
+        }
+        IndexMode mode = settings.getMode();
+        if (mode.calculatesIdFromSource()) {
+            throw new IllegalStateException("cannot create join field [" + name + "] for the index [" + indexName + "] in [" + mode + "]");
         }
     }
 
@@ -290,7 +294,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         if (fieldType().joiner.parentTypeExists(name)) {
             // Index the document as a parent
             String fieldName = fieldType().joiner.childJoinField(name);
-            parentIdFields.get(fieldName).indexValue(context, context.sourceToParse().id());
+            parentIdFields.get(fieldName).indexValue(context, context.id());
         }
 
         BytesRef binaryValue = new BytesRef(name);

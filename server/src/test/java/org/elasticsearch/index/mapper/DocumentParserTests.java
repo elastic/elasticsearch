@@ -469,14 +469,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
         // Nested document:
         assertNotNull(result.docs().get(0).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(0).getField(IdFieldMapper.NAME).binaryValue());
-        assertEquals(IdFieldMapper.Defaults.NESTED_FIELD_TYPE, result.docs().get(0).getField(IdFieldMapper.NAME).fieldType());
+        assertEquals(StandardIdFieldMapper.Defaults.NESTED_FIELD_TYPE, result.docs().get(0).getField(IdFieldMapper.NAME).fieldType());
         assertNotNull(result.docs().get(0).getField(NestedPathFieldMapper.NAME));
         assertEquals("foo", result.docs().get(0).getField(NestedPathFieldMapper.NAME).stringValue());
         assertEquals("value1", result.docs().get(0).getField("foo.bar").binaryValue().utf8ToString());
         // Root document:
         assertNotNull(result.docs().get(1).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(1).getField(IdFieldMapper.NAME).binaryValue());
-        assertEquals(IdFieldMapper.Defaults.FIELD_TYPE, result.docs().get(1).getField(IdFieldMapper.NAME).fieldType());
+        assertEquals(StandardIdFieldMapper.Defaults.FIELD_TYPE, result.docs().get(1).getField(IdFieldMapper.NAME).fieldType());
         assertNull(result.docs().get(1).getField(NestedPathFieldMapper.NAME));
         assertEquals("value2", result.docs().get(1).getField("baz").binaryValue().utf8ToString());
     }
@@ -1515,7 +1515,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper builtDocMapper = createDocumentMapper(builtMapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         LuceneDocument doc = builtDocMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.getBinaryValue(builtDocMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
+        assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(builtDocMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
 
@@ -1527,7 +1527,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         LuceneDocument doc = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
+        assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
 
@@ -1536,7 +1536,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper docMapper = createDocumentMapper(mapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-notype-noid.json"));
         LuceneDocument doc = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
+        assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
 

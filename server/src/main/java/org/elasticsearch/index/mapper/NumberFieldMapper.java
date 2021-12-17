@@ -1454,7 +1454,7 @@ public class NumberFieldMapper extends FieldMapper {
             BytesReference bytes = context.getMetadataMapper(TimeSeriesIdFieldMapper.NAME) != null
                 ? TimeSeriesIdFieldMapper.encodeTsidValue(numericValue.longValue())
                 : null;
-            context.doc().addDimensionBytes(fieldType().name(), bytes);
+            context.doc().addDimension(fieldType().name(), bytes, false);
         }
         List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);
         context.doc().addAll(fields);

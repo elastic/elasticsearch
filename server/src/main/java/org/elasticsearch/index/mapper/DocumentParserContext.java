@@ -89,6 +89,7 @@ public abstract class DocumentParserContext {
     private final Set<String> newFieldsSeen;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
     private final List<RuntimeField> dynamicRuntimeFields;
+    private String id;
     private Field version;
     private SeqNoFieldMapper.SequenceIDFields seqID;
 
@@ -103,6 +104,7 @@ public abstract class DocumentParserContext {
         this.newFieldsSeen = in.newFieldsSeen;
         this.dynamicObjectMappers = in.dynamicObjectMappers;
         this.dynamicRuntimeFields = in.dynamicRuntimeFields;
+        this.id = in.id;
         this.version = in.version;
         this.seqID = in.seqID;
     }
@@ -187,6 +189,17 @@ public abstract class DocumentParserContext {
 
     public final void version(Field version) {
         this.version = version;
+    }
+
+    public final String id() {
+        if (id == null) {
+            throw new IllegalStateException("id field mapper has not set the id");
+        }
+        return id;
+    }
+
+    public final void id(String id) {
+        this.id = id;
     }
 
     public final SeqNoFieldMapper.SequenceIDFields seqID() {

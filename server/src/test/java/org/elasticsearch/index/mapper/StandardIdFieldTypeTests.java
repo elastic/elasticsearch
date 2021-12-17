@@ -18,10 +18,10 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
-public class IdFieldTypeTests extends ESTestCase {
+public class StandardIdFieldTypeTests extends ESTestCase {
 
     public void testRangeQuery() {
-        MappedFieldType ft = new IdFieldMapper.IdFieldType(() -> false);
+        MappedFieldType ft = new StandardIdFieldMapper.IdFieldType(() -> false);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null)
@@ -41,16 +41,16 @@ public class IdFieldTypeTests extends ESTestCase {
         IndexSettings mockSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
         Mockito.when(context.indexVersionCreated()).thenReturn(indexSettings.getAsVersion(IndexMetadata.SETTING_VERSION_CREATED, null));
-        MappedFieldType ft = new IdFieldMapper.IdFieldType(() -> false);
+        MappedFieldType ft = new StandardIdFieldMapper.IdFieldType(() -> false);
         Query query = ft.termQuery("id", context);
         assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);
     }
 
     public void testIsAggregatable() {
-        MappedFieldType ft = new IdFieldMapper.IdFieldType(() -> false);
+        MappedFieldType ft = new StandardIdFieldMapper.IdFieldType(() -> false);
         assertFalse(ft.isAggregatable());
 
-        ft = new IdFieldMapper.IdFieldType(() -> true);
+        ft = new StandardIdFieldMapper.IdFieldType(() -> true);
         assertTrue(ft.isAggregatable());
     }
 }

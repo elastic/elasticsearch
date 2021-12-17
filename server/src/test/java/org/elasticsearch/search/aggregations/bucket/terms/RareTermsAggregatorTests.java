@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.StandardIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -501,14 +502,14 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
 
         for (int nestedValue : nestedValues) {
             Document document = new Document();
-            document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+            document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), StandardIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
             document.add(new Field(NestedPathFieldMapper.NAME, "nested_object", NestedPathFieldMapper.Defaults.FIELD_TYPE));
             document.add(new SortedNumericDocValuesField("nested_value", nestedValue));
             documents.add(document);
         }
 
         Document document = new Document();
-        document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), StandardIdFieldMapper.Defaults.FIELD_TYPE));
         document.add(new Field(NestedPathFieldMapper.NAME, "docs", NestedPathFieldMapper.Defaults.FIELD_TYPE));
         document.add(new SortedNumericDocValuesField("value", value));
         document.add(sequenceIDFields.primaryTerm);

@@ -83,7 +83,7 @@ public class FollowingEngine extends InternalEngine {
                 index.seqNo(),
                 lookupPrimaryTerm(index.seqNo())
             );
-            return IndexingStrategy.skipDueToVersionConflict(error, false, index.version());
+            return IndexingStrategy.skipDueToVersionConflict(error, false, index.version(), index.id());
         } else {
             return planIndexingAsNonPrimary(index);
         }
@@ -99,7 +99,7 @@ public class FollowingEngine extends InternalEngine {
                 delete.seqNo(),
                 lookupPrimaryTerm(delete.seqNo())
             );
-            return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), false);
+            return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), false, delete.id());
         } else {
             return planDeletionAsNonPrimary(delete);
         }

@@ -32,11 +32,10 @@ public class LuceneDocument implements Iterable<IndexableField> {
     private final List<IndexableField> fields;
     private Map<Object, IndexableField> keyedFields;
     /**
-     * A sorted map of the serialized values of dimension fields that will be used
-     * for generating the _tsid field. The map will be used by {@link TimeSeriesIdFieldMapper}
-     * to build the _tsid field for the document.
+     * A sorted map of the information about time series dimensions in the
+     * document.
      */
-    private SortedMap<String, BytesReference> dimensionBytes;
+    private SortedMap<BytesRef, DimensionInfo> dimensionInfo;
 
     LuceneDocument(String path, LuceneDocument parent) {
         fields = new ArrayList<>();
@@ -113,21 +112,23 @@ public class LuceneDocument implements Iterable<IndexableField> {
      * Add the serialized byte reference for a dimension field. This will be used by {@link TimeSeriesIdFieldMapper}
      * to build the _tsid field for the document.
      */
-    public void addDimensionBytes(String fieldName, BytesReference tsidBytes) {
-        if (dimensionBytes == null) {
-            // It is a {@link TreeMap} so that it is order by field name.
-            dimensionBytes = new TreeMap<>();
-        } else if (dimensionBytes.containsKey(fieldName)) {
+    public void addDimension(String fieldName, BytesReference tsidBytes, boolean isRoutingDimension) {
+        if (dimensionInfo == null) {
+            dimensionInfo = new TreeMap<>();
+            dimensionInfo.put(new BytesRef(fieldName), new DimensionInfo(tsidBytes, isRoutingDimension));
+            return;
+        }
+        DimensionInfo prev = dimensionInfo.put(new BytesRef(fieldName), new DimensionInfo(tsidBytes, isRoutingDimension));
+        if (prev != null) {
             throw new IllegalArgumentException("Dimension field [" + fieldName + "] cannot be a multi-valued field.");
         }
-        dimensionBytes.put(fieldName, tsidBytes);
     }
 
-    public SortedMap<String, BytesReference> getDimensionBytes() {
-        if (dimensionBytes == null) {
+    SortedMap<BytesRef, DimensionInfo> getDimensions() {
+        if (dimensionInfo == null) {
             return Collections.emptySortedMap();
         }
-        return dimensionBytes;
+        return dimensionInfo;
     }
 
     public IndexableField[] getFields(String name) {
@@ -176,4 +177,5 @@ public class LuceneDocument implements Iterable<IndexableField> {
         return null;
     }
 
+    static record DimensionInfo(BytesReference tsidBytes, boolean isRoutingDimension) {}
 }

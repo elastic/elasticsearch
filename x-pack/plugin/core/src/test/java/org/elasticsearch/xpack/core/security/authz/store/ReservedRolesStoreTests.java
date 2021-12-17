@@ -558,7 +558,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(mockIndexAbstraction(index)), is(true));
             // Privileges needed for installing current ILM policy with delete action
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(mockIndexAbstraction(index)), is(true));
         });
 
         Arrays.asList(
@@ -788,15 +787,23 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         // Ensure privileges necessary for ILM policies in APM & Endpoint packages
-        Arrays.asList("metrics-apm.app-*", "metrics-apm.internal-*", "metrics-apm.profiling-*", "logs-apm.error_logs-*", "traces-apm-*")
-            .forEach(indexName -> {
-                logger.info("index name [{}]", indexName);
-                final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+        Arrays.asList(
+            "metrics-apm.app-" + randomAlphaOfLengthBetween(3, 8),
+            "metrics-apm.internal-" + randomAlphaOfLengthBetween(3, 8),
+            "metrics-apm.profiling-" + randomAlphaOfLengthBetween(3, 8),
+            "logs-apm.error_logs-" + randomAlphaOfLengthBetween(3, 8),
+            "traces-apm-" + randomAlphaOfLengthBetween(3, 8)
+        ).forEach(indexName -> {
+            logger.info("index name [{}]", indexName);
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
 
-                assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(true));
-                assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
-            });
-        Arrays.asList(".logs-endpoint.diagnostic.collection-*", "traces-apm.sampled-*").forEach(indexName -> {
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+        });
+        Arrays.asList(
+            ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(3, 8),
+            "traces-apm.sampled-" + randomAlphaOfLengthBetween(3, 8)
+        ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
 

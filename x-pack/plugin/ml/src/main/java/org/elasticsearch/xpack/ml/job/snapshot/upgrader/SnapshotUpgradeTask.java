@@ -24,7 +24,8 @@ public class SnapshotUpgradeTask extends LicensedAllocatedPersistentTask {
 
     private final String jobId;
     private final String snapshotId;
-    private volatile JobModelSnapshotUpgrader jobModelSnapshotUpgrader;
+    // Not volatile as only used in synchronized methods
+    private JobModelSnapshotUpgrader jobModelSnapshotUpgrader;
 
     public SnapshotUpgradeTask(
         String jobId,
@@ -69,7 +70,7 @@ public class SnapshotUpgradeTask extends LicensedAllocatedPersistentTask {
         }
     }
 
-    public void setJobModelSnapshotUpgrader(JobModelSnapshotUpgrader jobModelSnapshotUpgrader) {
+    public synchronized void setJobModelSnapshotUpgrader(JobModelSnapshotUpgrader jobModelSnapshotUpgrader) {
         this.jobModelSnapshotUpgrader = jobModelSnapshotUpgrader;
     }
 }

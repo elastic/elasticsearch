@@ -71,8 +71,9 @@ public final class JobModelSnapshotUpgrader {
     private final AutodetectProcessFactory autodetectProcessFactory;
     private final JobResultsPersister jobResultsPersister;
     private final NativeStorageProvider nativeStorageProvider;
-    private volatile AutodetectProcess process;
-    private volatile JobSnapshotUpgraderResultProcessor processor;
+    // Not volatile as only used in synchronized methods
+    private AutodetectProcess process;
+    private JobSnapshotUpgraderResultProcessor processor;
 
     JobModelSnapshotUpgrader(
         SnapshotUpgradeTask task,
@@ -135,6 +136,7 @@ public final class JobModelSnapshotUpgrader {
             try {
                 IOUtils.close(process);
                 process = null;
+                processor = null;
             } catch (IOException ioe) {
                 logger.error("Can't close autodetect", ioe);
             }
@@ -168,6 +170,7 @@ public final class JobModelSnapshotUpgrader {
                 }
                 process.kill(true);
                 process = null;
+                processor = null;
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] failed to kill upgrade process for model snapshot [{}]", jobId, snapshotId), e);
             }

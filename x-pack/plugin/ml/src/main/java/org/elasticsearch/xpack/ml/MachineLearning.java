@@ -1766,7 +1766,7 @@ public class MachineLearning extends Plugin
         }, unsetResetModeListener::onFailure);
 
         // Stop data feeds
-        ActionListener<CancelJobModelSnapshotUpgradeAction.Response> killSnapshotUpgradesListener = ActionListener.wrap(
+        ActionListener<CancelJobModelSnapshotUpgradeAction.Response> cancelSnapshotUpgradesListener = ActionListener.wrap(
             cancelUpgradesResponse -> {
                 StopDatafeedAction.Request stopDatafeedsReq = new StopDatafeedAction.Request("_all").setAllowNoMatch(true);
                 client.execute(
@@ -1787,7 +1787,7 @@ public class MachineLearning extends Plugin
                 "_all",
                 "_all"
             );
-            client.execute(CancelJobModelSnapshotUpgradeAction.INSTANCE, cancelSnapshotUpgradesReq, killSnapshotUpgradesListener);
+            client.execute(CancelJobModelSnapshotUpgradeAction.INSTANCE, cancelSnapshotUpgradesReq, cancelSnapshotUpgradesListener);
         }, unsetResetModeListener::onFailure);
 
         // Stop all model deployments

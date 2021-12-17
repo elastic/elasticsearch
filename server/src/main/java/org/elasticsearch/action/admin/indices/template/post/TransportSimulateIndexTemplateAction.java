@@ -104,7 +104,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         ActionListener<SimulateIndexTemplateResponse> listener
     ) throws Exception {
         final ClusterState stateWithTemplate;
-         if (request.getIndexTemplateRequest() != null) {
+        if (request.getIndexTemplateRequest() != null) {
             // we'll "locally" add the template defined by the user in the cluster state (as if it existed in the system)
             String simulateTemplateToAdd = "simulate_index_template_" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
             // Perform validation for things like typos in component template names
@@ -194,7 +194,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         final IndicesService indicesService,
         final AliasValidator aliasValidator,
         final SystemIndices systemIndices,
-        Set<IndexSettingProvider> indexSettingProviders) throws Exception {
+        Set<IndexSettingProvider> indexSettingProviders
+    ) throws Exception {
         Settings settings = resolveSettings(simulatedState.metadata(), matchingTemplate);
 
         List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(

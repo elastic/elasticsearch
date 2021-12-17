@@ -164,7 +164,8 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             indicesService,
             aliasValidator,
             systemIndices,
-            indexSettingProviders);
+            indexSettingProviders
+        );
         listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
     }
 

@@ -42,7 +42,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -380,21 +379,19 @@ public class ServerUtils {
      * Explicitly disables security features
      */
     public static void disableSecurityFeatures(Installation installation) throws IOException {
-        List<String> disabledSecurityFeatures = List.of(
-            "xpack.security.http.ssl.enabled: false",
-            "xpack.security.transport.ssl.enabled: false",
-            "xpack.security.enabled: false"
-        );
         Path yamlFile = installation.config("elasticsearch.yml");
-        List<String> lines;
-        try (Stream<String> allLines = Files.readAllLines(yamlFile).stream()) {
-            lines = allLines.filter(l -> l.startsWith("xpack.security.http.ssl") == false)
-                .filter(l -> l.startsWith("xpack.security.transport.ssl") == false)
-                .filter(l -> l.startsWith("xpack.security.enabled:") == false)
-                .collect(Collectors.toList());
-        }
-        lines.addAll(disabledSecurityFeatures);
-        Files.write(yamlFile, lines, TRUNCATE_EXISTING);
+        final Settings settings = Settings.builder().loadFromPath(yamlFile).build();
+        final Settings newSettings = Settings.builder()
+            .put(settings.filter(k -> k.startsWith("xpack.security") == false))
+            .put("xpack.security.http.ssl.enabled", false)
+            .put("xpack.security.transport.ssl.enabled: false", false)
+            .put("xpack.security.enabled: false", false)
+            .build();
+        Files.write(
+            yamlFile,
+            newSettings.keySet().stream().map(k -> k + ": " + newSettings.get(k)).collect(Collectors.toList()),
+            TRUNCATE_EXISTING
+        );
 
     }
 
@@ -411,41 +408,31 @@ public class ServerUtils {
     }
 
     public static void addSettingToExistingConfiguration(Installation installation, String setting, String value) throws IOException {
-        Path yml = installation.config("elasticsearch.yml");
-        List<String> lines;
-        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
-            lines = allLines.filter(s -> s.startsWith(setting) == false).collect(Collectors.toList());
-        }
-        lines.add(setting + ": " + value);
-        Files.write(yml, lines, TRUNCATE_EXISTING);
+        addSettingToExistingConfiguration(installation.config, setting, value);
     }
 
     public static void removeSettingFromExistingConfiguration(Installation installation, String setting) throws IOException {
-        Path yml = installation.config("elasticsearch.yml");
-        List<String> lines;
-        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
-            lines = allLines.filter(s -> s.startsWith(setting) == false).collect(Collectors.toList());
-        }
-        Files.write(yml, lines, TRUNCATE_EXISTING);
+        removeSettingFromExistingConfiguration(installation.config, setting);
     }
 
-    public static void addSettingToExistingConfiguration(Path customConf, String setting, String value) throws IOException {
-        Path yml = customConf.resolve("elasticsearch.yml");
-        List<String> lines;
-        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
-            lines = allLines.filter(s -> s.startsWith(setting) == false).collect(Collectors.toList());
-        }
-        lines.add(setting + ": " + value);
-        Files.write(yml, lines, TRUNCATE_EXISTING);
+    public static void addSettingToExistingConfiguration(Path confPath, String setting, String value) throws IOException {
+        Path yml = confPath.resolve("elasticsearch.yml");
+        final Settings settings = Settings.builder().loadFromPath(yml).build();
+        final Settings newSettings = Settings.builder().put(settings).put(setting, value).build();
+        Files.write(
+            yml,
+            newSettings.keySet().stream().map(k -> k + ": " + newSettings.get(k)).collect(Collectors.toList()),
+            TRUNCATE_EXISTING
+        );
     }
 
-    public static void removeSettingFromExistingConfiguration(Path customConf, String setting) throws IOException {
-        Path yml = customConf.resolve("elasticsearch.yml");
-        List<String> lines;
-        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
-            lines = allLines.filter(s -> s.startsWith(setting) == false).collect(Collectors.toList());
-        }
-        Files.write(yml, lines, TRUNCATE_EXISTING);
+    public static void removeSettingFromExistingConfiguration(Path confPath, String setting) throws IOException {
+        Path yml = confPath.resolve("elasticsearch.yml");
+        final Settings settings = Settings.builder().loadFromPath(yml).build();
+        final Settings newSettings = Settings.builder().put(settings.filter(k -> k.equals(setting) == false)).build();
+        Files.write(yml,
+            newSettings.keySet().stream().map(k -> k + ": " + newSettings.get(k)).collect(Collectors.toList()),
+            TRUNCATE_EXISTING);
     }
 
 }

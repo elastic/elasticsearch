@@ -637,7 +637,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     // Tolerate the absence or otherwise denial of these specific lookup classes.
     // At some future time, we should require the JDNI warning.
-    private static final List<String> LOG_4J_MSG_PREFIXES = List.of(
+    private static final List<String> LOG_4J_MSG_PREFIXES = org.elasticsearch.core.List.of(
         "JNDI lookup class is not available because this JRE does not support JNDI. "
             + "JNDI string lookups will not be available, continuing configuration.",
         "JMX runtime input lookup class is not available because this JRE does not support JMX. "

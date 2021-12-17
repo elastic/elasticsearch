@@ -60,7 +60,8 @@ final class ESPolicy extends Policy {
         this.plugins = plugins;
     }
 
-    private static final Predicate<StackTraceElement> JDK_BOOT = f -> f.getClassLoaderName() == null;
+    private static final Predicate<StackTraceElement> JDK_BOOT = f -> f.getClassName().startsWith("java.lang.")
+        || f.getClassName().startsWith("java.security.");
     private static final Predicate<StackTraceElement> ES_BOOTSTRAP = f -> f.getClassName().startsWith("org.elasticsearch.bootstrap");
     private static final Predicate<StackTraceElement> IS_LOG4J = f -> "org.apache.logging.log4j.util.LoaderUtil".equals(f.getClassName())
         && "getClassLoaders".equals(f.getMethodName());
@@ -72,7 +73,7 @@ final class ESPolicy extends Policy {
      */
     private static boolean isLoaderUtilGetClassLoaders() {
         Optional<StackTraceElement> frame = Arrays.stream(Thread.currentThread().getStackTrace())
-            .dropWhile(JDK_BOOT.or(ES_BOOTSTRAP))
+            .filter(JDK_BOOT.or(ES_BOOTSTRAP))
             .limit(1)
             .findFirst()
             .filter(IS_LOG4J);

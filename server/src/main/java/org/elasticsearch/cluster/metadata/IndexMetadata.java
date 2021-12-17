@@ -535,7 +535,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         @Nullable final List<String> tierPreference,
         final int shardsPerNodeLimit
     ) {
-
         this.index = index;
         this.version = version;
         assert mappingVersion >= 0 : mappingVersion;

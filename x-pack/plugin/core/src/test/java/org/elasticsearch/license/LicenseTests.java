@@ -34,21 +34,25 @@ import static org.hamcrest.Matchers.notNullValue;
 public class LicenseTests extends ESTestCase {
 
     public void testFromXContentForGoldLicenseWithVersion2Signature() throws Exception {
-        String licenseString = "{\"license\":"
-            + "{\"uid\":\"4056779d-b823-4c12-a9cb-efa4a8d8c422\","
-            + "\"type\":\"gold\","
-            + "\"issue_date_in_millis\":1546589020459,"
-            + "\"expiry_date_in_millis\":1546596340459,"
-            + "\"max_nodes\":5,"
-            + "\"issued_to\":\"customer\","
-            + "\"issuer\":\"elasticsearch\","
-            + "\"signature\":\"AAAAAgAAAA34V2kfTJVtvdL2LttwAAABmFJ6NGRnbEM3WVQrZVQwNkdKQmR1VytlMTMyM1J0dTZ1WGwyY2ZCVFhqMGtJU2gzZ3pnNTVpOW"
-            + "F5Y1NaUkwyN2VsTEtCYnlZR2c5WWtjQ0phaDlhRjlDUXViUmUwMWhjSkE2TFcwSGdneTJHbUV4N2RHUWJxV20ybjRsZHRzV2xkN0ZmdDlYblJmNVcxMlBWeU81"
-            + "V1hLUm1EK0V1dmF3cFdlSGZzTU5SZE1qUmFra3JkS1hCanBWVmVTaFFwV3BVZERzeG9Sci9rYnlJK2toODZXY09tNmFHUVNUL3IyUHExV3VSTlBneWNJcFQ0bX"
-            + "l0cmhNNnRwbE1CWE4zWjJ5eGFuWFo0NGhsb3B5WFd1eTdYbFFWQkxFVFFPSlBERlB0eVVJYXVSZ0lsR2JpRS9rN1h4MSsvNUpOcGN6cU1NOHN1cHNtSTFIUGN1"
-            + "bWNGNEcxekhrblhNOXZ2VEQvYmRzQUFwbytUZEpRR3l6QU5oS2ZFSFdSbGxxNDZyZ0xvUHIwRjdBL2JqcnJnNGFlK09Cek9pYlJ5Umc9PQAAAQAth77fQLF7CC"
-            + "EL7wA6Z0/UuRm/weECcsjW/50kBnPLO8yEs+9/bPa5LSU0bF6byEXOVeO0ebUQfztpjulbXh8TrBDSG+6VdxGtohPo2IYPBaXzGs3LOOor6An/lhptxBWdwYmf"
-            + "bcp0m8mnXZh1vN9rmbTsZXnhBIoPTaRDwUBi3vJ3Ms3iLaEm4S8Slrfmtht2jUjgGZ2vAeZ9OHU2YsGtrSpz6f\"}";
+        String licenseString = """
+            {
+              "license": {
+                "uid": "4056779d-b823-4c12-a9cb-efa4a8d8c422",
+                "type": "gold",
+                "issue_date_in_millis": 1546589020459,
+                "expiry_date_in_millis": 1546596340459,
+                "max_nodes": 5,
+                "issued_to": "customer",
+                "issuer": "elasticsearch",
+                "signature": "AAAAAgAAAA34V2kfTJVtvdL2LttwAAABmFJ6NGRnbEM3WVQrZVQwNkdKQmR1VytlMTMyM1J0dTZ1WGwyY2ZCVFhqMGtJU2gzZ3pnNTVp\
+            OWF5Y1NaUkwyN2VsTEtCYnlZR2c5WWtjQ0phaDlhRjlDUXViUmUwMWhjSkE2TFcwSGdneTJHbUV4N2RHUWJxV20ybjRsZHRzV2xkN0ZmdDlYblJmNVcxMl\
+            BWeU81V1hLUm1EK0V1dmF3cFdlSGZzTU5SZE1qUmFra3JkS1hCanBWVmVTaFFwV3BVZERzeG9Sci9rYnlJK2toODZXY09tNmFHUVNUL3IyUHExV3VSTlBn\
+            eWNJcFQ0bXl0cmhNNnRwbE1CWE4zWjJ5eGFuWFo0NGhsb3B5WFd1eTdYbFFWQkxFVFFPSlBERlB0eVVJYXVSZ0lsR2JpRS9rN1h4MSsvNUpOcGN6cU1NOH\
+            N1cHNtSTFIUGN1bWNGNEcxekhrblhNOXZ2VEQvYmRzQUFwbytUZEpRR3l6QU5oS2ZFSFdSbGxxNDZyZ0xvUHIwRjdBL2JqcnJnNGFlK09Cek9pYlJ5Umc9\
+            PQAAAQAth77fQLF7CCEL7wA6Z0/UuRm/weECcsjW/50kBnPLO8yEs+9/bPa5LSU0bF6byEXOVeO0ebUQfztpjulbXh8TrBDSG+6VdxGtohPo2IYPBaXzGs\
+            3LOOor6An/lhptxBWdwYmfbcp0m8mnXZh1vN9rmbTsZXnhBIoPTaRDwUBi3vJ3Ms3iLaEm4S8Slrfmtht2jUjgGZ2vAeZ9OHU2YsGtrSpz6f"
+              }
+            }""";
         License license = License.fromSource(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
         assertThat(license.type(), equalTo("gold"));
         assertThat(license.uid(), equalTo("4056779d-b823-4c12-a9cb-efa4a8d8c422"));
@@ -62,19 +66,23 @@ public class LicenseTests extends ESTestCase {
     }
 
     public void testFromXContentForGoldLicenseWithVersion4Signature() throws Exception {
-        String licenseString = "{\"license\":{"
-            + "\"uid\":\"4056779d-b823-4c12-a9cb-efa4a8d8c422\","
-            + "\"type\":\"gold\","
-            + "\"issue_date_in_millis\":1546589020459,"
-            + "\"expiry_date_in_millis\":1546596340459,"
-            + "\"max_nodes\":5,"
-            + "\"issued_to\":\"customer\","
-            + "\"issuer\":\"elasticsearch\","
-            + "\"signature\":\"AAAABAAAAA22vXffI41oM4jLCwZ6AAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAH3oL4weubwYGjLGNZsz90"
-            + "EerX6yOX3Dh6wswG9EfqCiyv6lcjuC7aeKKuOkqhMRTHZ9vHnfMuakHWVlpuGC14WyGqaMwSmgTZ9jVAzt/W3sIotRxM/3rtlCXUc1rOUXNFcii1i3Kkrc"
-            + "kTzhENTKjdkOmUN3qZlTEmHkp93eYpx8++iIukHYU9K9Vm2VKgydFfxvYaN/Qr+iPfJSbHJB8+DmS2ywdrmdqW+ScE+1ZNouPNhnP3RKTleNvixXPG9l5B"
-            + "qZ2So1IlCrxVDByA1E6JH5AvjbOucpcGiWCm7IzvfpkzphKHMyxhUaIByoHl9UAf4AdPLhowWAQk0eHMRDDlo=\","
-            + "\"start_date_in_millis\":-1}}\n";
+        String licenseString = """
+            {
+              "license": {
+                "uid": "4056779d-b823-4c12-a9cb-efa4a8d8c422",
+                "type": "gold",
+                "issue_date_in_millis": 1546589020459,
+                "expiry_date_in_millis": 1546596340459,
+                "max_nodes": 5,
+                "issued_to": "customer",
+                "issuer": "elasticsearch",
+                "signature": "AAAABAAAAA22vXffI41oM4jLCwZ6AAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAH3oL4weubwYGjLGNZsz90EerX6y\
+            OX3Dh6wswG9EfqCiyv6lcjuC7aeKKuOkqhMRTHZ9vHnfMuakHWVlpuGC14WyGqaMwSmgTZ9jVAzt/W3sIotRxM/3rtlCXUc1rOUXNFcii1i3KkrckTzhENTKjdkOmU\
+            N3qZlTEmHkp93eYpx8++iIukHYU9K9Vm2VKgydFfxvYaN/Qr+iPfJSbHJB8+DmS2ywdrmdqW+ScE+1ZNouPNhnP3RKTleNvixXPG9l5BqZ2So1IlCrxVDByA1E6JH5\
+            AvjbOucpcGiWCm7IzvfpkzphKHMyxhUaIByoHl9UAf4AdPLhowWAQk0eHMRDDlo=",
+                "start_date_in_millis": -1
+              }
+            }""";
         License license = License.fromSource(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
         assertThat(license.type(), equalTo("gold"));
         assertThat(license.uid(), equalTo("4056779d-b823-4c12-a9cb-efa4a8d8c422"));
@@ -88,20 +96,24 @@ public class LicenseTests extends ESTestCase {
     }
 
     public void testFromXContentForEnterpriseLicenseWithV5Signature() throws Exception {
-        String licenseString = "{\"license\":{"
-            + "\"uid\":\"4056779d-b823-4c12-a9cb-efa4a8d8c422\","
-            + "\"type\":\"enterprise\","
-            + "\"issue_date_in_millis\":1546589020459,"
-            + "\"expiry_date_in_millis\":1546596340459,"
-            + "\"max_nodes\":null,"
-            + "\"max_resource_units\":15,"
-            + "\"issued_to\":\"customer\","
-            + "\"issuer\":\"elasticsearch\","
-            + "\"signature\":\"AAAABQAAAA2MUoEqXb9K9Ie5d6JJAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAAAwVZKGAmDELUlS5PScBkhQsZa"
-            + "DaQTtJ4ZP5EnZ/nLpmCt9Dj7d/FRsgMtHmSJLrr2CdrIo4Vx5VuhmbwzZvXMttLz2lrJzG7770PX3TnC9e7F9GdnE9ec0FP2U0ZlLOBOtPuirX0q+j6GfB+DLyE"
-            + "5D+Lo1NQ3eLJGvbd3DBYPWJxkb+EBVHczCH2OrIEVWnN/TafmkdZCPX5PcultkNOs3j7d3s7b51EXHKoye8UTcB/RGmzZwMah+E6I/VJkqu7UHL8bB01wJeqo6W"
-            + "xI4LC/9+f5kpmHrUu3CHe5pHbmMGDk7O6/cwt1pw/hnJXKIFCi36IGaKcHLgORxQdN0uzE=\","
-            + "\"start_date_in_millis\":-1}}";
+        String licenseString = """
+            {
+              "license": {
+                "uid": "4056779d-b823-4c12-a9cb-efa4a8d8c422",
+                "type": "enterprise",
+                "issue_date_in_millis": 1546589020459,
+                "expiry_date_in_millis": 1546596340459,
+                "max_nodes": null,
+                "max_resource_units": 15,
+                "issued_to": "customer",
+                "issuer": "elasticsearch",
+                "signature": "AAAABQAAAA2MUoEqXb9K9Ie5d6JJAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAAAwVZKGAmDELUlS5PScBkhQsZaD\
+            aQTtJ4ZP5EnZ/nLpmCt9Dj7d/FRsgMtHmSJLrr2CdrIo4Vx5VuhmbwzZvXMttLz2lrJzG7770PX3TnC9e7F9GdnE9ec0FP2U0ZlLOBOtPuirX0q+j6GfB+DLyE5D+L\
+            o1NQ3eLJGvbd3DBYPWJxkb+EBVHczCH2OrIEVWnN/TafmkdZCPX5PcultkNOs3j7d3s7b51EXHKoye8UTcB/RGmzZwMah+E6I/VJkqu7UHL8bB01wJeqo6WxI4LC/9\
+            +f5kpmHrUu3CHe5pHbmMGDk7O6/cwt1pw/hnJXKIFCi36IGaKcHLgORxQdN0uzE=",
+                "start_date_in_millis": -1
+              }
+            }""";
         License license = License.fromSource(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
         assertThat(license.type(), equalTo("enterprise"));
         assertThat(license.uid(), equalTo("4056779d-b823-4c12-a9cb-efa4a8d8c422"));
@@ -218,16 +230,19 @@ public class LicenseTests extends ESTestCase {
 
     public void testNotEnoughBytesFromXContent() throws Exception {
 
-        String licenseString = "{\"license\": "
-            + "{\"uid\":\"4056779d-b823-4c12-a9cb-efa4a8d8c422\","
-            + "\"type\":\"gold\","
-            + "\"issue_date_in_millis\":1546589020459,"
-            + "\"expiry_date_in_millis\":1546596340459,"
-            + "\"max_nodes\":5,"
-            + "\"issued_to\":\"customer\","
-            + "\"issuer\":\"elasticsearch\","
-            + "\"signature\":\"AA\"}"
-            + "}";
+        String licenseString = """
+            {
+              "license": {
+                "uid": "4056779d-b823-4c12-a9cb-efa4a8d8c422",
+                "type": "gold",
+                "issue_date_in_millis": 1546589020459,
+                "expiry_date_in_millis": 1546596340459,
+                "max_nodes": 5,
+                "issued_to": "customer",
+                "issuer": "elasticsearch",
+                "signature": "AA"
+              }
+            }""";
         ElasticsearchException exception = expectThrows(
             ElasticsearchException.class,
             () -> { License.fromSource(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)), XContentType.JSON); }
@@ -238,18 +253,19 @@ public class LicenseTests extends ESTestCase {
 
     public void testMalformedSignatureFromXContent() throws Exception {
 
-        String licenseString = "{\"license\": "
-            + "{\"uid\":\"4056779d-b823-4c12-a9cb-efa4a8d8c422\","
-            + "\"type\":\"gold\","
-            + "\"issue_date_in_millis\":1546589020459,"
-            + "\"expiry_date_in_millis\":1546596340459,"
-            + "\"max_nodes\":5,"
-            + "\"issued_to\":\"customer\","
-            + "\"issuer\":\"elasticsearch\","
-            + "\"signature\":\""
-            + randomAlphaOfLength(10)
-            + "\"}"
-            + "}";
+        String licenseString = """
+            {
+              "license": {
+                "uid": "4056779d-b823-4c12-a9cb-efa4a8d8c422",
+                "type": "gold",
+                "issue_date_in_millis": 1546589020459,
+                "expiry_date_in_millis": 1546596340459,
+                "max_nodes": 5,
+                "issued_to": "customer",
+                "issuer": "elasticsearch",
+                "signature": "%s"
+              }
+            }""".formatted(randomAlphaOfLength(10));
         ElasticsearchException exception = expectThrows(
             ElasticsearchException.class,
             () -> { License.fromSource(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)), XContentType.JSON); }
@@ -261,22 +277,25 @@ public class LicenseTests extends ESTestCase {
 
     public void testUnableToBase64DecodeFromXContent() throws Exception {
 
-        String licenseString = "{\"license\":"
-            + "{\"uid\":\"4056779d-b823-4c12-a9cb-efa4a8d8c422\","
-            + "\"type\":\"gold\","
-            + "\"issue_date_in_millis\":1546589020459,"
-            + "\"expiry_date_in_millis\":1546596340459,"
-            + "\"max_nodes\":5,"
-            + "\"issued_to\":\"customer\","
-            + "\"issuer\":\"elasticsearch\","
-            + "\"signature\":\"AAAAAgAAAA34V2kfTJVtvdL2LttwAAABmFJ6NGRnbEM3WVQrZVQwNkdKQmR1VytlMTMyM1J0dTZ1WGwyY2ZCVFhqMGtJU2gzZ3pnNTVpOW"
-            + "F5Y1NaUkwyN2VsTEtCYnlZR2c5WWtjQ0phaDlhRjlDUXViUmUwMWhjSkE2TFcwSGdneTJHbUV4N2RHUWJxV20ybjRsZHRzV2xkN0ZmdDlYblJmNVcxMlBWeU81"
-            + "V1hLUm1EK0V1dmF3cFdlSGZzTU5SZE1qUmFra3JkS1hCanBWVmVTaFFwV3BVZERzeG9Sci9rYnlJK2toODZXY09tNmFHUVNUL3IyUHExV3VSTlBneWNJcFQ0bX"
-            + "l0cmhNNnRwbE1CWE4zWjJ5eGFuWFo0NGhsb3B5WFd1eTdYbFFWQkxFVFFPSlBERlB0eVVJYXVSZ0lsR2JpRS9rN1h4MSsvNUpOcGN6cU1NOHN1cHNtSTFIUGN1"
-            + "bWNGNEcxekhrblhNOXZ2VEQvYmRzQUFwbytUZEpRR3l6QU5oS2ZFSFdSbGxxNDZyZ0xvUHIwRjdBL2JqcnJnNGFlK09Cek9pYlJ5Umc9PQAAAQAth77fQLF7CC"
-            + "EL7wA6Z0/UuRm/weECcsjW/50kBnPLO8yEs+9/bPa5LSU0bF6byEXOVeO0ebUQfztpjulbXh8TrBDSG+6VdxGtohPo2IYPBaXzGs3LOOor6An/lhptxBWdwYmf"
-            + "+xHAQ8tyvRqP5G+PRU7tiluEwR/eyHGZV2exdJNzmoGzdPSWwueBM5HK2GexORICH+UFI4cuGz444/hL2MMM1RdpVWQkT0SJ6D9x/VuSmHuYPdtX59Pp41LXvl"
-            + "bcp0m8mnXZh1vN9rmbTsZXnhBIoPTaRDwUBi3vJ3Ms3iLaEm4S8Slrfmtht2jUjgGZ2vAeZ9OHU2YsGtrSpz6fd\"}";
+        String licenseString = """
+            {
+              "license": {
+                "uid": "4056779d-b823-4c12-a9cb-efa4a8d8c422",
+                "type": "gold",
+                "issue_date_in_millis": 1546589020459,
+                "expiry_date_in_millis": 1546596340459,
+                "max_nodes": 5,
+                "issued_to": "customer",
+                "issuer": "elasticsearch",
+                "signature": "AAAAAgAAAA34V2kfTJVtvdL2LttwAAABmFJ6NGRnbEM3WVQrZVQwNkdKQmR1VytlMTMyM1J0dTZ1WGwyY2ZCVFhqMGtJU2gzZ3pnNTVpOWF5\
+            Y1NaUkwyN2VsTEtCYnlZR2c5WWtjQ0phaDlhRjlDUXViUmUwMWhjSkE2TFcwSGdneTJHbUV4N2RHUWJxV20ybjRsZHRzV2xkN0ZmdDlYblJmNVcxMlBWeU81V1hLUm\
+            1EK0V1dmF3cFdlSGZzTU5SZE1qUmFra3JkS1hCanBWVmVTaFFwV3BVZERzeG9Sci9rYnlJK2toODZXY09tNmFHUVNUL3IyUHExV3VSTlBneWNJcFQ0bXl0cmhNNnRw\
+            bE1CWE4zWjJ5eGFuWFo0NGhsb3B5WFd1eTdYbFFWQkxFVFFPSlBERlB0eVVJYXVSZ0lsR2JpRS9rN1h4MSsvNUpOcGN6cU1NOHN1cHNtSTFIUGN1bWNGNEcxekhrbl\
+            hNOXZ2VEQvYmRzQUFwbytUZEpRR3l6QU5oS2ZFSFdSbGxxNDZyZ0xvUHIwRjdBL2JqcnJnNGFlK09Cek9pYlJ5Umc9PQAAAQAth77fQLF7CCEL7wA6Z0/UuRm/weEC\
+            csjW/50kBnPLO8yEs+9/bPa5LSU0bF6byEXOVeO0ebUQfztpjulbXh8TrBDSG+6VdxGtohPo2IYPBaXzGs3LOOor6An/lhptxBWdwYmf+xHAQ8tyvRqP5G+PRU7til\
+            uEwR/eyHGZV2exdJNzmoGzdPSWwueBM5HK2GexORICH+UFI4cuGz444/hL2MMM1RdpVWQkT0SJ6D9x/VuSmHuYPdtX59Pp41LXvlbcp0m8mnXZh1vN9rmbTsZXnhBI\
+            oPTaRDwUBi3vJ3Ms3iLaEm4S8Slrfmtht2jUjgGZ2vAeZ9OHU2YsGtrSpz6fd"
+            }""";
         ElasticsearchException exception = expectThrows(
             ElasticsearchException.class,
             () -> { License.fromSource(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)), XContentType.JSON); }

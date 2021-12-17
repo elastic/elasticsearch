@@ -70,7 +70,8 @@ public class TransformAuditorIT extends TransformRestTestCase {
 
         // Make sure we wrote to the audit
         final Request request = new Request("GET", TransformInternalIndexConstants.AUDIT_INDEX + "/_search");
-        request.setJsonEntity("{\"query\":{\"term\":{\"transform_id\":\"simple_pivot_for_audit\"}}}");
+        request.setJsonEntity("""
+            {"query":{"term":{"transform_id":"simple_pivot_for_audit"}}}""");
         assertBusy(() -> {
             assertTrue(indexExists(TransformInternalIndexConstants.AUDIT_INDEX));
             assertTrue(aliasExists(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS));

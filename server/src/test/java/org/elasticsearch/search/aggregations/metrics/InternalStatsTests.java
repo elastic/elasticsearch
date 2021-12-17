@@ -8,6 +8,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
@@ -207,43 +208,41 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         int count = randomIntBetween(1, 10);
         DocValueFormat format = randomNumericDocValueFormat();
         InternalStats internalStats = createInstance("stats", count, sum, min, max, format, null);
-        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         internalStats.doXContentBody(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        String expected = "{\n"
-            + "  \"count\" : "
-            + count
-            + ",\n"
-            + "  \"min\" : "
-            + min
-            + ",\n"
-            + "  \"max\" : "
-            + max
-            + ",\n"
-            + "  \"avg\" : "
-            + internalStats.getAvg()
-            + ",\n"
-            + "  \"sum\" : "
-            + sum;
-        if (format != DocValueFormat.RAW) {
-            expected += ",\n"
-                + "  \"min_as_string\" : \""
-                + format.format(internalStats.getMin())
-                + "\",\n"
-                + "  \"max_as_string\" : \""
-                + format.format(internalStats.getMax())
-                + "\",\n"
-                + "  \"avg_as_string\" : \""
-                + format.format(internalStats.getAvg())
-                + "\",\n"
-                + "  \"sum_as_string\" : \""
-                + format.format(internalStats.getSum())
-                + "\"";
-        }
-        expected += "\n}";
-        assertEquals(expected, Strings.toString(builder));
+        String expected = """
+            {
+              "count" : %s,
+              "min" : %s,
+              "max" : %s,
+              "avg" : %s,
+              "sum" : %s
+              %s
+            }""".formatted(
+            count,
+            min,
+            max,
+            internalStats.getAvg(),
+            sum,
+            format != DocValueFormat.RAW
+                ? """
+                    ,
+                    "min_as_string" : "%s",
+                    "max_as_string" : "%s",
+                    "avg_as_string" : "%s",
+                    "sum_as_string" : "%s"
+                    """.formatted(
+                    format.format(internalStats.getMin()),
+                    format.format(internalStats.getMax()),
+                    format.format(internalStats.getAvg()),
+                    format.format(internalStats.getSum())
+                )
+                : ""
+        );
+        assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
 
         // count is zero
         format = randomNumericDocValueFormat();
@@ -252,21 +251,19 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         sum = 0.0;
         count = 0;
         internalStats = createInstance("stats", count, sum, min, max, format, null);
-        builder = JsonXContent.contentBuilder().prettyPrint();
+        builder = JsonXContent.contentBuilder();
         builder.startObject();
         internalStats.doXContentBody(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        assertEquals(
-            "{\n"
-                + "  \"count\" : 0,\n"
-                + "  \"min\" : null,\n"
-                + "  \"max\" : null,\n"
-                + "  \"avg\" : null,\n"
-                + "  \"sum\" : 0.0\n"
-                + "}",
-            Strings.toString(builder)
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "count" : 0,
+              "min" : null,
+              "max" : null,
+              "avg" : null,
+              "sum" : 0.0
+            }"""), Strings.toString(builder));
     }
 
     public void testIterator() {

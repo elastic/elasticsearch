@@ -31,7 +31,6 @@ dependencies {
   api 'org.objenesis:objenesis:3.2'
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
-  api "io.github.nik9000:mapmatcher:0.0.3"
 
   // json schema validation dependencies
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
@@ -76,24 +75,15 @@ tasks.named("thirdPartyAudit").configure {
           'org.joni.Syntax',
           'org.slf4j.Logger',
           'org.slf4j.LoggerFactory',
-          'org.tukaani.xz.ARMOptions',
-          'org.tukaani.xz.ARMThumbOptions',
           'org.tukaani.xz.DeltaOptions',
           'org.tukaani.xz.FilterOptions',
-          'org.tukaani.xz.FinishableWrapperOutputStream',
-          'org.tukaani.xz.IA64Options',
           'org.tukaani.xz.LZMA2InputStream',
           'org.tukaani.xz.LZMA2Options',
           'org.tukaani.xz.LZMAInputStream',
           'org.tukaani.xz.LZMAOutputStream',
           'org.tukaani.xz.MemoryLimitException',
-          'org.tukaani.xz.PowerPCOptions',
-          'org.tukaani.xz.SPARCOptions',
-          'org.tukaani.xz.SingleXZInputStream',
           'org.tukaani.xz.UnsupportedOptionsException',
-          'org.tukaani.xz.X86Options',
           'org.tukaani.xz.XZ',
-          'org.tukaani.xz.XZInputStream',
           'org.tukaani.xz.XZOutputStream',
 
           // mockito

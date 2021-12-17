@@ -403,7 +403,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     RestRequest.Method.OPTIONS
                 )
                     .withPath("/internal/test")
-                    .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                    .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList(opaqueId)))
                     .withInboundException(inboundException)
                     .build();
 
@@ -420,7 +420,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     RestRequest.Method.OPTIONS
                 )
                     .withPath("/internal/testNotSeen")
-                    .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                    .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList(opaqueId)))
                     .withInboundException(inboundExceptionExcludedPath)
                     .build();
 
@@ -502,7 +502,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
             final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(method)
                 .withPath(path)
-                .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList(opaqueId)))
                 .build();
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
             mockAppender.assertAllExpectationsMatched();
@@ -553,7 +553,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress)
                 .withMethod(RestRequest.Method.GET)
                 .withPath("/internal/stats_test")
-                .withHeaders(Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                .withHeaders(Map.of(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList(opaqueId)))
                 .build();
             transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
@@ -569,7 +569,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress)
                 .withMethod(RestRequest.Method.GET)
                 .withPath("/internal/stats_test2")
-                .withHeaders(Map.of(Task.X_OPAQUE_ID.toUpperCase(Locale.ROOT), Collections.singletonList(opaqueId)))
+                .withHeaders(Map.of(Task.X_OPAQUE_ID_HTTP_HEADER.toUpperCase(Locale.ROOT), Collections.singletonList(opaqueId)))
                 .build();
             transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
@@ -628,7 +628,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress)
                 .withMethod(RestRequest.Method.GET)
                 .withPath("/internal/stats_test")
-                .withHeaders(Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                .withHeaders(Map.of(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList(opaqueId)))
                 .build();
             transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
@@ -652,7 +652,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress)
                 .withMethod(RestRequest.Method.GET)
                 .withPath("/internal/stats_test")
-                .withHeaders(Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                .withHeaders(Map.of(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList(opaqueId)))
                 .build();
             transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
@@ -669,7 +669,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress)
                 .withMethod(RestRequest.Method.GET)
                 .withPath("/internal/stats_test")
-                .withHeaders(Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                .withHeaders(Map.of(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList(opaqueId)))
                 .build();
             transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());

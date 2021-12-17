@@ -595,8 +595,7 @@ public class DatafeedRunner {
                                     // Given that the UI force-deletes the datafeed and then force-deletes the job, it's
                                     // quite likely that the auto-close here will get interrupted by a process kill request,
                                     // and it's misleading/worrying to log an error in this case.
-                                    if (e instanceof ElasticsearchStatusException
-                                        && ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT) {
+                                    if (e instanceof ElasticsearchStatusException exception && exception.status() == RestStatus.CONFLICT) {
                                         logger.debug("[{}] {}", getJobId(), e.getMessage());
                                     } else {
                                         logger.error("[" + getJobId() + "] failed to auto-close job", e);

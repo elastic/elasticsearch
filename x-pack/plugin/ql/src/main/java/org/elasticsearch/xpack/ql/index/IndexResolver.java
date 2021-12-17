@@ -73,8 +73,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
-import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.qualifyAndJoinIndices;
-import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.splitQualifiedIndex;
+import static org.elasticsearch.xpack.ql.util.StringUtils.qualifyAndJoinIndices;
+import static org.elasticsearch.xpack.ql.util.StringUtils.splitQualifiedIndex;
 
 public class IndexResolver {
 
@@ -511,8 +511,7 @@ public class IndexResolver {
 
         EsField esField = field.apply(fieldName);
 
-        if (parent != null && parent instanceof UnsupportedEsField) {
-            UnsupportedEsField unsupportedParent = (UnsupportedEsField) parent;
+        if (parent != null && parent instanceof UnsupportedEsField unsupportedParent) {
             String inherited = unsupportedParent.getInherited();
             String type = unsupportedParent.getOriginalType();
 

@@ -220,19 +220,20 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"span_multi\" : {\n"
-            + "    \"match\" : {\n"
-            + "      \"prefix\" : {\n"
-            + "        \"user\" : {\n"
-            + "          \"value\" : \"ki\",\n"
-            + "          \"boost\" : 1.08\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "span_multi" : {
+                "match" : {
+                  "prefix" : {
+                    "user" : {
+                      "value" : "ki",
+                      "boost" : 1.08
+                    }
+                  }
+                },
+                "boost" : 1.0
+              }
+            }""";
 
         SpanMultiTermQueryBuilder parsed = (SpanMultiTermQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

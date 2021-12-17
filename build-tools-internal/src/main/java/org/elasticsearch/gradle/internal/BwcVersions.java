@@ -67,7 +67,7 @@ public class BwcVersions {
     private static final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*?LUCENE_(\\d+)_(\\d+)_(\\d+)\\);"
     );
-    private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("7.16.0");
+    private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("7.17.0");
 
     private final VersionPair currentVersion;
     private final List<VersionPair> versions;

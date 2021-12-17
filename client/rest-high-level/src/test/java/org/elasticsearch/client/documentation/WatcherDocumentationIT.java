@@ -144,11 +144,12 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::x-pack-put-watch-execute
             // you can also use the WatchSourceBuilder from org.elasticsearch.plugin:x-pack-core to create a watch programmatically
-            BytesReference watch = new BytesArray("{ \n" +
-                "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
-                "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n" +
-                "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
-                "}");
+            BytesReference watch = new BytesArray("""
+                {
+                  "trigger": { "schedule": { "interval": "10h" } },
+                  "input": { "simple": { "foo" : "bar" } },
+                  "actions": { "logme": { "logging": { "text": "{{ctx.payload}}" } } }
+                }""");
             PutWatchRequest request = new PutWatchRequest("my_watch_id", watch, XContentType.JSON);
             request.setActive(false); // <1>
             PutWatchResponse response = client.watcher().putWatch(request, RequestOptions.DEFAULT);
@@ -162,13 +163,12 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            BytesReference watch = new BytesArray(
-                "{ \n"
-                    + "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n"
-                    + "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n"
-                    + "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n"
-                    + "}"
-            );
+            BytesReference watch = new BytesArray("""
+                {
+                  "trigger": { "schedule": { "interval": "10h" } },
+                  "input": { "simple": { "foo" : "bar" } },
+                  "actions": { "logme": { "logging": { "text": "{{ctx.payload}}" } } }
+                }""");
             PutWatchRequest request = new PutWatchRequest("my_other_watch_id", watch, XContentType.JSON);
             // tag::x-pack-put-watch-execute-listener
             ActionListener<PutWatchResponse> listener = new ActionListener<PutWatchResponse>() {
@@ -332,11 +332,12 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             // tag::x-pack-execute-watch-inline
-            String watchJson = "{ \n" +
-                "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
-                "  \"input\": { \"none\": {} },\n" +
-                "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
-                "}";
+            String watchJson = """
+                    {
+                      "trigger": { "schedule": { "interval": "10h" } },
+                      "input": { "none": {} },
+                      "actions": { "logme": { "logging": { "text": "{{ctx.payload}}" } } }
+                    }""";
             ExecuteWatchRequest request = ExecuteWatchRequest.inline(watchJson);
             request.setAlternativeInput("{ \"foo\" : \"bar\" }");                                         // <1>
             request.setActionMode("action1", ExecuteWatchRequest.ActionExecutionMode.SIMULATE);             // <2>
@@ -354,11 +355,12 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            String watchJson = "{ \n"
-                + "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n"
-                + "  \"input\": { \"none\": {} },\n"
-                + "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n"
-                + "}";
+            String watchJson = """
+                {
+                  "trigger": { "schedule": { "interval": "10h" } },
+                  "input": { "none": {} },
+                  "actions": { "logme": { "logging": { "text": "{{ctx.payload}}" } } }
+                }""";
             ExecuteWatchRequest request = ExecuteWatchRequest.inline(watchJson);
             // tag::x-pack-execute-watch-inline-execute-listener
             ActionListener<ExecuteWatchResponse> listener = new ActionListener<ExecuteWatchResponse>() {
@@ -390,13 +392,12 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            BytesReference watch = new BytesArray(
-                "{ \n"
-                    + "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n"
-                    + "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n"
-                    + "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n"
-                    + "}"
-            );
+            BytesReference watch = new BytesArray("""
+                {
+                  "trigger": { "schedule": { "interval": "10h" } },
+                  "input": { "simple": { "foo" : "bar" } },
+                  "actions": { "logme": { "logging": { "text": "{{ctx.payload}}" } } }
+                }""");
             PutWatchRequest putWatchRequest = new PutWatchRequest("my_watch_id", watch, XContentType.JSON);
             client.watcher().putWatch(putWatchRequest, RequestOptions.DEFAULT);
 
@@ -458,13 +459,12 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            BytesReference watch = new BytesArray(
-                "{ \n"
-                    + "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n"
-                    + "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n"
-                    + "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n"
-                    + "}"
-            );
+            BytesReference watch = new BytesArray("""
+                {
+                  "trigger": { "schedule": { "interval": "10h" } },
+                  "input": { "simple": { "foo" : "bar" } },
+                  "actions": { "logme": { "logging": { "text": "{{ctx.payload}}" } } }
+                }""");
             PutWatchRequest putWatchRequest = new PutWatchRequest("my_watch_id", watch, XContentType.JSON);
             client.watcher().putWatch(putWatchRequest, RequestOptions.DEFAULT);
         }
@@ -510,13 +510,12 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            BytesReference watch = new BytesArray(
-                "{ \n"
-                    + "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n"
-                    + "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n"
-                    + "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n"
-                    + "}"
-            );
+            BytesReference watch = new BytesArray("""
+                {
+                  "trigger": { "schedule": { "interval": "10h" } },
+                  "input": { "simple": { "foo" : "bar" } },
+                  "actions": { "logme": { "logging": { "text": "{{ctx.payload}}" } } }
+                }""");
             PutWatchRequest request = new PutWatchRequest("my_watch_id", watch, XContentType.JSON);
             request.setActive(false); // <1>
             PutWatchResponse response = client.watcher().putWatch(request, RequestOptions.DEFAULT);

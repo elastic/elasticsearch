@@ -143,8 +143,10 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
         final String query = Strings.toString(request.source().query());
-        assertThat(query, containsString("{\"terms\":{\"application\":[\"myapp\"]"));
-        assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
+        assertThat(query, containsString("""
+            {"terms":{"application":["myapp"]"""));
+        assertThat(query, containsString("""
+            {"term":{"type":{"value":"application-privilege\""""));
 
         final SearchHit[] hits = buildHits(sourcePrivileges);
         listener.get()
@@ -217,14 +219,11 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
-        assertThat(
-            query,
-            anyOf(
-                containsString("{\"terms\":{\"application\":[\"myapp\",\"yourapp\"]"),
-                containsString("{\"terms\":{\"application\":[\"yourapp\",\"myapp\"]")
-            )
-        );
-        assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
+        assertThat(query, anyOf(containsString("""
+            {"terms":{"application":["myapp","yourapp"]"""), containsString("""
+            {"terms":{"application":["yourapp","myapp"]""")));
+        assertThat(query, containsString("""
+            {"term":{"type":{"value":"application-privilege\""""));
 
         final SearchHit[] hits = buildHits(sourcePrivileges);
         listener.get()

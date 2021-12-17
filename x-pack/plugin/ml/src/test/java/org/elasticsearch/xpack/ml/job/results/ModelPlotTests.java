@@ -241,7 +241,9 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
     }
 
     public void testStrictParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\":12354667, \"bucket_span\": 3600, \"detector_index\":3, \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp":12354667, "bucket_span": 3600, "detector_index":3, "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ModelPlot.STRICT_PARSER.apply(parser, null));
 
@@ -250,7 +252,9 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\":12354667, \"bucket_span\": 3600, \"detector_index\":3, \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp":12354667, "bucket_span": 3600, "detector_index":3, "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             ModelPlot.LENIENT_PARSER.apply(parser, null);
         }

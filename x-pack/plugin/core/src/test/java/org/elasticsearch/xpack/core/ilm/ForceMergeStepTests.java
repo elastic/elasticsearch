@@ -176,16 +176,9 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
         ElasticsearchException stepException = failedStep.get();
         assertThat(stepException, notNullValue());
-        assertThat(
-            stepException.getMessage(),
-            is(
-                "index ["
-                    + index.getName()
-                    + "] in policy [ilmPolicy] encountered failures [{\"shard\":0,\"index\":\""
-                    + index.getName()
-                    + "\",\"status\":\"BAD_REQUEST\",\"reason\":{\"type\":\"illegal_argument_exception\","
-                    + "\"reason\":\"couldn't merge\"}}] on step [forcemerge]"
-            )
-        );
+        assertThat(stepException.getMessage(), is("""
+            index [%s] in policy [ilmPolicy] encountered failures [{"shard":0,"index":"%s","status":"BAD_REQUEST",\
+            "reason":{"type":"illegal_argument_exception","reason":"couldn't merge"}}] on step [forcemerge]\
+            """.formatted(index.getName(), index.getName())));
     }
 }

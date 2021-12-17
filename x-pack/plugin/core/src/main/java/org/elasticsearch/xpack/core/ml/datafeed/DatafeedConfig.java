@@ -1097,8 +1097,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             }
 
             for (AggregationBuilder agg : histogramAggregation.getSubAggregations()) {
-                if (agg instanceof MaxAggregationBuilder) {
-                    MaxAggregationBuilder maxAgg = (MaxAggregationBuilder) agg;
+                if (agg instanceof MaxAggregationBuilder maxAgg) {
                     if (maxAgg.field().equals(timeField)) {
                         return;
                     }

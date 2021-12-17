@@ -114,7 +114,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         + (DEFAULT_TRANSPORT_CLIENT_ROLE + ":" + DEFAULT_TRANSPORT_CLIENT_USER_NAME + "\n") //
         + (UNRESTRICTED_ROLE + ":" + TEST_UNRESTRICTED_USER + "\n");
 
-    public static final String CONTIF_STANDARD_ROLES_YML = TEST_ROLE_YML + UNRESTRICTED_ROLE_YML;
+    public static final String CONFIG_STANDARD_ROLES_YML = TEST_ROLE_YML + UNRESTRICTED_ROLE_YML;
 
     private final Path parentFolder;
     private final String subfolderPrefix;
@@ -213,7 +213,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     }
 
     protected String configRoles() {
-        return CONTIF_STANDARD_ROLES_YML;
+        return CONFIG_STANDARD_ROLES_YML;
     }
 
     protected String configOperatorUsers() {

@@ -36,7 +36,9 @@ public class CreatedLocationHeaderIT extends ESRestTestCase {
 
     public void testUpsert() throws IOException {
         Request request = new Request("POST", "test/_update/1");
-        request.setJsonEntity("{" + "\"doc\": {\"test\": \"test\"}," + "\"doc_as_upsert\": true}");
+        request.setJsonEntity("""
+            {"doc": {"test": "test"},"doc_as_upsert": true}
+            """);
         locationTestCase(client().performRequest(request));
     }
 

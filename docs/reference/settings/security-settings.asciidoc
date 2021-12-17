@@ -1965,16 +1965,6 @@ fragment components. The value for this setting should be provided by your JWT
 Issuer.
 // end::jwt-allowed-issuer-tag[]
 
-// tag::jwt-allowed-audiences-tag[]
-`allowed_audiences` {ess-icon}::
-(<<static-cluster-setting,Static>>)
-A list of verifiable Identifiers for your JWT client applications.
-
-The OAuth 2.0 Client Identifier that was assigned to the
-OpenID Connect Relying Party application during registration
-at the OpenID Connect Provider.
-// end::jwt-allowed-audiences-tag[]
-
 // tag::jwt-allowed-signature-algorithm-tag[]
 `allowed_clock_skew` {ess-icon}::
 (<<static-cluster-setting,Static>>)
@@ -2007,12 +1997,15 @@ File-based resources are polled at a frequency determined by the global {es}
 `resource.reload.interval.high` setting, which defaults to 5 seconds.
 // end::jwt-jwkset-path-tag[]
 
-`authorization_realms`::
+// tag::jwt-allowed-audiences-tag[]
+`allowed_audiences` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-The names of the realms that should be consulted for delegated authorization.
-If this setting is used, then the JWT realm does not perform role
-mapping and instead loads the user from the listed realms.
-See <<authorization_realms>>.
+A list of verifiable Identifiers for your JWT client applications.
+
+The OAuth 2.0 Client Identifier that was assigned to the
+OpenID Connect Relying Party application during registration
+at the OpenID Connect Provider.
+// end::jwt-allowed-audiences-tag[]
 
 // tag::jwt-claims-principal-tag[]
 `claims.principal`::
@@ -2050,24 +2043,31 @@ Specifies whether to populate the {es} user's metadata with the values that are
 provided by the JWT claims. Defaults to `true`.
 // end::jwt-populate-user-metadata-tag[]
 
-`http.proxy.host`::
+// tag::jwt-client-authentication-type-tag[]
+`client_authentication.type` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Specifies the address of the proxy server that will be used by the internal
-http client for all back-channel communication to the JWT Issuer
-endpoints. This includes requests to fetch the JSON Web Key Set from the
-JWT Issuer if `jwkset_path` is set as a URL.
+Specifies whether to use `sharedsecret`, `ssl`, or `none` authentication
+to incoming client requests. Defaults to `sharedsecret`.
+// end::jwt-client-authentication-type-tag[]
 
-`http.proxy.scheme`::
+`authorization_realms`::
 (<<static-cluster-setting,Static>>)
-Specifies the protocol to use to connect to the proxy server that will be
-used by the http client for all back-channel communication to the JWT Issuer
-endpoints. Defaults to `http`. Allowed values are `http` or `https`.
+The names of the realms that should be consulted for delegated authorization.
+If this setting is used, then the JWT realm does not perform role
+mapping and instead loads the user from the listed realms.
+See <<authorization_realms>>.
 
-`http.proxy.port`::
+`cache.ttl`::
 (<<static-cluster-setting,Static>>)
-Specifies the port of the proxy server that will be used by the http
-client for all backchannel communication to the JWT Provider
-endpoints. Defaults to `80`.
+Specifies the time-to-live for cached user entries. A user and a hash of its
+credentials are cached for this period of time. Use the
+standard {es} <<time-units,time units>>).
+Defaults to `20m`.
+
+`cache.max_users`::
+(<<static-cluster-setting,Static>>)
+Specifies the maximum number of user entries that the cache can contain.
+Defaults to `100000`.
 
 // tag::jwt-http-connect-timeout-tag[]
 `http.connect_timeout` {ess-icon}::
@@ -2110,6 +2110,25 @@ Controls the behavior of the http client used for back-channel communication to
 the JWT Issuer endpoints. Specifies the maximum number of
 connections allowed per endpoint.
 // end::jwt-http-max-endpoint-connections-tag[]
+
+`http.proxy.host`::
+(<<static-cluster-setting,Static>>)
+Specifies the address of the proxy server that will be used by the internal
+http client for all back-channel communication to the JWT Issuer
+endpoints. This includes requests to fetch the JSON Web Key Set from the
+JWT Issuer if `jwkset_path` is set as a URL.
+
+`http.proxy.scheme`::
+(<<static-cluster-setting,Static>>)
+Specifies the protocol to use to connect to the proxy server that will be
+used by the http client for all back-channel communication to the JWT Issuer
+endpoints. Defaults to `http`. Allowed values are `http` or `https`.
+
+`http.proxy.port`::
+(<<static-cluster-setting,Static>>)
+Specifies the port of the proxy server that will be used by the http
+client for all backchannel communication to the JWT Provider
+endpoints. Defaults to `80`.
 
 [discrete]
 [[ref-jwt-ssl-settings]]

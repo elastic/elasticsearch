@@ -365,8 +365,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Get scroll timeout
      */
     public TimeValue getScrollTime() {
-        Scroll scroll = searchRequest.scroll();
-        return scroll != null ? scroll.keepAlive() : null;
+        return searchRequest.scroll().keepAlive();
     }
 
     /**

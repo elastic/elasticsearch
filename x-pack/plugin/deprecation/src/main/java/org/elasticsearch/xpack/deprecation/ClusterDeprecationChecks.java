@@ -11,8 +11,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -1028,4 +1030,47 @@ public class ClusterDeprecationChecks {
         }
         return null;
     }
+
+    static DeprecationIssue emptyDataTierPreferenceCheck(ClusterState clusterState) {
+        if (DataTier.dataNodesWithoutAllDataRoles(clusterState).isEmpty() == false) {
+            List<String> indices = new ArrayList<>();
+            for (IndexMetadata indexMetadata : clusterState.metadata().getIndices().values()) {
+                List<String> tierPreference = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(indexMetadata.getSettings()));
+                if (tierPreference.isEmpty()) {
+                    String indexName = indexMetadata.getIndex().getName();
+                    indices.add(indexName);
+                }
+            }
+
+            if (indices.isEmpty() == false) {
+                // this is a bit of a hassle, but the String sort order puts .someindex before someindex, and we
+                // don't want to give the users a list of only just all .ds-somebackingindex-blah indices -- on the other
+                // hand, if that's all that exists, then we don't have much choice. this next little block splits out
+                // all the leading-dot indices and sorts them *after* all the non-leading-dot indices
+                Map<Boolean, List<String>> groups = indices.stream().collect(Collectors.partitioningBy(s -> s.startsWith(".")));
+                List<String> noLeadingPeriod = new ArrayList<>(groups.get(false));
+                List<String> leadingPeriod = new ArrayList<>(groups.get(true));
+                Collections.sort(noLeadingPeriod);
+                Collections.sort(leadingPeriod);
+                noLeadingPeriod.addAll(leadingPeriod);
+                indices = noLeadingPeriod;
+
+                // if there's more than a few indices, or their names are surprisingly long, then we need to cut off the list.
+                // this is not ideal, but our message here is displayed unmodified in the UA, so we have to think about this.
+                StringBuilder builder = new StringBuilder();
+                Strings.collectionToDelimitedStringWithLimit(indices, ", ", "", "", 256, builder);
+
+                return new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "No [" + DataTier.TIER_PREFERENCE + "] is set for indices [" + builder + "].",
+                    "https://ela.st/es-deprecation-7-empty-tier-preference",
+                    "Specify a data tier preference for these indices.",
+                    false,
+                    null
+                );
+            }
+        }
+        return null;
+    }
+
 }

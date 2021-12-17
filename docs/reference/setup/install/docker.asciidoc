@@ -201,7 +201,7 @@ Keystore that contains the key and certificate for the HTTP layer for this node.
 Keystore that contains the key and certificate for the transport layer for all
 the nodes in your cluster.
 
-[[docker-compose-multi-node]]
+[[docker-compose-file]]
 ==== Start a multi-node cluster with Docker Compose
 
 To get a multi-node {es} cluster and {kib} up and running in Docker with
@@ -260,7 +260,7 @@ include::.env[]
 ----
 
 [discrete]
-[[docker-compose-file]]
+[[docker-file]]
 ===== `docker-compose.yml`
 
 This `docker-compose.yml` file creates a three-node secure {es} cluster with authentication and network encryption enabled, and a {kib} instance securely connected to it.

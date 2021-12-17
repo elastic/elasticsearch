@@ -284,11 +284,16 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     public void testBulkResponseSetsLotsOfStatus() throws Exception {
         testRequest.setAbortOnVersionConflict(false);
+
         int maxBatches = randomIntBetween(0, 100);
         long versionConflicts = 0;
         long created = 0;
         long updated = 0;
         long deleted = 0;
+
+        var action = new DummyAsyncBulkByScrollAction();
+        action.setScroll(scrollId());
+
         for (int batches = 0; batches < maxBatches; batches++) {
             BulkItemResponse[] responses = new BulkItemResponse[randomIntBetween(0, 100)];
             for (int i = 0; i < responses.length; i++) {
@@ -328,7 +333,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 final IndexResponse response = new IndexResponse(shardId, "id" + i, seqNo, primaryTerm, randomInt(), createdResponse);
                 responses[i] = BulkItemResponse.success(i, opType, response);
             }
-            assertExactlyOnce(onSuccess -> new DummyAsyncBulkByScrollAction().onBulkResponse(new BulkResponse(responses, 0), onSuccess));
+            assertExactlyOnce(onSuccess -> action.onBulkResponse(new BulkResponse(responses, 0), onSuccess));
             assertEquals(versionConflicts, testTask.getStatus().getVersionConflicts());
             assertEquals(updated, testTask.getStatus().getUpdated());
             assertEquals(created, testTask.getStatus().getCreated());
@@ -612,6 +617,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         client.bulksToReject = client.bulksAttempts.get() + totalFailures;
         DummyAsyncBulkByScrollAction action = new DummyActionWithoutBackoff();
+        action.setScroll(scrollId());
         BulkRequest request = new BulkRequest();
         for (int i = 0; i < size + 1; i++) {
             request.add(new IndexRequest("index").id("id" + i));
@@ -871,17 +877,17 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testEnableScrollByDefault() {
-        var preparedRequest = AbstractAsyncBulkByScrollAction.prepareRequest(testRequest, false, false);
-        assertThat(preparedRequest.getSearchRequest().scroll(), notNullValue());
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
+        assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
 
     public void testDisableScrollWhenMaxDocsIsLessThenScrollSize() {
         testRequest.setMaxDocs(1);
         testRequest.getSearchRequest().source().size(100);
 
-        var preparedRequest = AbstractAsyncBulkByScrollAction.prepareRequest(testRequest, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
 
-        assertThat(preparedRequest.getSearchRequest().scroll(), nullValue());
+        assertThat(preparedSearchRequest.scroll(), nullValue());
     }
 
     public void testEnableScrollWhenProceedOnVersionConflict() {
@@ -889,9 +895,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest.getSearchRequest().source().size(100);
         testRequest.setAbortOnVersionConflict(false);
 
-        var preparedRequest = AbstractAsyncBulkByScrollAction.prepareRequest(testRequest, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
 
-        assertThat(preparedRequest.getSearchRequest().scroll(), notNullValue());
+        assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
 
     /**

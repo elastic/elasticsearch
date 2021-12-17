@@ -175,16 +175,22 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.searchClient = searchClient;
         this.bulkClient = bulkClient;
         this.threadPool = threadPool;
-        this.mainRequest = prepareRequest(mainRequest, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm);
+        this.mainRequest = mainRequest;
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
-        scrollSource = buildScrollableResultSource(backoffPolicy);
+        scrollSource = buildScrollableResultSource(
+            backoffPolicy,
+            prepareSearchRequest(mainRequest, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm)
+        );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
     }
 
+    /**
+     * Modifies search request to be used in a ScrollableHitSource
+     */
     // Visible for testing
-    static <Request extends AbstractBulkByScrollRequest<Request>> Request prepareRequest(
+    static <Request extends AbstractBulkByScrollRequest<Request>> SearchRequest prepareSearchRequest(
         Request mainRequest,
         boolean needsSourceDocumentVersions,
         boolean needsSourceDocumentSeqNoAndPrimaryTerm
@@ -195,6 +201,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
          * Default to sorting by doc. We can't do this in the request itself because it is normal to *add* to the sorts rather than replace
          * them and if we add _doc as the first sort by default then sorts will never work.... So we add it here, only if there isn't
          * another sort.
+         *
+         * This modifies the original request!
          */
         final SearchSourceBuilder sourceBuilder = mainRequest.getSearchRequest().source();
         List<SortBuilder<?>> sorts = sourceBuilder.sorts();
@@ -213,7 +221,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             preparedSearchRequest.scroll((Scroll) null);
         }
 
-        return mainRequest.setSearchRequest(preparedSearchRequest);
+        return preparedSearchRequest;
     }
 
     /**
@@ -278,7 +286,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         return bulkRequest;
     }
 
-    protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
+    protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
         return new ClientScrollableHitSource(
             logger,
             backoffPolicy,
@@ -287,7 +295,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             this::onScrollResponse,
             this::finishHim,
             searchClient,
-            mainRequest.getSearchRequest()
+            searchRequest
         );
     }
 
@@ -501,7 +509,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 return;
             }
 
-            if (mainRequest.getSearchRequest().scroll() == null) {
+            if (scrollSource.hasScroll() == false) {
                 // scroll is disabled
                 refreshAndFinish(emptyList(), emptyList(), false);
                 return;
@@ -528,7 +536,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
         } else {
             onScrollResponse(asyncResponse);
         }
-
     }
 
     private void recordFailure(Failure failure, List<Failure> failures) {

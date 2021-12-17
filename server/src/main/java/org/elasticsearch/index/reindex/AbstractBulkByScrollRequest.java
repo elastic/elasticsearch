@@ -224,14 +224,6 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     /**
-     * Updates search request that matches the documents to process.
-     */
-    public Self setSearchRequest(SearchRequest searchRequest) {
-        this.searchRequest = searchRequest;
-        return self();
-    }
-
-    /**
      * Call refresh on the indexes we've written to after the request ends?
      */
     public boolean isRefresh() {

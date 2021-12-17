@@ -53,7 +53,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             this.keyed = keyed;
             this.format = format;
             this.key = key != null ? key : generateKey(from, to, format);
-            ;
             this.from = from;
             this.to = to;
             this.docCount = docCount;

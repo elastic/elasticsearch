@@ -92,7 +92,7 @@ public class SyncPluginsAction implements PluginsSynchronizer {
 
         // Parse descriptor file
         final PluginsConfig pluginsConfig = PluginsConfig.parseConfig(configPath, YamlXContent.yamlXContent);
-        pluginsConfig.validate(InstallPluginAction.OFFICIAL_PLUGINS);
+        pluginsConfig.validate(InstallPluginAction.OFFICIAL_PLUGINS, InstallPluginAction.PLUGINS_CONVERTED_TO_MODULES);
 
         // Parse cached descriptor file, if it exists
         final Optional<PluginsConfig> cachedPluginsConfig = Files.exists(previousConfigPath)

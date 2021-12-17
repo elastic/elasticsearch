@@ -19,8 +19,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assume.assumeFalse;
@@ -156,6 +158,34 @@ public class PluginCliTests extends PackagingTestCase {
             );
         } finally {
             FileUtils.rm(installation.config("elasticsearch-plugins.yml"));
+        }
+    }
+
+    /**
+     * Check that attempting to install a plugin that has been promoted to a module
+     * succeeds, but does nothing.
+     */
+    public void test40InstallOfModularizedPluginsSucceedsButDoesNothing() {
+        for (String pluginId : List.of("repository-azure", "repository-gcs", "repository-s3")) {
+            String stdout = installation.executables().pluginTool.run("install " + pluginId).stdout;
+            assertThat(stdout, containsString("[" + pluginId + "] is no longer a plugin"));
+
+            stdout = installation.executables().pluginTool.run("list").stdout;
+            assertThat(stdout.trim(), is(emptyString()));
+        }
+    }
+
+    /**
+     * Check that attempting to remove a plugin that has been promoted to a module
+     * succeeds, but does nothing.
+     */
+    public void test41RemovalOfModularizedPluginsSucceedsButDoesNothing() {
+        String stdout = installation.executables().pluginTool.run("list").stdout;
+        assertThat(stdout.trim(), is(emptyString()));
+
+        for (String pluginId : List.of("repository-azure", "repository-gcs", "repository-s3")) {
+            stdout = installation.executables().pluginTool.run("remove " + pluginId).stdout;
+            assertThat(stdout, containsString("[" + pluginId + "] is no longer a plugin"));
         }
     }
 }

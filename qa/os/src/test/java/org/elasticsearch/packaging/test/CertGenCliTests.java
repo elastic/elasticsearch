@@ -103,12 +103,11 @@ public class CertGenCliTests extends PackagingTestCase {
         // not affected by this setting
         final Settings newSettings = Settings.builder()
             .put(
-                settings.filter(
-                    k -> k.startsWith("xpack.security")
-                        || k.equals("node.name")
-                        || k.equals("http.host")
-                        || k.equals("cluster.initial_master_nodes")
-                )
+                settings.filter(k -> k.startsWith("xpack.security") == false)
+                    .filter(k -> k.equals("node.name") == false)
+                    .filter(k -> k.equals("http.host") == false)
+                    .filter(k -> k.equals("cluster.initial_master_nodes") == false)
+
             )
             .put("node.name", "mynode")
             .put("xpack.security.transport.ssl.key", keyPath)
@@ -125,7 +124,6 @@ public class CertGenCliTests extends PackagingTestCase {
             newSettings.keySet().stream().map(k -> k + ": " + newSettings.get(k)).collect(Collectors.toList()),
             TRUNCATE_EXISTING
         );
-        logger.info(String.join("\n", Files.readAllLines(installation.config("elasticsearch.yml"))));
 
         assertWhileRunning(() -> {
             final String password = setElasticPassword();

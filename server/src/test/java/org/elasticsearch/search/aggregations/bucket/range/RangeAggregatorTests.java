@@ -121,7 +121,6 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/81749")
     public void testFloatRangeKeys() throws IOException {
         final String fieldName = "test";
         MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.FLOAT);

@@ -65,9 +65,9 @@ public class JwtRealmSettingsTests extends ESTestCase {
             .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.HTTP_SOCKET_TIMEOUT), randomIntBetween(5, 10) + "s")
             .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.HTTP_MAX_CONNECTIONS), randomIntBetween(5, 20))
             .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS), randomIntBetween(5, 20))
-            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.HTTP_PROXY_HOST), "host")
-            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.HTTP_PROXY_PORT), "8080")
-            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.HTTP_PROXY_SCHEME), "http")
+            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.HTTP_PROXY_SCHEME), "https")
+            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.HTTP_PROXY_HOST), "example.com")
+            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.HTTP_PROXY_PORT), "443")
             // TLS settings for outgoing connections
             .put(RealmSettings.getFullSettingKey(REALM_NAME, SSLConfigurationSettings.TRUSTSTORE_TYPE.realm("jwt")), "PKCS12")
             .put(RealmSettings.getFullSettingKey(REALM_NAME, SSLConfigurationSettings.TRUSTSTORE_PATH.realm("jwt")), "ts2.p12")

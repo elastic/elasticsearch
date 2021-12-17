@@ -106,9 +106,9 @@ clusters].
 If you run the {es} on your own hardware, you can use the following built-in
 snapshot repository types:
 
-* <<snapshots-s3-repository,AWS S3>>
-* <<snapshots-gcs-repository,Google Cloud Storage>>
-* <<snapshots-azure-repository,Azure>>
+* <<repository-s3,AWS S3>>
+* <<repository-gcs,Google Cloud Storage>>
+* <<repository-azure,Azure>>
 * <<snapshots-filesystem-repository,Shared file system>>
 * <<snapshots-read-only-repository>>
 * <<snapshots-source-only-repository>>

@@ -267,7 +267,6 @@ tasks.named("yamlRestTest").configure {
  * an additional test that forces the large blob threshold to be small to exercise the resumable upload path.
  */
 def largeBlobYamlRestTest = tasks.register("largeBlobYamlRestTest", RestIntegTestTask) {
-  dependsOn "bundlePlugin"
   if (useFixture) {
     dependsOn "createServiceAccountFile"
   }
@@ -279,8 +278,6 @@ def largeBlobYamlRestTest = tasks.register("largeBlobYamlRestTest", RestIntegTes
   // We have to wait for configure the cluster here as it might not have been created otherwise yet.
   testClusters {
     largeBlobYamlRestTest {
-      plugin bundlePlugin.archiveFile
-
       // force large blob uploads by setting the threshold small, forcing this code path to be tested
       systemProperty 'es.repository_gcs.large_blob_threshold_byte_size', '256'
     }

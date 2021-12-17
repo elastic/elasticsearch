@@ -147,6 +147,8 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -600,6 +602,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         });
     }
 
+    private static final List<String> LOG_4J_MSGS = List.of(
+        "JNDI lookup class is not available because this JRE does not support JNDI. " +
+        "JNDI string lookups will not be available, continuing configuration. " +
+        "Ignoring java.security.AccessControlException: access denied (\"java.lang.RuntimePermission\" \"setContextClassLoader\")",
+        "JMX runtime input lookup class is not available because this JRE does not support JMX. " +
+        "JMX lookups will not be available, continuing configuration. " +
+        "Ignoring java.security.AccessControlException: access denied (\"java.lang.RuntimePermission\" \"setContextClassLoader\")"
+    );
+
     // separate method so that this can be checked again after suite scoped cluster is shut down
     protected static void checkStaticState() throws Exception {
         LeakTracker.INSTANCE.reportLeak();
@@ -613,7 +624,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 // StatusData instances to Strings as otherwise their toString output is useless
                 assertThat(
                     statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
-                    empty()
+                    anyOf(empty(), contains(LOG_4J_MSGS.get(0), LOG_4J_MSGS.get(1)))
                 );
             } finally {
                 // we clear the list so that status data from other tests do not interfere with tests within the same JVM

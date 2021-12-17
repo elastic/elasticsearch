@@ -133,7 +133,7 @@
 
   - do:
       ml.put_job:
-        job_id: job-default-model-prune-window
+        job_id: job-default-model-prune-window-40h
         body: >
           {
             "analysis_config" : {
@@ -143,7 +143,7 @@
             "data_description" : {
             }
           }
-  - match: { job_id: "job-default-model-prune-window" }
+  - match: { job_id: "job-default-model-prune-window-40h" }
   - match: { analysis_config.bucket_span: "40h" }
   - match: { analysis_config.model_prune_window: "800h" }
   - is_true: create_time

@@ -1223,7 +1223,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 if (modelPruneWindowSeconds % SECONDS_IN_A_DAY == 0) {
                     analysisConfigBuilder.setModelPruneWindow(TimeValue.timeValueDays(modelPruneWindowSeconds / SECONDS_IN_A_DAY));
                 } else if (modelPruneWindowSeconds % SECONDS_IN_AN_HOUR == 0) {
-                    analysisConfigBuilder.setModelPruneWindow(TimeValue.timeValueMinutes(modelPruneWindowSeconds / SECONDS_IN_AN_HOUR));
+                    analysisConfigBuilder.setModelPruneWindow(TimeValue.timeValueHours(modelPruneWindowSeconds / SECONDS_IN_AN_HOUR));
                 } else if (modelPruneWindowSeconds % SECONDS_IN_A_MINUTE == 0) {
                     analysisConfigBuilder.setModelPruneWindow(TimeValue.timeValueMinutes(modelPruneWindowSeconds / SECONDS_IN_A_MINUTE));
                 } else {

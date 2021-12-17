@@ -1110,21 +1110,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
             final RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType, start, end, true, true);
             doc.add(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(Collections.singleton(range))));
-            json = "{ \""
-                + fieldName
-                + "\" : { \n"
-                + "        \"gte\" : \""
-                + start
-                + "\",\n"
-                + "        \"lte\" : \""
-                + end
-                + "\"\n"
-                + "      }}";
+            json = """
+                { "%s" : { "gte" : "%s", "lte" : "%s" } }
+                """.formatted(fieldName, start, end);
         } else if (vst.equals(CoreValuesSourceType.GEOPOINT)) {
             double lat = randomDouble();
             double lon = randomDouble();
             doc.add(new LatLonDocValuesField(fieldName, lat, lon));
-            json = "{ \"" + fieldName + "\" : \"[" + lon + "," + lat + "]\" }";
+            json = """
+                { "%s" : "[%s,%s]" }""".formatted(fieldName, lon, lat);
         } else {
             throw new IllegalStateException("Unknown field type [" + typeName + "]");
         }

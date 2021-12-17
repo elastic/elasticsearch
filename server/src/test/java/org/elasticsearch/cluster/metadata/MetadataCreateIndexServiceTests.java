@@ -1088,7 +1088,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testParseMappingsWithTypedTemplate() throws Exception {
         IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
             try {
-                builder.putMapping("type", "{\"type\":{\"properties\":{\"field\":{\"type\":\"keyword\"}}}}");
+                builder.putMapping("type", """
+                    {"type":{"properties":{"field":{"type":"keyword"}}}}
+                    """);
             } catch (IOException e) {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }

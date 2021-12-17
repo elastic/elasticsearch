@@ -216,8 +216,8 @@ public class JobResultsProvider {
                         Exception e = itemResponse.getFailure();
                         // There's a further complication, which is that msearch doesn't translate a
                         // closed index cluster block exception into a friendlier index closed exception
-                        if (e instanceof ClusterBlockException) {
-                            for (ClusterBlock block : ((ClusterBlockException) e).blocks()) {
+                        if (e instanceof ClusterBlockException cbe) {
+                            for (ClusterBlock block : cbe.blocks()) {
                                 if ("index closed".equals(block.description())) {
                                     SearchRequest searchRequest = msearch.request().requests().get(i);
                                     // Don't wrap the original exception, because then it would be the root cause

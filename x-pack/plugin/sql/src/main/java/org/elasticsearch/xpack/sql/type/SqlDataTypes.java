@@ -52,7 +52,7 @@ import static org.elasticsearch.xpack.ql.util.CollectionUtils.mapSize;
 
 public class SqlDataTypes {
 
-    // @formatter:off
+    // tag::noformat
     // date-only, time-only
     public static final DataType DATE = new DataType("DATE", null, Long.BYTES, false, false, true);
     public static final DataType TIME = new DataType("TIME", null, Long.BYTES, false, false, true);
@@ -87,7 +87,7 @@ public class SqlDataTypes {
     public static final DataType GEO_SHAPE = new DataType("geo_shape", Integer.MAX_VALUE, false, false, false);
     public static final DataType GEO_POINT = new DataType("geo_point", Double.BYTES * 2,  false, false, false);
     public static final DataType SHAPE =     new DataType("shape",     Integer.MAX_VALUE, false, false, false);
-    // @formatter:on
+    // end::noformat
 
     private static final Map<String, DataType> ODBC_TO_ES = new HashMap<>(mapSize(38));
 

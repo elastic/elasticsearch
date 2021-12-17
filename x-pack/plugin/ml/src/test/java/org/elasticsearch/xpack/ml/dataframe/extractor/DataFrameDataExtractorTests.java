@@ -272,7 +272,8 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
         assertThat(dataExtractor.capturedSearchRequests.size(), equalTo(2));
         String searchRequest = dataExtractor.capturedSearchRequests.get(0).request().toString().replaceAll("\\s", "");
-        assertThat(searchRequest, containsString("\"docvalue_fields\":[{\"field\":\"field_1\"},{\"field\":\"field_2\"}]"));
+        assertThat(searchRequest, containsString("""
+            "docvalue_fields":[{"field":"field_1"},{"field":"field_2"}]"""));
         assertThat(searchRequest, containsString("\"_source\":false"));
     }
 
@@ -306,8 +307,10 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
         assertThat(dataExtractor.capturedSearchRequests.size(), equalTo(2));
         String searchRequest = dataExtractor.capturedSearchRequests.get(0).request().toString().replaceAll("\\s", "");
-        assertThat(searchRequest, containsString("\"docvalue_fields\":[{\"field\":\"field_1\"}]"));
-        assertThat(searchRequest, containsString("\"_source\":{\"includes\":[\"field_2\"],\"excludes\":[]}"));
+        assertThat(searchRequest, containsString("""
+            "docvalue_fields":[{"field":"field_1"}]"""));
+        assertThat(searchRequest, containsString("""
+            "_source":{"includes":["field_2"],"excludes":[]}"""));
     }
 
     public void testCollectDataSummary_GivenAnalysisSupportsMissingFields() {
@@ -341,14 +344,9 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
         assertThat(dataExtractor.capturedSearchRequests.size(), equalTo(1));
         String searchRequest = dataExtractor.capturedSearchRequests.get(0).request().toString().replaceAll("\\s", "");
-        assertThat(
-            searchRequest,
-            containsString(
-                "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},{\"bool\":{\"filter\":"
-                    + "[{\"exists\":{\"field\":\"field_1\",\"boost\":1.0}},{\"exists\":{\"field\":\"field_2\",\"boost\":1.0}}],"
-                    + "\"boost\":1.0}}],\"boost\":1.0}"
-            )
-        );
+        assertThat(searchRequest, containsString("""
+            "query":{"bool":{"filter":[{"match_all":{"boost":1.0}},{"bool":{"filter":[{"exists":{"field":"field_1","boost":1.0}},\
+            {"exists":{"field":"field_2","boost":1.0}}],"boost":1.0}}],"boost":1.0}"""));
     }
 
     public void testMissingValues_GivenSupported() throws IOException {

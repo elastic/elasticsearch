@@ -17,7 +17,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class PluginsConfigTest extends ESTestCase {
+public class PluginsConfigTests extends ESTestCase {
 
     /**
      * Check that an empty config object passes validation.

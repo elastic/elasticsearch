@@ -430,9 +430,11 @@ public class ServerUtils {
         Path yml = confPath.resolve("elasticsearch.yml");
         final Settings settings = Settings.builder().loadFromPath(yml).build();
         final Settings newSettings = Settings.builder().put(settings.filter(k -> k.equals(setting) == false)).build();
-        Files.write(yml,
+        Files.write(
+            yml,
             newSettings.keySet().stream().map(k -> k + ": " + newSettings.get(k)).collect(Collectors.toList()),
-            TRUNCATE_EXISTING);
+            TRUNCATE_EXISTING
+        );
     }
 
 }

@@ -114,19 +114,40 @@ any restored indices must be compatible.
 
 include::snapshot-vers-compat.asciidoc[]
 
+You can't restore a snapshot to an earlier version of {es}. For example, you
+can't restore a snapshot taken in 7.6.0 to a cluster running 7.5.0.
+
+ifeval::["{release-state}"!="released"]
+[[snapshot-prerelease-build-compatibility]]
+NOTE: This documentation is for {es} version {version}, which is not yet
+released. The compatibility table above applies only to snapshots taken in a
+released version of {es}. If you're testing a pre-release build of {es} then you
+can still restore snapshots taken in earlier released builds as permitted by
+this compatibility table. You can also take snapshots using your pre-release
+build, and restore them using the same build. However once a pre-release build
+of {es} has written to a snapshot repository you must not use the same
+repository with other builds of {es}, even if the builds have the same version.
+Different pre-release builds of {es} may use different and incompatible
+repository layouts. If the repository layout is incompatible with the {es} build
+in use then taking and restoring snapshots may result in errors or may appear to
+succeed having silently lost some data. You should discard your repository
+before using a different build.
+endif::[]
+
 [discrete]
 [[snapshot-index-compatibility]]
 === Index compatibility
 
-A cluster is only compatible with indices created in the previous major version
-of {es}. Any data stream or index you restore from a snapshot must be compatible
+Any data stream or index you restore from a snapshot must also be compatible
 with the current cluster's version. If you try to restore an index created in an
 incompatible version, the restore attempt will fail.
 
-A snapshot can contain indices created in a previous major version. For example,
-a snapshot of a 6.x cluster can contain an index created in 5.x. If you try to
-restore the 5.x index to a 7.x cluster, the restore attempt will fail. Keep this
-in mind if you take a snapshot before upgrading a cluster.
+include::cluster-index-compat.asciidoc[]
+
+A compatible snapshot can contain indices created in an incompatible version.
+For example, a snapshot of a 7.16 cluster can contain an index created in 6.8.
+If you try to restore the 6.8 index to a 8.0 cluster, the restore attempt will
+fail. Keep this in mind if you take a snapshot before upgrading a cluster.
 
 As a workaround, you can first restore the data stream or index to another
 cluster running the latest version of {es} that's compatible with both the index

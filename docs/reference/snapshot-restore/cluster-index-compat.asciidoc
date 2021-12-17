@@ -2,7 +2,7 @@
 [cols="^,^,^,^,^"]
 |====
 | 4+^h| Cluster version
-h| Snapshot version         | 5.0–5.6    | 6.0–6.8    | 7.0–{prev-major-last} | 8.0–{minor-version}
+h| Index version            | 5.0–5.6    | 6.0–6.8    | 7.0–{prev-major-last} | 8.0–{minor-version}
 | 5.0–5.6                   | {yes-icon} | {yes-icon} | {no-icon}             | {no-icon}
 | 6.0–6.8                   | {no-icon}  | {yes-icon} | {yes-icon}            | {no-icon}
 | 7.0–{prev-major-last}     | {no-icon}  | {no-icon}  | {yes-icon}            | {yes-icon}

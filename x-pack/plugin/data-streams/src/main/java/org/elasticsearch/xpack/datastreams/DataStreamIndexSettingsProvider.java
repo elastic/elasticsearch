@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.datastreams;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.IndexSettingProvider;
 
 import java.time.Instant;
@@ -39,9 +41,10 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 Instant start = Instant.ofEpochMilli(resolvedAt).minusMillis(lookAheadTime.getMillis());
                 Instant end = Instant.ofEpochMilli(resolvedAt).plusMillis(lookAheadTime.getMillis());
 
+                DateFormatter formatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
                 Settings.Builder builder = Settings.builder();
-                builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start.toEpochMilli());
-                builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end.toEpochMilli());
+                builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), formatter.format(start));
+                builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), formatter.format(end));
                 return builder.build();
             }
         }

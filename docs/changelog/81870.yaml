@@ -1,6 +1,6 @@
 pr: 81870
-summary: Repository plugins to modules
-area: "Snapshot/Restore, Packaging, Infra/Plugins"
+summary: Convert repository plugins to modules
+area: Infra/Plugins
 type: enhancement
 issues:
  - 81652

@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
@@ -716,6 +717,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ".logs-endpoint.actions-*"
                     )
                     .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
+                    .build(),
+                // For ILM policy for APM & Endpoint packages that have delete action
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".logs-endpoint.diagnostic.collection-*", "traces-apm.sampled-*")
+                    .privileges(DeleteIndexAction.NAME)
                     .build(),
                 // For src/dest indices of the Endpoint package that ships a transform
                 RoleDescriptor.IndicesPrivileges.builder()

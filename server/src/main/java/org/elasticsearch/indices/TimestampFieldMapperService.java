@@ -70,6 +70,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
             1,
             0,
             TimeUnit.MILLISECONDS,
+            true,
             daemonThreadFactory(nodeName, threadName),
             threadPool.getThreadContext()
         );

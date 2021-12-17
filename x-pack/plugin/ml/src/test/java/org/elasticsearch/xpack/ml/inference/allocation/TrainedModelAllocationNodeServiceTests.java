@@ -72,7 +72,14 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         threadPool = new TestThreadPool(
             "TrainedModelAllocationNodeServiceTests",
-            new ScalingExecutorBuilder(UTILITY_THREAD_POOL_NAME, 1, 4, TimeValue.timeValueMinutes(10), "xpack.ml.utility_thread_pool")
+            new ScalingExecutorBuilder(
+                UTILITY_THREAD_POOL_NAME,
+                1,
+                4,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.ml.utility_thread_pool"
+            )
         );
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         deploymentManager = mock(DeploymentManager.class);

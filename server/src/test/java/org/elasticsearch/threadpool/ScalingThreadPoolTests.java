@@ -10,18 +10,27 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionHandler;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedRunnable;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
@@ -171,6 +180,125 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
                 throw new RuntimeException(e);
             }
         }));
+    }
+
+    public void testScalingThreadPoolRejectAfterShutdown() throws Exception {
+        final boolean rejectAfterShutdown = randomBoolean();
+        final int min = randomIntBetween(1, 4);
+        final int max = randomIntBetween(min, 16);
+
+        final EsThreadPoolExecutor scalingExecutor = EsExecutors.newScaling(
+            getTestName().toLowerCase(Locale.ROOT),
+            min,
+            max,
+            randomLongBetween(0, 100),
+            TimeUnit.MILLISECONDS,
+            rejectAfterShutdown,
+            EsExecutors.daemonThreadFactory(getTestName().toLowerCase(Locale.ROOT)),
+            new ThreadContext(Settings.EMPTY)
+        );
+        try {
+            final AtomicInteger executed = new AtomicInteger();
+            final AtomicInteger rejected = new AtomicInteger();
+            final AtomicInteger failed = new AtomicInteger();
+
+            final CountDownLatch latch = new CountDownLatch(max);
+            final CountDownLatch block = new CountDownLatch(1);
+            for (int i = 0; i < max; i++) {
+                execute(scalingExecutor, () -> {
+                    try {
+                        latch.countDown();
+                        block.await();
+                    } catch (InterruptedException e) {
+                        fail(e.toString());
+                    }
+                }, executed, rejected, failed);
+            }
+            latch.await();
+
+            assertThat(scalingExecutor.getCompletedTaskCount(), equalTo(0L));
+            assertThat(scalingExecutor.getActiveCount(), equalTo(max));
+            assertThat(scalingExecutor.getQueue().size(), equalTo(0));
+
+            final int queued = randomIntBetween(1, 100);
+            for (int i = 0; i < queued; i++) {
+                execute(scalingExecutor, () -> {}, executed, rejected, failed);
+            }
+
+            assertThat(scalingExecutor.getCompletedTaskCount(), equalTo(0L));
+            assertThat(scalingExecutor.getActiveCount(), equalTo(max));
+            assertThat(scalingExecutor.getQueue().size(), equalTo(queued));
+
+            scalingExecutor.shutdown();
+
+            final int queuedAfterShutdown = randomIntBetween(1, 100);
+            for (int i = 0; i < queuedAfterShutdown; i++) {
+                execute(scalingExecutor, () -> {}, executed, rejected, failed);
+            }
+            assertThat(scalingExecutor.getQueue().size(), rejectAfterShutdown ? equalTo(queued) : equalTo(queued + queuedAfterShutdown));
+
+            block.countDown();
+
+            assertBusy(() -> assertTrue(scalingExecutor.isTerminated()));
+            assertThat(scalingExecutor.getActiveCount(), equalTo(0));
+            assertThat(scalingExecutor.getQueue().size(), equalTo(0));
+            assertThat(
+                scalingExecutor.getCompletedTaskCount(),
+                rejectAfterShutdown ? equalTo((long) max + queued) : greaterThanOrEqualTo((long) max + queued)
+            );
+            assertThat(
+                ((EsRejectedExecutionHandler) scalingExecutor.getRejectedExecutionHandler()).rejected(),
+                rejectAfterShutdown ? equalTo((long) queuedAfterShutdown) : equalTo(0L)
+            );
+
+        } finally {
+            if (scalingExecutor.isShutdown() == false) {
+                ThreadPool.terminate(scalingExecutor, 10, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    private static void execute(
+        final Executor executor,
+        final CheckedRunnable<Exception> runnable,
+        final AtomicInteger executed,
+        final AtomicInteger rejected,
+        final AtomicInteger failed
+    ) {
+        if (randomBoolean()) {
+            executor.execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() throws Exception {
+                    runnable.run();
+                    executed.incrementAndGet();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    failed.incrementAndGet();
+                }
+
+                @Override
+                public void onRejection(Exception e) {
+                    rejected.incrementAndGet();
+                }
+            });
+        } else {
+            try {
+                executor.execute(() -> {
+                    try {
+                        runnable.run();
+                        executed.incrementAndGet();
+                    } catch (Exception e) {
+                        failed.incrementAndGet();
+                    }
+                });
+            } catch (EsRejectedExecutionException e) {
+                rejected.incrementAndGet();
+            } catch (Exception e) {
+                failed.incrementAndGet();
+            }
+        }
     }
 
     public void runScalingThreadPoolTest(final Settings settings, final BiConsumer<ClusterSettings, ThreadPool> consumer)

@@ -82,6 +82,7 @@ public class EsExecutors {
         int max,
         long keepAliveTime,
         TimeUnit unit,
+        boolean rejectAfterShutdown,
         ThreadFactory threadFactory,
         ThreadContext contextHolder
     ) {
@@ -94,7 +95,7 @@ public class EsExecutors {
             unit,
             queue,
             threadFactory,
-            new ForceQueuePolicy(),
+            new ForceQueuePolicy(rejectAfterShutdown),
             contextHolder
         );
         queue.executor = executor;
@@ -315,10 +316,22 @@ public class EsExecutors {
      * A handler for rejected tasks that adds the specified element to this queue,
      * waiting if necessary for space to become available.
      */
-    static class ForceQueuePolicy implements XRejectedExecutionHandler {
+    static class ForceQueuePolicy extends EsRejectedExecutionHandler {
+
+        private final boolean rejectAfterShutdown;
+
+        /**
+         * @param rejectAfterShutdown indicates if {@link Runnable} should be rejected once the thread pool is shutting down
+         */
+        ForceQueuePolicy(boolean rejectAfterShutdown) {
+            this.rejectAfterShutdown = rejectAfterShutdown;
+        }
 
         @Override
         public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+            if (rejectAfterShutdown && executor.isShutdown()) {
+                throw newRejectedException(r, executor, true);
+            }
             try {
                 // force queue policy should only be used with a scaling queue
                 assert executor.getQueue() instanceof ExecutorScalingQueue;
@@ -328,12 +341,6 @@ public class EsExecutors {
                 throw new AssertionError(e);
             }
         }
-
-        @Override
-        public long rejected() {
-            return 0;
-        }
-
     }
 
 }

@@ -95,6 +95,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             2,
             60,
             TimeUnit.SECONDS,
+            true,
             threadFactory,
             new ThreadContext(Settings.EMPTY)
         );

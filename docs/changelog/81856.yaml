@@ -1,0 +1,5 @@
+pr: 81856
+summary: Allow scaling executors to reject tasks after shutdown
+area: Infra/Core
+type: enhancement
+issues: []

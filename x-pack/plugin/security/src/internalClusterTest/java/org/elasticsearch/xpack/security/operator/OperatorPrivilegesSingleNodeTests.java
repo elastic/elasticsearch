@@ -38,12 +38,13 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
 
     @Override
     protected String configRoles() {
-        return super.configRoles()
-            + "limited_operator:\n"
-            + "  cluster:\n"
-            + "    - 'cluster:admin/voting_config/clear_exclusions'\n"
-            + "    - 'cluster:admin/settings/update'\n"
-            + "    - 'monitor'\n";
+        return super.configRoles() + """
+            limited_operator:
+              cluster:
+                - 'cluster:admin/voting_config/clear_exclusions'
+                - 'cluster:admin/settings/update'
+                - 'monitor'
+            """;
     }
 
     @Override

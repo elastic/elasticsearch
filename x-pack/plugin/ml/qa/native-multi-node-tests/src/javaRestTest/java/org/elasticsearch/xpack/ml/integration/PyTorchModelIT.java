@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.putPipeline;
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateRequest;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -117,16 +118,12 @@ public class PyTorchModelIT extends ESRestTestCase {
     @Before
     public void setLogging() throws IOException {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity(
-            ""
-                + "{"
-                + "\"persistent\" : {\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" : \"TRACE\",\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : \"TRACE\",\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : \"TRACE\"\n"
-                + "    }"
-                + "}"
-        );
+        loggingSettings.setJsonEntity("""
+            {"persistent" : {
+                    "logger.org.elasticsearch.xpack.ml.inference.allocation" : "TRACE",
+                    "logger.org.elasticsearch.xpack.ml.inference.deployment" : "TRACE",
+                    "logger.org.elasticsearch.xpack.ml.process.logging" : "TRACE"
+                }}""");
         client().performRequest(loggingSettings);
     }
 
@@ -135,16 +132,12 @@ public class PyTorchModelIT extends ESRestTestCase {
         terminate(executorService);
 
         Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity(
-            ""
-                + "{"
-                + "\"persistent\" : {\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\": null,\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null,\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : null\n"
-                + "    }"
-                + "}"
-        );
+        loggingSettings.setJsonEntity("""
+            {"persistent" : {
+                    "logger.org.elasticsearch.xpack.ml.inference.allocation": null,
+                    "logger.org.elasticsearch.xpack.ml.inference.deployment" : null,
+                    "logger.org.elasticsearch.xpack.ml.process.logging" : null
+                }}""");
         client().performRequest(loggingSettings);
 
         new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
@@ -417,18 +410,8 @@ public class PyTorchModelIT extends ESRestTestCase {
         createTrainedModel(model);
         putVocabulary(List.of("once", "twice"), model);
         Request request = new Request("PUT", "_ml/trained_models/" + model + "/definition/0");
-        request.setJsonEntity(
-            "{  "
-                + "\"total_definition_length\":"
-                + RAW_MODEL_SIZE
-                + 2L
-                + ","
-                + "\"definition\": \""
-                + BASE_64_ENCODED_MODEL
-                + "\","
-                + "\"total_parts\": 1"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {"total_definition_length":%s2,"definition": "%s","total_parts": 1}""".formatted(RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
         client().performRequest(request);
         Exception ex = expectThrows(Exception.class, () -> startDeployment(model));
         assertThat(
@@ -443,48 +426,52 @@ public class PyTorchModelIT extends ESRestTestCase {
         putVocabulary(List.of("once", "twice"), model);
         putModelDefinition(model);
 
-        String source = "{\n"
-            + "  \"pipeline\": {\n"
-            + "    \"processors\": [\n"
-            + "      {\n"
-            + "        \"inference\": {\n"
-            + "          \"model_id\": \"not-deployed\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    ]\n"
-            + "  },\n"
-            + "  \"docs\": [\n"
-            + "    {\n"
-            + "      \"_source\": {\n"
-            + "        \"input\": \"my words\"\n"
-            + "      }\n"
-            + "    }\n"
-            + "  ]\n"
-            + "}";
+        String source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "not-deployed"
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {
+                  "_source": {
+                    "input": "my words"
+                  }
+                }
+              ]
+            }""";
 
         String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
         assertThat(
             response,
-            containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API.")
-        );
-
-        client().performRequest(
-            putPipeline(
-                "my_pipeline",
-                "{"
-                    + "\"processors\": [\n"
-                    + "      {\n"
-                    + "        \"inference\": {\n"
-                    + "          \"model_id\": \"not-deployed\"\n"
-                    + "        }\n"
-                    + "      }\n"
-                    + "    ]\n"
-                    + "}"
+            allOf(
+                containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API."),
+                containsString("error"),
+                not(containsString("warning"))
             )
         );
 
+        client().performRequest(putPipeline("my_pipeline", """
+            {"processors": [
+                  {
+                    "inference": {
+                      "model_id": "not-deployed"
+                    }
+                  }
+                ]
+            }"""));
+
         Request request = new Request("PUT", "undeployed_model_index/_doc/1?pipeline=my_pipeline&refresh=true");
-        request.setJsonEntity("{\n" + "        \"input\": \"my words\"\n" + "      }\n");
+        request.setJsonEntity("""
+            {
+                    "input": "my words"
+                  }
+            """);
         Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
         assertThat(
             ex.getMessage(),
@@ -496,23 +483,22 @@ public class PyTorchModelIT extends ESRestTestCase {
         String modelId = "no-truncation";
 
         Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
-        request.setJsonEntity(
-            "{  "
-                + "    \"description\": \"simple model for testing\",\n"
-                + "    \"model_type\": \"pytorch\",\n"
-                + "    \"inference_config\": {\n"
-                + "        \"pass_through\": {\n"
-                + "            \"tokenization\": {"
-                + "              \"bert\": {"
-                + "                \"with_special_tokens\": false,"
-                + "                \"truncate\": \"none\","
-                + "                \"max_sequence_length\": 2"
-                + "              }\n"
-                + "            }\n"
-                + "        }\n"
-                + "    }\n"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+                "description": "simple model for testing",
+                "model_type": "pytorch",
+                "inference_config": {
+                    "pass_through": {
+                        "tokenization": {
+                            "bert": {
+                                "with_special_tokens": false,
+                                "truncate": "none",
+                                "max_sequence_length": 2
+                            }
+                        }
+                    }
+                }
+            }""");
         client().performRequest(request);
 
         putVocabulary(List.of("once", "twice", "thrice"), modelId);
@@ -520,25 +506,30 @@ public class PyTorchModelIT extends ESRestTestCase {
         startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
 
         String input = "once twice thrice";
-        ResponseException ex = expectThrows(ResponseException.class, () -> infer("once twice thrice", modelId));
+        var e = expectThrows(ResponseException.class, () -> EntityUtils.toString(infer("once twice thrice", modelId).getEntity()));
         assertThat(
-            ex.getMessage(),
+            e.getMessage(),
             containsString("Input too large. The tokenized input length [3] exceeds the maximum sequence length [2]")
         );
 
         request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity(
-            "{"
-                + "\"docs\": [{\"input\":\""
-                + input
-                + "\"}],"
-                + "\"inference_config\": { "
-                + "  \"pass_through\": {"
-                + "    \"tokenization\": {\"bert\": {\"truncate\": \"first\"}}"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "docs": [
+                {
+                  "input": "%s"
+                }
+              ],
+              "inference_config": {
+                "pass_through": {
+                  "tokenization": {
+                    "bert": {
+                      "truncate": "first"
+                    }
+                  }
+                }
+              }
+            }""".formatted(input));
         client().performRequest(request);
     }
 
@@ -549,22 +540,16 @@ public class PyTorchModelIT extends ESRestTestCase {
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
 
-        client().performRequest(
-            putPipeline(
-                "my_pipeline",
-                "{"
-                    + "\"processors\": [\n"
-                    + "      {\n"
-                    + "        \"inference\": {\n"
-                    + "          \"model_id\": \""
-                    + modelId
-                    + "\"\n"
-                    + "        }\n"
-                    + "      }\n"
-                    + "    ]\n"
-                    + "}"
-            )
-        );
+        client().performRequest(putPipeline("my_pipeline", """
+            {
+              "processors": [
+                {
+                  "inference": {
+                    "model_id": "%s"
+                  }
+                }
+              ]
+            }""".formatted(modelId)));
         ResponseException ex = expectThrows(ResponseException.class, () -> stopDeployment(modelId));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
         assertThat(
@@ -576,6 +561,63 @@ public class PyTorchModelIT extends ESRestTestCase {
         );
 
         stopDeployment(modelId, true);
+    }
+
+    public void testPipelineWithBadProcessor() throws IOException {
+        String model = "deployed";
+        createTrainedModel(model);
+        putVocabulary(List.of("once", "twice"), model);
+        putModelDefinition(model);
+        startDeployment(model);
+        String source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "deployed",
+                      "inference_config": {
+                        "ner": {}
+                      }
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"input": "my words"}}]
+            }
+            """;
+
+        String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(
+            response,
+            allOf(
+                containsString("inference not possible. Task is configured with [pass_through] but received update of type [ner]"),
+                containsString("error"),
+                not(containsString("warning"))
+            )
+        );
+
+        // Missing input field is a warning
+        source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "deployed"
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"something": "my words"}}]
+            }
+            """;
+
+        response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(response, containsString("no value could be found for input field [input]"));
+        assertThat(response, containsString("status_exception"));
     }
 
     public void testDeleteModelWithDeploymentUsedByIngestProcessor() throws IOException {
@@ -610,46 +652,41 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     private void putModelDefinition(String modelId) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
-        request.setJsonEntity(
-            "{  "
-                + "\"total_definition_length\":"
-                + RAW_MODEL_SIZE
-                + ","
-                + "\"definition\": \""
-                + BASE_64_ENCODED_MODEL
-                + "\","
-                + "\"total_parts\": 1"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
         client().performRequest(request);
     }
 
     private void putVocabulary(List<String> vocabulary, String modelId) throws IOException {
         List<String> vocabularyWithPad = new ArrayList<>();
         vocabularyWithPad.add(BertTokenizer.PAD_TOKEN);
+        vocabularyWithPad.add(BertTokenizer.UNKNOWN_TOKEN);
         vocabularyWithPad.addAll(vocabulary);
         String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary");
-        request.setJsonEntity("{  " + "\"vocabulary\": [" + quotedWords + "]\n" + "}");
+        request.setJsonEntity("""
+            { "vocabulary": [%s] }
+            """.formatted(quotedWords));
         client().performRequest(request);
     }
 
     private void createTrainedModel(String modelId) throws IOException {
         Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
-        request.setJsonEntity(
-            "{  "
-                + "    \"description\": \"simple model for testing\",\n"
-                + "    \"model_type\": \"pytorch\",\n"
-                + "    \"inference_config\": {\n"
-                + "        \"pass_through\": {\n"
-                + "            \"tokenization\": {"
-                + "              \"bert\": {\"with_special_tokens\": false}\n"
-                + "            }\n"
-                + "        }\n"
-                + "    }\n"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+               "description": "simple model for testing",
+               "model_type": "pytorch",
+               "inference_config": {
+                 "pass_through": {
+                   "tokenization": {
+                     "bert": {
+                       "with_special_tokens": false
+                     }
+                   }
+                 }
+               }
+             }""");
         client().performRequest(request);
     }
 
@@ -689,28 +726,31 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     private Response infer(String input, String modelId, TimeValue timeout) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer?timeout=" + timeout.toString());
-        request.setJsonEntity("{  " + "\"docs\": [{\"input\":\"" + input + "\"}]\n" + "}");
+        request.setJsonEntity("""
+            {  "docs": [{"input":"%s"}] }
+            """.formatted(input));
         return client().performRequest(request);
     }
 
     private Response infer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity("{  " + "\"docs\": [{\"input\":\"" + input + "\"}]\n" + "}");
+        request.setJsonEntity("""
+            {  "docs": [{"input":"%s"}] }
+            """.formatted(input));
         return client().performRequest(request);
     }
 
     private Response infer(String input, String modelId, String resultsField) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity(
-            "{  "
-                + "\"docs\": [{\"input\":\""
-                + input
-                + "\"}],\n"
-                + "\"inference_config\": {\"pass_through\":{\"results_field\": \""
-                + resultsField
-                + "\"}}\n"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "docs": [ { "input": "%s" } ],
+              "inference_config": {
+                "pass_through": {
+                  "results_field": "%s"
+                }
+              }
+            }""".formatted(input, resultsField));
         return client().performRequest(request);
     }
 

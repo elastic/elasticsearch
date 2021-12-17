@@ -101,8 +101,7 @@ public class Verifier {
                         }
                         if (ae instanceof Unresolvable) {
                             // handle Attributes differently to provide more context
-                            if (ae instanceof UnresolvedAttribute) {
-                                UnresolvedAttribute ua = (UnresolvedAttribute) ae;
+                            if (ae instanceof UnresolvedAttribute ua) {
                                 // only work out the synonyms for raw unresolved attributes
                                 if (ua.customMessage() == false) {
                                     boolean useQualifier = ua.qualifier() != null;
@@ -172,12 +171,10 @@ public class Verifier {
                     b.set(PIPE_HEAD.ordinal());
                 } else if (p instanceof Tail) {
                     b.set(PIPE_TAIL.ordinal());
-                } else if (p instanceof Join) {
-                    Join j = (Join) p;
+                } else if (p instanceof Join j) {
 
-                    if (p instanceof Sequence) {
+                    if (p instanceof Sequence s) {
                         b.set(SEQUENCE.ordinal());
-                        Sequence s = (Sequence) p;
                         if (s.maxSpan().duration() > 0) {
                             b.set(SEQUENCE_MAXSPAN.ordinal());
                         }
@@ -258,8 +255,7 @@ public class Verifier {
     }
 
     private void checkJoinKeyTypes(LogicalPlan plan, Set<Failure> localFailures) {
-        if (plan instanceof Join) {
-            Join join = (Join) plan;
+        if (plan instanceof Join join) {
             List<KeyedFilter> queries = join.queries();
             KeyedFilter until = join.until();
             // pick first query and iterate its keys
@@ -299,8 +295,7 @@ public class Verifier {
         Function<String, Collection<String>> versionIncompatibleClusters,
         Collection<Failure> localFailures
     ) {
-        if (plan instanceof EsRelation) {
-            EsRelation esRelation = (EsRelation) plan;
+        if (plan instanceof EsRelation esRelation) {
             Collection<String> incompatibleClusters = versionIncompatibleClusters.apply(esRelation.index().name());
             if (incompatibleClusters.size() > 0) {
                 localFailures.add(

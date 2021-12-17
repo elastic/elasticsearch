@@ -121,24 +121,21 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
         request.runtimeFields(singletonMap("day_of_week", singletonMap("type", "keyword")));
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         String xContent = BytesReference.bytes(request.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString();
-        assertEquals(
-            ("{"
-                + "  \"index_filter\": {\n"
-                + "    \"term\": {\n"
-                + "      \"field\": {\n"
-                + "        \"value\": \"value\",\n"
-                + "        \"boost\": 1.0\n"
-                + "      }\n"
-                + "    }\n"
-                + "  },\n"
-                + "  \"runtime_mappings\": {\n"
-                + "    \"day_of_week\": {\n"
-                + "      \"type\": \"keyword\"\n"
-                + "    }\n"
-                + "  }\n"
-                + "}").replaceAll("\\s+", ""),
-            xContent
-        );
+        assertEquals(("""
+            {  "index_filter": {
+                "term": {
+                  "field": {
+                    "value": "value",
+                    "boost": 1.0
+                  }
+                }
+              },
+              "runtime_mappings": {
+                "day_of_week": {
+                  "type": "keyword"
+                }
+              }
+            }""").replaceAll("\\s+", ""), xContent);
     }
 
     public void testValidation() {

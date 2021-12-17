@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -51,7 +52,8 @@ public class ClusterStatsNodesTests extends ESTestCase {
         );
         stats = new ClusterStatsNodes.NetworkTypes(nodeInfos);
         assertEquals(
-            "{" + "\"transport_types\":{\"custom\":1}," + "\"http_types\":{\"custom\":2}" + "}",
+            """
+                {"transport_types":{"custom":1},"http_types":{"custom":2}}""",
             toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString()
         );
     }
@@ -81,7 +83,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
 
         ClusterStatsNodes.IngestStats stats = new ClusterStatsNodes.IngestStats(Collections.singletonList(nodeStats));
         assertThat(stats.pipelineCount, equalTo(nodeStats.getIngestStats().getProcessorStats().size()));
-        String processorStatsString = "{";
+        StringBuilder processorStatsString = new StringBuilder("{");
         Iterator<Map.Entry<String, long[]>> iter = processorStats.entrySet().iterator();
         while (iter.hasNext()) {
             Map.Entry<String, long[]> entry = iter.next();
@@ -90,31 +92,96 @@ public class ClusterStatsNodesTests extends ESTestCase {
             long failedCount = statValues[1];
             long current = statValues[2];
             long timeInMillis = statValues[3];
-            processorStatsString += "\""
-                + entry.getKey()
-                + "\":{\"count\":"
-                + count
-                + ",\"failed\":"
-                + failedCount
-                + ",\"current\":"
-                + current
-                + ",\"time_in_millis\":"
-                + timeInMillis
-                + "}";
+            processorStatsString.append("""
+                "%s":{"count":%s,"failed":%s,"current":%s,"time_in_millis":%s}\
+                """.formatted(entry.getKey(), count, failedCount, current, timeInMillis));
             if (iter.hasNext()) {
-                processorStatsString += ",";
+                processorStatsString.append(",");
             }
         }
-        processorStatsString += "}";
+        processorStatsString.append("}");
+        assertThat(toXContent(stats, XContentType.JSON, false).utf8ToString(), equalTo("""
+            {"ingest":{"number_of_pipelines":%s,"processor_stats":%s}}\
+            """.formatted(stats.pipelineCount, processorStatsString)));
+    }
+
+    public void testIndexPressureStats() throws Exception {
+        List<NodeStats> nodeStats = Arrays.asList(
+            randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats),
+            randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats)
+        );
+        long[] expectedStats = new long[12];
+        for (NodeStats nodeStat : nodeStats) {
+            IndexingPressureStats indexingPressureStats = nodeStat.getIndexingPressureStats();
+            if (indexingPressureStats != null) {
+                expectedStats[0] += indexingPressureStats.getCurrentCombinedCoordinatingAndPrimaryBytes();
+                expectedStats[1] += indexingPressureStats.getCurrentCoordinatingBytes();
+                expectedStats[2] += indexingPressureStats.getCurrentPrimaryBytes();
+                expectedStats[3] += indexingPressureStats.getCurrentReplicaBytes();
+
+                expectedStats[4] += indexingPressureStats.getTotalCombinedCoordinatingAndPrimaryBytes();
+                expectedStats[5] += indexingPressureStats.getTotalCoordinatingBytes();
+                expectedStats[6] += indexingPressureStats.getTotalPrimaryBytes();
+                expectedStats[7] += indexingPressureStats.getTotalReplicaBytes();
+
+                expectedStats[8] += indexingPressureStats.getCoordinatingRejections();
+                expectedStats[9] += indexingPressureStats.getPrimaryRejections();
+                expectedStats[10] += indexingPressureStats.getReplicaRejections();
+
+                expectedStats[11] += indexingPressureStats.getMemoryLimit();
+            }
+        }
+
+        ClusterStatsNodes.IndexPressureStats indexPressureStats = new ClusterStatsNodes.IndexPressureStats(nodeStats);
         assertThat(
-            toXContent(stats, XContentType.JSON, false).utf8ToString(),
+            toXContent(indexPressureStats, XContentType.JSON, false).utf8ToString(),
             equalTo(
-                "{\"ingest\":{"
-                    + "\"number_of_pipelines\":"
-                    + stats.pipelineCount
+                "{\"indexing_pressure\":{"
+                    + "\"memory\":{"
+                    + "\"current\":{"
+                    + "\"combined_coordinating_and_primary_in_bytes\":"
+                    + expectedStats[0]
                     + ","
-                    + "\"processor_stats\":"
-                    + processorStatsString
+                    + "\"coordinating_in_bytes\":"
+                    + expectedStats[1]
+                    + ","
+                    + "\"primary_in_bytes\":"
+                    + expectedStats[2]
+                    + ","
+                    + "\"replica_in_bytes\":"
+                    + expectedStats[3]
+                    + ","
+                    + "\"all_in_bytes\":"
+                    + (expectedStats[3] + expectedStats[0])
+                    + "},"
+                    + "\"total\":{"
+                    + "\"combined_coordinating_and_primary_in_bytes\":"
+                    + expectedStats[4]
+                    + ","
+                    + "\"coordinating_in_bytes\":"
+                    + expectedStats[5]
+                    + ","
+                    + "\"primary_in_bytes\":"
+                    + expectedStats[6]
+                    + ","
+                    + "\"replica_in_bytes\":"
+                    + expectedStats[7]
+                    + ","
+                    + "\"all_in_bytes\":"
+                    + (expectedStats[7] + expectedStats[4])
+                    + ","
+                    + "\"coordinating_rejections\":"
+                    + expectedStats[8]
+                    + ","
+                    + "\"primary_rejections\":"
+                    + expectedStats[9]
+                    + ","
+                    + "\"replica_rejections\":"
+                    + expectedStats[10]
+                    + "},"
+                    + "\"limit_in_bytes\":"
+                    + expectedStats[11]
+                    + "}"
                     + "}}"
             )
         );

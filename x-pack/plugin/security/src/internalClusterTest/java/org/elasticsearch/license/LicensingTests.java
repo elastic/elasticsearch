@@ -71,35 +71,40 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     private static final SecureString HASH_PASSWD = new SecureString(Hasher.BCRYPT4.hash(new SecureString("passwd".toCharArray())));
 
-    private static final String ROLES = SecuritySettingsSource.TEST_ROLE
-        + ":\n"
-        + "  cluster: [ all ]\n"
-        + "  indices:\n"
-        + "    - names: '*'\n"
-        + "      privileges: [manage]\n"
-        + "    - names: '/.*/'\n"
-        + "      privileges: [write]\n"
-        + "    - names: 'test'\n"
-        + "      privileges: [read]\n"
-        + "    - names: 'test1'\n"
-        + "      privileges: [read]\n"
-        + "\n"
-        + "role_a:\n"
-        + "  indices:\n"
-        + "    - names: 'a'\n"
-        + "      privileges: [all]\n"
-        + "    - names: 'test-dls'\n"
-        + "      privileges: [read]\n"
-        + "      query: '{\"term\":{\"field\":\"value\"} }'\n"
-        + "\n"
-        + "role_b:\n"
-        + "  indices:\n"
-        + "    - names: 'b'\n"
-        + "      privileges: [all]\n";
+    private static final String ROLES = SecuritySettingsSource.TEST_ROLE + """
+        :
+          cluster: [ all ]
+          indices:
+            - names: '*'
+              privileges: [manage]
+            - names: '/.*/'
+              privileges: [write]
+            - names: 'test'
+              privileges: [read]
+            - names: 'test1'
+              privileges: [read]
 
-    private static final String USERS_ROLES = SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES
-        + "role_a:user_a,user_b\n"
-        + "role_b:user_b\n";
+        role_a:
+          indices:
+            - names: 'a'
+              privileges: [all]
+            - names: 'test-dls'
+              privileges: [read]
+              query: '{"term":{"field":"value"} }'
+
+        role_b:
+          indices:
+            - names: 'b'
+              privileges: [all]
+        """;
+
+    private static final String USERS_ROLES = """
+        user:test_user,test_trans_client_user
+        transport_client:test_trans_client_user
+        superuser:test_superuser
+        role_a:user_a,user_b
+        role_b:user_b
+        """;
 
     @Override
     protected String configRoles() {

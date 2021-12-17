@@ -62,17 +62,18 @@ public class JdbcConfigurationDataSourceTests extends WebServerTestCase {
         );
 
         EsDataSource dataSource = new EsDataSource();
-        String address = "jdbc:es://" + webServerAddress()
-            + "/?binary.format=false&query.timeout=" + queryTimeout
-            + "&page.timeout=" + pageTimeout;
+        String address = "jdbc:es://"
+            + webServerAddress()
+            + "/?binary.format=false&query.timeout="
+            + queryTimeout
+            + "&page.timeout="
+            + pageTimeout;
         dataSource.setUrl(address);
         Connection connection = dataSource.getConnection();
         webServer().takeRequest();
 
         webServer().enqueue(
-            new MockResponse().setResponseCode(200)
-                .addHeader("Content-Type", "application/json")
-                .setBody("{\"rows\":[],\"columns\":[]}")
+            new MockResponse().setResponseCode(200).addHeader("Content-Type", "application/json").setBody("{\"rows\":[],\"columns\":[]}")
         );
         PreparedStatement statement = connection.prepareStatement("SELECT 1");
         statement.execute();

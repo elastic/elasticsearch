@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -98,9 +99,9 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         {
             // null version
             int version = randomInt();
-            String configJson = """
+            String configJson = String.format(Locale.ROOT, """
                 {"version": %d, "description": "blah", "_meta" : {"foo": "bar"}}
-                """.formatted(version);
+                """, version);
             PipelineConfiguration configuration = new PipelineConfiguration(
                 "1",
                 new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),

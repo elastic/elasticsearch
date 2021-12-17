@@ -117,7 +117,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         false,
         true,
         RestStatus.TOO_MANY_REQUESTS,
-        EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE)
+        EnumSet.of(ClusterBlockLevel.WRITE)
     );
 
     public enum State {

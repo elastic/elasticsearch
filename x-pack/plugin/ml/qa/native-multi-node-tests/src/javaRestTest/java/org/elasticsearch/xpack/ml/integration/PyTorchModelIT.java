@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
@@ -245,7 +246,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             if (state.isAnyOf(AllocationStatus.State.STARTED, AllocationStatus.State.FULLY_ALLOCATED)) {
                 Integer byteSize = (Integer) XContentMapValues.extractValue("deployment_stats.model_size_bytes", stats.get(0));
                 assertThat(responseMap.toString(), byteSize, is(not(nullValue())));
-                assertThat(byteSize, equalTo((int) RAW_MODEL_SIZE));
+                assertModelSizeIsCorrect(byteSize);
 
                 Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
                 var humanResponseMap = entityAsMap(humanResponse);
@@ -257,7 +258,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                     stringBytes,
                     is(not(nullValue()))
                 );
-                assertThat(stringBytes, equalTo("1.5kb"));
+                assertThat(stringBytes, equalTo("270mb"));
             }
             stopDeployment(modelId);
         };
@@ -281,7 +282,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(response).get("trained_model_stats");
         assertThat(stats, hasSize(1));
         assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelA));
-        assertThat(XContentMapValues.extractValue("deployment_stats.model_size_bytes", stats.get(0)), equalTo((int) RAW_MODEL_SIZE));
+        assertModelSizeIsCorrect((int) XContentMapValues.extractValue("deployment_stats.model_size_bytes", stats.get(0)));
         List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
             "deployment_stats.nodes",
             stats.get(0)
@@ -769,5 +770,10 @@ public class PyTorchModelIT extends ESRestTestCase {
             EntityUtils.toString(getTrainedModelAllocationMetadataResponse.getEntity()),
             containsString("\"trained_model_allocation\":{}")
         );
+    }
+
+    private void assertModelSizeIsCorrect(Integer modelSize) {
+        long expectedSize = ByteSizeValue.ofMb(270).getBytes() + 2 * RAW_MODEL_SIZE;
+        assertThat(modelSize, equalTo((int) expectedSize));
     }
 }

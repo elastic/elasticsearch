@@ -1913,7 +1913,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             ZonedDateTime creationDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(creationDate), ZoneOffset.UTC);
             builder.put(SETTING_CREATION_DATE_STRING, creationDateTime.toString());
         }
-
         return builder.build();
     }
 

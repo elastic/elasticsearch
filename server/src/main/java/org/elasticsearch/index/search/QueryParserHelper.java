@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.search;
 
-import org.apache.lucene.index.FieldInfos;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -120,7 +119,6 @@ public final class QueryParserHelper {
         boolean acceptMetadataField,
         String fieldSuffix
     ) {
-        FieldInfos fis = FieldInfos.getMergedFieldInfos(context.getIndexReader());
         Set<String> allFields = context.getMatchingFieldNames(fieldOrPattern);
         boolean wildcardMatch = allFields.size() > 1;
         Map<String, Float> fields = new HashMap<>();
@@ -136,7 +134,7 @@ public final class QueryParserHelper {
                 continue;
             }
 
-            if (wildcardMatch && fieldType.fieldExists(fis) == false) {
+            if (wildcardMatch && fieldType.fieldExists(context) == false) {
                 // Ignore fields in the mappings that are not present in the lucene index
                 continue;
             }

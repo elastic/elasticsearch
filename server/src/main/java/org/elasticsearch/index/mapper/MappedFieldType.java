@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
@@ -454,8 +453,8 @@ public abstract class MappedFieldType {
         return false;
     }
 
-    public boolean fieldExists(FieldInfos fis) {
-        return fis.fieldInfo(name) != null;
+    public boolean fieldExists(SearchExecutionContext context) {
+        return context.getFieldInfos().fieldInfo(name) != null;
     }
 
     /**

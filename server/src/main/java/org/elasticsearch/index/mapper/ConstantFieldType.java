@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -117,7 +116,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public boolean fieldExists(FieldInfos fis) {
+    public boolean fieldExists(SearchExecutionContext context) {
         return true;
     }
 }

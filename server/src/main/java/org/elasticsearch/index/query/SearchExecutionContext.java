@@ -10,6 +10,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -111,6 +112,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final Map<String, MappedFieldType> runtimeMappings;
     private Predicate<String> allowedFields;
+    private FieldInfos fieldInfos = null;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -646,6 +648,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
      *  for instance if this rewrite context is used to index queries (percolation). */
     public IndexSearcher searcher() {
         return searcher;
+    }
+
+    public FieldInfos getFieldInfos() {
+        if (this.fieldInfos == null) {
+            this.fieldInfos = searcher == null ? FieldInfos.EMPTY : FieldInfos.getMergedFieldInfos(searcher.getIndexReader());
+        }
+        return this.fieldInfos;
     }
 
     /**

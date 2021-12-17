@@ -501,6 +501,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 return;
             }
 
+            if (mainRequest.getSearchRequest().scroll() == null) {
+                // scroll is disabled
+                refreshAndFinish(emptyList(), emptyList(), false);
+                return;
+            }
+
             onSuccess.run();
         } catch (Exception t) {
             finishHim(t);

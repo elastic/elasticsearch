@@ -337,6 +337,48 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
     }
 
+    public void testHandlesBulkWithNoScroll() {
+        // given a request that should not open scroll
+        testRequest.setMaxDocs(1);
+        testRequest.getSearchRequest().source().size(100);
+
+        // when receiving bulk response
+        var responses = randomArray(0, 1, BulkItemResponse[]::new, AsyncBulkByScrollActionTests::createBulkResponse);
+        new DummyAsyncBulkByScrollAction().onBulkResponse(new BulkResponse(responses, 0), () -> fail("should not be called"));
+
+        // then should refresh and finish
+        assertThat(listener.isDone(), equalTo(true));
+        assertThat(listener.actionGet().getStatus().getCreated(), equalTo((long) responses.length));
+    }
+
+    public void testHandlesBulkWhenMaxDocsIsReached() {
+        // given a request with max docs
+        testRequest.setMaxDocs(10);
+
+        // when receiving bulk response with max docs
+        var responses = randomArray(10, 10, BulkItemResponse[]::new, AsyncBulkByScrollActionTests::createBulkResponse);
+        new DummyAsyncBulkByScrollAction().onBulkResponse(new BulkResponse(responses, 0), () -> fail("should not be called"));
+
+        // then should refresh and finish
+        assertThat(listener.isDone(), equalTo(true));
+        assertThat(listener.actionGet().getStatus().getCreated(), equalTo((long) responses.length));
+    }
+
+    private static BulkItemResponse createBulkResponse() {
+        return BulkItemResponse.success(
+            0,
+            DocWriteRequest.OpType.CREATE,
+            new IndexResponse(
+                new ShardId(new Index("name", "uid"), 0),
+                "id",
+                randomInt(20),
+                randomIntBetween(1, 16),
+                randomIntBetween(0, Integer.MAX_VALUE),
+                true
+            )
+        );
+    }
+
     /**
      * Mimicks a ThreadPool rejecting execution of the task.
      */

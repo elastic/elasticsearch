@@ -73,7 +73,7 @@ final class ESPolicy extends Policy {
      */
     private static boolean isLoaderUtilGetClassLoaders() {
         Optional<StackTraceElement> frame = Arrays.stream(Thread.currentThread().getStackTrace())
-            .filter(JDK_BOOT.or(ES_BOOTSTRAP))
+            .filter(JDK_BOOT.or(ES_BOOTSTRAP).negate())
             .limit(1)
             .findFirst()
             .filter(IS_LOG4J);

@@ -187,7 +187,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     /**
-     * Modifies search request to be used in a ScrollableHitSource
+     * Prepares a search request to be used in a ScrollableHitSource.
+     * Preparation might set a sort order (if not set already) and disable scroll if max docs is small enough.
      */
     // Visible for testing
     static <Request extends AbstractBulkByScrollRequest<Request>> SearchRequest prepareSearchRequest(

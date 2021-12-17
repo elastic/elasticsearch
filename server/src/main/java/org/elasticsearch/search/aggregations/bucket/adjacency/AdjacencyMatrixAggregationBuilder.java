@@ -211,7 +211,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
                     + "] but was ["
                     + filters.size()
                     + "].  "
-                    + "You can increase this limit by scaling up your java heap or number of CPUs"
+                    + "You can increase this limit by scaling up your java heap"
             );
         }
         return new AdjacencyMatrixAggregatorFactory(name, filters, separator, context, parent, subFactoriesBuilder, metadata);

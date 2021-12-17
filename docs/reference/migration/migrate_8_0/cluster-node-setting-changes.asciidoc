@@ -62,7 +62,7 @@ you might need to increase the amount of memory available to Elasticsearch,
 or to reduce the size of your search thread pool so that more memory is
 available to each concurrent search.
 
-In previous versions of lucene you could get around this limit by nesting
+In previous versions of Lucene you could get around this limit by nesting
 boolean queries within each other, but the limit is now based on the total
 number of leaf queries within the query as a whole and this workaround will
 no longer help.

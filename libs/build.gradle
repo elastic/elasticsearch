@@ -17,12 +17,12 @@
  * under the License.
  */
 
-subprojects {
-    /*
-     * All subprojects are java projects using Elasticsearch's standard build
-     * tools.
-     */
-    apply plugin: 'elasticsearch.build'
+configure(subprojects - project('log4j')) {
+  /*
+   * All subprojects are java projects using Elasticsearch's standard build
+   * tools.
+   */
+  apply plugin: 'elasticsearch.build'
 
     /*
      * Subprojects may depend on the "core" lib but may not depend on any

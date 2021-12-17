@@ -249,12 +249,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(properties.getProperty("appender.audit_rolling.layout.type"), is("PatternLayout"));
         final String patternLayoutFormat = properties.getProperty("appender.audit_rolling.layout.pattern");
         assertThat(patternLayoutFormat, is(notNullValue()));
-        patternLayout = AccessController.doPrivileged(
-            (PrivilegedAction<PatternLayout>) () -> PatternLayout.newBuilder()
+        patternLayout = PatternLayout.newBuilder()
                 .withPattern(patternLayoutFormat)
                 .withCharset(StandardCharsets.UTF_8)
-                .build()
-        );
+                .build();
         customAnonymousUsername = randomAlphaOfLength(8);
         reservedRealmEnabled = randomBoolean();
     }

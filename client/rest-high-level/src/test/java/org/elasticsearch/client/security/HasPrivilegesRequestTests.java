@@ -47,31 +47,34 @@ public class HasPrivilegesRequestTests extends ESTestCase {
         String json = Strings.toString(request);
         final Map<String, Object> parsed = XContentHelper.convertToMap(XContentType.JSON.xContent(), json, false);
 
-        final Map<String, Object> expected = XContentHelper.convertToMap(
-            XContentType.JSON.xContent(),
-            "{"
-                + " \"cluster\":[\"monitor\",\"manage_watcher\",\"manage_ml\"],"
-                + " \"index\":[{"
-                + "   \"names\":[\"index-001\",\"index-002\"],"
-                + "   \"privileges\":[\"all\"],"
-                + "   \"allow_restricted_indices\":true"
-                + "  },{"
-                + "   \"names\":[\"index-003\"],"
-                + "   \"privileges\":[\"read\"],"
-                + "   \"allow_restricted_indices\":false"
-                + " }],"
-                + " \"application\":[{"
-                + "   \"application\":\"myapp\","
-                + "   \"privileges\":[\"read\",\"write\"],"
-                + "   \"resources\":[\"*\"]"
-                + "  },{"
-                + "   \"application\":\"myapp\","
-                + "   \"privileges\":[\"admin\"],"
-                + "   \"resources\":[\"/data/*\"]"
-                + " }]"
-                + "}",
-            false
-        );
+        final Map<String, Object> expected = XContentHelper.convertToMap(XContentType.JSON.xContent(), """
+            {
+              "cluster": [ "monitor", "manage_watcher", "manage_ml" ],
+              "index": [
+                {
+                  "names": [ "index-001", "index-002" ],
+                  "privileges": [ "all" ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [ "index-003" ],
+                  "privileges": [ "read" ],
+                  "allow_restricted_indices": false
+                }
+              ],
+              "application": [
+                {
+                  "application": "myapp",
+                  "privileges": [ "read", "write" ],
+                  "resources": [ "*" ]
+                },
+                {
+                  "application": "myapp",
+                  "privileges": [ "admin" ],
+                  "resources": [ "/data/*" ]
+                }
+              ]
+            }""", false);
 
         assertThat(XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder(parsed, expected), Matchers.nullValue());
     }

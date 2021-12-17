@@ -96,72 +96,71 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
 
     @Override
     protected String configRoles() {
-        return super.configRoles()
-            + DLS_FLS_USER
-            + ":\n"
-            + "  cluster: [ \"manage_own_api_key\" ]\n"
-            + "  indices:\n"
-            + "  - names:\n"
-            + "    - \"dls-index\"\n"
-            + "    privileges:\n"
-            + "    - \"read\"\n"
-            + "    query: \"{\\\"match\\\": {\\\"number\\\": 101}}\"\n"
-            + "  - names:\n"
-            + "    - \"dls-alias\"\n"
-            + "    privileges:\n"
-            + "    - \"read\"\n"
-            + "    query: \"{\\\"match\\\": {\\\"number\\\": 102}}\"\n"
-            + "  - names:\n"
-            + "    - \"fls-index\"\n"
-            + "    privileges:\n"
-            + "    - \"read\"\n"
-            + "    field_security:\n"
-            + "      grant:\n"
-            + "      - \"public\"\n"
-            + "  - names:\n"
-            + "    - \"fls-alias\"\n"
-            + "    privileges:\n"
-            + "    - \"read\"\n"
-            + "    field_security:\n"
-            + "      grant:\n"
-            + "      - \"private\"\n"
-            + "  - names:\n"
-            + "    - \"alias1\"\n"
-            + "    privileges:\n"
-            + "    - \"read\"\n"
-            + "    query: \"{\\\"match\\\": {\\\"number\\\": 1}}\"\n"
-            + "    field_security:\n"
-            + "      grant:\n"
-            + "      - \"*\"\n"
-            + "      except:\n"
-            + "      - \"private\"\n"
-            + "  - names:\n"
-            + "    - \"alias2\"\n"
-            + "    privileges:\n"
-            + "    - \"read\"\n"
-            + "    query: \"{\\\"match\\\": {\\\"number\\\": 2}}\"\n"
-            + "    field_security:\n"
-            + "      grant:\n"
-            + "      - \"*\"\n"
-            + "      except:\n"
-            + "      - \"public\"\n"
-            + "  - names:\n"
-            + "    - \"all-alias\"\n"
-            + "    privileges:\n"
-            + "    - \"read\"\n"
-            + DLS_TEMPLATE_ROLE_QUERY_ROLE
-            + ":\n"
-            + "  indices:\n"
-            + "  - names:\n"
-            + "    - \"dls-template-role-query-index\"\n"
-            + "    privileges:\n"
-            + "    - \"read\"\n"
-            + "    query: {\"template\":{\"source\":{\"match\":{\"username\":\"{{_user.username}}\"}}}}\n"
-            + "  - names:\n"
-            + "    - \"dls-template-role-query-alias\"\n"
-            + "    privileges:\n"
-            + "    - \"read\"\n"
-            + "    query: {\"template\":{\"id\":\"my-script\"}}\n";
+        return """
+            %s%s:
+              cluster: [ "manage_own_api_key" ]
+              indices:
+              - names:
+                - "dls-index"
+                privileges:
+                - "read"
+                query: "{\\"match\\": {\\"number\\": 101}}"
+              - names:
+                - "dls-alias"
+                privileges:
+                - "read"
+                query: "{\\"match\\": {\\"number\\": 102}}"
+              - names:
+                - "fls-index"
+                privileges:
+                - "read"
+                field_security:
+                  grant:
+                  - "public"
+              - names:
+                - "fls-alias"
+                privileges:
+                - "read"
+                field_security:
+                  grant:
+                  - "private"
+              - names:
+                - "alias1"
+                privileges:
+                - "read"
+                query: "{\\"match\\": {\\"number\\": 1}}"
+                field_security:
+                  grant:
+                  - "*"
+                  except:
+                  - "private"
+              - names:
+                - "alias2"
+                privileges:
+                - "read"
+                query: "{\\"match\\": {\\"number\\": 2}}"
+                field_security:
+                  grant:
+                  - "*"
+                  except:
+                  - "public"
+              - names:
+                - "all-alias"
+                privileges:
+                - "read"
+            %s:
+              indices:
+              - names:
+                - "dls-template-role-query-index"
+                privileges:
+                - "read"
+                query: {"template":{"source":{"match":{"username":"{{_user.username}}"}}}}
+              - names:
+                - "dls-template-role-query-alias"
+                privileges:
+                - "read"
+                query: {"template":{"id":"my-script"}}
+            """.formatted(super.configRoles(), DLS_FLS_USER, DLS_TEMPLATE_ROLE_QUERY_ROLE);
     }
 
     @Override
@@ -389,10 +388,8 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
                 .preparePutStoredScript()
                 .setId("my-script")
                 .setContent(
-                    new BytesArray(
-                        "{\"script\":{\"source\":"
-                            + "\"{\\\"match\\\":{\\\"username\\\":\\\"{{_user.username}}\\\"}}\",\"lang\":\"mustache\"}}"
-                    ),
+                    new BytesArray("""
+                        {"script":{"source":"{\\"match\\":{\\"username\\":\\"{{_user.username}}\\"}}","lang":"mustache"}}"""),
                     XContentType.JSON
                 )
                 .get()
@@ -459,13 +456,8 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
                     randomAlphaOfLengthBetween(3, 8),
                     null,
                     new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(ALL_ALIAS)
-                            .privileges("read")
-                            .query("{\"term\":{\"letter\":\"a\"}}")
-                            .grantedFields("*")
-                            .deniedFields("number")
-                            .build() },
+                        RoleDescriptor.IndicesPrivileges.builder().indices(ALL_ALIAS).privileges("read").query("""
+                            {"term":{"letter":"a"}}""").grantedFields("*").deniedFields("number").build() },
                     null
                 )
             ),

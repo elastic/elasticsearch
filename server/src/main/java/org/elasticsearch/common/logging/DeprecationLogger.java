@@ -12,6 +12,9 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+
 /**
  * A logger that logs deprecation notices. Logger should be initialized with a class or name which will be used
  * for deprecation logger. For instance <code>DeprecationLogger.getLogger("org.elasticsearch.test.SomeClass")</code> will
@@ -97,8 +100,15 @@ public class DeprecationLogger {
         String opaqueId = HeaderWarning.getXOpaqueId();
         String productOrigin = HeaderWarning.getProductOrigin();
         ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, opaqueId, productOrigin, msg, params);
-        logger.log(level, deprecationMessage);
+        doPrivilegedLog(level, deprecationMessage);
         return this;
+    }
+
+    private void doPrivilegedLog(Level level, ESLogMessage deprecationMessage) {
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            logger.log(level, deprecationMessage);
+            return null;
+        });
     }
 
     /**

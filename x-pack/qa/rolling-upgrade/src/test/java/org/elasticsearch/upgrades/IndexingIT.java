@@ -50,10 +50,12 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         if (CLUSTER_TYPE == ClusterType.OLD) {
 
             Request createTestIndex = new Request("PUT", "/test_index");
-            createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
+            createTestIndex.setJsonEntity("""
+                {"settings": {"index.number_of_replicas": 0}}""");
             client().performRequest(createTestIndex);
 
-            String recoverQuickly = "{\"settings\": {\"index.unassigned.node_left.delayed_timeout\": \"100ms\"}}";
+            String recoverQuickly = """
+                {"settings": {"index.unassigned.node_left.delayed_timeout": "100ms"}}""";
             Request createIndexWithReplicas = new Request("PUT", "/index_with_replicas");
             createIndexWithReplicas.setJsonEntity(recoverQuickly);
             client().performRequest(createIndexWithReplicas);
@@ -109,8 +111,10 @@ public class IndexingIT extends AbstractUpgradeTestCase {
     private void bulk(String index, String valueSuffix, int count) throws IOException {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < count; i++) {
-            b.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
-            b.append("{\"f1\": \"v").append(i).append(valueSuffix).append("\", \"f2\": ").append(i).append("}\n");
+            b.append("""
+                {"index": {"_index": "%s"}}
+                {"f1": "v%s%s", "f2": %s}
+                """.formatted(index, i, valueSuffix, i));
         }
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
@@ -123,9 +127,8 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-        assertEquals(
-            "{\"hits\":{\"total\":" + count + "}}",
-            EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8)
-        );
+        assertEquals("""
+            {"hits":{"total":%s}}\
+            """.formatted(count), EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
     }
 }

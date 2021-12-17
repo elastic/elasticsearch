@@ -18,21 +18,21 @@
             HOME=$JENKINS_HOME
             GRADLEW=./gradlew --parallel --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
             GRADLEW_BAT=./gradlew.bat --parallel --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-      triggers:
-        - github-pull-request:
-            org-list:
-              - elastic
-            allow-whitelist-orgs-as-admins: true
-            trigger-phrase: '.*run\W+elasticsearch-ci/build-bench.*'
-            github-hooks: true
-            status-context: elasticsearch-ci/build-benchmark
-            cancel-builds-on-update: true
-            black-list-target-branches:
-              - 6.8
-            excluded-regions:
-              - ^docs/.*
-            white-list-labels:
-              - 'build-benchmark'
+    triggers:
+      - github-pull-request:
+          org-list:
+            - elastic
+          allow-whitelist-orgs-as-admins: true
+          trigger-phrase: '.*run\W+elasticsearch-ci/build-bench.*'
+          github-hooks: true
+          status-context: elasticsearch-ci/build-benchmark
+          cancel-builds-on-update: true
+          black-list-target-branches:
+            - 6.8
+          excluded-regions:
+            - ^docs/.*
+          white-list-labels:
+            - 'build-benchmark'
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

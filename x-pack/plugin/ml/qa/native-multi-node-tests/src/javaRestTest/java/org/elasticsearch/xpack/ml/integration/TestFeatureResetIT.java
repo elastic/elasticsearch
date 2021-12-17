@@ -290,26 +290,18 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private void putTrainedModelIngestPipeline(String pipelineId) throws Exception {
-        client().execute(
-            PutPipelineAction.INSTANCE,
-            new PutPipelineRequest(
-                pipelineId,
-                new BytesArray(
-                    "{\n"
-                        + "    \"processors\": [\n"
-                        + "      {\n"
-                        + "        \"inference\": {\n"
-                        + "          \"inference_config\": {\"classification\":{}},\n"
-                        + "          \"model_id\": \"lang_ident_model_1\",\n"
-                        + "          \"field_map\": {}\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    ]\n"
-                        + "  }"
-                ),
-                XContentType.JSON
-            )
-        ).actionGet();
+        client().execute(PutPipelineAction.INSTANCE, new PutPipelineRequest(pipelineId, new BytesArray("""
+            {
+                "processors": [
+                  {
+                    "inference": {
+                      "inference_config": {"classification":{}},
+                      "model_id": "lang_ident_model_1",
+                      "field_map": {}
+                    }
+                  }
+                ]
+              }"""), XContentType.JSON)).actionGet();
     }
 
     private void indexDocForInference(String pipelineId) {

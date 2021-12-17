@@ -246,7 +246,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         // mode=QUERY
         tokenFilter = analysis.tokenFilter.get("kuromoji_completion_query");
         source = "サッk";
-        expected_tokens = new String[]{"サッk", "sakk"};
+        expected_tokens = new String[] { "サッk", "sakk" };
         tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
         tokenizer.setReader(new StringReader(source));
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens);

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.plugin.analysis.kuromoji;
 
-import org.apache.lucene.analysis.ja.JapaneseCompletionFilter.Mode;
 import org.apache.lucene.analysis.ja.JapaneseCompletionAnalyzer;
+import org.apache.lucene.analysis.ja.JapaneseCompletionFilter.Mode;
 import org.apache.lucene.analysis.ja.dict.UserDictionary;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;

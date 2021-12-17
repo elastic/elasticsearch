@@ -37,8 +37,7 @@ public class DeprecationLogger {
      * More serious than WARN by 1, but less serious than ERROR
      */
     public static Level CRITICAL = Level.forName("CRITICAL", Level.WARN.intLevel() - 1);
-    private static volatile Settings initialEnvironment = null;
-
+    private static volatile List<String> skipTheseDeprecations = Collections.emptyList();
     private final Logger logger;
 
     /**
@@ -59,8 +58,17 @@ public class DeprecationLogger {
         return new DeprecationLogger(name);
     }
 
-    public static void setInitialEnvironmentSettings(Settings settings) {
-        initialEnvironment = settings;
+    /**
+     * The DeprecationLogger uses the "deprecation.skip_deprecated_settings" setting to decide whether to log a deprecation for a setting.
+     * This is a node setting. This method initializes the DeprecationLogger class with the node settings for the node in order to read the
+     * "deprecation.skip_deprecated_settings" setting. This only needs to be called once per JVM. If it is not called, the default behavior
+     * is to assume that the "deprecation.skip_deprecated_settings" setting is not set.
+     * @param nodeSettings The settings for this node
+     */
+    public static void initialize(Settings nodeSettings) {
+        skipTheseDeprecations = nodeSettings == null
+            ? Collections.emptyList()
+            : nodeSettings.getAsList("deprecation.skip_deprecated_settings");
     }
 
     private DeprecationLogger(String parentLoggerName) {
@@ -102,9 +110,6 @@ public class DeprecationLogger {
     }
 
     private DeprecationLogger logDeprecation(Level level, DeprecationCategory category, String key, String msg, Object[] params) {
-        List<String> skipTheseDeprecations = initialEnvironment == null
-            ? Collections.emptyList()
-            : initialEnvironment.getAsList("deprecation.skip_deprecated_settings");
         if (Regex.simpleMatch(skipTheseDeprecations, key) == false) {
             String opaqueId = HeaderWarning.getXOpaqueId();
             String productOrigin = HeaderWarning.getProductOrigin();

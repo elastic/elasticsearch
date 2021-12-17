@@ -1399,7 +1399,7 @@ public class SettingTests extends ESTestCase {
             .put(settingName, settingValue)
             .putList("deprecation.skip_deprecated_settings", settingName)
             .build();
-        DeprecationLogger.setInitialEnvironmentSettings(settingsWithSkipDeprecationSetting);
+        DeprecationLogger.initialize(settingsWithSkipDeprecationSetting);
         deprecatedSetting.checkDeprecation(settingsWithSkipDeprecationSetting);
         ensureNoWarnings();
     }

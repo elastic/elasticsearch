@@ -146,7 +146,7 @@ include::cluster-index-compat.asciidoc[]
 
 A compatible snapshot can contain indices created in an incompatible version.
 For example, a snapshot of a 7.16 cluster can contain an index created in 6.8.
-If you try to restore the 6.8 index to a 8.0 cluster, the restore attempt will
+If you try to restore the 6.8 index to an 8.0 cluster, the restore attempt will
 fail. Keep this in mind if you take a snapshot before upgrading a cluster.
 
 As a workaround, you can first restore the index to another cluster running the

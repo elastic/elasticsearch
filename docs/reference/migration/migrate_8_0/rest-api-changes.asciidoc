@@ -201,6 +201,7 @@ support] for recommended solutions.
 
 A {ccs} using an unsupported configuration may still work. However, such
 searches aren't tested by Elastic, and their behavior isn't guaranteed.
+====
 
 [[remove-term-order-key]]
 .The `terms` aggregation no longer supports the `_term` order key.

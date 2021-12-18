@@ -57,6 +57,7 @@ jar {
     }) {
         // We don't need the META-INF from the things we bundle. For now.
         exclude 'META-INF/*'
+        exclude 'org/apache/logging/log4j/core/lookup/JndiLookup.class'
     }
     manifest {
         attributes 'Main-Class': 'org.elasticsearch.xpack.sql.cli.Cli'

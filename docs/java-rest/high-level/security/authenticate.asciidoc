@@ -37,7 +37,7 @@ the user information were retrieved from.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> `getUser` retrieves the `User` instance containing the information,
+<1> `getUser` retrieves the `ProfileUser` instance containing the information,
 see {javadoc-client}/security/user/User.html.
 <2> `enabled` tells if this user is usable or is deactivated.
 <3> `getAuthenticationRealm().getName()` retrieves the name of the realm that authenticated the user.

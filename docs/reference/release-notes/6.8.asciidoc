@@ -1,3 +1,14 @@
+[[release-notes-6.8.22]]
+== {es} version 6.8.22
+
+[[upgrade-6.8.22]]
+[float]
+=== Upgrades
+
+Infra/Logging::
+* Upgrade to log4j 2.17.0 {es-pull}81902[#81902]
+
+
 [[release-notes-6.8.21]]
 == {es} version 6.8.21
 

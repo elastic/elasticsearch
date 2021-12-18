@@ -252,4 +252,30 @@ public class TestStableAnalysisPluginAPIIT extends ESIntegTestCase {
             }
         }
     }
+
+    public void testBasicUsage1() {
+        String index = "foo";
+
+        assertAcked(client().admin().indices().prepareCreate(index));
+
+        for (String filter : List.of("demo_advanced")) {
+            for (AnalysisTestcases testcase : testCases) {
+                AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index).tokenizer("standard")
+                    .addTokenFilter("lowercase")
+                    .addTokenFilter(filter)
+                    .addTokenFilter("uppercase")
+                    .text(testcase.phrases);
+
+                AnalyzeAction.Response result = client().admin().indices().analyze(analyzeRequest).actionGet();
+
+                assertFalse(result.getTokens().isEmpty());
+                assertEquals(2, result.getTokens().size());
+
+                for (int i = 0; i < result.getTokens().size(); i++) {
+                    assertThat(result.getTokens().get(i), equalTo(testcase.tokens[i]));
+                }
+            }
+        }
+    }
+
 }

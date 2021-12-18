@@ -75,6 +75,10 @@ public interface AnalysisPlugin {
         return emptyMap();
     }
 
+    default Map<String, AnalysisProvider<AnalysisIteratorFactory>> getFilterIterators() {
+        return emptyMap();
+    }
+
     /**
      * Override to add additional {@link Tokenizer}s. See {@link #requiresAnalysisSettings(AnalysisProvider)}
      * how to on get the configuration from the index.

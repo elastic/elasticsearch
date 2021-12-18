@@ -23,9 +23,11 @@ import org.elasticsearch.plugins.analysis.AbstractAnalysisIteratorFactory;
 import org.elasticsearch.plugins.analysis.AnalyzeSettings;
 import org.elasticsearch.plugins.analysis.AnalyzeState;
 import org.elasticsearch.plugins.analysis.AnalyzeToken;
+import org.elasticsearch.plugins.analysis.ESTokenStream;
 import org.elasticsearch.plugins.analysis.PortableAnalyzeIterator;
 import org.elasticsearch.plugins.analysis.StableLuceneFilterIterator;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
@@ -36,16 +38,15 @@ public class DemoIteratorFactoryAdvanced extends AbstractAnalysisIteratorFactory
     }
 
     @Override
-    public PortableAnalyzeIterator newInstance(List<AnalyzeToken> tokens, AnalyzeState prevState) {
+    public PortableAnalyzeIterator newInstance(ESTokenStream esTokenStream) {
         return new StableLuceneFilterIterator(
-            new ElasticWordOnlyTokenFilter(new AnalyzeTokenStream(tokens)),
-            prevState,
+            new ElasticWordOnlyTokenFilter(new AnalyzeTokenStream(esTokenStream)),
+            new AnalyzeState(-1, 0),
             new AnalyzeSettings(100, 1));
     }
 
     private class AnalyzeTokenStream extends Tokenizer {
-        private final List<AnalyzeToken> tokens;
-        private Iterator<AnalyzeToken> tokenIterator;
+        private final ESTokenStream tokenStream;
 
         private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
         private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
@@ -53,21 +54,21 @@ public class DemoIteratorFactoryAdvanced extends AbstractAnalysisIteratorFactory
         private final TypeAttribute typeAtt = addAttribute(TypeAttribute.class);
         private final PositionLengthAttribute posLenAtt = addAttribute(PositionLengthAttribute.class);
 
-        public AnalyzeTokenStream(List<AnalyzeToken> tokens) {
-            this.tokens = tokens;
-            this.tokenIterator = tokens.listIterator();
+        public AnalyzeTokenStream(ESTokenStream tokenStream) {
+            this.tokenStream = tokenStream;
         }
 
         @Override
-        public final boolean incrementToken() {
+        public final boolean incrementToken() throws IOException {
             clearAttributes();
-            if (tokenIterator.hasNext() == false) {
+
+            AnalyzeToken currentToken = tokenStream.incrementToken();
+
+            if (currentToken == null) {
                 return false;
             }
 
-            AnalyzeToken currentToken = tokenIterator.next();
-
-            posIncrAtt.setPositionIncrement(1);
+            posIncrAtt.setPositionIncrement(currentToken.getPosition());
             offsetAtt.setOffset(currentToken.getStartOffset(), currentToken.getEndOffset());
             typeAtt.setType(currentToken.getType());
             posLenAtt.setPositionLength(currentToken.getPositionLength());
@@ -77,8 +78,21 @@ public class DemoIteratorFactoryAdvanced extends AbstractAnalysisIteratorFactory
         }
 
         @Override
-        public void reset() {
-            tokenIterator = tokens.listIterator();
+        public void reset() throws IOException {
+            super.reset();
+            tokenStream.reset();
+        }
+
+        @Override
+        public void end() throws IOException {
+            super.end();
+            tokenStream.end();
+        }
+
+        @Override
+        public void close() throws IOException {
+            super.close();
+            tokenStream.close();
         }
     }
 

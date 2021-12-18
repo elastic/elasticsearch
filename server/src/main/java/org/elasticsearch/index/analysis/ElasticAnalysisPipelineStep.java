@@ -100,8 +100,8 @@ public class ElasticAnalysisPipelineStep implements AnalysisPipelineStep, Analys
 
         while (stream.incrementToken()) {
             int increment = posIncr.getPositionIncrement();
-                if (increment > 0) {
-                    pos.lastPosition = pos.lastPosition + increment;
+            if (increment > 0) {
+                pos.lastPosition = pos.lastPosition + increment;
             }
             tokens.add(
                 new AnalyzeAction.AnalyzeToken(

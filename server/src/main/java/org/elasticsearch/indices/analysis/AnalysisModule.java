@@ -41,6 +41,7 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.analysis.AnalysisIteratorFactory;
+import org.elasticsearch.plugins.analysis.StableTokenFilterFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -161,6 +162,21 @@ public final class AnalysisModule {
         );
 
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
+
+        for (AnalysisPlugin plugin : plugins) {
+            Map<String, AnalysisProvider<AnalysisIteratorFactory>> filterIterators = plugin.getFilterIterators();
+            for (Map.Entry<String, AnalysisProvider<AnalysisIteratorFactory>> entry : filterIterators.entrySet()) {
+                String filterName = entry.getKey();
+                AnalysisProvider<AnalysisIteratorFactory> filterFactory = entry.getValue();
+                AnalysisProvider<TokenFilterFactory> tokenFilterFactory = requiresAnalysisSettings(
+                    (indexSettings, env, name, settings) ->
+                        new StableTokenFilterFactory(indexSettings, env, name, settings, filterFactory.get(indexSettings, env, name, settings))
+                );
+
+                tokenFilters.register(filterName, tokenFilterFactory);
+            }
+        }
+
         return tokenFilters;
     }
 

@@ -43,7 +43,7 @@ public class PluginAnalysisPipelineStep implements AnalysisPipelineStep {
 
         try (PortableAnalyzeIterator iterator = iteratorFactory.newInstance(convertedTokens, state)) {
             AnalyzeToken token;
-            iterator.start();
+            iterator.reset();
             while ((token = iterator.next()) != null) {
                 tokens.add(new AnalyzeAction.AnalyzeToken(
                     token.getTerm(),

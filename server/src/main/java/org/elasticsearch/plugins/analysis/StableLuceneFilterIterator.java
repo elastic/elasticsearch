@@ -113,7 +113,7 @@ public class StableLuceneFilterIterator implements PortableAnalyzeIterator {
     }
 
     @Override
-    public void start() {
+    public void reset() {
         try {
             mhReset.invoke(stream);
         } catch (Throwable t) {
@@ -148,7 +148,7 @@ public class StableLuceneFilterIterator implements PortableAnalyzeIterator {
     public void end() {
         try {
             mhEnd.invoke(stream);
-            lastOffset += (int)mhAttrEndOffset.invoke(offset);
+            /*lastOffset += (int)mhAttrEndOffset.invoke(offset);
             lastPosition += (int)mhAttrGetPositionIncrement.invoke(posIncr);
 
             int incrementGap = (settings != null) ? settings.getPositionIncrementGap() : -1;
@@ -158,6 +158,7 @@ public class StableLuceneFilterIterator implements PortableAnalyzeIterator {
             }
             lastPosition += incrementGap;
             lastOffset += (settings != null) ? settings.getOffsetGap() : 0;
+             */
         } catch (Throwable t) {
             throw new IllegalArgumentException("Unsupported token stream operation", t);
         }

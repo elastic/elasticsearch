@@ -41,6 +41,13 @@ public class DemoAnalysisPlugin extends Plugin implements AnalysisPlugin {
     }
 
     @Override
+    public Map<String, AnalysisModule.AnalysisProvider<AnalysisIteratorFactory>> getFilterIterators() {
+        return Map.of(
+            "demo_advanced", DemoIteratorFactoryAdvanced::new
+        );
+    }
+
+    @Override
     public Map<String, AnalysisModule.AnalysisProvider<AnalysisIteratorFactory>> getTokenizerIterators() {
         return Map.of(
             "demo_tokenizer", DemoTokenizerIteratorFactory::new

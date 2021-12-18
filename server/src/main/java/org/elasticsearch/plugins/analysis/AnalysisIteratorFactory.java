@@ -19,4 +19,8 @@ public interface AnalysisIteratorFactory {
     default PortableAnalyzeIterator newInstance(String text, AnalyzeState prevState) {
         return null;
     }
+
+    default PortableAnalyzeIterator newInstance(ESTokenStream esTokenStream) {
+        return null;
+    };
 }

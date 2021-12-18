@@ -38,7 +38,7 @@ public class StableLuceneNormalizerIterator implements PortableAnalyzeIterator {
     }
 
     @Override
-    public void start() {
+    public void reset() {
         tokenIterator = tokens.listIterator();
     }
 
@@ -67,7 +67,7 @@ public class StableLuceneNormalizerIterator implements PortableAnalyzeIterator {
             analyzer.tokenStream(null, nextToken.getTerm()),
             this.state(),
             settings);
-        filterIterator.start();
+        filterIterator.reset();
 
         return filterIterator.next();
     }

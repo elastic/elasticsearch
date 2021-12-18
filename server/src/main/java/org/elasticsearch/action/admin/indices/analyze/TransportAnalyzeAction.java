@@ -147,7 +147,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             request.tokenFilters()
         );
 
-        if (pipeline != null) {
+        if (pipeline != null && false) {
             if (request.explain()) {
                 DetailedPipelineAnalysisPackage detailedAnalysis = pipeline.details(
                     request.field(),

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.plugins.analysis;
 
-import org.elasticsearch.index.mapper.TextFieldMapper;
-
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -109,13 +107,13 @@ public class StableLuceneFilterIterator implements PortableAnalyzeIterator {
         } catch (Throwable x) {
             throw new IllegalArgumentException("Incompatible Lucene library provided", x);
         }
-
     }
 
     @Override
-    public void reset() {
+    public AnalyzeToken reset() {
         try {
             mhReset.invoke(stream);
+            return currentState();
         } catch (Throwable t) {
             throw new IllegalArgumentException("Unsupported token stream operation", t);
         }
@@ -125,18 +123,7 @@ public class StableLuceneFilterIterator implements PortableAnalyzeIterator {
     public AnalyzeToken next() {
         try {
             if ((boolean)mhIncrementToken.invoke(stream)) {
-                int increment = (int)mhAttrGetPositionIncrement.invoke(posIncr);
-                if (increment > 0) {
-                    lastPosition = lastPosition + increment;
-                }
-                return new AnalyzeToken(
-                    term.toString(),
-                    lastPosition,
-                    lastOffset + (int)mhAttrStartOffset.invoke(offset),
-                    lastOffset + (int)mhAttrEndOffset.invoke(offset),
-                    (int)mhAttrGetPositionLength.invoke(posLen),
-                    (String)mhAttrType.invoke(type)
-                );
+                return currentState();
             }
             return null;
         } catch (Throwable t) {
@@ -144,10 +131,22 @@ public class StableLuceneFilterIterator implements PortableAnalyzeIterator {
         }
     }
 
+    private AnalyzeToken currentState() throws Throwable {
+        return new AnalyzeToken(
+            term.toString(),
+            (int)mhAttrGetPositionIncrement.invoke(posIncr),
+            (int)mhAttrStartOffset.invoke(offset),
+            (int)mhAttrEndOffset.invoke(offset),
+            (int)mhAttrGetPositionLength.invoke(posLen),
+            (String)mhAttrType.invoke(type)
+        );
+    }
+
     @Override
-    public void end() {
+    public AnalyzeToken end() {
         try {
             mhEnd.invoke(stream);
+            return currentState();
             /*lastOffset += (int)mhAttrEndOffset.invoke(offset);
             lastPosition += (int)mhAttrGetPositionIncrement.invoke(posIncr);
 

@@ -31,7 +31,7 @@ public class PluginIteratorTokenizer extends Tokenizer {
     @Override
     public void reset() throws IOException {
         super.reset();
-        iterator.reset();
+        setState(iterator.reset());
     }
 
     @Override
@@ -43,7 +43,7 @@ public class PluginIteratorTokenizer extends Tokenizer {
     @Override
     public void end() throws IOException {
         super.end();
-        iterator.end();
+        setState(iterator.end());
     }
 
     @Override
@@ -55,12 +55,15 @@ public class PluginIteratorTokenizer extends Tokenizer {
             return false;
         }
 
+        setState(currentToken);
+        return true;
+    }
+
+    private void setState(AnalyzeToken currentToken) {
         posIncrAtt.setPositionIncrement(currentToken.getPosition());
         offsetAtt.setOffset(currentToken.getStartOffset(), currentToken.getEndOffset());
         typeAtt.setType(currentToken.getType());
         posLenAtt.setPositionLength(currentToken.getPositionLength());
         termAtt.setEmpty().append(currentToken.getTerm());
-
-        return true;
     }
 }

@@ -26,8 +26,6 @@ public class ESTokenStream implements Closeable {
     private final TypeAttribute type;
     private final PositionLengthAttribute posLen;
 
-    private int lastPosition = -1;
-
     public ESTokenStream(TokenStream stream) {
         this.stream = stream;
         term = stream.addAttribute(CharTermAttribute.class);
@@ -40,29 +38,31 @@ public class ESTokenStream implements Closeable {
     public AnalyzeToken incrementToken() throws IOException {
         boolean canIncrement = stream.incrementToken();
         if (canIncrement) {
-            if (posIncr.getPositionIncrement() > 0) {
-                lastPosition = lastPosition + posIncr.getPositionIncrement();
-            }
-            return new AnalyzeToken(
-                term.toString(),
-                lastPosition,
-                offset.startOffset(),
-                offset.endOffset(),
-                posLen.getPositionLength(),
-                type.type()
-            );
+            return currentState();
         }
 
         return null;
     }
 
-    public void reset() throws IOException {
-        stream.reset();
-        lastPosition = -1;
+    private AnalyzeToken currentState() {
+        return new AnalyzeToken(
+            term.toString(),
+            posIncr.getPositionIncrement(),
+            offset.startOffset(),
+            offset.endOffset(),
+            posLen.getPositionLength(),
+            type.type()
+        );
     }
 
-    public void end() throws IOException {
+    public AnalyzeToken reset() throws IOException {
+        stream.reset();
+        return currentState();
+    }
+
+    public AnalyzeToken end() throws IOException {
         stream.end();
+        return currentState();
     }
 
     @Override

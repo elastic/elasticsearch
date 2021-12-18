@@ -38,8 +38,9 @@ public class StableLuceneNormalizerIterator implements PortableAnalyzeIterator {
     }
 
     @Override
-    public void reset() {
+    public AnalyzeToken reset() {
         tokenIterator = tokens.listIterator();
+        return null;
     }
 
     @Override
@@ -73,10 +74,11 @@ public class StableLuceneNormalizerIterator implements PortableAnalyzeIterator {
     }
 
     @Override
-    public void end() {
+    public AnalyzeToken end() {
         if (filterIterator != null) {
             filterIterator.end();
         }
+        return null;
     }
 
     @Override

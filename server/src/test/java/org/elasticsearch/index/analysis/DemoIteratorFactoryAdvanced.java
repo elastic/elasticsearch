@@ -67,26 +67,28 @@ public class DemoIteratorFactoryAdvanced extends AbstractAnalysisIteratorFactory
             if (currentToken == null) {
                 return false;
             }
+            setState(currentToken);
+            return true;
+        }
 
+        private void setState(AnalyzeToken currentToken) {
             posIncrAtt.setPositionIncrement(currentToken.getPosition());
             offsetAtt.setOffset(currentToken.getStartOffset(), currentToken.getEndOffset());
             typeAtt.setType(currentToken.getType());
             posLenAtt.setPositionLength(currentToken.getPositionLength());
             termAtt.setEmpty().append(currentToken.getTerm());
-
-            return true;
         }
 
         @Override
         public void reset() throws IOException {
             super.reset();
-            tokenStream.reset();
+            setState(tokenStream.reset());
         }
 
         @Override
         public void end() throws IOException {
             super.end();
-            tokenStream.end();
+            setState(tokenStream.end());
         }
 
         @Override

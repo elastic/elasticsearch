@@ -11,9 +11,9 @@ package org.elasticsearch.plugins.analysis;
 import java.io.Closeable;
 
 public interface PortableAnalyzeIterator extends Closeable {
-    void reset();
+    AnalyzeToken reset();
     AnalyzeToken next();
-    void end();
+    AnalyzeToken end();
     void close();
     AnalyzeState state();
 }

@@ -29,7 +29,6 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 
 public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
@@ -104,6 +103,12 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
         assertThat(singleValueInferenceResults.valueAsString(), equalTo("ko"));
 
         singleValueInferenceResults = (ClassificationInferenceResults) inferenceDefinition.infer(
+            inferenceObj("매트 스미스는 BBC äôs Doctor Who를 그만둔다."),
+            classificationConfig
+        );
+        assertThat(singleValueInferenceResults.valueAsString(), equalTo("ko"));
+
+        singleValueInferenceResults = (ClassificationInferenceResults) inferenceDefinition.infer(
             inferenceObj(
                 "@#$%^&*(행 레이블 Dashboard ISSUE Qual. Plan Qual. !@#$%^&*() Report Qual."
                     + " 현황 Risk Task생성 개발과제지정 개발모델 개발목표 개발비 개발팀별 현황 과제이슈"
@@ -112,6 +117,34 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
         );
         assertThat(singleValueInferenceResults.valueAsString(), equalTo("ko"));
 
+        singleValueInferenceResults = (ClassificationInferenceResults) inferenceDefinition.infer(
+            inferenceObj(
+                "김걸도혁(金乞都革) 김공소(金公疎) 김교합(金咬哈) 김다롱합(金多弄哈) 김마상개(金麻尙介) 김우리개(金于里介) 김상미(金尙美) 김아도을치(金阿都乙赤) "
+                    + "김아라(金阿喇) 김아랑합(金阿郞哈) 김아을가(金阿乙加) 김역류(金易留) 김우두(金于豆) 김우허내(金右虛乃) 김유리가(金留里加) 김윤적(金允績) "
+                    + "김이랑합(金伊郞哈) 김인을개(金引乙介) 김입성(金入成) 김주창개(金主昌介) 김지하리(金之下里) 김차독(金箚禿) 김지칭가(金只稱哥) 김자라노(金者羅老)."
+            ),
+            classificationConfig
+        );
+        // Half the string is ko the other half is zh
+        assertThat(singleValueInferenceResults.valueAsString(), equalTo("ko"));
+        assertThat(singleValueInferenceResults.getPredictionScore(), closeTo(0.5, 0.1));
+        assertThat(singleValueInferenceResults.getTopClasses().get(1).getClassification(), equalTo("zh"));
+        assertThat(singleValueInferenceResults.getTopClasses().get(1).getScore(), closeTo(0.5, 0.1));
+
+        singleValueInferenceResults = (ClassificationInferenceResults) inferenceDefinition.infer(
+            inferenceObj(
+                "[ Republic of Korea ],\n"
+                    + "วันนี้ - ตัวอย่างนี้เป็นภาษาไทย\n"
+                    + "วันนี้ - ตัวอย่างนี้เป็นภาษาไทย\n"
+                    + "        !대한민국(, 영어: Republic of Korea, KOR)은 동아시아의 한반도 남부에 자리한 민주공화국이다. 서쪽으로 중화인민공화국과 황해를 사이에 두고"
+            ),
+            classificationConfig
+        );
+        // Majority of the text is obviously Thai, but a close second is Korean
+        assertThat(singleValueInferenceResults.valueAsString(), equalTo("th"));
+        assertThat(singleValueInferenceResults.getPredictionScore(), closeTo(0.6, 0.1));
+        assertThat(singleValueInferenceResults.getTopClasses().get(1).getClassification(), equalTo("ko"));
+        assertThat(singleValueInferenceResults.getTopClasses().get(1).getScore(), closeTo(0.4, 0.1));
     }
 
     public void testLangInference() throws Exception {
@@ -131,7 +164,9 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
             );
 
             assertThat(singleValueInferenceResults.valueAsString(), equalTo(cld3Actual));
-            Matcher<Double> matcher = entry.getLanguage().equals("hr") ? greaterThan(cld3Probability) : closeTo(cld3Probability, .00001);
+            // The stored language example is a mixture of `ja` and other languages, it should not be predicted with 1.0 accuracy as the
+            // cld3 probability indicates.
+            Matcher<Double> matcher = entry.getLanguage().equals("ja") ? closeTo(cld3Probability, 0.11) : closeTo(cld3Probability, .01);
             assertThat(
                 "mismatch probability for language " + cld3Actual,
                 singleValueInferenceResults.getTopClasses().get(0).getProbability(),

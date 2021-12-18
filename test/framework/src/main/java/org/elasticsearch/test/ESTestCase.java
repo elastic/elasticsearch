@@ -161,9 +161,13 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -501,6 +505,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         });
     }
 
+    // Tolerate the absence or otherwise denial of these specific lookup classes.
+    // At some future time, we should require the JDNI warning.
+    private static final List<String> LOG_4J_MSG_PREFIXES = getLog4jMsgPrefixes();
+    private static List<String> getLog4jMsgPrefixes() {
+        ArrayList<String> list = new ArrayList<>();
+        list.add("JNDI lookup class is not available because this JRE does not support JNDI. "
+            + "JNDI string lookups will not be available, continuing configuration.");
+        list.add("JMX runtime input lookup class is not available because this JRE does not support JMX. "
+            + "JMX lookups will not be available, continuing configuration. ");
+        return Collections.unmodifiableList(list);
+    }
+
     // separate method so that this can be checked again after suite scoped cluster is shut down
     protected static void checkStaticState(boolean afterClass) throws Exception {
         if (afterClass) {
@@ -516,7 +532,12 @@ public abstract class ESTestCase extends LuceneTestCase {
                 // StatusData instances to Strings as otherwise their toString output is useless
                 assertThat(
                     statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
-                    empty());
+                    anyOf(
+                        emptyCollectionOf(String.class),
+                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(0)), startsWith(LOG_4J_MSG_PREFIXES.get(1))),
+                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(1)))
+                    )
+                );
             } finally {
                 // we clear the list so that status data from other tests do not interfere with tests within the same JVM
                 statusData.clear();

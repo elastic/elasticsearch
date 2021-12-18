@@ -130,6 +130,7 @@ tasks.named("thirdPartyAudit").configure {
           'software.amazon.ion.system.IonSystemBuilder',
           'software.amazon.ion.system.IonTextWriterBuilder',
           'software.amazon.ion.system.IonWriterBuilder',
+          'javax.jms.Message',
           'javax.servlet.ServletContextEvent',
           'javax.servlet.ServletContextListener',
           'org.apache.avalon.framework.logger.Logger',

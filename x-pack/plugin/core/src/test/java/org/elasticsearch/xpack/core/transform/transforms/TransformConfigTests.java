@@ -875,7 +875,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 Collections.singletonList(
                     new DeprecationIssue(
                         Level.WARNING,
-                        "Transform [" + id + "] uses deprecated max_page_search_size",
+                        "Transform [" + id + "] uses the deprecated setting [max_page_search_size]",
                         TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
                         TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
                         false,
@@ -897,7 +897,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 List.of(
                     new DeprecationIssue(
                         Level.WARNING,
-                        "Transform [" + id + "] uses deprecated max_page_search_size",
+                        "Transform [" + id + "] uses the deprecated setting [max_page_search_size]",
                         TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
                         TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
                         false,
@@ -919,7 +919,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 List.of(
                     new DeprecationIssue(
                         Level.CRITICAL,
-                        "Transform [" + id + "] is too old",
+                        "Transform [" + id + "] uses an obsolete configuration format",
                         TransformDeprecations.UPGRADE_TRANSFORM_URL,
                         TransformDeprecations.ACTION_UPGRADE_TRANSFORMS_API,
                         false,
@@ -927,7 +927,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                     ),
                     new DeprecationIssue(
                         Level.WARNING,
-                        "Transform [" + id + "] uses deprecated max_page_search_size",
+                        "Transform [" + id + "] uses the deprecated setting [max_page_search_size]",
                         TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
                         TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
                         false,

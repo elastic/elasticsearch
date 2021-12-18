@@ -26,20 +26,25 @@ class BwcVersionsSpec extends Specification {
         addVersion('7.15.1', '8.9.0')
         addVersion('7.15.2', '8.9.0')
         addVersion('7.16.0', '8.10.0')
+        addVersion('7.16.1', '8.10.0')
+        addVersion('7.16.2', '8.10.0')
+        addVersion('7.17.0', '8.10.0')
         addVersion('8.0.0', '9.0.0')
+        addVersion('8.1.0', '9.0.0')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('8.0.0'))
+        def bwc = new BwcVersions(versionLines, v('8.1.0'))
         def unreleased = bwc.unreleased.collectEntries { [it, bwc.unreleasedInfo(it)] }
 
         then:
         unreleased == [
-            (v('7.15.2')): new UnreleasedVersionInfo(v('7.15.2'), '7.15', ':distribution:bwc:bugfix'),
-            (v('7.16.0')): new UnreleasedVersionInfo(v('7.16.0'), '7.16', ':distribution:bwc:staged'),
-            (v('8.0.0')): new UnreleasedVersionInfo(v('8.0.0'), 'master', ':distribution')
+            (v('7.16.2')): new UnreleasedVersionInfo(v('7.16.2'), '7.16', ':distribution:bwc:bugfix'),
+            (v('7.17.0')): new UnreleasedVersionInfo(v('7.17.0'), '7.17', ':distribution:bwc:staged'),
+            (v('8.0.0')): new UnreleasedVersionInfo(v('8.0.0'), '8.0', ':distribution:bwc:minor'),
+            (v('8.1.0')): new UnreleasedVersionInfo(v('8.1.0'), 'master', ':distribution')
         ]
-        bwc.wireCompatible == [v('7.16.0'), v('8.0.0')]
-        bwc.indexCompatible == [v('7.14.0'), v('7.14.1'), v('7.14.2'), v('7.15.0'), v('7.15.1'), v('7.15.2'), v('7.16.0'), v('8.0.0')]
+        bwc.wireCompatible == [v('7.17.0'), v('8.0.0'), v('8.1.0')]
+        bwc.indexCompatible == [v('7.14.0'), v('7.14.1'), v('7.14.2'), v('7.15.0'), v('7.15.1'), v('7.15.2'), v('7.16.0'), v('7.16.1'), v('7.16.2'), v('7.17.0'), v('8.0.0'), v('8.1.0')]
     }
 
     def "current version is next minor with next major and last minor both staged"() {
@@ -51,6 +56,8 @@ class BwcVersionsSpec extends Specification {
         addVersion('7.15.1', '8.9.0')
         addVersion('7.15.2', '8.9.0')
         addVersion('7.16.0', '8.10.0')
+        addVersion('7.16.1', '8.10.0')
+        addVersion('7.17.0', '8.10.0')
         addVersion('8.0.0', '9.0.0')
         addVersion('8.1.0', '9.1.0')
 
@@ -60,13 +67,13 @@ class BwcVersionsSpec extends Specification {
 
         then:
         unreleased == [
-            (v('7.15.2')): new UnreleasedVersionInfo(v('7.15.2'), '7.15', ':distribution:bwc:bugfix'),
-            (v('7.16.0')): new UnreleasedVersionInfo(v('7.16.0'), '7.16', ':distribution:bwc:staged'),
+            (v('7.16.1')): new UnreleasedVersionInfo(v('7.16.1'), '7.16', ':distribution:bwc:bugfix'),
+            (v('7.17.0')): new UnreleasedVersionInfo(v('7.17.0'), '7.17', ':distribution:bwc:staged'),
             (v('8.0.0')): new UnreleasedVersionInfo(v('8.0.0'), '8.0', ':distribution:bwc:minor'),
             (v('8.1.0')): new UnreleasedVersionInfo(v('8.1.0'), 'master', ':distribution')
         ]
-        bwc.wireCompatible == [v('7.16.0'), v('8.0.0'), v('8.1.0')]
-        bwc.indexCompatible == [v('7.14.0'), v('7.14.1'), v('7.14.2'), v('7.15.0'), v('7.15.1'), v('7.15.2'), v('7.16.0'), v('8.0.0'), v('8.1.0')]
+        bwc.wireCompatible == [v('7.17.0'), v('8.0.0'), v('8.1.0')]
+        bwc.indexCompatible == [v('7.14.0'), v('7.14.1'), v('7.14.2'), v('7.15.0'), v('7.15.1'), v('7.15.2'), v('7.16.0'), v('7.16.1'), v('7.17.0'), v('8.0.0'), v('8.1.0')]
     }
 
     def "current is next minor with upcoming minor staged"() {
@@ -79,6 +86,8 @@ class BwcVersionsSpec extends Specification {
         addVersion('7.15.2', '8.9.0')
         addVersion('7.16.0', '8.10.0')
         addVersion('7.16.1', '8.10.0')
+        addVersion('7.17.0', '8.10.0')
+        addVersion('7.17.1', '8.10.0')
         addVersion('8.0.0', '9.0.0')
         addVersion('8.1.0', '9.1.0')
 
@@ -88,12 +97,12 @@ class BwcVersionsSpec extends Specification {
 
         then:
         unreleased == [
-            (v('7.16.1')): new UnreleasedVersionInfo(v('7.16.1'), '7.16', ':distribution:bwc:bugfix'),
+            (v('7.17.1')): new UnreleasedVersionInfo(v('7.17.1'), '7.17', ':distribution:bwc:bugfix'),
             (v('8.0.0')): new UnreleasedVersionInfo(v('8.0.0'), '8.0', ':distribution:bwc:staged'),
             (v('8.1.0')): new UnreleasedVersionInfo(v('8.1.0'), 'master', ':distribution')
         ]
-        bwc.wireCompatible == [v('7.16.0'), v('7.16.1'), v('8.0.0'), v('8.1.0')]
-        bwc.indexCompatible == [v('7.14.0'), v('7.14.1'), v('7.14.2'), v('7.15.0'), v('7.15.1'), v('7.15.2'), v('7.16.0'), v('7.16.1'), v('8.0.0'), v('8.1.0')]
+        bwc.wireCompatible == [v('7.17.0'), v('7.17.1'), v('8.0.0'), v('8.1.0')]
+        bwc.indexCompatible == [v('7.14.0'), v('7.14.1'), v('7.14.2'), v('7.15.0'), v('7.15.1'), v('7.15.2'), v('7.16.0'), v('7.16.1'), v('7.17.0'), v('7.17.1'), v('8.0.0'), v('8.1.0')]
     }
 
     def "current version is staged major"() {
@@ -106,6 +115,8 @@ class BwcVersionsSpec extends Specification {
         addVersion('7.15.2', '8.9.0')
         addVersion('7.16.0', '8.10.0')
         addVersion('7.16.1', '8.10.0')
+        addVersion('7.17.0', '8.10.0')
+        addVersion('7.17.1', '8.10.0')
         addVersion('8.0.0', '9.0.0')
 
         when:
@@ -114,11 +125,11 @@ class BwcVersionsSpec extends Specification {
 
         then:
         unreleased == [
-            (v('7.16.1')): new UnreleasedVersionInfo(v('7.16.1'), '7.16', ':distribution:bwc:bugfix'),
+            (v('7.17.1')): new UnreleasedVersionInfo(v('7.17.1'), '7.17', ':distribution:bwc:bugfix'),
             (v('8.0.0')): new UnreleasedVersionInfo(v('8.0.0'), 'master', ':distribution'),
         ]
-        bwc.wireCompatible == [v('7.16.0'), v('7.16.1'), v('8.0.0')]
-        bwc.indexCompatible == [v('7.14.0'), v('7.14.1'), v('7.14.2'), v('7.15.0'), v('7.15.1'), v('7.15.2'), v('7.16.0'), v('7.16.1'), v('8.0.0')]
+        bwc.wireCompatible == [v('7.17.0'), v('7.17.1'), v('8.0.0')]
+        bwc.indexCompatible == [v('7.14.0'), v('7.14.1'), v('7.14.2'), v('7.15.0'), v('7.15.1'), v('7.15.2'), v('7.16.0'), v('7.16.1'), v('7.17.0'), v('7.17.1'), v('8.0.0')]
     }
 
     def "current version is next bugfix"() {
@@ -131,6 +142,8 @@ class BwcVersionsSpec extends Specification {
         addVersion('7.15.2', '8.9.0')
         addVersion('7.16.0', '8.10.0')
         addVersion('7.16.1', '8.10.0')
+        addVersion('7.17.0', '8.10.0')
+        addVersion('7.17.1', '8.10.0')
         addVersion('8.0.0', '9.0.0')
         addVersion('8.0.1', '9.0.0')
 
@@ -140,11 +153,11 @@ class BwcVersionsSpec extends Specification {
 
         then:
         unreleased == [
-            (v('7.16.1')): new UnreleasedVersionInfo(v('7.16.1'), '7.16', ':distribution:bwc:maintenance'),
+            (v('7.17.1')): new UnreleasedVersionInfo(v('7.17.1'), '7.17', ':distribution:bwc:maintenance'),
             (v('8.0.1')): new UnreleasedVersionInfo(v('8.0.1'), 'master', ':distribution'),
         ]
-        bwc.wireCompatible == [v('7.16.0'), v('7.16.1'), v('8.0.0'), v('8.0.1')]
-        bwc.indexCompatible == [v('7.14.0'), v('7.14.1'), v('7.14.2'), v('7.15.0'), v('7.15.1'), v('7.15.2'), v('7.16.0'), v('7.16.1'), v('8.0.0'), v('8.0.1')]
+        bwc.wireCompatible == [v('7.17.0'), v('7.17.1'), v('8.0.0'), v('8.0.1')]
+        bwc.indexCompatible == [v('7.14.0'), v('7.14.1'), v('7.14.2'), v('7.15.0'), v('7.15.1'), v('7.15.2'), v('7.16.0'), v('7.16.1'), v('7.17.0'), v('7.17.1'), v('8.0.0'), v('8.0.1')]
     }
 
     def "current version is next minor with no staged releases"() {
@@ -157,6 +170,8 @@ class BwcVersionsSpec extends Specification {
         addVersion('7.15.2', '8.9.0')
         addVersion('7.16.0', '8.10.0')
         addVersion('7.16.1', '8.10.0')
+        addVersion('7.17.0', '8.10.0')
+        addVersion('7.17.1', '8.10.0')
         addVersion('8.0.0', '9.0.0')
         addVersion('8.0.1', '9.0.0')
         addVersion('8.1.0', '9.1.0')
@@ -167,12 +182,12 @@ class BwcVersionsSpec extends Specification {
 
         then:
         unreleased == [
-            (v('7.16.1')): new UnreleasedVersionInfo(v('7.16.1'), '7.16', ':distribution:bwc:maintenance'),
+            (v('7.17.1')): new UnreleasedVersionInfo(v('7.17.1'), '7.17', ':distribution:bwc:maintenance'),
             (v('8.0.1')): new UnreleasedVersionInfo(v('8.0.1'), '8.0', ':distribution:bwc:bugfix'),
             (v('8.1.0')): new UnreleasedVersionInfo(v('8.1.0'), 'master', ':distribution')
         ]
-        bwc.wireCompatible == [v('7.16.0'), v('7.16.1'), v('8.0.0'), v('8.0.1'), v('8.1.0')]
-        bwc.indexCompatible == [v('7.14.0'), v('7.14.1'), v('7.14.2'), v('7.15.0'), v('7.15.1'), v('7.15.2'), v('7.16.0'), v('7.16.1'), v('8.0.0'), v('8.0.1'), v('8.1.0')]
+        bwc.wireCompatible == [v('7.17.0'), v('7.17.1'), v('8.0.0'), v('8.0.1'), v('8.1.0')]
+        bwc.indexCompatible == [v('7.14.0'), v('7.14.1'), v('7.14.2'), v('7.15.0'), v('7.15.1'), v('7.15.2'), v('7.16.0'), v('7.16.1'), v('7.17.0'), v('7.17.1'), v('8.0.0'), v('8.0.1'), v('8.1.0')]
     }
 
     private void addVersion(String elasticsearch, String lucene) {

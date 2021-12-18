@@ -88,9 +88,28 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
         String clusterUUID = getClusterUUID();
         String watchId = clusterUUID + "_kibana_version_mismatch";
         Request request = new Request("PUT", "/_watcher/watch/" + watchId);
-        String watch = "{\"trigger\":{\"schedule\":{\"interval\":\"1000m\"}},\"input\":{\"simple\":{}},"
-            + "\"condition\":{\"always\":{}},"
-            + "\"actions\":{\"logme\":{\"logging\":{\"level\":\"info\",\"text\":\"foo\"}}}}";
+        String watch = """
+            {
+              "trigger": {
+                "schedule": {
+                  "interval": "1000m"
+                }
+              },
+              "input": {
+                "simple": {}
+              },
+              "condition": {
+                "always": {}
+              },
+              "actions": {
+                "logme": {
+                  "logging": {
+                    "level": "info",
+                    "text": "foo"
+                  }
+                }
+              }
+            }""";
         request.setJsonEntity(watch);
         client().performRequest(request);
         return watchId;

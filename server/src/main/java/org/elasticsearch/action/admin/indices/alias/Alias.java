@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents an alias, to be associated with an index
@@ -231,6 +232,18 @@ public class Alias implements Writeable, ToXContentFragment {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+                // check if there are any unknown fields
+                Set<String> knownFieldNames = Set.of(
+                    FILTER.getPreferredName(),
+                    ROUTING.getPreferredName(),
+                    INDEX_ROUTING.getPreferredName(),
+                    SEARCH_ROUTING.getPreferredName(),
+                    IS_WRITE_INDEX.getPreferredName(),
+                    IS_HIDDEN.getPreferredName()
+                );
+                if (knownFieldNames.contains(currentFieldName) == false) {
+                    throw new IllegalArgumentException("Unknown field [" + currentFieldName + "] in alias [" + alias.name + "]");
+                }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (FILTER.match(currentFieldName, parser.getDeprecationHandler())) {
                     Map<String, Object> filter = parser.mapOrdered();
@@ -250,6 +263,8 @@ public class Alias implements Writeable, ToXContentFragment {
                 } else if (IS_HIDDEN.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.isHidden(parser.booleanValue());
                 }
+            } else {
+                throw new IllegalArgumentException("Unknown token [" + token + "] in alias [" + alias.name + "]");
             }
         }
         return alias;
@@ -276,7 +291,9 @@ public class Alias implements Writeable, ToXContentFragment {
             }
         }
 
-        builder.field(IS_WRITE_INDEX.getPreferredName(), writeIndex);
+        if (writeIndex != null) {
+            builder.field(IS_WRITE_INDEX.getPreferredName(), writeIndex);
+        }
 
         if (isHidden != null) {
             builder.field(IS_HIDDEN.getPreferredName(), isHidden);

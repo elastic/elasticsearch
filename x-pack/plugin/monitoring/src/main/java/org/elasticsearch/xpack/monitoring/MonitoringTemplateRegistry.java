@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +30,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * Template registry for monitoring templates. Templates are loaded and installed shortly after cluster startup.
+ *
+ * This template registry manages templates for two purposes:
+ * 1) Internal Monitoring Collection (.monitoring-{product}-7-*)
+ * 2) Stack Monitoring templates for bridging ECS format data to legacy monitoring data (.monitoring-{product}-8-*)
+ */
 public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(MonitoringTemplateRegistry.class);
 
@@ -50,6 +58,17 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
     private static final String TEMPLATE_VERSION = "7";
     private static final String TEMPLATE_VERSION_VARIABLE = "xpack.monitoring.template.version";
     private static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of(TEMPLATE_VERSION_VARIABLE, TEMPLATE_VERSION);
+
+    /**
+     * The stack monitoring template registry version. This is the version id for templates used by Metricbeat in version 8.x. Metricbeat
+     * writes monitoring data in ECS format as of 8.0. These templates define the ECS schema as well as alias fields for the old monitoring
+     * mappings that point to the corresponding ECS fields.
+     */
+    public static final int STACK_MONITORING_REGISTRY_VERSION = Version.V_8_0_0.id;
+    private static final String STACK_MONITORING_REGISTRY_VERSION_VARIABLE = "xpack.stack.monitoring.template.release.version";
+    private static final String STACK_TEMPLATE_VERSION = "8";
+    private static final String STACK_TEMPLATE_VERSION_VARIABLE = "xpack.stack.monitoring.template.version";
+    private static final Map<String, String> STACK_TEMPLATE_VARIABLES = Map.of(STACK_TEMPLATE_VERSION_VARIABLE, STACK_TEMPLATE_VERSION);
 
     public static final Setting<Boolean> MONITORING_TEMPLATES_ENABLED = Setting.boolSetting(
         "xpack.monitoring.templates.enabled",
@@ -121,6 +140,54 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         ADDITIONAL_TEMPLATE_VARIABLES
     );
 
+    //////////////////////////////////////////////////////////
+    // Beats metricbeat template (for matching ".monitoring-beats-8-*" indices)
+    //////////////////////////////////////////////////////////
+    public static final String BEATS_STACK_INDEX_TEMPLATE_NAME = ".monitoring-beats-mb";
+    public static final IndexTemplateConfig BEATS_STACK_INDEX_TEMPLATE = new IndexTemplateConfig(
+        BEATS_STACK_INDEX_TEMPLATE_NAME,
+        "/monitoring-beats-mb.json",
+        STACK_MONITORING_REGISTRY_VERSION,
+        STACK_MONITORING_REGISTRY_VERSION_VARIABLE,
+        STACK_TEMPLATE_VARIABLES
+    );
+
+    //////////////////////////////////////////////////////////
+    // ES metricbeat template (for matching ".monitoring-es-8-*" indices)
+    //////////////////////////////////////////////////////////
+    public static final String ES_STACK_INDEX_TEMPLATE_NAME = ".monitoring-es-mb";
+    public static final IndexTemplateConfig ES_STACK_INDEX_TEMPLATE = new IndexTemplateConfig(
+        ES_STACK_INDEX_TEMPLATE_NAME,
+        "/monitoring-es-mb.json",
+        STACK_MONITORING_REGISTRY_VERSION,
+        STACK_MONITORING_REGISTRY_VERSION_VARIABLE,
+        STACK_TEMPLATE_VARIABLES
+    );
+
+    //////////////////////////////////////////////////////////
+    // Kibana metricbeat template (for matching ".monitoring-kibana-8-*" indices)
+    //////////////////////////////////////////////////////////
+    public static final String KIBANA_STACK_INDEX_TEMPLATE_NAME = ".monitoring-kibana-mb";
+    public static final IndexTemplateConfig KIBANA_STACK_INDEX_TEMPLATE = new IndexTemplateConfig(
+        KIBANA_STACK_INDEX_TEMPLATE_NAME,
+        "/monitoring-kibana-mb.json",
+        STACK_MONITORING_REGISTRY_VERSION,
+        STACK_MONITORING_REGISTRY_VERSION_VARIABLE,
+        STACK_TEMPLATE_VARIABLES
+    );
+
+    //////////////////////////////////////////////////////////
+    // Logstash metricbeat template (for matching ".monitoring-logstash-8-*" indices)
+    //////////////////////////////////////////////////////////
+    public static final String LOGSTASH_STACK_INDEX_TEMPLATE_NAME = ".monitoring-logstash-mb";
+    public static final IndexTemplateConfig LOGSTASH_STACK_INDEX_TEMPLATE = new IndexTemplateConfig(
+        LOGSTASH_STACK_INDEX_TEMPLATE_NAME,
+        "/monitoring-logstash-mb.json",
+        STACK_MONITORING_REGISTRY_VERSION,
+        STACK_MONITORING_REGISTRY_VERSION_VARIABLE,
+        STACK_TEMPLATE_VARIABLES
+    );
+
     public static final String[] TEMPLATE_NAMES = new String[] {
         ALERTS_INDEX_TEMPLATE_NAME,
         BEATS_INDEX_TEMPLATE_NAME,
@@ -183,6 +250,20 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
             );
         } else {
             return Collections.emptyList();
+        }
+    }
+
+    @Override
+    protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
+        if (monitoringTemplatesEnabled) {
+            return parseComposableTemplates(
+                BEATS_STACK_INDEX_TEMPLATE,
+                ES_STACK_INDEX_TEMPLATE,
+                KIBANA_STACK_INDEX_TEMPLATE,
+                LOGSTASH_STACK_INDEX_TEMPLATE
+            );
+        } else {
+            return Collections.emptyMap();
         }
     }
 

@@ -106,18 +106,9 @@ class GeoPolygonDecomposer {
         int numPoints = linearRing.length();
         int count = 2;
         for (int i = 1; i < numPoints - 1; i++) {
-            if (linearRing.getLon(i - 1) == linearRing.getLon(i)) {
-                if (linearRing.getLat(i - 1) == linearRing.getLat(i)) {
-                    // same point
-                    continue;
-                }
-                if (linearRing.getLon(i - 1) == linearRing.getLon(i + 1)
-                    && linearRing.getLat(i - 1) > linearRing.getLat(i) != linearRing.getLat(i + 1) > linearRing.getLat(i)) {
-                    // coplanar
-                    continue;
-                }
+            if (skipPoint(linearRing, i) == false) {
+                count++;
             }
-            count++;
         }
         if (numPoints == count) {
             return linearRing;
@@ -129,17 +120,29 @@ class GeoPolygonDecomposer {
         lons[0] = lons[count - 1] = linearRing.getLon(0);
         count = 0;
         for (int i = 1; i < numPoints - 1; i++) {
-            if (linearRing.getLon(i - 1) == linearRing.getLon(i)) {
-                if (linearRing.getLat(i - 1) == linearRing.getLat(i) || linearRing.getLon(i - 1) == linearRing.getLon(i + 1)) {
-                    // filter
-                    continue;
-                }
+            if (skipPoint(linearRing, i) == false) {
+                count++;
+                lats[count] = linearRing.getLat(i);
+                lons[count] = linearRing.getLon(i);
             }
-            count++;
-            lats[count] = linearRing.getLat(i);
-            lons[count] = linearRing.getLon(i);
         }
         return new LinearRing(lons, lats);
+    }
+
+    private static boolean skipPoint(LinearRing linearRing, int i) {
+        if (linearRing.getLon(i - 1) == linearRing.getLon(i)) {
+            if (linearRing.getLat(i - 1) == linearRing.getLat(i)) {
+                // same point
+                return true;
+            }
+            if (linearRing.getLon(i - 1) == linearRing.getLon(i + 1)
+                && linearRing.getLat(i - 1) > linearRing.getLat(i) != linearRing.getLat(i + 1) > linearRing.getLat(i)) {
+                // collinear - we only remove points that go in the same direction. So latitudes [1,2,3] we would want
+                // to remove 1 but for [1,2,-1] we don't.
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void validateHole(LinearRing shell, LinearRing hole) {

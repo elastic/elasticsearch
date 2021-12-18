@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
@@ -69,42 +70,38 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(
-            "{"
-                + "\"name\":\"nodeName\","
-                + "\"cluster_name\":\"clusterName\","
-                + "\"cluster_uuid\":\""
-                + clusterUUID
-                + "\","
-                + "\"version\":{"
-                + "\"number\":\""
-                + build.getQualifiedVersion()
-                + "\","
-                + "\"build_flavor\":\""
-                + current.flavor().displayName()
-                + "\","
-                + "\"build_type\":\""
-                + current.type().displayName()
-                + "\","
-                + "\"build_hash\":\""
-                + current.hash()
-                + "\","
-                + "\"build_date\":\""
-                + current.date()
-                + "\","
-                + "\"build_snapshot\":"
-                + current.isSnapshot()
-                + ","
-                + "\"lucene_version\":\""
-                + version.luceneVersion.toString()
-                + "\","
-                + "\"minimum_wire_compatibility_version\":\""
-                + version.minimumCompatibilityVersion().toString()
-                + "\","
-                + "\"minimum_index_compatibility_version\":\""
-                + version.minimumIndexCompatibilityVersion().toString()
-                + "\"},"
-                + "\"tagline\":\"You Know, for Search\""
-                + "}",
+            XContentHelper.stripWhitespace(
+                """
+                    {
+                        "name": "nodeName",
+                        "cluster_name": "clusterName",
+                        "cluster_uuid": "%s",
+                        "version": {
+                            "number": "%s",
+                            "build_flavor": "%s",
+                            "build_type": "%s",
+                            "build_hash": "%s",
+                            "build_date": "%s",
+                            "build_snapshot": %s,
+                            "lucene_version": "%s",
+                            "minimum_wire_compatibility_version": "%s",
+                            "minimum_index_compatibility_version": "%s"
+                        },
+                        "tagline": "You Know, for Search"
+                    }
+                    """.formatted(
+                    clusterUUID,
+                    build.getQualifiedVersion(),
+                    current.flavor().displayName(),
+                    current.type().displayName(),
+                    current.hash(),
+                    current.date(),
+                    current.isSnapshot(),
+                    version.luceneVersion.toString(),
+                    version.minimumCompatibilityVersion().toString(),
+                    version.minimumIndexCompatibilityVersion().toString()
+                )
+            ),
             Strings.toString(builder)
         );
     }

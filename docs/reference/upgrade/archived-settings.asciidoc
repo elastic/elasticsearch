@@ -64,9 +64,9 @@ GET my-index/_settings?flat_settings=true&filter_path=**.settings.archived*
 ----
 // TEST[s/^/PUT my-index\n/]
 
-Removing archived index settings requires a reindex after the upgrade. However,
-reindexing can be resource intensive. Because archived settings don't affect
-an index's configuration, you can safely leave them in place if wanted.
+Removing archived index settings requires a reindex. However, reindexing can be
+resource intensive. Because archived settings don't affect an index's
+configuration, you can safely leave them in place if wanted.
 
 [source,console]
 ----

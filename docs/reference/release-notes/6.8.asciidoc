@@ -1,6 +1,8 @@
 [[release-notes-6.8.22]]
 == {es} version 6.8.22
 
+Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
+
 [[upgrade-6.8.22]]
 [float]
 === Upgrades
@@ -11,6 +13,8 @@ Infra/Logging::
 
 [[release-notes-6.8.21]]
 == {es} version 6.8.21
+
+Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
 [discrete]
 [[security-updates-6.8.21]]
@@ -38,15 +42,21 @@ Infra/Logging::
 [[release-notes-6.8.20]]
 == {es} version 6.8.20
 
+Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
+
 No significant changes.
 
 [[release-notes-6.8.19]]
 == {es} version 6.8.19
 
+Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
+
 No significant changes.
 
 [[release-notes-6.8.18]]
 == {es} version 6.8.18
+
+Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
 No significant changes.
 

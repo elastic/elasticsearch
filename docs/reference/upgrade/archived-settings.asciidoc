@@ -12,9 +12,8 @@ Archived settings start with the `archived.` prefix.
 [[archived-cluster-settings]]
 === Archived cluster settings
 
-Archived cluster settings block cluster setting updates. If your cluster
-contains any archived persistent cluster settings, you'll need to remove them
-before you can configure other cluster settings.
+If your cluster contains any archived persistent cluster settings, you'll need
+to remove them before you can configure other cluster settings.
 
 You can view archived cluster settings using the <<cluster-get-settings,cluster
 get settings API>>.

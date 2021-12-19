@@ -12,8 +12,8 @@ Archived settings start with the `archived.` prefix.
 [[archived-cluster-settings]]
 === Archived cluster settings
 
-If your cluster contains any archived persistent cluster settings, you'll need
-to remove them before you can configure other cluster settings.
+If your cluster contains any archived cluster settings, you'll need to remove
+them before you can configure other cluster settings.
 
 You can view archived cluster settings using the <<cluster-get-settings,cluster
 get settings API>>.
@@ -51,9 +51,9 @@ unsupported index setting will fail and return an error. This includes automated
 operations, such the {ilm-init} rollover action.
 
 Archived index settings don't affect an index's configuration. However, they're
-still considered invalid settings. They're returned in relevant GET requests and
-responses, but you can't specify them when you configure an index. This applies
-even if the index already has the archived setting.
+still considered invalid settings. They're returned in relevant API responses,
+but you can't specify them when you configure an index. This applies even if the
+index already has the archived setting.
 
 You can view archived index settings using the <<indices-get-settings,get index
 settings API>>.
@@ -66,7 +66,7 @@ GET my-index/_settings?flat_settings=true&filter_path=**.settings.archived*
 
 Removing archived index settings requires a reindex after the upgrade. However,
 reindexing can be resource intensive. Because archived settings don't affect
-index configuration, you can safely leave them in place if wanted.
+an index's configuration, you can safely leave them in place if wanted.
 
 [source,console]
 ----

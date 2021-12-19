@@ -1,6 +1,8 @@
 [[release-notes-7.16.2]]
 == {es} version 7.16.2
 
+Also see <<breaking-changes-7.16,Breaking changes in 7.16>>.
+
 [[enhancement-7.16.2]]
 [float]
 === Enhancements
@@ -51,6 +53,8 @@ Infra/Logging::
 
 [[release-notes-7.16.1]]
 == {es} version 7.16.1
+
+Also see <<breaking-changes-7.16,Breaking changes in 7.16>>.
 
 [discrete]
 [[security-updates-7.16.1]]

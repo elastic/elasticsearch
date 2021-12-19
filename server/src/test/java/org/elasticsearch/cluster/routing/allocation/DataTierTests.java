@@ -177,4 +177,10 @@ public class DataTierTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> validator.validate(DATA_WARM + ", "));
         expectThrows(IllegalArgumentException.class, () -> validator.validate(DATA_WARM + ", " + DATA_HOT));
     }
+
+    public void testCompareDataTiers() {
+        assertThat(DataTier.compare("data_cold", "data_warm"), is(-1));
+        assertThat(DataTier.compare("data_cold", "data_cold"), is(0));
+        assertThat(DataTier.compare("data_warm", "data_cold"), is(1));
+    }
 }

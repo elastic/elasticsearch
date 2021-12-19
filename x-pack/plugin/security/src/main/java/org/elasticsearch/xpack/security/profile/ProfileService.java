@@ -28,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -150,7 +151,7 @@ public class ProfileService {
         }
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, XContentType.JSON)) {
             // TODO: replace null with actual domain lookup
-            return Profile.fromDocument(ProfileDocument.fromXContent(parser), primaryTerm, seqNo, null, dataKeys);
+            return ProfileDocument.fromXContent(parser).toProfile(primaryTerm, seqNo, null, dataKeys);
         }
     }
 

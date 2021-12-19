@@ -9,13 +9,18 @@ package org.elasticsearch.xpack.security.profile;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -28,9 +33,37 @@ public record ProfileDocument(
     BytesReference applicationData
 ) {
 
-    public record ProfileDocumentUser(String username, Authentication.RealmRef realm, String email, String fullName, String displayName) {}
+    public record ProfileDocumentUser(String username, Authentication.RealmRef realm, String email, String fullName, String displayName) {
 
-    public record Access(List<String> roles, Map<String, Object> applications) {}
+        public Profile.ProfileUser toProfileUser(@Nullable String realmDomain) {
+            return new Profile.ProfileUser(username, realm.getName(), realmDomain, email, fullName, displayName);
+        }
+    }
+
+    public record Access(List<String> roles, Map<String, Object> applications) {
+        public Profile.Access toProfileAccess() {
+            return new Profile.Access(roles, applications);
+        }
+    }
+
+    public Profile toProfile(long primaryTerm, long seqNo, @Nullable String realmDomain, @Nullable Set<String> dataKeys) {
+        final Map<String, Object> applicationData;
+        if (dataKeys != null && dataKeys.isEmpty()) {
+            applicationData = Map.of();
+        } else {
+            applicationData = XContentHelper.convertToMap(applicationData(), false, XContentType.JSON, dataKeys, null).v2();
+        }
+
+        return new Profile(
+            uid,
+            enabled,
+            lastSynchronized,
+            user.toProfileUser(realmDomain),
+            access.toProfileAccess(),
+            applicationData,
+            new Profile.VersionControl(primaryTerm, seqNo)
+        );
+    }
 
     public static ProfileDocument fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);

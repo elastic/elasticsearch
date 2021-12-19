@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.junit.After;
@@ -142,7 +143,7 @@ public class ProfileServiceTests extends ESTestCase {
                     true,
                     lastSynchronized,
                     new Profile.ProfileUser("foo", "realm_name", null, "foo@example.com", "User Foo", "Curious Foo"),
-                    new ProfileDocument.Access(List.of("role1", "role2"), Map.of()),
+                    new Profile.Access(List.of("role1", "role2"), Map.of()),
                     applicationData,
                     new Profile.VersionControl(1, 0)
                 )

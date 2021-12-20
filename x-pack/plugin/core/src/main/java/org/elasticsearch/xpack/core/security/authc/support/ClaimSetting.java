@@ -84,7 +84,7 @@ public final class ClaimSetting {
         if ((value != null) && (value.isEmpty() == false)) {
             try {
                 Pattern.compile(value);
-            } catch(PatternSyntaxException pse) {
+            } catch (PatternSyntaxException pse) {
                 throw new IllegalArgumentException("Invalid claim value regex pattern for [" + key + "].");
             }
         }

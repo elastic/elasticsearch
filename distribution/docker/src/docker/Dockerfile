@@ -134,7 +134,9 @@ RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
 
 <% } else if (docker_base == "default") { %>
 
-RUN <%= retry.loop(
+# Change default shell to bash, then install required packages with retries.
+RUN yes no | dpkg-reconfigure dash && \\
+    <%= retry.loop(
     package_manager,
       "export DEBIAN_FRONTEND=noninteractive && \n" +
       "      ${package_manager} update && \n" +

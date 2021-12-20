@@ -439,7 +439,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
         // you need to add an additional index with no fields in order to trigger this (or potentially a shard)
         // so that there is an UnmappedTerms in the list to reduce.
         createIndex("foo_1");
-        // @formatter:off
+        // tag::noformat
         XContentBuilder builder = jsonBuilder().startObject()
             .startObject("properties")
               .startObject("@timestamp")
@@ -463,9 +463,9 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
               .endObject()
             .endObject()
           .endObject();
-        // @formatter:on
+        // end:noformat
         assertAcked(client().admin().indices().prepareCreate("foo_2").addMapping("doc", builder).get());
-        // @formatter:off
+        // tag:noformat
         XContentBuilder docBuilder = jsonBuilder().startObject()
             .startObject("license")
               .field("partnumber", "foobar")
@@ -473,7 +473,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
             .endObject()
             .field("@timestamp", "2018-07-08T08:07:00.599Z")
           .endObject();
-        // @formatter:on
+        // end:noformat
         client().prepareIndex("foo_2", "doc").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         client().admin().indices().prepareRefresh();

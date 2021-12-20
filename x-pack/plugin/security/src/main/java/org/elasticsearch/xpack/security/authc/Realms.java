@@ -347,6 +347,7 @@ public class Realms implements Iterable<Realm> {
 
     private List<RealmConfig> buildRealmConfigs() {
         final Map<RealmConfig.RealmIdentifier, Settings> realmsSettings = RealmSettings.getRealmSettings(settings);
+        final Map<String, String> realmNameToDomainNameMap = RealmSettings.getRealmNameToDomainNameMap(settings);
         final Set<String> internalTypes = new HashSet<>();
         final List<String> kerberosRealmNames = new ArrayList<>();
         final List<RealmConfig> realmConfigs = new ArrayList<>();
@@ -355,7 +356,8 @@ public class Realms implements Iterable<Realm> {
             if (factory == null) {
                 throw new IllegalArgumentException("unknown realm type [" + identifier.getType() + "] for realm [" + identifier + "]");
             }
-            RealmConfig config = new RealmConfig(identifier, settings, env, threadContext);
+            String domain = realmNameToDomainNameMap.get(identifier.getName());
+            RealmConfig config = new RealmConfig(identifier, domain, settings, env, threadContext);
             if (InternalRealms.isBuiltinRealm(identifier.getType())) {
                 // this is an internal realm factory, let's make sure we didn't already registered one
                 // (there can only be one instance of an internal realm)
@@ -387,6 +389,10 @@ public class Realms implements Iterable<Realm> {
             }
             realmConfigs.add(config);
         }
+        if (false == unknownRealmNames.isEmpty()) {
+            throw new IllegalArgumentException("Undefined realms " + unknownRealmNames + " have been assigned to domains");
+        }
+
         return realmConfigs;
     }
 

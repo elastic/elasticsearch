@@ -18,14 +18,16 @@ import java.util.function.Supplier;
 public class RealmConfig {
 
     final RealmIdentifier identifier;
+    final String domain;
     final boolean enabled;
     final int order;
     private final Environment env;
     private final Settings settings;
     private final ThreadContext threadContext;
 
-    public RealmConfig(RealmIdentifier identifier, Settings settings, Environment env, ThreadContext threadContext) {
+    public RealmConfig(RealmIdentifier identifier, String domain, Settings settings, Environment env, ThreadContext threadContext) {
         this.identifier = identifier;
+        this.domain = domain;
         this.settings = settings;
         this.env = env;
         this.threadContext = threadContext;
@@ -44,6 +46,10 @@ public class RealmConfig {
 
     public RealmIdentifier identifier() {
         return identifier;
+    }
+
+    public String domain() {
+        return domain;
     }
 
     public String name() {

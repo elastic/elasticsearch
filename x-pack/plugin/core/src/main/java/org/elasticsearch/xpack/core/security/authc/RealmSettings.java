@@ -14,8 +14,13 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Tuple;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -28,6 +33,11 @@ import java.util.stream.Collectors;
  * This class provides some convenience methods for defining and retrieving such settings.
  */
 public class RealmSettings {
+
+    public static final Setting.AffixSetting<List<String>> DOMAIN_TO_REALM_ASSOC_SETTING = Setting.affixKeySetting(
+        "xpack.security.authc.domains.",
+        "realms",
+        key -> Setting.stringListSetting(key, Setting.Property.NodeScope));
 
     public static final String RESERVED_REALM_NAME_PREFIX = "_";
     public static final String PREFIX = "xpack.security.authc.realms.";
@@ -103,6 +113,39 @@ public class RealmSettings {
         }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
     }
 
+    public static Map<String, String> getRealmNameToDomainNameMap(Settings globalSettings) {
+        Map<String, Set<String>> realmToDomainsMap = new HashMap<>();
+        for (String domainName : DOMAIN_TO_REALM_ASSOC_SETTING.getNamespaces(globalSettings)) {
+            Setting<List<String>> realmsByDomainSetting = DOMAIN_TO_REALM_ASSOC_SETTING.getConcreteSettingForNamespace(domainName);
+            for (String realmName : realmsByDomainSetting.get(globalSettings)) {
+                realmToDomainsMap.computeIfAbsent(realmName, k -> new HashSet<>()).add(domainName);
+            }
+        }
+        StringBuilder domainValidationErrorMessageBuilder = new StringBuilder("Realms can be associated to at most one domain, but");
+        boolean invalidDomainSetup = false;
+        for (Map.Entry<String, Set<String>> realmToDomains : realmToDomainsMap.entrySet()) {
+            if (realmToDomains.getValue().size() > 1) {
+                if (invalidDomainSetup) {
+                    domainValidationErrorMessageBuilder.append(" and");
+                }
+                domainValidationErrorMessageBuilder
+                    .append(" [")
+                    .append(realmToDomains.getKey())
+                    .append("] is associated to domains ")
+                    .append(realmToDomains.getValue());
+                invalidDomainSetup = true;
+            }
+        }
+        if (invalidDomainSetup) {
+            throw new IllegalArgumentException(domainValidationErrorMessageBuilder.toString());
+        }
+        Map<String, String> realmToDomainMap = new HashMap<>(realmToDomainsMap.size());
+        for (Map.Entry<String, Set<String>> realmToDomains : realmToDomainsMap.entrySet()) {
+            realmToDomainMap.put(realmToDomains.getKey(), realmToDomains.getValue().iterator().next());
+        }
+        return realmToDomainMap;
+    }
+
     /**
      * Performs any necessary verifications on a realms settings that are not automatically applied by Settings validation infrastructure.
      */
@@ -143,5 +186,4 @@ public class RealmSettings {
     }
 
     private RealmSettings() {}
-
 }

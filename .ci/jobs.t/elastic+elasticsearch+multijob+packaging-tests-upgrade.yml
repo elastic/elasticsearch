@@ -28,4 +28,4 @@
             JAVA16_HOME=$HOME/.java/openjdk16
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
-          ./.ci/os.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$BWC_VERSION
+          ./.ci/os.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$BWC_VERSION

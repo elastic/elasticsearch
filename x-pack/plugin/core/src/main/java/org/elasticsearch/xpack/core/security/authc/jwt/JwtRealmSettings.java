@@ -54,7 +54,6 @@ public class JwtRealmSettings {
 
     private static final TimeValue DEFAULT_ALLOWED_CLOCK_SKEW = TimeValue.timeValueSeconds(60);
     private static final List<String> DEFAULT_ALLOWED_SIGNATURE_ALGORITHMS = Collections.singletonList("RS256");
-    private static final List<String> DEFAULT_ALLOWED_AUDIENCES = Collections.emptyList();
     private static final boolean DEFAULT_POPULATE_USER_METADATA = true;
     private static final String DEFAULT_CLIENT_AUTHENTICATION_TYPE = SUPPORTED_CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET;
     private static final TimeValue DEFAULT_CACHE_TTL = TimeValue.timeValueMinutes(20);
@@ -142,10 +141,8 @@ public class JwtRealmSettings {
     public static final Setting.AffixSetting<List<String>> ALLOWED_AUDIENCES = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "allowed_audiences",
-        key -> Setting.listSetting(
+        key -> Setting.stringListSetting(
             key,
-            DEFAULT_ALLOWED_AUDIENCES,
-            Function.identity(),
             values -> verifyNonNullNotEmpty(key, values, null),
             Setting.Property.NodeScope
         )

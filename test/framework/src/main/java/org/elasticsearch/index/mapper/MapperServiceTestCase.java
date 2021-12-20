@@ -572,6 +572,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService) {
+        return createSearchExecutionContext(mapperService, null);
+    }
+
+    protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService, IndexSearcher searcher) {
         final SimilarityService similarityService = new SimilarityService(mapperService.getIndexSettings(), null, Map.of());
         final long nowInMillis = randomNonNegativeLong();
         return new SearchExecutionContext(
@@ -588,7 +592,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             xContentRegistry(),
             writableRegistry(),
             null,
-            null,
+            searcher,
             () -> nowInMillis,
             null,
             null,

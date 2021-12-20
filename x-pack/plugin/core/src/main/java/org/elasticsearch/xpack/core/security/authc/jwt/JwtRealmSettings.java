@@ -69,6 +69,10 @@ public class JwtRealmSettings {
 
     // All settings
 
+    /**
+     * Get all settings, except secure settings.
+     * @return All settings, except secure settings.
+     */
     public static Set<Setting.AffixSetting<?>> getSettings() {
         final Set<Setting.AffixSetting<?>> set = Sets.newHashSet();
         // Standard realm settings: order, enabled
@@ -141,11 +145,7 @@ public class JwtRealmSettings {
     public static final Setting.AffixSetting<List<String>> ALLOWED_AUDIENCES = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "allowed_audiences",
-        key -> Setting.stringListSetting(
-            key,
-            values -> verifyNonNullNotEmpty(key, values, null),
-            Setting.Property.NodeScope
-        )
+        key -> Setting.stringListSetting(key, values -> verifyNonNullNotEmpty(key, values, null), Setting.Property.NodeScope)
     );
 
     // JWT end-user settings

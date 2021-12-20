@@ -333,7 +333,7 @@ if (useFixture) {
 
   testClusters.matching { it.name == "yamlRestTestApplicationDefaultCredentials" }.configureEach {
     setting 'gcs.client.integration_test.endpoint', { "${-> fixtureAddress('gcs-fixture-with-application-default-credentials')}" }, IGNORE_VALUE
-    plugin tasks.bundlePlugin.archiveFile
+    module tasks.bundlePlugin.archiveFile
     environment 'GCE_METADATA_HOST', { "${-> fixtureAddress('gcs-fixture-with-application-default-credentials')}".replace("http://", "") }, IGNORE_VALUE
   }
 }

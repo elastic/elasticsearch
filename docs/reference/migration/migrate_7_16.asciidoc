@@ -17,6 +17,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 * <<breaking_716_settings_deprecations>>
 * <<breaking_716_indices_deprecations>>
 * <<breaking_716_cluster_deprecations>>
+* <<breaking_716_packaging_deprecations>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -426,6 +427,23 @@ cache do not expire.
 
 To override the defaults, configure the `script.cache.max_size`,
 `script.max_compilations_rate`, and `script.cache.expire` settings.
+====
+
+[discrete]
+[[breaking_716_packaging_deprecations]]
+==== Packaging deprecations
+
+.After 7.16.2, we'll no longer release a Windows MSI installer package.
+[%collapsible]
+====
+*Details* +
+After 7.16.2, we'll no longer release Windows MSI installer packages for {es}.
+These packages were previously released in beta and didn't receive widespread
+adoption.
+
+*Impact* +
+To install {es} on Windows, use the {ref}/zip-windows.html[`.zip` archive
+package] instead.
 ====
 // end::notable-breaking-changes[]
 

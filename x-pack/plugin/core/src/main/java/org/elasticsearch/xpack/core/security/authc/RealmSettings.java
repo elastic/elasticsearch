@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Tuple;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -113,7 +114,21 @@ public class RealmSettings {
         }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
     }
 
-    public static Map<String, String> getRealmNameToDomainNameMap(Settings globalSettings) {
+    public static String getDomainForRealm(Settings globalSettings, RealmConfig.RealmIdentifier realmIdentifier) {
+        // TODO exceptions for reserved, native and file realms
+        for (String domainName : DOMAIN_TO_REALM_ASSOC_SETTING.getNamespaces(globalSettings)) {
+            Setting<List<String>> realmsByDomainSetting = DOMAIN_TO_REALM_ASSOC_SETTING.getConcreteSettingForNamespace(domainName);
+            for (String realmName : realmsByDomainSetting.get(globalSettings)) {
+                if (realmName.equals(realmIdentifier.getName())) {
+                    return domainName;
+                }
+            }
+        }
+        return null;
+    }
+
+    public static void verifyRealmNameToDomainNameAssociation(Settings globalSettings,
+                                                              Collection<RealmConfig.RealmIdentifier> allRealmIdentifiers) {
         Map<String, Set<String>> realmToDomainsMap = new HashMap<>();
         for (String domainName : DOMAIN_TO_REALM_ASSOC_SETTING.getNamespaces(globalSettings)) {
             Setting<List<String>> realmsByDomainSetting = DOMAIN_TO_REALM_ASSOC_SETTING.getConcreteSettingForNamespace(domainName);
@@ -122,10 +137,10 @@ public class RealmSettings {
             }
         }
         StringBuilder domainValidationErrorMessageBuilder = new StringBuilder("Realms can be associated to at most one domain, but");
-        boolean invalidDomainSetup = false;
+        boolean realmToMultipleDomains = false;
         for (Map.Entry<String, Set<String>> realmToDomains : realmToDomainsMap.entrySet()) {
             if (realmToDomains.getValue().size() > 1) {
-                if (invalidDomainSetup) {
+                if (realmToMultipleDomains) {
                     domainValidationErrorMessageBuilder.append(" and");
                 }
                 domainValidationErrorMessageBuilder
@@ -133,17 +148,15 @@ public class RealmSettings {
                     .append(realmToDomains.getKey())
                     .append("] is associated to domains ")
                     .append(realmToDomains.getValue());
-                invalidDomainSetup = true;
+                realmToMultipleDomains = true;
             }
         }
-        if (invalidDomainSetup) {
+        if (realmToMultipleDomains) {
             throw new IllegalArgumentException(domainValidationErrorMessageBuilder.toString());
         }
-        Map<String, String> realmToDomainMap = new HashMap<>(realmToDomainsMap.size());
-        for (Map.Entry<String, Set<String>> realmToDomains : realmToDomainsMap.entrySet()) {
-            realmToDomainMap.put(realmToDomains.getKey(), realmToDomains.getValue().iterator().next());
-        }
-        return realmToDomainMap;
+        // validate that reserved realm is not associated to any domain
+        // validate that default_native and default_file can be associated
+        // validate that other realms are not associated to anything
     }
 
     /**

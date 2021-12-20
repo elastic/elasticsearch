@@ -25,9 +25,9 @@ public class RealmConfig {
     private final Settings settings;
     private final ThreadContext threadContext;
 
-    public RealmConfig(RealmIdentifier identifier, String domain, Settings settings, Environment env, ThreadContext threadContext) {
+    public RealmConfig(RealmIdentifier identifier, Settings settings, Environment env, ThreadContext threadContext) {
         this.identifier = identifier;
-        this.domain = domain;
+        this.domain = RealmSettings.getDomainForRealm(settings, identifier);
         this.settings = settings;
         this.env = env;
         this.threadContext = threadContext;

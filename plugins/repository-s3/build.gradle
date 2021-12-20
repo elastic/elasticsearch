@@ -285,6 +285,7 @@ tasks.named("check").configure { dependsOn(s3ThirdPartyTest) }
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
           // classes are missing
+          'javax.jms.Message',
           'javax.servlet.ServletContextEvent',
           'javax.servlet.ServletContextListener',
           'org.apache.avalon.framework.logger.Logger',

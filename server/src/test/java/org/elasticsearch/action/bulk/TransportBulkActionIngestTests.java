@@ -750,11 +750,12 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
-        ActionTestUtils.execute(action, null, bulkRequest, ActionListener.wrap(response -> {
-            responseCalled.set(true);
-        }, e -> {
-            failureCalled.set(true);
-        }));
+        ActionTestUtils.execute(
+            action,
+            null,
+            bulkRequest,
+            ActionListener.wrap(response -> { responseCalled.set(true); }, e -> { failureCalled.set(true); })
+        );
 
         // check failure works, and passes through to the listener
         assertFalse(action.isExecuted); // haven't executed yet

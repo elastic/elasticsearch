@@ -45,7 +45,7 @@ public class TransportGetCheckpointNodeAction extends HandledTransportAction<Req
         getGlobalCheckpoints(indicesService, request.getShards(), listener);
     }
 
-    static void getGlobalCheckpoints(IndicesService indicesService, Set<ShardId> shards, ActionListener<Response> listener) {
+    protected static void getGlobalCheckpoints(IndicesService indicesService, Set<ShardId> shards, ActionListener<Response> listener) {
         Map<String, long[]> checkpointsByIndexOfThisNode = new HashMap<>();
         for (ShardId shardId : shards) {
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());

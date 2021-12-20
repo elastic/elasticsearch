@@ -7,91 +7,214 @@
 
 package org.elasticsearch.xpack.transform.checkpoint;
 
-import org.apache.commons.lang3.ArrayUtils;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.transport.MockTransport;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
-import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Request;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Response;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
+import org.elasticsearch.xpack.transform.action.TransportGetCheckpointAction;
+import org.elasticsearch.xpack.transform.action.TransportGetCheckpointNodeAction;
+import org.junit.After;
+import org.junit.Before;
 
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.stream.Collectors;
+import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
-/**
- * Test suite for checkpointing using transform getcheckpoint API
- */
-public class TransformGetCheckpointTests extends TransformSingleNodeTestCase {
+import static java.util.Collections.emptySet;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-    public void testGetCheckpoint() throws Exception {
-        final String indexNamePrefix = "test_index-";
-        final int shards = randomIntBetween(1, 5);
-        final int indices = randomIntBetween(1, 5);
+public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
 
-        for (int i = 0; i < indices; ++i) {
-            client().admin()
-                .indices()
-                .prepareCreate(indexNamePrefix + i)
-                .setSettings(Settings.builder().put("index.number_of_shards", shards).put("index.number_of_replicas", 1))
-                .get();
-        }
+    private static final int NUMBER_OF_SHARDS = 5;
+    private TransportService transportService;
+    private ClusterService clusterService;
+    private IndicesService indicesService;
+    private ThreadPool threadPool;
+    private IndexNameExpressionResolver indexNameExpressionResolver;
+    private MockTransport mockTransport;
+    private final String indexName = "test_index";
 
-        final GetCheckpointAction.Request request = new GetCheckpointAction.Request(
-            new String[] { indexNamePrefix + "*" },
-            IndicesOptions.LENIENT_EXPAND_OPEN
-        );
+    private TestTransportGetCheckpointAction getCheckpointAction;
+    private TestTransportGetCheckpointNodeAction getCheckpointNodeAction;
+    private ClusterState clusterStateWithIndex;
 
-        final GetCheckpointAction.Response response = client().execute(GetCheckpointAction.INSTANCE, request).get();
-        assertEquals(indices, response.getCheckpoints().size());
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        threadPool = new TestThreadPool("GetCheckpointActionTests");
+        indexNameExpressionResolver = new MockResolver();
+        clusterService = getInstanceFromNode(ClusterService.class);
+        indicesService = getInstanceFromNode(IndicesService.class);
+        mockTransport = new MockTransport() {
+            @Override
+            protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
+                if (action.equals(GetCheckpointNodeAction.NAME)) {
 
-        // empty indices should report -1 as sequence id
-        assertFalse(
-            response.getCheckpoints().entrySet().stream().anyMatch(entry -> Arrays.stream(entry.getValue()).anyMatch(l -> l != -1L))
-        );
+                    getCheckpointNodeAction.execute(null, (GetCheckpointNodeAction.Request) request, ActionListener.wrap(r -> {
+                        this.handleResponse(requestId, r);
 
-        final int docsToCreatePerShard = randomIntBetween(0, 10);
-        for (int d = 0; d < docsToCreatePerShard; ++d) {
-            for (int i = 0; i < indices; ++i) {
-                for (int j = 0; j < shards; ++j) {
-                    client().prepareIndex(indexNamePrefix + i).setSource("{" + "\"field\":" + j + "}", XContentType.JSON).get();
+                    }, e -> {
+                        this.handleError(requestId, new TransportException(e.getMessage(), e));
+
+                    })
+
+                    );
                 }
             }
+        };
+
+        transportService = mockTransport.createTransportService(
+            clusterService.getSettings(),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> clusterService.localNode(),
+            null,
+            emptySet()
+        );
+        transportService.start();
+        transportService.acceptIncomingRequests();
+        getCheckpointAction = new TestTransportGetCheckpointAction();
+        getCheckpointNodeAction = new TestTransportGetCheckpointNodeAction();
+        clusterStateWithIndex = ClusterStateCreationUtils.state(indexName, 3, NUMBER_OF_SHARDS);
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        threadPool = null;
+        super.tearDown();
+    }
+
+    public void testEmptyCheckpoint() {
+
+    }
+
+    public void testSingleNodeRequests() {
+        GetCheckpointAction.Request request = new GetCheckpointAction.Request(
+            new String[] { indexName },
+            IndicesOptions.LENIENT_EXPAND_OPEN
+        );
+        Task transformTask = new Task(
+            1L,
+            "persistent",
+            "action",
+            TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + "the_id",
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap()
+        );
+
+        ActionTestUtils.execute(getCheckpointAction, transformTask, request, ActionListener.wrap(response -> {
+            assertNotNull(response.getCheckpoints());
+            Map<String, long[]> checkpoints = response.getCheckpoints();
+            assertEquals(1, checkpoints.size());
+            assertTrue(checkpoints.containsKey(indexName));
+            for (int i = 0; i < NUMBER_OF_SHARDS; ++i) {
+                assertEquals(42 + i, checkpoints.get(indexName)[i]);
+            }
+        }, e -> { fail("got unexpected exception: " + e.getMessage()); }));
+
+    }
+
+    class TestTransportGetCheckpointAction extends TransportGetCheckpointAction {
+
+        public TestTransportGetCheckpointAction() {
+            super(transportService, new ActionFilters(emptySet()), indicesService, clusterService, indexNameExpressionResolver);
         }
 
-        client().admin().indices().refresh(new RefreshRequest(indexNamePrefix + "*"));
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+            resolveIndicesAndGetCheckpoint(task, request, listener, clusterStateWithIndex);
+        }
 
-        final GetCheckpointAction.Response response2 = client().execute(GetCheckpointAction.INSTANCE, request).get();
-        assertEquals(indices, response2.getCheckpoints().size());
+    }
 
-        // check the sum, counting starts with 0, so we have to take docsToCreatePerShard - 1
-        long checkpointSum = response2.getCheckpoints().values().stream().map(l -> Arrays.stream(l).sum()).mapToLong(Long::valueOf).sum();
-        assertEquals(
-            "Expected "
-                + (docsToCreatePerShard - 1) * shards * indices
-                + " as sum of "
-                + response2.getCheckpoints()
-                    .entrySet()
-                    .stream()
-                    .map(e -> e.getKey() + ": {" + Strings.arrayToCommaDelimitedString(ArrayUtils.toObject(e.getValue())) + "}")
-                    .collect(Collectors.joining(",")),
-            (docsToCreatePerShard - 1) * shards * indices,
-            checkpointSum
-        );
+    class TestTransportGetCheckpointNodeAction extends TransportGetCheckpointNodeAction {
 
-        final IndicesStatsResponse statsResponse = client().admin().indices().prepareStats(indexNamePrefix + "*").get();
+        public TestTransportGetCheckpointNodeAction() {
+            super(transportService, new ActionFilters(emptySet()), indicesService);
+        }
 
-        assertEquals(
-            "Checkpoint API and indices stats don't match",
-            Arrays.stream(statsResponse.getShards())
-                .filter(i -> i.getShardRouting().primary())
-                .sorted(Comparator.comparingInt(value -> value.getShardRouting().id()))
-                .mapToLong(s -> s.getSeqNoStats().getGlobalCheckpoint())
-                .sum(),
-            checkpointSum
-        );
+        protected void doExecute(
+            Task task,
+            GetCheckpointNodeAction.Request request,
+            ActionListener<GetCheckpointNodeAction.Response> listener
+        ) {
+            IndicesService mockIndicesService = mock(IndicesService.class);
+            IndexService mockIndexService = mock(IndexService.class);
+            when(mockIndicesService.indexServiceSafe(any())).thenReturn(mockIndexService);
+            IndexSettings mockIndexSettings = new IndexSettings(
+                clusterStateWithIndex.metadata().index(indexName),
+                clusterService.getSettings()
+            );
+            when(mockIndexService.getIndexSettings()).thenReturn(mockIndexSettings);
+            for (int i = 0; i < NUMBER_OF_SHARDS; ++i) {
+                IndexShard mockIndexShard = mock(IndexShard.class);
+                when(mockIndexService.getShard(i)).thenReturn(mockIndexShard);
+                SeqNoStats seqNoStats = new SeqNoStats(42 + i, 42 + i, 42 + i);
+                when(mockIndexShard.seqNoStats()).thenReturn(seqNoStats);
+            }
+
+            getGlobalCheckpoints(mockIndicesService, request.getShards(), listener);
+        }
+    }
+
+    static class MockResolver extends IndexNameExpressionResolver {
+        MockResolver() {
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+        }
+
+        @Override
+        public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
+            return request.indices();
+        }
+
+        public String[] concreteIndexNames(
+            ClusterState state,
+            IndicesOptions options,
+            boolean includeDataStreams,
+            String... indexExpressions
+        ) {
+            return indexExpressions;
+        }
+
+        @Override
+        public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
+            Index[] out = new Index[request.indices().length];
+            for (int x = 0; x < out.length; x++) {
+                out[x] = new Index(request.indices()[x], "_na_");
+            }
+            return out;
+        }
     }
 
 }

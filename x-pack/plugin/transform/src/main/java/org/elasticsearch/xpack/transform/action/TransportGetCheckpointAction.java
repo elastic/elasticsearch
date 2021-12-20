@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Respons
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -66,7 +69,10 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState state = clusterService.state();
+        resolveIndicesAndGetCheckpoint(task, request, listener, state);
+    }
 
+    protected void resolveIndicesAndGetCheckpoint(Task task, Request request, ActionListener<Response> listener, final ClusterState state) {
         String[] concreteIndices = this.indexNameExpressionResolver.concreteIndexNames(
             state,
             request.indicesOptions(),
@@ -74,10 +80,21 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             request.indices()
         );
 
-        new AsyncGetCheckpointsFromNodesAction(task, resolveIndicesToPrimaryShards(state, concreteIndices), listener).start();
+        Map<String, Set<ShardId>> nodesAndShards = resolveIndicesToPrimaryShards(state, concreteIndices);
+
+        if (nodesAndShards.size() == 0) {
+            listener.onResponse(new Response(Collections.emptyMap()));
+            return;
+        }
+
+        new AsyncGetCheckpointsFromNodesAction(state, task, nodesAndShards, listener).start();
     }
 
     private Map<String, Set<ShardId>> resolveIndicesToPrimaryShards(ClusterState state, String[] concreteIndices) {
+        if (concreteIndices.length == 0) {
+            return Collections.emptyMap();
+        }
+
         final DiscoveryNodes nodes = state.nodes();
         Map<String, Set<ShardId>> nodesAndShards = new HashMap<>();
 
@@ -85,9 +102,14 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         for (ShardRouting shard : shardsIt) {
             // only take primary shards, which should be exactly 1, this isn't strictly necessary
             // and we should consider taking any shard copy, but than we need another way to de-dup
-            if (shard.primary() && shard.assignedToNode() && nodes.get(shard.currentNodeId()) != null) {
+            if (shard.primary() == false) {
+                continue;
+            }
+            if (shard.assignedToNode() && nodes.get(shard.currentNodeId()) != null) {
                 String nodeId = shard.currentNodeId();
                 nodesAndShards.computeIfAbsent(nodeId, k -> new HashSet<>()).add(shard.shardId());
+            } else {
+                throw new NoShardAvailableActionException(shard.shardId(), " no primary shards available for shard [" + shard + "]");
             }
         }
         return nodesAndShards;
@@ -101,6 +123,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         private final String localNodeId;
 
         protected AsyncGetCheckpointsFromNodesAction(
+            ClusterState clusterState,
             Task task,
             Map<String, Set<ShardId>> nodesAndShards,
             ActionListener<Response> listener
@@ -108,13 +131,11 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             this.task = task;
             this.listener = listener;
             this.nodesAndShards = nodesAndShards;
-            ClusterState clusterState = clusterService.state();
             nodes = clusterState.nodes();
             localNodeId = clusterService.localNode().getId();
         }
 
         public void start() {
-
             GroupedActionListener<GetCheckpointNodeAction.Response> groupedListener = new GroupedActionListener<>(
                 ActionListener.wrap(responses -> {
                     // the final list should be ordered by key
@@ -150,6 +171,19 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 );
                 nodeCheckpointsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                 DiscoveryNode node = nodes.get(oneNodeAndItsShards.getKey());
+
+                // paranoia: this should not be possible using the same cluster state
+                if (node == null) {
+                    listener.onFailure(
+                        new UnavailableShardsException(
+                            oneNodeAndItsShards.getValue().iterator().next(),
+                            "Node not found for [{}] shards",
+                            oneNodeAndItsShards.getValue().size()
+                        )
+                    );
+                    return;
+                }
+
                 logger.trace("get checkpoints from node {}", node);
                 transportService.sendRequest(
                     node,

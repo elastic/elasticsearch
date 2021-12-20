@@ -605,10 +605,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             // the include attribute routing is not colder than the existing _tier_preference
             IndexMetadata.Builder indexWithTierPreferenceAndDataAttribute = IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute")
-                .settings(
-                    getBaseIndexSettings().put(DATA_ROUTING_INCLUDE_SETTING, "hot")
-                        .put(TIER_PREFERENCE, "data_warm,data_hot")
-                );
+                .settings(getBaseIndexSettings().put(DATA_ROUTING_INCLUDE_SETTING, "hot").put(TIER_PREFERENCE, "data_warm,data_hot"));
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute))
                 .build();

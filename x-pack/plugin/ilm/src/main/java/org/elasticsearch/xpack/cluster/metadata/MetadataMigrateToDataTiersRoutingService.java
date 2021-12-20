@@ -471,8 +471,11 @@ public final class MetadataMigrateToDataTiersRoutingService {
             boolean removeNodeAttrIndexRoutingSettings = true;
 
             // migrate using the `require` setting
-            Settings newSettings = maybeMigrateRoutingSettingToTierPreference(nodeAttrIndexRequireRoutingSetting,
-                currentSettings, indexName);
+            Settings newSettings = maybeMigrateRoutingSettingToTierPreference(
+                nodeAttrIndexRequireRoutingSetting,
+                currentSettings,
+                indexName
+            );
             // we possibly migrated the `require` setting, but maybe that attribute was not the coldest configured.
             // let's try to migrate the `include` setting as well
             newSettings = maybeMigrateRoutingSettingToTierPreference(nodeAttrIndexIncludeRoutingSetting, newSettings, indexName);
@@ -526,7 +529,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
         if (currentIndexSettings.keySet().contains(TIER_PREFERENCE)) {
             String tierPreferenceConfiguration = currentIndexSettings.get(TIER_PREFERENCE);
             List<String> tiersConfiguration = DataTier.parseTierList(tierPreferenceConfiguration);
-            if(tiersConfiguration.isEmpty() == false) {
+            if (tiersConfiguration.isEmpty() == false) {
                 String coldestConfiguredTier = tiersConfiguration.get(0);
                 String attributeValue = currentIndexSettings.get(attributeBasedRoutingSettingName);
                 String attributeTierEquivalent = "data_" + attributeValue;
@@ -537,9 +540,15 @@ public final class MetadataMigrateToDataTiersRoutingService {
                     if (DataTier.compare(attributeTierEquivalent, coldestConfiguredTier) < 0) {
                         String newTierPreferenceConfiguration = convertAttributeValueToTierPreference(attributeValue);
                         if (newTierPreferenceConfiguration != null) {
-                            logger.debug("index [{}]: updated the [{}] setting to [{}] as the attribute based routing setting [{}] had " +
-                                    "the value [{}]", indexName, TIER_PREFERENCE, newTierPreferenceConfiguration,
-                                attributeBasedRoutingSettingName, attributeValue);
+                            logger.debug(
+                                "index [{}]: updated the [{}] setting to [{}] as the attribute based routing setting [{}] had "
+                                    + "the value [{}]",
+                                indexName,
+                                TIER_PREFERENCE,
+                                newTierPreferenceConfiguration,
+                                attributeBasedRoutingSettingName,
+                                attributeValue
+                            );
                             newSettingsBuilder.put(TIER_PREFERENCE, newTierPreferenceConfiguration);
                         }
                     }

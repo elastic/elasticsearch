@@ -41,3 +41,7 @@ unknown-java-class-version
 
 # elastic licensed modules contain elastic license
 extra-license-file usr/share/elasticsearch/modules/*
+
+# This dependency appears to have a packaging flaw, and includes a
+# generated source file alongside the compiled version
+jar-contains-source usr/share/elasticsearch/modules/repository-gcs/api-common*.jar

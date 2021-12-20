@@ -1,5 +1,60 @@
+[[release-notes-7.16.2]]
+== {es} version 7.16.2
+
+Also see <<breaking-changes-7.16,Breaking changes in 7.16>>.
+
+[[enhancement-7.16.2]]
+[float]
+=== Enhancements
+
+Other::
+* Add deprecation notices for boost mappings to API {es-pull}81605[#81605] (issue: {es-issue}78396[#78396])
+
+Packaging::
+* Improve Docker image's cacert scripting {es-pull}81659[#81659]
+
+
+[[bug-7.16.2]]
+[float]
+=== Bug fixes
+
+Authorization::
+* Add delete privilege to `kibana_system` for APM and Endpoint ILM policies {es-pull}81811[#81811]
+
+Infra/Logging::
+* Add `doPrivileged` section in deprecation logger {es-pull}81819[#81819] (issue: {es-issue}81708[#81708])
+
+Java High Level REST Client::
+* Change HLRC's `LifecyclePolicy` to allow all valid ILM actions {es-pull}81483[#81483] (issue: {es-issue}81461[#81461])
+
+Machine Learning::
+* Fix `LangIdent` model when multiple unicode scripts are present {es-pull}81876[#81876] (issue: {es-issue}80675[#80675])
+* Model snapshot upgrade needs a stats endpoint {es-pull}81641[#81641] (issue: {es-issue}81519[#81519])
+
+Packaging::
+* Change default shell to bash in default Docker image {es-pull}81828[#81828] (issue: {es-issue}80820[#80820])
+
+
+[[regression-7.16.2]]
+[float]
+=== Regressions
+
+Infra/Scripting::
+* Fix superclass functional interface resolution in Painless {es-pull}81698[#81698] (issue: {es-issue}81696[#81696])
+
+
+[[upgrade-7.16.2]]
+[float]
+=== Upgrades
+
+Infra/Logging::
+* Upgrade to log4j 2.17.0 {es-pull}81902[#81902]
+
+
 [[release-notes-7.16.1]]
 == {es} version 7.16.1
+
+Also see <<breaking-changes-7.16,Breaking changes in 7.16>>.
 
 [discrete]
 [[security-updates-7.16.1]]
@@ -142,11 +197,11 @@ Monitoring::
 
 // tag::painless-functional-interface-resolution-81696-known-issue[]
 * Painless: Any Painless script where a method call resolves a lambda argument
-to a `UnaryOperator` or a `BinaryOperator` type results in an 
-`IllegalArgumentException`. This exception results in a compilation error when 
-static types are used, or a runtime error for dynamic types. Use standard 
+to a `UnaryOperator` or a `BinaryOperator` type results in an
+`IllegalArgumentException`. This exception results in a compilation error when
+static types are used, or a runtime error for dynamic types. Use standard
 procedural statements as a workaround, such as `if/else`, `while`, and `for`
-statements. 
+statements.
 +
 The following example is a `UnaryOperator` type that will result in a failure:
 +

@@ -317,7 +317,7 @@ ENTRYPOINT ["/bin/tini", "--"]
 CMD ["/app/elasticsearch.sh"]
 # Generate a stub command that will be overwritten at runtime
 RUN mkdir /app && \\
-    echo '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
+    echo -e '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
     chmod 0555 /app/elasticsearch.sh
 
 <% } else { %>

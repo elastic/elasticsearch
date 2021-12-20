@@ -19,6 +19,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
+/**
+ * Settings for JWT realms.
+ */
 public class JwtRealmSettings {
 
     private JwtRealmSettings() {}
@@ -78,10 +81,10 @@ public class JwtRealmSettings {
         // JWT End-user settings
         set.addAll(
             List.of(
-                PRINCIPAL_CLAIM.getClaim(),
-                PRINCIPAL_CLAIM.getPattern(),
-                GROUPS_CLAIM.getClaim(),
-                GROUPS_CLAIM.getPattern(),
+                CLAIMS_PRINCIPAL.getClaim(),
+                CLAIMS_PRINCIPAL.getPattern(),
+                CLAIMS_GROUPS.getClaim(),
+                CLAIMS_GROUPS.getPattern(),
                 POPULATE_USER_METADATA
             )
         );
@@ -151,8 +154,9 @@ public class JwtRealmSettings {
     // JWT end-user settings
 
     // Note: ClaimSetting is a wrapper for two individual settings: getClaim(), getPattern()
-    public static final ClaimSetting PRINCIPAL_CLAIM = new ClaimSetting(TYPE, "principal");
-    public static final ClaimSetting GROUPS_CLAIM = new ClaimSetting(TYPE, "groups");
+    public static final ClaimSetting CLAIMS_PRINCIPAL = new ClaimSetting(TYPE, "principal");
+    public static final ClaimSetting CLAIMS_GROUPS = new ClaimSetting(TYPE, "groups");
+
     public static final Setting.AffixSetting<Boolean> POPULATE_USER_METADATA = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "populate_user_metadata",

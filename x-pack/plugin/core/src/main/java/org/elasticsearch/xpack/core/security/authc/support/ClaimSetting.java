@@ -11,20 +11,27 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 /**
- * The OIDC and JWT realms offer a number of settings that rely on claim values that are populated by the JWT issuer. In the OIDC realm,
- * the issuer is the OIDC OP, and claims can be added from the User Info response too.
- * Each claim has 2 settings:
+ * JWT-related realms extract user data from JWTs. Some realms can also look up extra user data elsewhere;
+ * OIDC realms can query an OIDC OP User Info endpoint to retrieve extra user data not specified in the JWT.
+ *
+ * Each piece of extractable user data is configurable via two settings. This class encapsulates two settings per claim.
  * <ul>
- * <li>The name of the JWT claim to use</li>
- * <li>An optional java pattern (regex) to apply to that claim value in order to extract the substring that should be used.</li>
+ * <li>The claim name.</li>
+ * <li>An optional java pattern (regex) to extract a substring from the claim value.</li>
  * </ul>
- * For example, the Elasticsearch User Principal could be configured to come from the OpenID Connect standard claim "email",
- * and extract only the local-part of the user's email address (i.e. the name before the '@').
- * This class encapsulates those 2 settings.
+ *
+ * For example, an Elasticsearch User Principal could be configured to use claims like 'sub', 'name', 'email', or 'dn'.
+ * <ul>
+ * <li>In the case of 'sub' and 'name', no regex would be needed.</li>
+ * <li>In the case of 'email', a regex could be used to extract just the username before the '@'.</li>
+ * <li>In the case of 'dn', a regex could be used to extract just the 'cn' or 'uid' AVA value in a Distinguished Name.</li>
+ * </ul>
  */
 public final class ClaimSetting {
     public static final String CLAIMS_PREFIX = "claims.";
@@ -33,25 +40,53 @@ public final class ClaimSetting {
     private final Setting.AffixSetting<String> claim;
     private final Setting.AffixSetting<String> pattern;
 
-    // type should be one of OpenIdConnectRealmSettings.TYPE="oidc" or JwtRealmSettings.TYPE="jwt"
-    public ClaimSetting(String type, String name) {
-        claim = RealmSettings.simpleString(type, CLAIMS_PREFIX + name, Setting.Property.NodeScope);
-        pattern = RealmSettings.simpleString(type, CLAIM_PATTERNS_PREFIX + name, Setting.Property.NodeScope);
+    public ClaimSetting(final String realmType, final String settingName) {
+        if ((realmType == null) || realmType.isEmpty()) {
+            throw new IllegalArgumentException("Invalid realm type [" + realmType + "].");
+        } else if ((settingName == null) || settingName.isEmpty()) {
+            throw new IllegalArgumentException("Invalid claim setting name [" + settingName + "].");
+        }
+        this.claim = Setting.affixKeySetting(
+            RealmSettings.realmSettingPrefix(realmType),
+            CLAIMS_PREFIX + settingName,
+            key -> Setting.simpleString(key, value -> verifyName(key, value), Setting.Property.NodeScope)
+        );
+        this.pattern = Setting.affixKeySetting(
+            RealmSettings.realmSettingPrefix(realmType),
+            CLAIM_PATTERNS_PREFIX + settingName,
+            key -> Setting.simpleString(key, value -> verifyPattern(key, value), Setting.Property.NodeScope)
+        );
     }
 
     public Collection<Setting.AffixSetting<?>> settings() {
-        return Arrays.asList(getClaim(), getPattern());
+        return List.of(this.getClaim(), this.getPattern());
     }
 
-    public String name(RealmConfig config) {
-        return getClaim().getConcreteSettingForNamespace(config.name()).getKey();
+    public String name(final RealmConfig realmConfig) {
+        return this.getClaim().getConcreteSettingForNamespace(realmConfig.name()).getKey();
     }
 
     public Setting.AffixSetting<String> getClaim() {
-        return claim;
+        return this.claim;
     }
 
     public Setting.AffixSetting<String> getPattern() {
-        return pattern;
+        return this.pattern;
+    }
+
+    private static void verifyName(final String key, final String value) {
+        if ((value == null) || (value.isEmpty())) {
+            throw new IllegalArgumentException("Invalid null or empty claim name for [" + key + "].");
+        }
+    }
+
+    private static void verifyPattern(final String key, final String value) {
+        if ((value != null) && (value.isEmpty() == false)) {
+            try {
+                Pattern.compile(value);
+            } catch(PatternSyntaxException pse) {
+                throw new IllegalArgumentException("Invalid claim value regex pattern for [" + key + "].");
+            }
+        }
     }
 }

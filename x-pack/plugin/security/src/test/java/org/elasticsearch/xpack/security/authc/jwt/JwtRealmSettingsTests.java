@@ -44,22 +44,18 @@ public class JwtRealmSettingsTests extends ESTestCase {
     }
 
     public void testAllowedIssuer() {
+        final String fullSettingKey = RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.ALLOWED_ISSUER);
         for (final String unexpectedValue : new String[] { null, "" }) {
             final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
-                final Settings.Builder settingsBuilder = Settings.builder()
-                    .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.ALLOWED_ISSUER), unexpectedValue);
+                final Settings.Builder settingsBuilder = Settings.builder().put(fullSettingKey, unexpectedValue);
                 final RealmConfig config = this.buildConfig(settingsBuilder.build());
                 final String actualValue = config.getSetting(JwtRealmSettings.ALLOWED_ISSUER);
-                fail("No exception. Expected one for " + JwtRealmSettings.ALLOWED_ISSUER.getKey() + "=" + unexpectedValue);
+                fail("No exception. Expected one for " + fullSettingKey + "=" + unexpectedValue);
             });
-            assertThat(
-                exception.getMessage(),
-                equalTo("Invalid null or empty value for [xpack.security.authc.realms.jwt.jwt1-realm.allowed_issuer].")
-            );
+            assertThat(exception.getMessage(), equalTo("Invalid null or empty value for [" + fullSettingKey + "]."));
         }
         for (final String expectedValue : new String[] { "http://localhost/iss1", "issuer1" }) {
-            final Settings.Builder settingsBuilder = Settings.builder()
-                .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.ALLOWED_ISSUER), expectedValue);
+            final Settings.Builder settingsBuilder = Settings.builder().put(fullSettingKey, expectedValue);
             final RealmConfig config = this.buildConfig(settingsBuilder.build());
             final String actualValue = config.getSetting(JwtRealmSettings.ALLOWED_ISSUER);
             assertThat(actualValue, equalTo(expectedValue));
@@ -67,26 +63,22 @@ public class JwtRealmSettingsTests extends ESTestCase {
     }
 
     public void testAllowedSignatureAlgorithms() {
+        final String fullSettingKey = RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
+        final String allCsv = "HS256, HS384, HS512, RS256, RS384, RS512, ES256, ES384, ES512, PS256, PS384, PS512";
         for (final String unexpectedValue : new String[] { "unknown", "HS256,unknown" }) {
             final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
-                final Settings.Builder settingsBuilder = Settings.builder()
-                    .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS), unexpectedValue);
+                final Settings.Builder settingsBuilder = Settings.builder().put(fullSettingKey, unexpectedValue);
                 final RealmConfig config = this.buildConfig(settingsBuilder.build());
                 final List<String> actualValue = config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
-                fail("No exception. Expected one for " + JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS.getKey() + "=" + unexpectedValue);
+                fail("No exception. Expected one for " + fullSettingKey + "=" + unexpectedValue);
             });
             assertThat(
                 exception.getMessage(),
-                equalTo(
-                    "Invalid value [unknown] for [xpack.security.authc.realms.jwt.jwt1-realm.allowed_signature_algorithms]."
-                        + " Allowed values are [HS256, HS384, HS512, RS256, RS384, RS512, ES256, ES384, ES512, PS256, PS384, PS512]}]."
-                )
+                equalTo("Invalid value [unknown] for [" + fullSettingKey + "]." + " Allowed values are [" + allCsv + "]}].")
             );
         }
-        for (final String expectedValue : new String[] {
-            "HS256, HS384, HS512, RS256, RS384, RS512, ES256, ES384, ES512, PS256, PS384, PS512" }) {
-            final Settings.Builder settingsBuilder = Settings.builder()
-                .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS), expectedValue);
+        for (final String expectedValue : List.of(allCsv)) {
+            final Settings.Builder settingsBuilder = Settings.builder().put(fullSettingKey, expectedValue);
             final RealmConfig config = this.buildConfig(settingsBuilder.build());
             final List<String> actualValue = config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
             assertThat(actualValue, equalTo(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS));
@@ -94,22 +86,18 @@ public class JwtRealmSettingsTests extends ESTestCase {
     }
 
     public void testJwtPath() {
+        final String fullSettingKey = RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.JWKSET_PATH);
         for (final String unexpectedValue : new String[] { null, "" }) {
             final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
-                final Settings.Builder settingsBuilder = Settings.builder()
-                    .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.JWKSET_PATH), unexpectedValue);
+                final Settings.Builder settingsBuilder = Settings.builder().put(fullSettingKey, unexpectedValue);
                 final RealmConfig config = this.buildConfig(settingsBuilder.build());
                 final String actualValue = config.getSetting(JwtRealmSettings.JWKSET_PATH);
-                fail("No exception. Expected one for " + JwtRealmSettings.JWKSET_PATH.getKey() + "=" + unexpectedValue);
+                fail("No exception. Expected one for " + fullSettingKey + "=" + unexpectedValue);
             });
-            assertThat(
-                exception.getMessage(),
-                equalTo("Invalid null or empty value for [xpack.security.authc.realms.jwt.jwt1-realm.jwkset_path].")
-            );
+            assertThat(exception.getMessage(), equalTo("Invalid null or empty value for [" + fullSettingKey + "]."));
         }
-        for (final String expectedValue : new String[] { "./config/jwkset.json" }) {
-            final Settings.Builder settingsBuilder = Settings.builder()
-                .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.JWKSET_PATH), expectedValue);
+        for (final String expectedValue : new String[] { "./config/jwkset.json", "http://localhost/jwkset.json" }) {
+            final Settings.Builder settingsBuilder = Settings.builder().put(fullSettingKey, expectedValue);
             final RealmConfig config = this.buildConfig(settingsBuilder.build());
             final String actualValue = config.getSetting(JwtRealmSettings.JWKSET_PATH);
             assertThat(actualValue, equalTo(expectedValue));
@@ -117,69 +105,81 @@ public class JwtRealmSettingsTests extends ESTestCase {
     }
 
     public void testAllowedAudiences() {
+        final String fullSettingKey = RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.ALLOWED_AUDIENCES);
         for (final String unexpectedValue : new String[] { null, "" }) {
             final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
-                final Settings.Builder settingsBuilder = Settings.builder()
-                    .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.ALLOWED_AUDIENCES), unexpectedValue);
+                final Settings.Builder settingsBuilder = Settings.builder().put(fullSettingKey, unexpectedValue);
                 final RealmConfig config = this.buildConfig(settingsBuilder.build());
                 final List<String> actualValue = config.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES);
-                fail("No exception. Expected one for " + JwtRealmSettings.ALLOWED_AUDIENCES.getKey() + "=" + unexpectedValue);
+                fail("No exception. Expected one for " + fullSettingKey + "=" + unexpectedValue);
             });
-            assertThat(
-                exception.getMessage(),
-                equalTo("Invalid null or empty value for [xpack.security.authc.realms.jwt.jwt1-realm.allowed_audiences].")
-            );
+            assertThat(exception.getMessage(), equalTo("Invalid null or empty value for [" + fullSettingKey + "]."));
         }
         for (final String expectedValue : new String[] { "elasticsearch,otherapp" }) {
-            final Settings.Builder settingsBuilder = Settings.builder()
-                .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.ALLOWED_AUDIENCES), expectedValue);
+            final Settings.Builder settingsBuilder = Settings.builder().put(fullSettingKey, expectedValue);
             final RealmConfig config = this.buildConfig(settingsBuilder.build());
             final List<String> setting = config.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES);
             assertThat(setting, equalTo(List.of("elasticsearch", "otherapp")));
         }
     }
 
-    public void testClaimsPrincipalClaim() {
-        // for (final String unexpectedValue : new String[] {null, ""}) {
-        // final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
-        // final Settings.Builder settingsBuilder = Settings.builder()
-        // .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.PRINCIPAL_CLAIM.getClaim()), unexpectedValue);
-        // final RealmConfig config = this.buildConfig(settingsBuilder.build());
-        // final String actualValue = config.getSetting(JwtRealmSettings.PRINCIPAL_CLAIM.getClaim());
-        // System.out.println(actualValue);
-        // fail("No exception. Expected one for " + JwtRealmSettings.PRINCIPAL_CLAIM.getClaim().getKey() + "=" + unexpectedValue);
-        // });
-        // System.out.println(exception.getMessage());
-        // assertThat(exception.getMessage(),
-        // equalTo("Invalid null or empty value for [xpack.security.authc.realms.jwt.jwt1-realm.jwkset_path].") );
-        // }
-        for (final String expectedValue : new String[] { "sub", "mail", "username" }) {
-            final Settings.Builder settingsBuilder = Settings.builder()
-                .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.PRINCIPAL_CLAIM.getClaim()), expectedValue);
-            final RealmConfig config = this.buildConfig(settingsBuilder.build());
-            final String actualValue = config.getSetting(JwtRealmSettings.PRINCIPAL_CLAIM.getClaim());
-            assertThat(actualValue, equalTo(expectedValue));
+    public void testClaimNames() {
+        for (final Setting.AffixSetting<String> claimName : List.of(
+            JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim(),
+            JwtRealmSettings.CLAIMS_GROUPS.getClaim()
+        )) {
+            final String fullSettingKey = RealmSettings.getFullSettingKey(REALM_NAME, claimName);
+            for (final String unexpectedValue : new String[] { null, "" }) {
+                final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
+                    final Settings.Builder settingsBuilder = Settings.builder().put(fullSettingKey, unexpectedValue);
+                    final RealmConfig config = this.buildConfig(settingsBuilder.build());
+                    final String actualValue = config.getSetting(claimName);
+                    fail("No exception. Expected one for " + fullSettingKey + "=" + unexpectedValue);
+                });
+                assertThat(exception.getMessage(), equalTo("Invalid null or empty claim name for [" + fullSettingKey + "]."));
+            }
+            for (final String expectedValue : new String[] { "sub", "name", "email", "dn" }) {
+                final Settings.Builder settingsBuilder = Settings.builder().put(fullSettingKey, expectedValue);
+                final RealmConfig config = this.buildConfig(settingsBuilder.build());
+                final String actualValue = config.getSetting(claimName);
+                assertThat(actualValue, equalTo(expectedValue));
+            }
         }
     }
 
-    public void testClaimsPrincipalPattern() {
-        for (final String expectedValue : new String[] { "^([^@]+)@example\\.com$" }) {
-            final Settings.Builder settingsBuilder = Settings.builder()
-                .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.PRINCIPAL_CLAIM.getClaim()), expectedValue);
-            final RealmConfig config = this.buildConfig(settingsBuilder.build());
-            final String actualValue = config.getSetting(JwtRealmSettings.PRINCIPAL_CLAIM.getClaim());
-            assertThat(actualValue, equalTo(expectedValue));
+    public void testClaimPatterns() {
+        for (final Setting.AffixSetting<String> claimPattern : List.of(
+            JwtRealmSettings.CLAIMS_PRINCIPAL.getPattern(),
+            JwtRealmSettings.CLAIMS_GROUPS.getPattern()
+        )) {
+            final String fullSettingKey = RealmSettings.getFullSettingKey(REALM_NAME, claimPattern);
+            for (final String unexpectedValue : new String[] { "[" }) {
+                final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
+                    final Settings.Builder settingsBuilder = Settings.builder().put(fullSettingKey, unexpectedValue);
+                    final RealmConfig config = this.buildConfig(settingsBuilder.build());
+                    final String actualValue = config.getSetting(claimPattern);
+                    fail("No exception. Expected one for " + fullSettingKey + "=" + unexpectedValue);
+                });
+                assertThat(exception.getMessage(), equalTo("Invalid claim value regex pattern for [" + fullSettingKey + "]."));
+            }
+            for (final String expectedValue : new String[] { "^([^@]+)@example\\.com$", "^Group-(.+)$" }) {
+                final Settings.Builder settingsBuilder = Settings.builder().put(fullSettingKey, expectedValue);
+                final RealmConfig config = this.buildConfig(settingsBuilder.build());
+                final String actualValue = config.getSetting(claimPattern);
+                assertThat(actualValue, equalTo(expectedValue));
+            }
         }
     }
 
     public void testPopulateUserMetadata() {
+        final String fullSettingKey = RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.POPULATE_USER_METADATA);
         for (final String unexpectedValue : new String[] { "unknown", "t", "f", "TRUE", "FALSE", "True", "False" }) {
             final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
                 final Settings.Builder settingsBuilder = Settings.builder()
                     .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.POPULATE_USER_METADATA), unexpectedValue);
                 final RealmConfig config = this.buildConfig(settingsBuilder.build());
                 final Boolean actualValue = config.getSetting(JwtRealmSettings.POPULATE_USER_METADATA);
-                fail("No exception. Expected one for " + JwtRealmSettings.POPULATE_USER_METADATA.getKey() + "=" + unexpectedValue);
+                fail("No exception. Expected one for " + fullSettingKey + "=" + unexpectedValue);
             });
             assertThat(
                 exception.getMessage(),
@@ -187,30 +187,27 @@ public class JwtRealmSettingsTests extends ESTestCase {
             );
         }
         for (final String expectedValue : new String[] { "true", "false" }) {
-            final Settings.Builder settingsBuilder = Settings.builder()
-                .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.POPULATE_USER_METADATA), expectedValue);
+            final Settings.Builder settingsBuilder = Settings.builder().put(fullSettingKey, expectedValue);
             final RealmConfig config = this.buildConfig(settingsBuilder.build());
             final Boolean actualValue = config.getSetting(JwtRealmSettings.POPULATE_USER_METADATA);
             assertThat(actualValue, equalTo(Boolean.valueOf(expectedValue)));
         }
     }
 
-    public void testClientAuthenticationTypes() {
+    public void testClientAuthenticationType() {
+        final String fullSettingKey = RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE);
         for (final String unexpectedValue : new String[] { "unknown" }) {
             final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
                 final Settings.Builder settingsBuilder = Settings.builder()
                     .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE), unexpectedValue);
                 final RealmConfig config = this.buildConfig(settingsBuilder.build());
                 final String actualValue = config.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE);
-                fail("No exception. Expected one for " + JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE.getKey() + "=" + unexpectedValue);
+                fail("No exception. Expected one for " + fullSettingKey + "=" + unexpectedValue);
             });
             assertThat(
                 exception.getMessage(),
                 equalTo(
-                    "Invalid value ["
-                        + unexpectedValue
-                        + "] for [xpack.security.authc.realms.jwt.jwt1-realm.client_authentication.type]."
-                        + " Allowed values are [sharedsecret, none]}]."
+                    "Invalid value [" + unexpectedValue + "] for [" + fullSettingKey + "]." + " Allowed values are [sharedsecret, none]}]."
                 )
             );
         }
@@ -245,10 +242,10 @@ public class JwtRealmSettingsTests extends ESTestCase {
             // Audience settings
             .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.ALLOWED_AUDIENCES), "rp_client1")
             // End-user settings
-            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
-            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.PRINCIPAL_CLAIM.getPattern()), "^([^@]+)@example\\.com$")
-            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.GROUPS_CLAIM.getClaim()), "group")
-            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.GROUPS_CLAIM.getPattern()), "^(.*)$")
+            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), "sub")
+            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.CLAIMS_PRINCIPAL.getPattern()), "^([^@]+)@example\\.com$")
+            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.CLAIMS_GROUPS.getClaim()), "group")
+            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.CLAIMS_GROUPS.getPattern()), "^(.*)$")
             .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.POPULATE_USER_METADATA), randomBoolean())
             // Client settings for incoming connections
             .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE), "ssl")

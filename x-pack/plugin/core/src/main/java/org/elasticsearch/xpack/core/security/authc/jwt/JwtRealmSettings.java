@@ -105,11 +105,10 @@ public class JwtRealmSettings {
     }
 
     // JWT issuer settings
-
-    public static final Setting.AffixSetting<String> ALLOWED_ISSUER = RealmSettings.simpleString(
-        TYPE,
+    public static final Setting.AffixSetting<String> ALLOWED_ISSUER = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
         "allowed_issuer",
-        Setting.Property.NodeScope
+        key -> Setting.simpleString(key, value -> verifyNonNullNotEmpty(key, value, null), Setting.Property.NodeScope)
     );
     public static final Setting.AffixSetting<TimeValue> ALLOWED_CLOCK_SKEW = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
@@ -119,29 +118,19 @@ public class JwtRealmSettings {
     public static final Setting.AffixSetting<List<String>> ALLOWED_SIGNATURE_ALGORITHMS = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "allowed_signature_algorithms",
-        key -> Setting.listSetting(key, DEFAULT_ALLOWED_SIGNATURE_ALGORITHMS, Function.identity(), values -> {
-            if (values == null) {
-                throw new IllegalArgumentException(
-                    "Null value for [" + key + "]. Allowed values are " + SUPPORTED_SIGNATURE_ALGORITHMS + "}]"
-                );
-            } else if (values.isEmpty()) {
-                throw new IllegalArgumentException(
-                    "Empty value for [" + key + "]. Allowed values are " + SUPPORTED_SIGNATURE_ALGORITHMS + "}]"
-                );
-            }
-            for (final String value : values) {
-                if (SUPPORTED_SIGNATURE_ALGORITHMS.contains(value) == false) {
-                    throw new IllegalArgumentException(
-                        "Invalid value [" + values + "] for [" + key + "]. Allowed values are " + SUPPORTED_SIGNATURE_ALGORITHMS + "}]"
-                    );
-                }
-            }
-        }, Setting.Property.NodeScope)
+        key -> Setting.listSetting(
+            key,
+            DEFAULT_ALLOWED_SIGNATURE_ALGORITHMS,
+            Function.identity(),
+            values -> verifyNonNullNotEmpty(key, values, SUPPORTED_SIGNATURE_ALGORITHMS),
+            Setting.Property.NodeScope
+        )
     );
-    public static final Setting.AffixSetting<String> JWKSET_PATH = RealmSettings.simpleString(
-        TYPE,
+
+    public static final Setting.AffixSetting<String> JWKSET_PATH = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
         "jwkset_path",
-        Setting.Property.NodeScope
+        key -> Setting.simpleString(key, value -> verifyNonNullNotEmpty(key, value, null), Setting.Property.NodeScope)
     );
     // Note: <allowed_issuer>.issuer_hmac_key not defined here. It goes in the Elasticsearch keystore setting.
 
@@ -150,7 +139,13 @@ public class JwtRealmSettings {
     public static final Setting.AffixSetting<List<String>> ALLOWED_AUDIENCES = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "allowed_audiences",
-        key -> Setting.listSetting(key, DEFAULT_ALLOWED_AUDIENCES, Function.identity(), Setting.Property.NodeScope)
+        key -> Setting.listSetting(
+            key,
+            DEFAULT_ALLOWED_AUDIENCES,
+            Function.identity(),
+            values -> verifyNonNullNotEmpty(key, values, null),
+            Setting.Property.NodeScope
+        )
     );
 
     // JWT end-user settings
@@ -172,7 +167,7 @@ public class JwtRealmSettings {
         key -> Setting.simpleString(key, DEFAULT_CLIENT_AUTHENTICATION_TYPE, value -> {
             if (SUPPORTED_CLIENT_AUTHENTICATION_TYPE.contains(value) == false) {
                 throw new IllegalArgumentException(
-                    "Invalid value [" + value + "] for [" + key + "]. Allowed values are " + SUPPORTED_CLIENT_AUTHENTICATION_TYPE + "}]"
+                    "Invalid value [" + value + "] for [" + key + "]. Allowed values are " + SUPPORTED_CLIENT_AUTHENTICATION_TYPE + "}]."
                 );
             }
         }, Setting.Property.NodeScope)
@@ -220,4 +215,32 @@ public class JwtRealmSettings {
         "http.max_endpoint_connections",
         key -> Setting.intSetting(key, DEFAULT_HTTP_MAX_ENDPOINT_CONNECTIONS, MIN_HTTP_MAX_ENDPOINT_CONNECTIONS, Setting.Property.NodeScope)
     );
+
+    private static void verifyNonNullNotEmpty(final String key, final String value, final List<String> allowedValues) {
+        if ((value == null) || (value.isEmpty())) {
+            throw new IllegalArgumentException("Invalid null or empty value for [" + key + "].");
+        }
+        if (allowedValues != null) {
+            if (allowedValues.contains(value) == false) {
+                throw new IllegalArgumentException(
+                    "Invalid value [" + value + "] for [" + key + "]. Allowed values are " + allowedValues + "}]."
+                );
+            }
+        }
+    }
+
+    private static void verifyNonNullNotEmpty(final String key, final List<String> values, final List<String> allowedValues) {
+        if ((values == null) || (values.isEmpty())) {
+            if (allowedValues == null) {
+                throw new IllegalArgumentException("Invalid null or empty value for [" + key + "].");
+            } else {
+                throw new IllegalArgumentException(
+                    "Invalid null or empty list for [" + key + "]. Allowed values are " + allowedValues + "}]."
+                );
+            }
+        }
+        for (final String value : values) {
+            verifyNonNullNotEmpty(key, value, allowedValues);
+        }
+    }
 }

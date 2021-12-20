@@ -239,7 +239,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final QueryPhase queryPhase;
 
-    private final FetchPhase fetchPhase;
+    protected final FetchPhase fetchPhase;
 
     private volatile long defaultKeepAlive;
 
@@ -448,7 +448,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Try to load the query results from the cache or execute the query phase directly if the cache cannot be used.
      */
-    private void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context) throws Exception {
+    protected void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context) throws Exception {
         final boolean canCache = indicesService.canCache(request, context);
         context.getSearchExecutionContext().freezeContext();
         if (canCache) {
@@ -483,7 +483,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }));
     }
 
-    private <T> void ensureAfterSeqNoRefreshed(
+    protected <T> void ensureAfterSeqNoRefreshed(
         IndexShard shard,
         ShardSearchRequest request,
         CheckedSupplier<T, Exception> executable,
@@ -592,7 +592,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         runnable.run();
     }
 
-    private IndexShard getShard(ShardSearchRequest request) {
+    protected IndexShard getShard(ShardSearchRequest request) {
         final ShardSearchContextId contextId = request.readerId();
         if (contextId != null) {
             if (sessionId.equals(contextId.getSessionId())) {
@@ -1068,7 +1068,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private long getKeepAlive(ShardSearchRequest request) {
+    protected long getKeepAlive(ShardSearchRequest request) {
         if (request.scroll() != null) {
             return getScrollKeepAlive(request.scroll());
         } else if (request.keepAlive() != null) {
@@ -1350,7 +1350,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Shortcut ids to load, we load only "from" and up to "size". The phase controller
      * handles this as well since the result is always size * shards for Q_T_F
      */
-    private void shortcutDocIdsToLoad(SearchContext context) {
+    protected void shortcutDocIdsToLoad(SearchContext context) {
         final int[] docIdsToLoad;
         int docsOffset = 0;
         final Suggest suggest = context.queryResult().suggest();
@@ -1464,7 +1464,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return canMatch(request, true);
     }
 
-    private CanMatchShardResponse canMatch(ShardSearchRequest request, boolean checkRefreshPending) throws IOException {
+    protected CanMatchShardResponse canMatch(ShardSearchRequest request, boolean checkRefreshPending) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
         Releasable releasable = null;
         try {
@@ -1559,7 +1559,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private void rewriteAndFetchShardRequest(IndexShard shard, ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
+    protected void rewriteAndFetchShardRequest(IndexShard shard, ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
         ActionListener<Rewriteable> actionListener = ActionListener.wrap(r -> {
             if (request.readerId() != null) {
                 listener.onResponse(request);
@@ -1625,7 +1625,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * This helper class ensures we only execute either the success or the failure path for {@link SearchOperationListener}.
      * This is crucial for some implementations like {@link org.elasticsearch.index.search.stats.ShardSearchStats}.
      */
-    private static final class SearchOperationListenerExecutor implements AutoCloseable {
+    protected static final class SearchOperationListenerExecutor implements AutoCloseable {
         private final SearchOperationListener listener;
         private final SearchContext context;
         private final long time;

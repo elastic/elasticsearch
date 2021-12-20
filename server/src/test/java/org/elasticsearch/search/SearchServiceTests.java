@@ -114,6 +114,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -395,8 +396,10 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         SearchStats.Stats totalStats = indexShard.searchStats().getTotal();
         assertEquals(0, totalStats.getQueryCurrent());
+        assertEquals(0, totalStats.getQueryFailureCount());
         assertEquals(0, totalStats.getScrollCurrent());
         assertEquals(0, totalStats.getFetchCurrent());
+        assertEquals(0, totalStats.getFetchFailureCount());
     }
 
     public void testSearchWhileIndexDeletedDoesNotLeakSearchContext() throws ExecutionException, InterruptedException {
@@ -450,8 +453,64 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         SearchStats.Stats totalStats = indexShard.searchStats().getTotal();
         assertEquals(0, totalStats.getQueryCurrent());
+        assertEquals(0, totalStats.getQueryFailureCount());
         assertEquals(0, totalStats.getScrollCurrent());
         assertEquals(0, totalStats.getFetchCurrent());
+        assertEquals(0, totalStats.getFetchFailureCount());
+    }
+
+    public void testFailureDuringTheQuery() throws InterruptedException {
+        createIndex("index");
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        IndexShard indexShard = indexService.getShard(0);
+
+        MockSearchService service = (MockSearchService) getInstanceFromNode(SearchService.class);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+
+        AtomicBoolean finished = new AtomicBoolean(false);
+        ActionListener<SearchPhaseResult> result = new ActionListener<>() {
+            @Override
+            public void onResponse(SearchPhaseResult result1) {
+                finished.set(true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                finished.set(true);
+            }
+        };
+        service.executeQueryPhase(
+            new ShardSearchRequest(
+                OriginalIndices.NONE,
+                searchRequest,
+                new ShardId(resolveIndex("index"), 0),
+                0,
+                1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                1.0f,
+                -1,
+                null
+            ),
+            new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()),
+            result,
+            true
+        );
+
+        // wait for executeQueryPhase called in runAsync
+        waitUntil(finished::get, 10L, TimeUnit.SECONDS);
+
+        assertEquals(0, service.getActiveContexts());
+
+        SearchStats.Stats totalStats = indexShard.searchStats().getTotal();
+        assertEquals(0, totalStats.getQueryCurrent());
+        assertEquals(1, totalStats.getQueryFailureCount());
+        assertEquals(0, totalStats.getScrollCurrent());
+        assertEquals(0, totalStats.getFetchCurrent());
+        assertEquals(1, totalStats.getFetchFailureCount());
     }
 
     public void testBeforeShardLockDuringShardCreate() {

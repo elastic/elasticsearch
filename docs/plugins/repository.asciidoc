@@ -6,12 +6,12 @@ functionality in Elasticsearch by adding repositories backed by the cloud or
 by distributed file systems:
 
 [discrete]
-==== Core repository plugins
+==== Offical repository plugins
 
-NOTE: The S3, GCS and Azure repository plugins are now included in the {es}
-distribution by default.
+NOTE: Support for S3, GCS and Azure repositories is now bundled in {es} by
+default.
 
-The core repository plugins are:
+The official repository plugins are:
 
 <<repository-hdfs,HDFS Repository>>::
 

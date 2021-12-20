@@ -324,18 +324,15 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private void createIndex(RestHighLevelClient client, String name, int shards) throws IOException {
         final Request putIndexRequest = new Request("PUT", "/" + name);
-        putIndexRequest.setJsonEntity(
-            "{\n"
-                + "    \"settings\" : {\n"
-                + "        \"index\" : {\n"
-                + "            \"number_of_shards\" : "
-                + shards
-                + ", \n"
-                + "            \"number_of_replicas\" : 0 \n"
-                + "        }\n"
-                + "    }\n"
-                + "}"
-        );
+        putIndexRequest.setJsonEntity("""
+            {
+                "settings" : {
+                    "index" : {
+                        "number_of_shards" : %s,
+                        "number_of_replicas" : 0
+                    }
+                }
+            }""".formatted(shards));
         final Response response = client.getLowLevelClient().performRequest(putIndexRequest);
         assertThat(response.getStatusLine().getStatusCode(), is(HttpURLConnection.HTTP_OK));
     }

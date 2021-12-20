@@ -185,20 +185,33 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     public void testMatchInterval() throws IOException {
 
-        String json = "{ \"intervals\" : " + "{ \"" + TEXT_FIELD_NAME + "\" : { \"match\" : { \"query\" : \"Hello world\" } } } }";
+        String json = """
+            {
+              "intervals": {
+                "%s": {
+                  "match": {
+                    "query": "Hello world"
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
 
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
         Query expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.unordered(Intervals.term("hello"), Intervals.term("world")));
 
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        json = "{ \"intervals\" : "
-            + "{ \""
-            + TEXT_FIELD_NAME
-            + "\" : { "
-            + "       \"match\" : { "
-            + "           \"query\" : \"Hello world\","
-            + "           \"max_gaps\" : 40 } } } }";
+        json = """
+            {
+              "intervals": {
+                "%s": {
+                  "match": {
+                    "query": "Hello world",
+                    "max_gaps": 40
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
 
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(
@@ -207,14 +220,18 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        json = "{ \"intervals\" : "
-            + "{ \""
-            + TEXT_FIELD_NAME
-            + "\" : { "
-            + "       \"match\" : { "
-            + "           \"query\" : \"Hello world\","
-            + "           \"ordered\" : true },"
-            + "       \"boost\" : 2 } } }";
+        json = """
+            {
+              "intervals": {
+                "%s": {
+                  "match": {
+                    "query": "Hello world",
+                    "ordered": true
+                  },
+                  "boost": 2
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
 
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new BoostQuery(
@@ -223,15 +240,19 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        json = "{ \"intervals\" : "
-            + "{ \""
-            + TEXT_FIELD_NAME
-            + "\" : { "
-            + "       \"match\" : { "
-            + "           \"query\" : \"Hello world\","
-            + "           \"max_gaps\" : 10,"
-            + "           \"analyzer\" : \"whitespace\","
-            + "           \"ordered\" : true } } } }";
+        json = """
+            {
+              "intervals": {
+                "%s": {
+                  "match": {
+                    "query": "Hello world",
+                    "max_gaps": 10,
+                    "analyzer": "whitespace",
+                    "ordered": true
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
 
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(
@@ -240,18 +261,20 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        json = "{ \"intervals\" : "
-            + "{ \""
-            + TEXT_FIELD_NAME
-            + "\" : { "
-            + "       \"match\" : { "
-            + "           \"query\" : \"Hello world\","
-            + "           \"max_gaps\" : 10,"
-            + "           \"analyzer\" : \"whitespace\","
-            + "           \"use_field\" : \""
-            + MASKED_FIELD
-            + "\","
-            + "           \"ordered\" : true } } } }";
+        json = """
+            {
+              "intervals": {
+                "%s": {
+                  "match": {
+                    "query": "Hello world",
+                    "max_gaps": 10,
+                    "analyzer": "whitespace",
+                    "use_field": "%s",
+                    "ordered": true
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME, MASKED_FIELD);
 
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(
@@ -260,18 +283,26 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        json = "{ \"intervals\" : "
-            + "{ \""
-            + TEXT_FIELD_NAME
-            + "\" : { "
-            + "       \"match\" : { "
-            + "           \"query\" : \"Hello world\","
-            + "           \"max_gaps\" : 10,"
-            + "           \"analyzer\" : \"whitespace\","
-            + "           \"ordered\" : true,"
-            + "           \"filter\" : {"
-            + "               \"containing\" : {"
-            + "                   \"match\" : { \"query\" : \"blah\" } } } } } } }";
+        json = """
+            {
+              "intervals": {
+                "%s": {
+                  "match": {
+                    "query": "Hello world",
+                    "max_gaps": 10,
+                    "analyzer": "whitespace",
+                    "ordered": true,
+                    "filter": {
+                      "containing": {
+                        "match": {
+                          "query": "blah"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
 
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(
@@ -286,26 +317,59 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     public void testOrInterval() throws IOException {
 
-        String json = "{ \"intervals\" : { \""
-            + TEXT_FIELD_NAME
-            + "\": {"
-            + "       \"any_of\" : { "
-            + "           \"intervals\" : ["
-            + "               { \"match\" : { \"query\" : \"one\" } },"
-            + "               { \"match\" : { \"query\" : \"two\" } } ] } } } }";
+        String json = """
+            {
+              "intervals": {
+                "%s": {
+                  "any_of": {
+                    "intervals": [
+                      {
+                        "match": {
+                          "query": "one"
+                        }
+                      },
+                      {
+                        "match": {
+                          "query": "two"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
         Query expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.or(Intervals.term("one"), Intervals.term("two")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        json = "{ \"intervals\" : { \""
-            + TEXT_FIELD_NAME
-            + "\": {"
-            + "       \"any_of\" : { "
-            + "           \"intervals\" : ["
-            + "               { \"match\" : { \"query\" : \"one\" } },"
-            + "               { \"match\" : { \"query\" : \"two\" } } ],"
-            + "           \"filter\" : {"
-            + "               \"not_containing\" : { \"match\" : { \"query\" : \"three\" } } } } } } }";
+        json = """
+            {
+              "intervals": {
+                "%s": {
+                  "any_of": {
+                    "intervals": [
+                      {
+                        "match": {
+                          "query": "one"
+                        }
+                      },
+                      {
+                        "match": {
+                          "query": "two"
+                        }
+                      }
+                    ],
+                    "filter": {
+                      "not_containing": {
+                        "match": {
+                          "query": "three"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(
             TEXT_FIELD_NAME,
@@ -316,25 +380,39 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     public void testCombineInterval() throws IOException {
 
-        String json = "{ \"intervals\" : { \""
-            + TEXT_FIELD_NAME
-            + "\": {"
-            + "       \"all_of\" : {"
-            + "           \"ordered\" : true,"
-            + "           \"intervals\" : ["
-            + "               { \"match\" : { \"query\" : \"one\" } },"
-            + "               { \"all_of\" : { "
-            + "                   \"ordered\" : false,"
-            + "                   \"intervals\" : ["
-            + "                       { \"match\" : { \"query\" : \"two\" } },"
-            + "                       { \"match\" : { \"query\" : \"three\" } } ] } } ],"
-            + "           \"max_gaps\" : 30,"
-            + "           \"filter\" : { "
-            + "               \"contained_by\" : { "
-            + "                   \"match\" : { "
-            + "                       \"query\" : \"SENTENCE\","
-            + "                       \"analyzer\" : \"keyword\" } } } },"
-            + "       \"boost\" : 1.5 } } }";
+        String json = """
+            {
+              "intervals": {
+                "%s": {
+                  "all_of": {
+                    "ordered": true,
+                    "intervals": [
+                      {
+                        "match": {
+                          "query": "one"
+                        }
+                      },
+                      {
+                        "all_of": {
+                          "ordered": false,
+                          "intervals": [ { "match": { "query": "two" } }, { "match": { "query": "three" } } ]
+                        }
+                      }
+                    ],
+                    "max_gaps": 30,
+                    "filter": {
+                      "contained_by": {
+                        "match": {
+                          "query": "SENTENCE",
+                          "analyzer": "keyword"
+                        }
+                      }
+                    }
+                  },
+                  "boost": 1.5
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
         Query expected = new BoostQuery(
             new IntervalQuery(
@@ -354,22 +432,47 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     public void testCombineDisjunctionInterval() throws IOException {
-        String json = "{ \"intervals\" : "
-            + "{ \""
-            + TEXT_FIELD_NAME
-            + "\": { "
-            + "       \"all_of\" : {"
-            + "           \"ordered\" : true,"
-            + "           \"intervals\" : ["
-            + "               { \"match\" : { \"query\" : \"atmosphere\" } },"
-            + "               { \"any_of\" : {"
-            + "                   \"intervals\" : ["
-            + "                       { \"match\" : { \"query\" : \"cold\" } },"
-            + "                       { \"match\" : { \"query\" : \"outside\" } } ] } } ],"
-            + "           \"max_gaps\" : 30,"
-            + "           \"filter\" : { "
-            + "               \"not_contained_by\" : { "
-            + "                   \"match\" : { \"query\" : \"freeze\" } } } } } } }";
+        String json = """
+            {
+              "intervals": {
+                "%s": {
+                  "all_of": {
+                    "ordered": true,
+                    "intervals": [
+                      {
+                        "match": {
+                          "query": "atmosphere"
+                        }
+                      },
+                      {
+                        "any_of": {
+                          "intervals": [
+                            {
+                              "match": {
+                                "query": "cold"
+                              }
+                            },
+                            {
+                              "match": {
+                                "query": "outside"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ],
+                    "max_gaps": 30,
+                    "filter": {
+                      "not_contained_by": {
+                        "match": {
+                          "query": "freeze"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
 
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
         Query expected = new IntervalQuery(
@@ -405,18 +508,20 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         });
         assertThat(e.getMessage(), equalTo("Cannot create intervals over field [" + NO_POSITIONS_FIELD + "] with no positions indexed"));
 
-        String json = "{ \"intervals\" : "
-            + "{ \""
-            + TEXT_FIELD_NAME
-            + "\" : { "
-            + "       \"match\" : { "
-            + "           \"query\" : \"Hello world\","
-            + "           \"max_gaps\" : 10,"
-            + "           \"analyzer\" : \"whitespace\","
-            + "           \"use_field\" : \""
-            + NO_POSITIONS_FIELD
-            + "\","
-            + "           \"ordered\" : true } } } }";
+        String json = """
+            {
+              "intervals": {
+                "%s": {
+                  "match": {
+                    "query": "Hello world",
+                    "max_gaps": 10,
+                    "analyzer": "whitespace",
+                    "use_field": "%s",
+                    "ordered": true
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME, NO_POSITIONS_FIELD);
 
         e = expectThrows(IllegalArgumentException.class, () -> {
             IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
@@ -426,12 +531,24 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     public void testMultipleProviders() {
-        String json = "{ \"intervals\" : { \""
-            + TEXT_FIELD_NAME
-            + "\": { "
-            + "\"boost\" : 1,"
-            + "\"match\" : { \"query\" : \"term1\" },"
-            + "\"all_of\" : { \"intervals\" : [ { \"query\" : \"term2\" } ] } }";
+        String json = """
+            {
+              "intervals": {
+                "%s": {
+                  "boost": 1,
+                  "match": {
+                    "query": "term1"
+                  },
+                  "all_of": {
+                    "intervals": [
+                      {
+                        "query": "term2"
+                      }
+                    ]
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
 
         ParsingException e = expectThrows(ParsingException.class, () -> { parseQuery(json); });
         assertThat(e.getMessage(), equalTo("Only one interval rule can be specified, found [match] and [all_of]"));
@@ -454,14 +571,21 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }
         };
 
-        String json = "{ \"intervals\" : { \""
-            + TEXT_FIELD_NAME
-            + "\": { "
-            + "\"match\" : { "
-            + "   \"query\" : \"term1\","
-            + "   \"filter\" : { "
-            + "       \"script\" : { "
-            + "            \"source\" : \"interval.start > 3\" } } } } } }";
+        String json = """
+            {
+              "intervals": {
+                "%s": {
+                  "match": {
+                    "query": "term1",
+                    "filter": {
+                      "script": {
+                        "source": "interval.start > 3"
+                      }
+                    }
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
 
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
         Query q = builder.toQuery(context);
@@ -475,37 +599,75 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     public void testPrefixes() throws IOException {
 
-        String json = "{ \"intervals\" : { \"" + TEXT_FIELD_NAME + "\": { " + "\"prefix\" : { \"prefix\" : \"term\" } } } }";
+        String json = """
+            {
+              "intervals": {
+                "%s": {
+                  "prefix": {
+                    "prefix": "term"
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
         Query expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.prefix(new BytesRef("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String no_positions_json = "{ \"intervals\" : { \""
-            + NO_POSITIONS_FIELD
-            + "\": { "
-            + "\"prefix\" : { \"prefix\" : \"term\" } } } }";
+        String no_positions_json = """
+            {
+              "intervals": {
+                "%s": {
+                  "prefix": {
+                    "prefix": "term"
+                  }
+                }
+              }
+            }""".formatted(NO_POSITIONS_FIELD);
         expectThrows(IllegalArgumentException.class, () -> {
             IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(no_positions_json);
             builder1.toQuery(createSearchExecutionContext());
         });
 
-        String no_positions_fixed_field_json = "{ \"intervals\" : { \""
-            + TEXT_FIELD_NAME
-            + "\": { "
-            + "\"prefix\" : { \"prefix\" : \"term\", \"use_field\" : \""
-            + NO_POSITIONS_FIELD
-            + "\" } } } }";
+        String no_positions_fixed_field_json = """
+            {
+              "intervals": {
+                "%s": {
+                  "prefix": {
+                    "prefix": "term",
+                    "use_field": "%s"
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME, NO_POSITIONS_FIELD);
         expectThrows(IllegalArgumentException.class, () -> {
             IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(no_positions_fixed_field_json);
             builder1.toQuery(createSearchExecutionContext());
         });
 
-        String prefix_json = "{ \"intervals\" : { \"" + PREFIXED_FIELD + "\": { " + "\"prefix\" : { \"prefix\" : \"term\" } } } }";
+        String prefix_json = """
+            {
+              "intervals": {
+                "%s": {
+                  "prefix": {
+                    "prefix": "term"
+                  }
+                }
+              }
+            }""".formatted(PREFIXED_FIELD);
         builder = (IntervalQueryBuilder) parseQuery(prefix_json);
         expected = new IntervalQuery(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String short_prefix_json = "{ \"intervals\" : { \"" + PREFIXED_FIELD + "\": { " + "\"prefix\" : { \"prefix\" : \"t\" } } } }";
+        String short_prefix_json = """
+            {
+              "intervals": {
+                "%s": {
+                  "prefix": {
+                    "prefix": "t"
+                  }
+                }
+              }
+            }""".formatted(PREFIXED_FIELD);
         builder = (IntervalQueryBuilder) parseQuery(short_prefix_json);
         expected = new IntervalQuery(
             PREFIXED_FIELD,
@@ -513,12 +675,17 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String fix_field_prefix_json = "{ \"intervals\" : { \""
-            + TEXT_FIELD_NAME
-            + "\": { "
-            + "\"prefix\" : { \"prefix\" : \"term\", \"use_field\" : \""
-            + PREFIXED_FIELD
-            + "\" } } } }";
+        String fix_field_prefix_json = """
+            {
+              "intervals": {
+                "%s": {
+                  "prefix": {
+                    "prefix": "term",
+                    "use_field": "%s"
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME, PREFIXED_FIELD);
         builder = (IntervalQueryBuilder) parseQuery(fix_field_prefix_json);
         // This looks weird, but it's fine, because the innermost fixField wins
         expected = new IntervalQuery(
@@ -527,20 +694,34 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String keyword_json = "{ \"intervals\" : { \""
-            + PREFIXED_FIELD
-            + "\": { "
-            + "\"prefix\" : { \"prefix\" : \"Term\", \"analyzer\" : \"keyword\" } } } }";
+        String keyword_json = """
+            {
+              "intervals": {
+                "%s": {
+                  "prefix": {
+                    "prefix": "Term",
+                    "analyzer": "keyword"
+                  }
+                }
+              }
+            }""".formatted(PREFIXED_FIELD);
         builder = (IntervalQueryBuilder) parseQuery(keyword_json);
         expected = new IntervalQuery(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("Term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String keyword_fix_field_json = "{ \"intervals\" : { \""
-            + TEXT_FIELD_NAME
-            + "\": { "
-            + "\"prefix\" : { \"prefix\" : \"Term\", \"analyzer\" : \"keyword\", \"use_field\" : \""
-            + PREFIXED_FIELD
-            + "\" } } } }";
+        String keyword_fix_field_json = """
+            {
+              "intervals": {
+                "%s": {
+                  "prefix": {
+                    "prefix": "Term",
+                    "analyzer": "keyword",
+                    "use_field": "%s"
+                  }
+                }
+              }
+            }
+            """.formatted(TEXT_FIELD_NAME, PREFIXED_FIELD);
         builder = (IntervalQueryBuilder) parseQuery(keyword_fix_field_json);
         expected = new IntervalQuery(
             TEXT_FIELD_NAME,
@@ -551,54 +732,97 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     public void testWildcard() throws IOException {
 
-        String json = "{ \"intervals\" : { \"" + TEXT_FIELD_NAME + "\": { " + "\"wildcard\" : { \"pattern\" : \"Te?m\" } } } }";
+        String json = """
+            {
+              "intervals": {
+                "%s": {
+                  "wildcard": {
+                    "pattern": "Te?m"
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
 
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
         Query expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.wildcard(new BytesRef("te?m")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String no_positions_json = "{ \"intervals\" : { \""
-            + NO_POSITIONS_FIELD
-            + "\": { "
-            + "\"wildcard\" : { \"pattern\" : \"term\" } } } }";
+        String no_positions_json = """
+            {
+              "intervals": {
+                "%s": {
+                  "wildcard": {
+                    "pattern": "term"
+                  }
+                }
+              }
+            }
+            """.formatted(NO_POSITIONS_FIELD);
         expectThrows(IllegalArgumentException.class, () -> {
             IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(no_positions_json);
             builder1.toQuery(createSearchExecutionContext());
         });
 
-        String keyword_json = "{ \"intervals\" : { \""
-            + TEXT_FIELD_NAME
-            + "\": { "
-            + "\"wildcard\" : { \"pattern\" : \"Te?m\", \"analyzer\" : \"keyword\" } } } }";
+        String keyword_json = """
+            {
+              "intervals": {
+                "%s": {
+                  "wildcard": {
+                    "pattern": "Te?m",
+                    "analyzer": "keyword"
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
 
         builder = (IntervalQueryBuilder) parseQuery(keyword_json);
         expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.wildcard(new BytesRef("Te?m")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String fixed_field_json = "{ \"intervals\" : { \""
-            + TEXT_FIELD_NAME
-            + "\": { "
-            + "\"wildcard\" : { \"pattern\" : \"Te?m\", \"use_field\" : \"masked_field\" } } } }";
+        String fixed_field_json = """
+            {
+              "intervals": {
+                "%s": {
+                  "wildcard": {
+                    "pattern": "Te?m",
+                    "use_field": "masked_field"
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
 
         builder = (IntervalQueryBuilder) parseQuery(fixed_field_json);
         expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.fixField(MASKED_FIELD, Intervals.wildcard(new BytesRef("te?m"))));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String fixed_field_json_no_positions = "{ \"intervals\" : { \""
-            + TEXT_FIELD_NAME
-            + "\": { "
-            + "\"wildcard\" : { \"pattern\" : \"Te?m\", \"use_field\" : \""
-            + NO_POSITIONS_FIELD
-            + "\" } } } }";
+        String fixed_field_json_no_positions = """
+            {
+              "intervals": {
+                "%s": {
+                  "wildcard": {
+                    "pattern": "Te?m",
+                    "use_field": "%s"
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME, NO_POSITIONS_FIELD);
         expectThrows(IllegalArgumentException.class, () -> {
             IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(fixed_field_json_no_positions);
             builder1.toQuery(createSearchExecutionContext());
         });
 
-        String fixed_field_analyzer_json = "{ \"intervals\" : { \""
-            + TEXT_FIELD_NAME
-            + "\": { "
-            + "\"wildcard\" : { \"pattern\" : \"Te?m\", \"use_field\" : \"masked_field\", \"analyzer\" : \"keyword\" } } } }";
+        String fixed_field_analyzer_json = """
+            {
+              "intervals": {
+                "%s": {
+                  "wildcard": {
+                    "pattern": "Te?m",
+                    "use_field": "masked_field",
+                    "analyzer": "keyword"
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
 
         builder = (IntervalQueryBuilder) parseQuery(fixed_field_analyzer_json);
         expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.fixField(MASKED_FIELD, Intervals.wildcard(new BytesRef("Te?m"))));
@@ -612,7 +836,16 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     public void testFuzzy() throws IOException {
 
-        String json = "{ \"intervals\" : { \"" + TEXT_FIELD_NAME + "\": { " + "\"fuzzy\" : { \"term\" : \"Term\" } } } }";
+        String json = """
+            {
+              "intervals": {
+                "%s": {
+                  "fuzzy": {
+                    "term": "Term"
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
 
         Query expected = new IntervalQuery(
@@ -621,45 +854,82 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String json_with_prefix = "{ \"intervals\" : { \""
-            + TEXT_FIELD_NAME
-            + "\": { "
-            + "\"fuzzy\" : { \"term\" : \"Term\", \"prefix_length\" : 2 } } } }";
+        String json_with_prefix = """
+            {
+              "intervals": {
+                "%s": {
+                  "fuzzy": {
+                    "term": "Term",
+                    "prefix_length": 2
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
         builder = (IntervalQueryBuilder) parseQuery(json_with_prefix);
         expected = new IntervalQuery(TEXT_FIELD_NAME, buildFuzzySource("term", "term", 2, true, Fuzziness.AUTO.asDistance("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String json_with_fuzziness = "{ \"intervals\" : { \""
-            + TEXT_FIELD_NAME
-            + "\": { "
-            + "\"fuzzy\" : { \"term\" : \"Term\", \"prefix_length\" : 2, \"fuzziness\" : \"1\" } } } }";
+        String json_with_fuzziness = """
+            {
+              "intervals": {
+                "%s": {
+                  "fuzzy": {
+                    "term": "Term",
+                    "prefix_length": 2,
+                    "fuzziness": "1"
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
         builder = (IntervalQueryBuilder) parseQuery(json_with_fuzziness);
         expected = new IntervalQuery(TEXT_FIELD_NAME, buildFuzzySource("term", "term", 2, true, Fuzziness.ONE.asDistance("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String json_no_transpositions = "{ \"intervals\" : { \""
-            + TEXT_FIELD_NAME
-            + "\": { "
-            + "\"fuzzy\" : { \"term\" : \"Term\", \"prefix_length\" : 2, \"transpositions\" : false } } } }";
+        String json_no_transpositions = """
+            {
+              "intervals": {
+                "%s": {
+                  "fuzzy": {
+                    "term": "Term",
+                    "prefix_length": 2,
+                    "transpositions": false
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
         builder = (IntervalQueryBuilder) parseQuery(json_no_transpositions);
         expected = new IntervalQuery(TEXT_FIELD_NAME, buildFuzzySource("term", "term", 2, false, Fuzziness.AUTO.asDistance("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String json_with_analyzer = "{ \"intervals\" : { \""
-            + TEXT_FIELD_NAME
-            + "\": { "
-            + "\"fuzzy\" : { \"term\" : \"Term\", \"prefix_length\" : 2, \"analyzer\" : \"keyword\" } } } }";
+        String json_with_analyzer = """
+            {
+              "intervals": {
+                "%s": {
+                  "fuzzy": {
+                    "term": "Term",
+                    "prefix_length": 2,
+                    "analyzer": "keyword"
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME);
         builder = (IntervalQueryBuilder) parseQuery(json_with_analyzer);
         expected = new IntervalQuery(TEXT_FIELD_NAME, buildFuzzySource("Term", "Term", 2, true, Fuzziness.AUTO.asDistance("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
-        String json_with_fixfield = "{ \"intervals\" : { \""
-            + TEXT_FIELD_NAME
-            + "\": { "
-            + "\"fuzzy\" : { \"term\" : \"Term\", \"prefix_length\" : 2, \"fuzziness\" : \"1\", "
-            + "\"use_field\" : \""
-            + MASKED_FIELD
-            + "\" } } } }";
+        String json_with_fixfield = """
+            {
+              "intervals": {
+                "%s": {
+                  "fuzzy": {
+                    "term": "Term",
+                    "prefix_length": 2,
+                    "fuzziness": "1",
+                    "use_field": "%s"
+                  }
+                }
+              }
+            }""".formatted(TEXT_FIELD_NAME, MASKED_FIELD);
         builder = (IntervalQueryBuilder) parseQuery(json_with_fixfield);
         expected = new IntervalQuery(
             TEXT_FIELD_NAME,

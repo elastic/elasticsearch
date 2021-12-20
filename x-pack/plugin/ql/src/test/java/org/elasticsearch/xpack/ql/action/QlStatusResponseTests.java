@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ql.action;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -58,35 +59,25 @@ public class QlStatusResponseTests extends AbstractWireSerializingTestCase<QlSta
     public void testToXContent() throws IOException {
         QlStatusResponse response = createTestInstance();
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            String expectedJson = "{\n"
-                + "  \"id\" : \""
-                + response.getId()
-                + "\",\n"
-                + "  \"is_running\" : "
-                + response.isRunning()
-                + ",\n"
-                + "  \"is_partial\" : "
-                + response.isPartial()
-                + ",\n";
-
-            if (response.getStartTime() != null) {
-                expectedJson = expectedJson + "  \"start_time_in_millis\" : " + response.getStartTime() + ",\n";
-            }
-            expectedJson = expectedJson + "  \"expiration_time_in_millis\" : " + response.getExpirationTime();
-
-            if (response.getCompletionStatus() == null) {
-                expectedJson = expectedJson + "\n" + "}";
-            } else {
-                expectedJson = expectedJson
-                    + ",\n"
-                    + "  \"completion_status\" : "
-                    + response.getCompletionStatus().getStatus()
-                    + "\n"
-                    + "}";
-            }
-            builder.prettyPrint();
+            String expectedJson = """
+                {
+                  "id" : "%s",
+                  "is_running" : %s,
+                  "is_partial" : %s,
+                  %s
+                  "expiration_time_in_millis" : %s
+                  %s
+                }
+                """.formatted(
+                response.getId(),
+                response.isRunning(),
+                response.isPartial(),
+                response.getStartTime() != null ? "\"start_time_in_millis\" : " + response.getStartTime() + "," : "",
+                response.getExpirationTime(),
+                response.getCompletionStatus() != null ? ", \"completion_status\" : " + response.getCompletionStatus().getStatus() : ""
+            );
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            assertEquals(expectedJson, Strings.toString(builder));
+            assertEquals(XContentHelper.stripWhitespace(expectedJson), Strings.toString(builder));
         }
     }
 }

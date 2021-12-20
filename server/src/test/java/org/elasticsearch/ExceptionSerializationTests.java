@@ -488,9 +488,11 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testNotSerializableExceptionWrapper() throws IOException {
         NotSerializableExceptionWrapper ex = serialize(new NotSerializableExceptionWrapper(new NullPointerException()));
-        assertEquals("{\"type\":\"null_pointer_exception\",\"reason\":\"null_pointer_exception: null\"}", Strings.toString(ex));
+        assertEquals("""
+            {"type":"null_pointer_exception","reason":"null_pointer_exception: null"}""", Strings.toString(ex));
         ex = serialize(new NotSerializableExceptionWrapper(new IllegalArgumentException("nono!")));
-        assertEquals("{\"type\":\"illegal_argument_exception\",\"reason\":\"illegal_argument_exception: nono!\"}", Strings.toString(ex));
+        assertEquals("""
+            {"type":"illegal_argument_exception","reason":"illegal_argument_exception: nono!"}""", Strings.toString(ex));
 
         class UnknownException extends Exception {
             UnknownException(final String message) {

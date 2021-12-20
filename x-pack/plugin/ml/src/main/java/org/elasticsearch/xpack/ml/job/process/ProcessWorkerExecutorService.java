@@ -95,8 +95,8 @@ public class ProcessWorkerExecutorService extends AbstractExecutorService {
     public synchronized void execute(Runnable command) {
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(processName + " worker service has shutdown", true);
-            if (command instanceof AbstractRunnable) {
-                ((AbstractRunnable) command).onRejection(rejected);
+            if (command instanceof AbstractRunnable runnable) {
+                runnable.onRejection(rejected);
             } else {
                 throw rejected;
             }

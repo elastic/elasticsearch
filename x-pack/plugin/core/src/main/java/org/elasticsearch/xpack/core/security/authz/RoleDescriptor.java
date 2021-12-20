@@ -604,9 +604,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     grantedFields = readStringArray(roleName, parser, true);
                 } else {
                     throw new ElasticsearchParseException(
-                        "[\"fields\": [...]] format has changed for field"
-                            + " permissions in role [{}], use [\"{}\": {\"{}\":[...],"
-                            + "\"{}\":[...]}] instead",
+                        """
+                            ["fields": [...]] format has changed for field permissions in role [{}], \
+                            use ["{}": {"{}":[...],"{}":[...]}] instead""",
                         roleName,
                         Fields.FIELD_PERMISSIONS,
                         Fields.GRANT_FIELDS,

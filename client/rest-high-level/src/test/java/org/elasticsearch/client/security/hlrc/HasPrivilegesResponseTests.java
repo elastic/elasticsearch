@@ -13,6 +13,7 @@ import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -74,21 +75,29 @@ public class HasPrivilegesResponseTests extends AbstractResponseTestCase<
         BytesReference bytes = BytesReference.bytes(builder);
 
         final String json = bytes.utf8ToString();
-        Assert.assertThat(
-            json,
-            equalTo(
-                "{"
-                    + "\"username\":\"daredevil\","
-                    + "\"has_all_requested\":false,"
-                    + "\"cluster\":{\"manage\":true},"
-                    + "\"index\":{"
-                    + "\"customers\":{\"read\":true,\"index\":true,\"delete\":true,\"manage\":false},"
-                    + "\"staff\":{\"read\":true,\"index\":true,\"delete\":false,\"manage\":false}"
-                    + "},"
-                    + "\"application\":{}"
-                    + "}"
-            )
-        );
+        Assert.assertThat(json, equalTo(XContentHelper.stripWhitespace("""
+            {
+              "username": "daredevil",
+              "has_all_requested": false,
+              "cluster": {
+                "manage": true
+              },
+              "index": {
+                "customers": {
+                  "read": true,
+                  "index": true,
+                  "delete": true,
+                  "manage": false
+                },
+                "staff": {
+                  "read": true,
+                  "index": true,
+                  "delete": false,
+                  "manage": false
+                }
+              },
+              "application": {}
+            }""")));
     }
 
     @Override

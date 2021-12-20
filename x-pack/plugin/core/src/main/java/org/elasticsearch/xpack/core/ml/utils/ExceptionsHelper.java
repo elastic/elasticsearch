@@ -145,8 +145,7 @@ public class ExceptionsHelper {
         // circuit breaking exceptions are at the bottom
         Throwable unwrappedThrowable = unwrapCause(t);
 
-        if (unwrappedThrowable instanceof SearchPhaseExecutionException) {
-            SearchPhaseExecutionException searchPhaseException = (SearchPhaseExecutionException) unwrappedThrowable;
+        if (unwrappedThrowable instanceof SearchPhaseExecutionException searchPhaseException) {
             for (ShardSearchFailure shardFailure : searchPhaseException.shardFailures()) {
                 Throwable unwrappedShardFailure = unwrapCause(shardFailure.getCause());
 

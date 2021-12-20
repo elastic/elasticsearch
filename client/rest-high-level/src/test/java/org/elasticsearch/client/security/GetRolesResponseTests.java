@@ -29,28 +29,29 @@ import static org.hamcrest.Matchers.equalTo;
 public class GetRolesResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        String json = "{\n"
-            + "  \"my_admin_role\": {\n"
-            + "    \"cluster\" : [ \"all\" ],\n"
-            + "    \"indices\" : [\n"
-            + "      {\n"
-            + "        \"names\" : [ \"index1\", \"index2\" ],\n"
-            + "        \"privileges\" : [ \"all\" ],\n"
-            + "        \"allow_restricted_indices\" : true,\n"
-            + "        \"field_security\" : {\n"
-            + "          \"grant\" : [ \"title\", \"body\" ]}\n"
-            + "      }\n"
-            + "    ],\n"
-            + "    \"applications\" : [ ],\n"
-            + "    \"run_as\" : [ \"other_user\" ],\n"
-            + "    \"metadata\" : {\n"
-            + "      \"version\" : 1\n"
-            + "    },\n"
-            + "    \"transient_metadata\" : {\n"
-            + "      \"enabled\" : true\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "my_admin_role": {
+                "cluster" : [ "all" ],
+                "indices" : [
+                  {
+                    "names" : [ "index1", "index2" ],
+                    "privileges" : [ "all" ],
+                    "allow_restricted_indices" : true,
+                    "field_security" : {
+                      "grant" : [ "title", "body" ]}
+                  }
+                ],
+                "applications" : [ ],
+                "run_as" : [ "other_user" ],
+                "metadata" : {
+                  "version" : 1
+                },
+                "transient_metadata" : {
+                  "enabled" : true
+                }
+              }
+            }""";
         final GetRolesResponse response = GetRolesResponse.fromXContent(
             (XContentType.JSON.xContent()
                 .createParser(new NamedXContentRegistry(Collections.emptyList()), DeprecationHandler.IGNORE_DEPRECATIONS, json))

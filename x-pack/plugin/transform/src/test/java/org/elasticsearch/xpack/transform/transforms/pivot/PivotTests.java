@@ -189,11 +189,24 @@ public class PivotTests extends ESTestCase {
     }
 
     public void testGetPerformanceCriticalFields() throws IOException {
-        String groupConfigJson = "{"
-            + "\"group-A\": { \"terms\": { \"field\": \"field-A\" } },"
-            + "\"group-B\": { \"terms\": { \"field\": \"field-B\" } },"
-            + "\"group-C\": { \"terms\": { \"field\": \"field-C\" } }"
-            + "}";
+        String groupConfigJson = """
+            {
+              "group-A": {
+                "terms": {
+                  "field": "field-A"
+                }
+              },
+              "group-B": {
+                "terms": {
+                  "field": "field-B"
+                }
+              },
+              "group-C": {
+                "terms": {
+                  "field": "field-C"
+                }
+              }
+            }""";
         GroupConfig groupConfig;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, groupConfigJson)) {
             groupConfig = GroupConfig.fromXContent(parser, false);
@@ -275,63 +288,95 @@ public class PivotTests extends ESTestCase {
 
     private AggregationConfig getAggregationConfig(String agg) throws IOException {
         if (agg.equals(AggregationType.SCRIPTED_METRIC.getName())) {
-            return parseAggregations(
-                "{\"pivot_scripted_metric\": {\n"
-                    + "\"scripted_metric\": {\n"
-                    + "    \"init_script\" : \"state.transactions = []\",\n"
-                    + "    \"map_script\" : "
-                    + "        \"state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)\", \n"
-                    + "    \"combine_script\" : \"double profit = 0; for (t in state.transactions) { profit += t } return profit\",\n"
-                    + "    \"reduce_script\" : \"double profit = 0; for (a in states) { profit += a } return profit\"\n"
-                    + "  }\n"
-                    + "}}"
-            );
+            return parseAggregations("""
+                {
+                  "pivot_scripted_metric": {
+                    "scripted_metric": {
+                      "init_script": "state.transactions = []",
+                      "map_script": "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)",
+                      "combine_script": "double profit = 0; for (t in state.transactions) { profit += t } return profit",
+                      "reduce_script": "double profit = 0; for (a in states) { profit += a } return profit"
+                    }
+                  }
+                }""");
         }
         if (agg.equals(AggregationType.BUCKET_SCRIPT.getName())) {
-            return parseAggregations(
-                "{\"pivot_bucket_script\":{"
-                    + "\"bucket_script\":{"
-                    + "\"buckets_path\":{\"param_1\":\"other_bucket\"},"
-                    + "\"script\":\"return params.param_1\"}}}"
-            );
+            return parseAggregations("""
+                {
+                  "pivot_bucket_script": {
+                    "bucket_script": {
+                      "buckets_path": {
+                        "param_1": "other_bucket"
+                      },
+                      "script": "return params.param_1"
+                    }
+                  }
+                }""");
         }
         if (agg.equals(AggregationType.BUCKET_SELECTOR.getName())) {
-            return parseAggregations(
-                "{\"pivot_bucket_selector\":{"
-                    + "\"bucket_selector\":{"
-                    + "\"buckets_path\":{\"param_1\":\"other_bucket\"},"
-                    + "\"script\":\"params.param_1 > 42.0\"}}}"
-            );
+            return parseAggregations("""
+                {
+                  "pivot_bucket_selector": {
+                    "bucket_selector": {
+                      "buckets_path": {
+                        "param_1": "other_bucket"
+                      },
+                      "script": "params.param_1 > 42.0"
+                    }
+                  }
+                }""");
         }
         if (agg.equals(AggregationType.WEIGHTED_AVG.getName())) {
-            return parseAggregations(
-                "{\n"
-                    + "\"pivot_weighted_avg\": {\n"
-                    + "  \"weighted_avg\": {\n"
-                    + "   \"value\": {\"field\": \"values\"},\n"
-                    + "   \"weight\": {\"field\": \"weights\"}\n"
-                    + "  }\n"
-                    + "}\n"
-                    + "}"
-            );
+            return parseAggregations("""
+                {
+                "pivot_weighted_avg": {
+                  "weighted_avg": {
+                   "value": {"field": "values"},
+                   "weight": {"field": "weights"}
+                  }
+                }
+                }""");
         }
         if (agg.equals(AggregationType.FILTER.getName())) {
-            return parseAggregations(
-                "{" + "\"pivot_filter\": {" + "  \"filter\": {" + "   \"term\": {\"field\": \"value\"}" + "  }" + "}" + "}"
-            );
+            return parseAggregations("""
+                {
+                  "pivot_filter": {
+                    "filter": {
+                      "term": {
+                        "field": "value"
+                      }
+                    }
+                  }
+                }""");
         }
         if (agg.equals(AggregationType.GEO_LINE.getName())) {
-            return parseAggregations(
-                "{\"pivot_geo_line\": {\"geo_line\": {\"point\": {\"field\": \"values\"}, \"sort\":{\"field\": \"timestamp\"}}}}"
-            );
+            return parseAggregations("""
+                {
+                  "pivot_geo_line": {
+                    "geo_line": {
+                      "point": {
+                        "field": "values"
+                      },
+                      "sort": {
+                        "field": "timestamp"
+                      }
+                    }
+                  }
+                }""");
         }
         if (agg.equals("global")) {
-            return parseAggregations("{\"pivot_global\": {\"global\": {}}}");
+            return parseAggregations("""
+                {"pivot_global": {"global": {}}}""");
         }
 
-        return parseAggregations(
-            "{\n" + "  \"pivot_" + agg + "\": {\n" + "    \"" + agg + "\": {\n" + "      \"field\": \"values\"\n" + "    }\n" + "  }" + "}"
-        );
+        return parseAggregations("""
+            {
+              "pivot_%s": {
+                "%s": {
+                  "field": "values"
+                }
+              }
+            }""".formatted(agg, agg));
     }
 
     private AggregationConfig parseAggregations(String json) throws IOException {

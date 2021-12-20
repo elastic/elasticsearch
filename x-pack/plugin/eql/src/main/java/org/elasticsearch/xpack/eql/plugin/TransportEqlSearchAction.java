@@ -306,9 +306,9 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
 
     private static Exception qualifyException(Exception e, String[] indices, String clusterAlias) {
         Exception finalException = e;
-        // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+        // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
         if (e instanceof RemoteTransportException && e.getCause() instanceof IndexNotFoundException infe) {
-            // @formatter:on
+            // end::noformat
             if (infe.getIndex() != null) {
                 String qualifiedIndex;
                 String exceptionIndexName = infe.getIndex().getName();

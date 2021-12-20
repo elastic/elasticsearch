@@ -104,7 +104,9 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
     public void testRestValidateQueryAction() throws Exception {
         // GIVEN a valid query
-        final String content = "{\"query\":{\"bool\":{\"must\":{\"term\":{\"user\":\"kimchy\"}}}}}";
+        final String content = """
+            {"query":{"bool":{"must":{"term":{"user":"kimchy"}}}}}
+            """;
 
         final RestRequest request = createRestRequest(content);
         final FakeRestChannel channel = new FakeRestChannel(request, true, 0);

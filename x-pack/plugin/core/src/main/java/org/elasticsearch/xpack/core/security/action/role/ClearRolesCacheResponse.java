@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * The response object that will be returned when clearing the cache of native roles
@@ -66,7 +67,8 @@ public class ClearRolesCacheResponse extends BaseNodesResponse<ClearRolesCacheRe
             builder.endObject();
             return Strings.toString(builder);
         } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
+            return String.format(Locale.ROOT, """
+                { "error" : "%s" }""", e.getMessage());
         }
     }
 

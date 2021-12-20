@@ -8,14 +8,13 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix.Bucket;
@@ -276,20 +275,28 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
 
     }
 
-    public void testTooLargeMatrix() throws Exception {
+    public void testTooLargeMatrix() {
 
-        // Create more filters than is permitted by Lucene Bool clause settings.
-        MapBuilder filtersMap = new MapBuilder();
-        int maxFilters = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(Settings.EMPTY);
-        for (int i = 0; i <= maxFilters; i++) {
-            filtersMap.add("tag" + i, termQuery("tag", "tag" + i));
-        }
+        int originalMaxClauses = IndexSearcher.getMaxClauseCount();
 
         try {
-            client().prepareSearch("idx").addAggregation(adjacencyMatrix("tags", "\t", filtersMap)).get();
-            fail("SearchPhaseExecutionException should have been thrown");
-        } catch (SearchPhaseExecutionException ex) {
-            assertThat(ex.getCause().getMessage(), containsString("Number of filters is too large"));
+            // Create more filters than is permitted by Lucene Bool clause settings.
+            MapBuilder filtersMap = new MapBuilder();
+            int maxFilters = randomIntBetween(50, 100);
+            IndexSearcher.setMaxClauseCount(maxFilters);
+            for (int i = 0; i <= maxFilters; i++) {
+                filtersMap.add("tag" + i, termQuery("tag", "tag" + i));
+            }
+
+            try {
+                client().prepareSearch("idx").addAggregation(adjacencyMatrix("tags", "\t", filtersMap)).get();
+                fail("SearchPhaseExecutionException should have been thrown");
+            } catch (SearchPhaseExecutionException ex) {
+                assertThat(ex.getCause().getMessage(), containsString("Number of filters is too large"));
+            }
+
+        } finally {
+            IndexSearcher.setMaxClauseCount(originalMaxClauses);
         }
     }
 

@@ -50,10 +50,11 @@ templates during an upgrade. Attempts to use a template that contains an
 unsupported index setting will fail and return an error. This includes automated
 operations, such the {ilm-init} rollover action.
 
-Archived index settings don't affect an index's configuration. However, they're
-still considered invalid settings. They're returned in relevant API responses,
-but you can't specify them when you configure an index. This applies even if the
-index already has the archived setting.
+Archived index settings don't affect an index's configuration or other index
+operations, such as indexing or search. However, they're still considered
+invalid settings. They're returned in relevant API responses, but you can't
+specify them when you configure an index. This applies even if the index already
+has the archived setting.
 
 You can view archived index settings using the <<indices-get-settings,get index
 settings API>>.

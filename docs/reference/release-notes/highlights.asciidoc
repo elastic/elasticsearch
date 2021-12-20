@@ -8,7 +8,8 @@ For detailed information about this release, see the <<es-release-notes>> and
 
 // Add previous release to the list
 Other versions:
-{ref-bare}/7.15/release-highlights.html[7.15]
+{ref-bare}/7.16/release-highlights.html[7.16]
+| {ref-bare}/7.15/release-highlights.html[7.15]
 | {ref-bare}/7.14/release-highlights.html[7.14]
 | {ref-bare}/7.13/release-highlights.html[7.13]
 | {ref-bare}/7.11/release-highlights.html[7.12]

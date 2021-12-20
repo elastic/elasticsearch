@@ -216,7 +216,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         /*
          * Do not open scroll if max docs <= scroll size and not resuming on version conflicts
          */
-        if (mainRequest.getMaxDocs() != -1
+        if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES
             && mainRequest.getMaxDocs() <= preparedSearchRequest.source().size()
             && mainRequest.isAbortOnVersionConflict()) {
             preparedSearchRequest.scroll((Scroll) null);

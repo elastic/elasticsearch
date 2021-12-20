@@ -344,35 +344,39 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     public void testHandlesBulkWithNoScroll() {
         // given a request that should not open scroll
-        testRequest.setMaxDocs(1);
+        var maxDocs = between(1, 100);
+        testRequest.setMaxDocs(maxDocs);
         testRequest.getSearchRequest().source().size(100);
 
         // when receiving bulk response
-        var responses = randomArray(0, 1, BulkItemResponse[]::new, AsyncBulkByScrollActionTests::createBulkResponse);
+        var responses = randomArray(0, maxDocs, BulkItemResponse[]::new, AsyncBulkByScrollActionTests::createBulkResponse);
         new DummyAsyncBulkByScrollAction().onBulkResponse(new BulkResponse(responses, 0), () -> fail("should not be called"));
 
         // then should refresh and finish
         assertThat(listener.isDone(), equalTo(true));
-        assertThat(listener.actionGet().getStatus().getCreated(), equalTo((long) responses.length));
+        var status = listener.actionGet().getStatus();
+        assertThat(status.getCreated() + status.getUpdated() + status.getDeleted(), equalTo((long) responses.length));
     }
 
     public void testHandlesBulkWhenMaxDocsIsReached() {
         // given a request with max docs
-        testRequest.setMaxDocs(10);
+        var size = between(1, 10);
+        testRequest.setMaxDocs(size);
 
         // when receiving bulk response with max docs
-        var responses = randomArray(10, 10, BulkItemResponse[]::new, AsyncBulkByScrollActionTests::createBulkResponse);
+        var responses = randomArray(size, size, BulkItemResponse[]::new, AsyncBulkByScrollActionTests::createBulkResponse);
         new DummyAsyncBulkByScrollAction().onBulkResponse(new BulkResponse(responses, 0), () -> fail("should not be called"));
 
         // then should refresh and finish
         assertThat(listener.isDone(), equalTo(true));
-        assertThat(listener.actionGet().getStatus().getCreated(), equalTo((long) responses.length));
+        var status = listener.actionGet().getStatus();
+        assertThat(status.getCreated() + status.getUpdated() + status.getDeleted(), equalTo((long) responses.length));
     }
 
     private static BulkItemResponse createBulkResponse() {
         return BulkItemResponse.success(
             0,
-            DocWriteRequest.OpType.CREATE,
+            randomFrom(DocWriteRequest.OpType.values()),
             new IndexResponse(
                 new ShardId(new Index("name", "uid"), 0),
                 "id",
@@ -881,8 +885,17 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
 
+    public void testEnableScrollWhenMaxDocsIsGreaterThenScrollSize() {
+        testRequest.setMaxDocs(between(100, 1000));
+        testRequest.getSearchRequest().source().size(100);
+
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
+
+        assertThat(preparedSearchRequest.scroll(), notNullValue());
+    }
+
     public void testDisableScrollWhenMaxDocsIsLessThenScrollSize() {
-        testRequest.setMaxDocs(1);
+        testRequest.setMaxDocs(between(1, 100));
         testRequest.getSearchRequest().source().size(100);
 
         var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
@@ -891,7 +904,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testEnableScrollWhenProceedOnVersionConflict() {
-        testRequest.setMaxDocs(1);
+        testRequest.setMaxDocs(between(1, 100));
         testRequest.getSearchRequest().source().size(100);
         testRequest.setAbortOnVersionConflict(false);
 

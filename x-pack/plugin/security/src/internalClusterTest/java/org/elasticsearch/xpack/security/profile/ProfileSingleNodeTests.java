@@ -14,12 +14,20 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileRequest;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileResponse;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -29,10 +37,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD_HASHED;
+import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.INTERNAL_SECURITY_PROFILE_INDEX_8;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
@@ -96,7 +106,7 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(topLevelFields, hasItems("uid", "enabled", "last_synchronized", "user", "access", "application_data"));
     }
 
-    public void testGetProfileByAuthentication() {
+    public void testGetProfileByAuthentication() throws IOException {
         final ProfileService profileService = node().injector().getInstance(ProfileService.class);
         final Authentication authentication = new Authentication(
             new User("foo"),
@@ -105,23 +115,22 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         );
 
         // Profile does not exist yet
-        final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
+        final PlainActionFuture<SearchHit> future1 = new PlainActionFuture<>();
         profileService.getProfile(authentication, future1);
         assertThat(future1.actionGet(), nullValue());
 
         // Index the document so it can be found
         final String uid2 = indexDocument();
-        final PlainActionFuture<Profile> future2 = new PlainActionFuture<>();
+        final PlainActionFuture<SearchHit> future2 = new PlainActionFuture<>();
         profileService.getProfile(authentication, future2);
-        final Profile profile = future2.actionGet();
-        assertThat(profile, notNullValue());
-        assertThat(profile.uid(), equalTo(uid2));
-        // Does not return any application data
-        assertThat(profile.applicationData(), anEmptyMap());
+        final SearchHit hit = future2.actionGet();
+        assertThat(hit, notNullValue());
+        final ProfileDocument profileDocument = profileService.buildProfileDocument(hit.getSourceRef());
+        assertThat(profileDocument.uid(), equalTo(uid2));
 
         // Index it again to trigger duplicate exception
         final String uid3 = indexDocument();
-        final PlainActionFuture<Profile> future3 = new PlainActionFuture<>();
+        final PlainActionFuture<SearchHit> future3 = new PlainActionFuture<>();
         profileService.getProfile(authentication, future3);
         final IllegalStateException e3 = expectThrows(IllegalStateException.class, future3::actionGet);
 
@@ -130,6 +139,33 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
             containsString(
                 "multiple [2] profiles [" + Stream.of(uid2, uid3).sorted().collect(Collectors.joining(",")) + "] found for user [foo]"
             )
+        );
+    }
+
+    public void testActivateProfile() {
+        final ActivateProfileRequest activateProfileRequest = new ActivateProfileRequest();
+        activateProfileRequest.getGrant().setType("password");
+        activateProfileRequest.getGrant().setUsername(RAC_USER_NAME);
+        activateProfileRequest.getGrant().setPassword(TEST_PASSWORD_SECURE_STRING);
+
+        final ActivateProfileResponse activateProfileResponse = client().execute(ActivateProfileAction.INSTANCE, activateProfileRequest)
+            .actionGet();
+        final Profile profile = activateProfileResponse.getProfile();
+        assertThat(profile, notNullValue());
+        assertThat(profile.user().username(), equalTo(RAC_USER_NAME));
+        assertThat(profile.applicationData(), anEmptyMap());
+
+        final GetProfilesResponse getProfilesResponse = client().execute(
+            GetProfilesAction.INSTANCE,
+            new GetProfilesRequest(profile.uid(), Set.of())
+        ).actionGet();
+        assertThat(getProfilesResponse.getProfiles(), arrayWithSize(1));
+        assertThat(getProfilesResponse.getProfiles()[0], equalTo(profile));
+
+        // activate again should be getting the same profile
+        assertThat(
+            client().execute(ActivateProfileAction.INSTANCE, activateProfileRequest).actionGet().getProfile().uid(),
+            equalTo(profile.uid())
         );
     }
 

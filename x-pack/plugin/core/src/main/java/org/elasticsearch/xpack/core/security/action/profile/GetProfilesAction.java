@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.core.security.action.profile;
 
 import org.elasticsearch.action.ActionType;
 
-public class GetProfileAction extends ActionType<GetProfilesResponse> {
+public class GetProfilesAction extends ActionType<GetProfilesResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/profile/get";
-    public static final GetProfileAction INSTANCE = new GetProfileAction();
+    public static final GetProfilesAction INSTANCE = new GetProfilesAction();
 
-    public GetProfileAction() {
+    public GetProfilesAction() {
         super(NAME, GetProfilesResponse::new);
     }
 }

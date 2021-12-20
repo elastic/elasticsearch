@@ -11,10 +11,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -25,19 +33,26 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
+import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
 import java.time.Clock;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
@@ -83,7 +98,7 @@ public class ProfileService {
         }
     }
 
-    public void getProfile(Authentication authentication, ActionListener<Profile> listener) {
+    public void getProfile(Authentication authentication, ActionListener<SearchHit> listener) {
         if (maybeHandleIndexStatusIssue(listener)) {
             return;
         }
@@ -116,7 +131,7 @@ public class ProfileService {
                             listener.onResponse(null);
                         } else if (hits.length == 1) {
                             final SearchHit hit = hits[0];
-                            listener.onResponse(buildProfile(hit.getSourceRef(), hit.getPrimaryTerm(), hit.getSeqNo(), Set.of()));
+                            listener.onResponse(hit);
                         } else {
                             final ParameterizedMessage errorMessage = new ParameterizedMessage(
                                 "multiple [{}] profiles [{}] found for user [{}]",
@@ -134,6 +149,101 @@ public class ProfileService {
         }
     }
 
+    // TODO: with request
+    public void activateProfile(Authentication authentication, ActionListener<Profile> listener) {
+        final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
+        if (Subject.Type.USER != subject.getType()) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "profile is supported for user only, but subject is a [" + subject.getType().name().toLowerCase(Locale.ROOT) + "]"
+                )
+            );
+            return;
+        }
+
+        if (User.isInternal(subject.getUser())) {
+            listener.onFailure(
+                new IllegalStateException("profile should not be created for internal user [" + subject.getUser().principal() + "]")
+            );
+            return;
+        }
+
+        getProfile(authentication, ActionListener.wrap(hit -> {
+            if (hit == null) {
+                createProfile(subject, listener);
+            } else {
+                updateProfile(subject, hit, listener);
+
+            }
+        }, listener::onFailure));
+    }
+
+    private void createProfile(Subject subject, ActionListener<Profile> listener) throws IOException {
+        final ProfileDocument profileDocument = ProfileDocument.fromSubject(subject);
+        final String docId = uidToDocId(profileDocument.uid());
+        final BulkRequest bulkRequest = toSingleItemBulkRequest(
+            client.prepareIndex(SECURITY_PROFILE_ALIAS)
+                .setSource(profileDocument.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
+                .setId(docId)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+                .request()
+        );
+        profileIndex.prepareIndexIfNeededThenExecute(
+            listener::onFailure,
+            () -> executeAsyncWithOrigin(
+                client,
+                SECURITY_ORIGIN,
+                BulkAction.INSTANCE,
+                bulkRequest,
+                TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(indexResponse -> {
+                    assert docId.equals(indexResponse.getId());
+                    // TODO: replace realm doain with domain
+                    listener.onResponse(
+                        profileDocument.toProfile(
+                            indexResponse.getPrimaryTerm(),
+                            indexResponse.getSeqNo(),
+                            null,
+                            Set.of()
+                        )
+                    );
+                }, listener::onFailure))
+            )
+        );
+    }
+
+    private void updateProfile(Subject subject, SearchHit hit, ActionListener<Profile> listener) throws IOException {
+        final ProfileDocument doc = buildProfileDocument(hit.getSourceRef());
+        final ProfileDocument profileDocument = doc.updateWithSubjectAndStripApplicationData(subject);
+        final String docId = uidToDocId(profileDocument.uid());
+        final UpdateRequest updateRequest = client.prepareUpdate(SECURITY_PROFILE_ALIAS, docId)
+            .setDoc(profileDocument.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
+            .setIfPrimaryTerm(hit.getPrimaryTerm())
+            .setIfSeqNo(hit.getSeqNo())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+            .request();
+        profileIndex.prepareIndexIfNeededThenExecute(
+            listener::onFailure,
+            () -> executeAsyncWithOrigin(
+                client,
+                SECURITY_ORIGIN,
+                UpdateAction.INSTANCE,
+                updateRequest,
+                ActionListener.wrap(updateResponse -> {
+                    assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
+                        || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
+                    listener.onResponse(
+                        profileDocument.toProfile(
+                            updateResponse.getPrimaryTerm(),
+                            updateResponse.getSeqNo(),
+                            subject.getRealm().getName(),
+                            Set.of()
+                        )
+                    );
+                }, listener::onFailure)
+            )
+        );
+    }
+
     private String uidToDocId(String uid) {
         return DOC_ID_PREFIX + uid;
     }
@@ -145,14 +255,19 @@ public class ProfileService {
         return docId.substring(DOC_ID_PREFIX.length());
     }
 
-    private Profile buildProfile(BytesReference source, long primaryTerm, long seqNo, Set<String> dataKeys) throws IOException {
+    ProfileDocument buildProfileDocument(BytesReference source) throws IOException {
         if (source == null) {
             throw new IllegalStateException("profile document did not have source but source should have been fetched");
         }
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, XContentType.JSON)) {
-            // TODO: replace null with actual domain lookup
-            return ProfileDocument.fromXContent(parser).toProfile(primaryTerm, seqNo, null, dataKeys);
+            return ProfileDocument.fromXContent(parser);
         }
+    }
+
+    private Profile buildProfile(BytesReference source, long primaryTerm, long seqNo, Set<String> dataKeys) throws IOException {
+        final ProfileDocument profileDocument = buildProfileDocument(source);
+        // TODO: replace null with actual domain lookup
+        return profileDocument.toProfile(primaryTerm, seqNo, null, dataKeys);
     }
 
     private <T> boolean maybeHandleIndexStatusIssue(ActionListener<T> listener) {

@@ -67,7 +67,7 @@ public record Profile(
                 builder.field("email", email);
             }
             if (fullName != null) {
-                builder.field("full_name", email);
+                builder.field("full_name", fullName);
             }
             if (displayName != null) {
                 builder.field("display_name", displayName);

@@ -7,22 +7,31 @@
 
 package org.elasticsearch.xpack.security.profile;
 
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.user.User;
 
+import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public record ProfileDocument(
     String uid,
@@ -31,16 +40,49 @@ public record ProfileDocument(
     ProfileDocumentUser user,
     Access access,
     BytesReference applicationData
-) {
+) implements ToXContentObject {
 
-    public record ProfileDocumentUser(String username, Authentication.RealmRef realm, String email, String fullName, String displayName) {
+    public record ProfileDocumentUser(String username, Authentication.RealmRef realm, String email, String fullName, String displayName)
+        implements
+            ToXContent {
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject("user");
+            builder.field("username", username);
+            builder.startObject("realm");
+            builder.field("name", realm.getName());
+            builder.field("type", realm.getType());
+            builder.field("node_name", realm.getNodeName());
+            builder.endObject();
+            if (email != null) {
+                builder.field("email", email);
+            }
+            if (fullName != null) {
+                builder.field("full_name", fullName);
+            }
+            if (displayName != null) {
+                builder.field("display_name", displayName);
+            }
+            builder.endObject();
+            return builder;
+        }
 
         public Profile.ProfileUser toProfileUser(@Nullable String realmDomain) {
             return new Profile.ProfileUser(username, realm.getName(), realmDomain, email, fullName, displayName);
         }
     }
 
-    public record Access(List<String> roles, Map<String, Object> applications) {
+    public record Access(List<String> roles, Map<String, Object> applications) implements ToXContent {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject("access");
+            builder.field("roles", roles);
+            builder.field("applications", applications);
+            builder.endObject();
+            return builder;
+        }
+
         public Profile.Access toProfileAccess() {
             return new Profile.Access(roles, applications);
         }
@@ -62,6 +104,54 @@ public record ProfileDocument(
             access.toProfileAccess(),
             applicationData,
             new Profile.VersionControl(primaryTerm, seqNo)
+        );
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("uid", uid);
+        builder.field("enabled", enabled);
+        builder.field("last_synchronized", lastSynchronized);
+        user.toXContent(builder, params);
+        access.toXContent(builder, params);
+        if (applicationData != null) {
+            builder.field("application_data", applicationData);
+        } else {
+            builder.startObject("application_data").endObject();
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    ProfileDocument updateWithSubjectAndStripApplicationData(Subject subject) {
+        final User subjectUser = subject.getUser();
+        return new ProfileDocument(
+            uid,
+            true,
+            Instant.now().toEpochMilli(),
+            new ProfileDocumentUser(
+                subjectUser.principal(),
+                subject.getRealm(),
+                subjectUser.email() != null ? subjectUser.email() : user.email,
+                subjectUser.fullName() != null ? subjectUser.fullName() : user.fullName,
+                user.displayName
+            ),
+            new Access(List.of(subjectUser.roles()), access.applications),
+            null
+        );
+    }
+
+    static ProfileDocument fromSubject(Subject subject) {
+        final String uid = "u_" + UUIDs.randomBase64UUID();
+        final User subjectUser = subject.getUser();
+        return new ProfileDocument(
+            uid,
+            true,
+            Instant.now().toEpochMilli(),
+            new ProfileDocumentUser(subjectUser.principal(), subject.getRealm(), subjectUser.email(), subjectUser.fullName(), null),
+            new Access(List.of(subjectUser.roles()), Map.of()),
+            null
         );
     }
 
@@ -108,9 +198,9 @@ public record ProfileDocument(
             (p, c) -> Authentication.REALM_REF_PARSER.parse(p, null),
             new ParseField("realm")
         );
-        PROFILE_USER_PARSER.declareString(constructorArg(), new ParseField("email"));
-        PROFILE_USER_PARSER.declareString(constructorArg(), new ParseField("full_name"));
-        PROFILE_USER_PARSER.declareString(constructorArg(), new ParseField("display_name"));
+        PROFILE_USER_PARSER.declareString(optionalConstructorArg(), new ParseField("email"));
+        PROFILE_USER_PARSER.declareString(optionalConstructorArg(), new ParseField("full_name"));
+        PROFILE_USER_PARSER.declareString(optionalConstructorArg(), new ParseField("display_name"));
         ACCESS_PARSER.declareStringArray(constructorArg(), new ParseField("roles"));
         ACCESS_PARSER.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("applications"));
 

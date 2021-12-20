@@ -11,39 +11,36 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
 
 import java.io.IOException;
-import java.util.Set;
 
-public class GetProfileRequest extends ActionRequest {
+public class ActivateProfileRequest extends ActionRequest {
 
-    private final String uid;
-    private final Set<String> datKeys;
+    // TODO: move grant to separate class
+    private final GrantApiKeyRequest.Grant grant;
 
-    public GetProfileRequest(String uid, Set<String> datKeys) {
-        this.uid = uid;
-        this.datKeys = datKeys;
+    public ActivateProfileRequest() {
+        this.grant = new GrantApiKeyRequest.Grant();
     }
 
-    public GetProfileRequest(StreamInput in) throws IOException {
+    public ActivateProfileRequest(GrantApiKeyRequest.Grant grant) {
+        this.grant = grant;
+    }
+
+    public ActivateProfileRequest(StreamInput in) throws IOException {
         super(in);
-        this.uid = in.readString();
-        this.datKeys = in.readSet(StreamInput::readString);
+        this.grant = new GrantApiKeyRequest.Grant(in);
     }
 
-    public String getUid() {
-        return uid;
-    }
-
-    public Set<String> getDatKeys() {
-        return datKeys;
+    public GrantApiKeyRequest.Grant getGrant() {
+        return grant;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(uid);
-        out.writeStringCollection(datKeys);
+        grant.writeTo(out);
     }
 
     @Override

@@ -13,8 +13,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
-import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
-import org.elasticsearch.xpack.core.security.action.profile.GetProfileRequest;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesRequest;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ public class RestGetProfileAction extends SecurityBaseRestHandler {
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String uid = request.param("uid");
         final Set<String> dataKeys = Strings.tokenizeByCommaToSet(request.param("data", null));
-        final GetProfileRequest getProfileRequest = new GetProfileRequest(uid, dataKeys);
-        return channel -> client.execute(GetProfileAction.INSTANCE, getProfileRequest, new RestStatusToXContentListener<>(channel));
+        final GetProfilesRequest getProfilesRequest = new GetProfilesRequest(uid, dataKeys);
+        return channel -> client.execute(GetProfilesAction.INSTANCE, getProfilesRequest, new RestStatusToXContentListener<>(channel));
     }
 }

@@ -8,9 +8,16 @@
 
 package org.elasticsearch.cluster.health;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 
@@ -59,5 +66,20 @@ public enum ClusterHealthStatus implements Writeable {
         } else {
             throw new IllegalArgumentException("unknown cluster health status [" + status + "]");
         }
+    }
+
+    public static ClusterHealthStatus fromClusterState(ClusterState clusterState, Index index) {
+        IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
+        if (indexRoutingTable == null || indexRoutingTable.allPrimaryShardsActive() == false) {
+            return ClusterHealthStatus.RED;
+        }
+
+        for (ObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards().values()) {
+            boolean allReplicasActive = shardRouting.value.replicaShards().stream().allMatch(ShardRouting::active);
+            if (allReplicasActive == false) {
+                return ClusterHealthStatus.YELLOW;
+            }
+        }
+        return ClusterHealthStatus.GREEN;
     }
 }

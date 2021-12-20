@@ -11,6 +11,9 @@ package org.elasticsearch.action.admin.indices.stats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats.IndexStatsBuilder;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,12 +24,15 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
 public class IndicesStatsResponse extends BroadcastResponse {
+
+    private ClusterState clusterState;
 
     private ShardStats[] shards;
 
@@ -42,10 +48,12 @@ public class IndicesStatsResponse extends BroadcastResponse {
         int totalShards,
         int successfulShards,
         int failedShards,
-        List<DefaultShardOperationFailedException> shardFailures
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
+        this.clusterState = clusterState;
     }
 
     public Map<ShardRouting, ShardStats> asMap() {
@@ -81,10 +89,18 @@ public class IndicesStatsResponse extends BroadcastResponse {
         final Map<String, IndexStatsBuilder> indexToIndexStatsBuilder = new HashMap<>();
         for (ShardStats shard : shards) {
             Index index = shard.getShardRouting().index();
-            IndexStatsBuilder indexStatsBuilder = indexToIndexStatsBuilder.computeIfAbsent(
-                index.getName(),
-                k -> new IndexStatsBuilder(k, index.getUUID())
-            );
+            IndexStatsBuilder indexStatsBuilder = indexToIndexStatsBuilder.computeIfAbsent(index.getName(), k -> {
+                ClusterHealthStatus health = null;
+                IndexMetadata.State state = null;
+                if (clusterState != null) {
+                    health = ClusterHealthStatus.fromClusterState(clusterState, index);
+                    IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+                    if (indexMetadata != null) {
+                        state = indexMetadata.getState();
+                    }
+                }
+                return new IndexStatsBuilder(k, index.getUUID(), health, state);
+            });
             indexStatsBuilder.add(shard);
         }
 
@@ -157,6 +173,12 @@ public class IndicesStatsResponse extends BroadcastResponse {
             for (IndexStats indexStats : getIndices().values()) {
                 builder.startObject(indexStats.getIndex());
                 builder.field("uuid", indexStats.getUuid());
+                if (indexStats.getHealth() != null) {
+                    builder.field("health", indexStats.getHealth().toString().toLowerCase(Locale.ROOT));
+                }
+                if (indexStats.getState() != null) {
+                    builder.field("status", indexStats.getState().toString().toLowerCase(Locale.ROOT));
+                }
                 builder.startObject("primaries");
                 indexStats.getPrimaries().toXContent(builder, params);
                 builder.endObject();

@@ -8,6 +8,9 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -20,11 +23,17 @@ public class IndexStats implements Iterable<IndexShardStats> {
 
     private final String uuid;
 
+    private final ClusterHealthStatus health;
+
+    private final IndexMetadata.State state;
+
     private final ShardStats shards[];
 
-    public IndexStats(String index, String uuid, ShardStats[] shards) {
+    public IndexStats(String index, String uuid, ClusterHealthStatus health, IndexMetadata.State state, ShardStats[] shards) {
         this.index = index;
         this.uuid = uuid;
+        this.health = health;
+        this.state = state;
         this.shards = shards;
     }
 
@@ -34,6 +43,14 @@ public class IndexStats implements Iterable<IndexShardStats> {
 
     public String getUuid() {
         return uuid;
+    }
+
+    public ClusterHealthStatus getHealth() {
+        return health;
+    }
+
+    public IndexMetadata.State getState() {
+        return state;
     }
 
     public ShardStats[] getShards() {
@@ -106,11 +123,15 @@ public class IndexStats implements Iterable<IndexShardStats> {
     public static class IndexStatsBuilder {
         private final String indexName;
         private final String uuid;
+        private final ClusterHealthStatus health;
+        private final IndexMetadata.State state;
         private final List<ShardStats> shards = new ArrayList<>();
 
-        public IndexStatsBuilder(String indexName, String uuid) {
+        public IndexStatsBuilder(String indexName, String uuid, ClusterHealthStatus health, IndexMetadata.State state) {
             this.indexName = indexName;
             this.uuid = uuid;
+            this.health = health;
+            this.state = state;
         }
 
         public IndexStatsBuilder add(ShardStats shardStats) {
@@ -119,7 +140,7 @@ public class IndexStats implements Iterable<IndexShardStats> {
         }
 
         public IndexStats build() {
-            return new IndexStats(indexName, uuid, shards.toArray(new ShardStats[shards.size()]));
+            return new IndexStats(indexName, uuid, health, state, shards.toArray(new ShardStats[shards.size()]));
         }
     }
 }

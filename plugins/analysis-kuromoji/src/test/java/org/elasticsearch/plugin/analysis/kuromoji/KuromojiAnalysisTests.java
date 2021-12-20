@@ -245,6 +245,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
         // mode=QUERY
         tokenFilter = analysis.tokenFilter.get("kuromoji_completion_query");
+        assertThat(tokenFilter, instanceOf(KuromojiCompletionFilterFactory.class));
         source = "サッk";
         expected_tokens = new String[] { "サッk", "sakk" };
         tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
@@ -252,7 +253,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens);
     }
 
-    public void testCompletionAnalyzerFactory() throws IOException {
+    public void testCompletionAnalyzer() throws IOException {
         // mode=INDEX
         TestAnalysis analysis = createTestAnalysis();
         Analyzer analyzer = analysis.indexAnalyzers.get("completion_index_analyzer");

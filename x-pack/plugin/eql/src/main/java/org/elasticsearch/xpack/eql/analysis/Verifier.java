@@ -99,7 +99,7 @@ public class Verifier {
                         if (ae.childrenResolved() == false) {
                             return;
                         }
-                        if (ae instanceof Unresolvable u) {
+                        if (ae instanceof Unresolvable) {
                             // handle Attributes differently to provide more context
                             if (ae instanceof UnresolvedAttribute ua) {
                                 // only work out the synonyms for raw unresolved attributes
@@ -121,7 +121,7 @@ public class Verifier {
                                 }
                             }
 
-                            localFailures.add(fail(ae, u.unresolvedMessage()));
+                            localFailures.add(fail(ae, ((Unresolvable) ae).unresolvedMessage()));
                             return;
                         }
                         // type resolution

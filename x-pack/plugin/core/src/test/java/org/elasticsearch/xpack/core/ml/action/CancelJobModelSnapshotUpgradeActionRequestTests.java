@@ -19,9 +19,6 @@ public class CancelJobModelSnapshotUpgradeActionRequestTests extends AbstractSer
     protected Request createTestInstance() {
         Request request = new Request(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20));
         if (randomBoolean()) {
-            request.setTimeout(TimeValue.timeValueSeconds(randomIntBetween(1, 50)));
-        }
-        if (randomBoolean()) {
             request.setAllowNoMatch(randomBoolean());
         }
         return request;

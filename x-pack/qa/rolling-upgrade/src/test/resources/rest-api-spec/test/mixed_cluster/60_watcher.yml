@@ -75,3 +75,9 @@
       watcher.stats: {}
   - match: { "manually_stopped": false }
   - match: { "stats.0.watcher_state": "started" }
+
+---
+"Test do something":
+  - do: { ping: { } }
+      - is_true: ''
+

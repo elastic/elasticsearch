@@ -27,6 +27,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     public static final String VENDOR_ADOPTIUM = "adoptium";
     public static final String VENDOR_OPENJDK = "openjdk";
+    public static final String VENDOR_OPENJDK_EA = "openjdk-ea";
 
     private static final String REPO_NAME_PREFIX = "jdk_repo_";
     private static final String EXTENSION_NAME = "jdks";
@@ -126,6 +127,26 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     + jdk.getBuild()
                     + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
             }
+        } else if (jdk.getVendor().equals(VENDOR_OPENJDK_EA)) {
+            repoUrl = "https://download.java.net/java/early_access";
+            String platform = jdk.getPlatform();
+            String ext = "tar.gz";
+            if (platform.equals("mac") || platform.equals("darwin")) {
+                platform = "macos";
+            } else if (platform.equals("windows")) {
+                ext = "zip";
+            }
+            artifactPattern = "jdk"
+                + jdk.getMajor()
+                + "/"
+                + jdk.getBuild()
+                + "/GPL/openjdk-[revision]-ea+"
+                + jdk.getBuild()
+                + "_"
+                + platform
+                + "-[classifier]_bin."
+                + ext;
+
         } else {
             throw new GradleException("Unknown JDK vendor [" + jdk.getVendor() + "]");
         }

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +53,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
@@ -291,7 +291,7 @@ public class TimeSeriesMetrics {
         }
         SearchRequest search = searchInRange(resolvedMetrics, dimensions, from, time, size);
         if (size > 0) {
-            client.search(search, ActionListener.wrap(new SearchResponseHandler(resolvedMetrics, callback, search), callback::onError));
+            client.search(search, ActionListener.wrap(new SearchResponseHandler(resolvedMetrics, callback), callback::onError));
         } else {
             CompositeAggregationBuilder timeSeries = timeSeriesComposite();
             for (String metric : resolvedMetrics) {
@@ -389,13 +389,11 @@ public class TimeSeriesMetrics {
         private final List<String> resolvedMetrics;
         Map<String, Object> previousDimensions;
         private final MetricsCallback callback;
-        private final SearchRequest search;
 
-        SearchResponseHandler(List<String> resolvedMetrics, MetricsCallback callback, SearchRequest search) {
+        SearchResponseHandler(List<String> resolvedMetrics, MetricsCallback callback) {
             this.resolvedMetrics = resolvedMetrics;
             this.previousDimensions = null;
             this.callback = callback;
-            this.search = search;
         }
 
         @Override
@@ -432,10 +430,12 @@ public class TimeSeriesMetrics {
             }
 
             if (hits.length < docBatchSize) {
-                callback.onSuccess();
+                client.prepareClearScroll().addScrollId(response.getScrollId()).execute(ActionListener.wrap(callback::onSuccess));
             } else {
-                search.source().searchAfter(hits[hits.length - 1].getSortValues());
-                client.search(search, ActionListener.wrap(this, callback::onError));
+                client.searchScroll(
+                    new SearchScrollRequest(response.getScrollId()).scroll(TimeValue.timeValueMinutes(10)),
+                    ActionListener.wrap(this, callback::onError)
+                );
             }
         }
     }
@@ -445,7 +445,7 @@ public class TimeSeriesMetrics {
         for (TimeSeriesMetricSelector selector : selectors) {
             metrics = metrics.filter(selector.asPredicate());
         }
-        return metrics.collect(Collectors.toUnmodifiableList());
+        return metrics.toList();
     }
 
     private SearchRequest searchInRange(List<String> metrics, List<TimeSeriesDimensionSelector> dimensions, long from, long to, int size) {
@@ -462,6 +462,7 @@ public class TimeSeriesMetrics {
         }
         search.source().query(builder);
         if (size > 0) {
+            search.scroll(TimeValue.timeValueMinutes(10));
             List<SortBuilder<?>> sorts = Stream.concat(
                 dimensionFieldNames.stream().map(d -> new FieldSortBuilder(d).order(SortOrder.ASC)),
                 Stream.of(new FieldSortBuilder("@timestamp").order(SortOrder.ASC).setFormat("epoch_millis"))
@@ -470,16 +471,11 @@ public class TimeSeriesMetrics {
             for (String metric : metrics) {
                 search.source().fetchField(metric);
             }
+        } else {
+            search.source().trackTotalHits(false);
         }
         search.source().size(size);
-        search.source().trackTotalHits(false);
         return search;
-    }
-
-    private CompositeAggregationBuilder timeSeriesComposite(@Nullable Map<String, Object> afterKey) {
-        Stream<CompositeValuesSourceBuilder<?>> sources = dimensionFieldNames.stream()
-            .map(d -> new TermsValuesSourceBuilder(d).field(d).missingBucket(true));
-        return new CompositeAggregationBuilder("time_series", sources.collect(toList())).aggregateAfter(afterKey).size(bucketBatchSize);
     }
 
     private CompositeAggregationBuilder timeSeriesComposite() {

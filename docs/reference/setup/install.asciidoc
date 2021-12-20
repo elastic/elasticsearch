@@ -62,19 +62,6 @@ Formulae are available from the Elastic Homebrew tap for installing
 +
 {ref}/brew.html[Install {es} on macOS with Homebrew]
 
-[discrete]
-[[config-mgmt-tools]]
-=== Configuration Management Tools
-
-We also provide the following configuration management tools to help with
-large deployments:
-
-[horizontal]
-Puppet:: https://github.com/elastic/puppet-elasticsearch[puppet-elasticsearch]
-Chef::   https://github.com/elastic/cookbook-elasticsearch[cookbook-elasticsearch]
-Ansible:: https://github.com/elastic/ansible-elasticsearch[ansible-elasticsearch]
-
-
 include::install/targz.asciidoc[]
 
 include::install/zip-windows.asciidoc[]

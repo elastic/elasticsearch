@@ -142,6 +142,7 @@ tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
           'com.google.api.client.http.apache.v2.ApacheHttpTransport',
           // classes are missing
+          'javax.jms.Message',
           'javax.servlet.ServletContextEvent',
           'javax.servlet.ServletContextListener',
           'org.apache.avalon.framework.logger.Logger',

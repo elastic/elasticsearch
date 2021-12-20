@@ -92,7 +92,7 @@ public class RootObjectMapper extends ObjectMapper {
             return this;
         }
 
-        public RootObjectMapper.Builder setRuntime(Map<String, RuntimeField> runtimeFields) {
+        public RootObjectMapper.Builder addRuntimeFields(Map<String, RuntimeField> runtimeFields) {
             this.runtimeFields.putAll(runtimeFields);
             return this;
         }
@@ -230,7 +230,7 @@ public class RootObjectMapper extends ObjectMapper {
                         parserContext,
                         true
                     );
-                    builder.setRuntime(fields);
+                    builder.addRuntimeFields(fields);
                     return true;
                 } else {
                     throw new ElasticsearchParseException("runtime must be a map type");
@@ -360,12 +360,6 @@ public class RootObjectMapper extends ObjectMapper {
             } else {
                 this.runtimeFields.put(runtimeField.getKey(), runtimeField.getValue());
             }
-        }
-    }
-
-    void addRuntimeFields(Collection<RuntimeField> runtimeFields) {
-        for (RuntimeField runtimeField : runtimeFields) {
-            this.runtimeFields.put(runtimeField.name(), runtimeField);
         }
     }
 

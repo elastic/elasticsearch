@@ -60,38 +60,6 @@ public class JwtRealmSettingsTests extends ESTestCase {
         }
     }
 
-    public void testAllowedClockSkew() {
-        final Setting.AffixSetting<TimeValue> setting = JwtRealmSettings.ALLOWED_CLOCK_SKEW;
-        final String settingKey = RealmSettings.getFullSettingKey(REALM_NAME, setting);
-        for (final String rejectedValue : new String[] { "", "-2", "10", "1w", "1M", "1y" }) {
-            final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
-                final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
-                final TimeValue actualValue = this.buildConfig(settings).getSetting(setting);
-                fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
-            });
-            assertThat(
-                exception.getMessage(),
-                equalTo(
-                    "failed to parse setting ["
-                        + settingKey
-                        + "] with value ["
-                        + rejectedValue
-                        + "] as a time value: unit is missing or unrecognized"
-                )
-            );
-        }
-        for (final String ignoredValue : new String[] { null }) {
-            final Settings settings = Settings.builder().put(settingKey, ignoredValue).build();
-            final TimeValue actualValue = this.buildConfig(settings).getSetting(setting);
-            assertThat(actualValue, equalTo(setting.getDefault(settings)));
-        }
-        for (final String acceptedValue : new String[] { "-1", "0", "0s", "1s", "1m", "1h", "1d" }) {
-            final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
-            final TimeValue actualValue = this.buildConfig(settings).getSetting(setting);
-            assertThat(actualValue, equalTo(TimeValue.parseTimeValue(acceptedValue, settingKey)));
-        }
-    }
-
     public void testAllowedSignatureAlgorithms() {
         Setting.AffixSetting<List<String>> setting = JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS;
         final String settingKey = RealmSettings.getFullSettingKey(REALM_NAME, setting);
@@ -248,6 +216,86 @@ public class JwtRealmSettingsTests extends ESTestCase {
             final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
             final String actualValue = this.buildConfig(settings).getSetting(setting);
             assertThat(actualValue, equalTo(acceptedValue));
+        }
+    }
+
+    public void testTimeSettingsWithDefault() {
+        for (final Setting.AffixSetting<TimeValue> setting : List.of(
+            JwtRealmSettings.ALLOWED_CLOCK_SKEW,
+            JwtRealmSettings.CACHE_TTL,
+            JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT,
+            JwtRealmSettings.HTTP_SOCKET_TIMEOUT
+        )) {
+            final String settingKey = RealmSettings.getFullSettingKey(REALM_NAME, setting);
+            for (final String rejectedValue : new String[] { "", "-2", "10", "1w", "1M", "1y" }) {
+                final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
+                    final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
+                    final TimeValue actualValue = this.buildConfig(settings).getSetting(setting);
+                    fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
+                });
+                assertThat(
+                    exception.getMessage(),
+                    equalTo(
+                        "failed to parse setting ["
+                            + settingKey
+                            + "] with value ["
+                            + rejectedValue
+                            + "] as a time value: unit is missing or unrecognized"
+                    )
+                );
+            }
+            for (final String ignoredValue : new String[] { null }) {
+                final Settings settings = Settings.builder().put(settingKey, ignoredValue).build();
+                final TimeValue actualValue = this.buildConfig(settings).getSetting(setting);
+                assertThat(actualValue, equalTo(setting.getDefault(settings)));
+            }
+            for (final String acceptedValue : new String[] { "-1", "0", "0s", "1s", "1m", "1h", "1d" }) {
+                final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
+                final TimeValue actualValue = this.buildConfig(settings).getSetting(setting);
+                assertThat(actualValue, equalTo(TimeValue.parseTimeValue(acceptedValue, settingKey)));
+            }
+        }
+    }
+
+    public void testIntegerSettingsWithDefault() {
+        for (final Setting.AffixSetting<Integer> setting : List.of(
+            JwtRealmSettings.CACHE_MAX_USERS,
+            JwtRealmSettings.HTTP_MAX_CONNECTIONS,
+            JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS
+        )) {
+            final String settingKey = RealmSettings.getFullSettingKey(REALM_NAME, setting);
+            for (final String rejectedValue : new String[] { "", "100_000" }) {
+                final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
+                    final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
+                    final Integer actualValue = this.buildConfig(settings).getSetting(setting);
+                    fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
+                });
+                assertThat(
+                    exception.getMessage(),
+                    equalTo("Failed to parse value [" + rejectedValue + "] for setting [" + settingKey + "]")
+                );
+            }
+            for (final String rejectedValue : new String[] { "-1", Integer.toString(Integer.MIN_VALUE) }) {
+                final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
+                    final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
+                    final Integer actualValue = this.buildConfig(settings).getSetting(setting);
+                    fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
+                });
+                assertThat(
+                    exception.getMessage(),
+                    equalTo("Failed to parse value [" + rejectedValue + "] for setting [" + settingKey + "] must be >= 0")
+                );
+            }
+            for (final String ignoredValue : new String[] { null }) {
+                final Settings settings = Settings.builder().put(settingKey, ignoredValue).build();
+                final Integer actualValue = this.buildConfig(settings).getSetting(setting);
+                assertThat(actualValue, equalTo(setting.getDefault(settings)));
+            }
+            for (final String acceptedValue : new String[] { "0", "1", "100000", Integer.toString(Integer.MAX_VALUE) }) {
+                final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
+                final Integer actualValue = this.buildConfig(settings).getSetting(setting);
+                assertThat(actualValue, equalTo(Integer.valueOf(acceptedValue)));
+            }
         }
     }
 

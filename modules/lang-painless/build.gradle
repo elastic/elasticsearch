@@ -60,6 +60,7 @@ tasks.named("test").configure {
 
 tasks.named("yamlRestTestV7CompatTest").configure {
     systemProperty 'tests.rest.blacklist', [
+            'painless/20_scriptfield/Scripted Field with error accessing an unsupported field via the script fields api',
             'painless/20_scriptfield/Scripted Field Doing Compare (fields api)',
             'painless/70_execute_painless_scripts/Execute with double field context (single-value, fields api)',
             'painless/70_execute_painless_scripts/Execute with double field context (single-value, fields api)',
@@ -95,7 +96,7 @@ tasks.named("yamlRestTestV7CompatTest").configure {
             'painless/40_fields_api/script fields api for dates',
             'painless/70_execute_painless_scripts/Execute with double field context (multi-value, fields api)',
             'painless/40_fields_api/filter script fields api',
-            'painless/40_fields_api/script score fields api'
+            'painless/40_fields_api/script score fields api',
     ].join(',')
 }
 

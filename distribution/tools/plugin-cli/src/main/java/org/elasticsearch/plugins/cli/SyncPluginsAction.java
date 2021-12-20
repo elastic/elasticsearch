@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -116,13 +117,7 @@ public class SyncPluginsAction implements PluginsSynchronizer {
     PluginChanges getPluginChanges(PluginsConfig pluginsConfig, Optional<PluginsConfig> cachedPluginsConfig) throws PluginSyncException {
         final List<PluginInfo> existingPlugins = getExistingPlugins();
 
-        // For plugins that have migrated to modules, in order to help transition it's OK to still specify these plugins
-        // in the config file, but they will have no effect. Indeed, any existing plugin installation will also be removed,
-        // leaving only the module.
-        final List<PluginDescriptor> pluginsThatShouldExist = pluginsConfig.getPlugins()
-            .stream()
-            .filter(each -> InstallPluginAction.PLUGINS_CONVERTED_TO_MODULES.contains(each.getId()) == false)
-            .toList();
+        final List<PluginDescriptor> pluginsThatShouldExist = getPluginsThatShouldExist(pluginsConfig);
 
         final List<PluginDescriptor> pluginsThatActuallyExist = existingPlugins.stream()
             .map(info -> new PluginDescriptor(info.getName()))
@@ -144,6 +139,35 @@ public class SyncPluginsAction implements PluginsSynchronizer {
         pluginsToMaybeUpgrade.sort(Comparator.comparing(PluginDescriptor::getId));
 
         return new PluginChanges(pluginsToRemove, pluginsToInstall, pluginsToUpgrade);
+    }
+
+    /**
+     * Fetch the plugins that ought to be installed, according to the config file.  For plugins that
+     * have migrated to modules, in order to help transition it's OK to still specify these plugins
+     * in the config file, but they will have no effect. Indeed, any existing plugin installation
+     * will also be removed, leaving only the module.
+     * <p>
+     * Why don't we just leave the modularized plugins in this list and allow `InstallPluginAction`
+     * to print a warning? The problem with doing that is that the sync process wouldn't remove the
+     * old plugins. Instead, we remove them from the list, meaning that they will be uninstalled if
+     * they are currently installed. However, this also means that we need to emit our own warning
+     * that installation by plugin is deprecated.
+     */
+    private List<PluginDescriptor> getPluginsThatShouldExist(PluginsConfig pluginsConfig) {
+        final List<PluginDescriptor> pluginsThatShouldExist = new ArrayList<>(pluginsConfig.getPlugins());
+
+        final Iterator<PluginDescriptor> shouldExistIterator = pluginsThatShouldExist.iterator();
+        while (shouldExistIterator.hasNext()) {
+            final PluginDescriptor each = shouldExistIterator.next();
+            if (InstallPluginAction.PLUGINS_CONVERTED_TO_MODULES.contains(each.getId())) {
+                terminal.errorPrintln(
+                    "[" + each.getId() + "] is no longer a plugin but instead a module packaged with this distribution of Elasticsearch"
+                );
+                shouldExistIterator.remove();
+            }
+        }
+
+        return pluginsThatShouldExist;
     }
 
     private void performSync(PluginsConfig pluginsConfig, PluginChanges changes) throws Exception {
@@ -295,7 +319,7 @@ public class SyncPluginsAction implements PluginsSynchronizer {
     private void logRequiredChanges(PluginChanges changes) {
         final BiConsumer<String, List<PluginDescriptor>> printSummary = (action, plugins) -> {
             if (plugins.isEmpty() == false) {
-                List<String> pluginIds = plugins.stream().map(PluginDescriptor::getId).collect(Collectors.toList());
+                List<String> pluginIds = plugins.stream().map(PluginDescriptor::getId).toList();
                 this.terminal.errorPrintln(String.format(Locale.ROOT, "Plugins to be %s: %s", action, pluginIds));
             }
         };

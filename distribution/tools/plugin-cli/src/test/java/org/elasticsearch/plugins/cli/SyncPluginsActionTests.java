@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -42,6 +43,7 @@ public class SyncPluginsActionTests extends ESTestCase {
     private Environment env;
     private SyncPluginsAction action;
     private PluginsConfig config;
+    private MockTerminal terminal;
 
     @Override
     @Before
@@ -55,7 +57,8 @@ public class SyncPluginsActionTests extends ESTestCase {
         Files.createDirectories(env.configFile());
         Files.createDirectories(env.pluginsFile());
 
-        action = new SyncPluginsAction(new MockTerminal(), env);
+        terminal = new MockTerminal();
+        action = new SyncPluginsAction(terminal, env);
         config = new PluginsConfig();
     }
 
@@ -195,8 +198,18 @@ public class SyncPluginsActionTests extends ESTestCase {
         config.setPlugins(
             List.of(new PluginDescriptor("repository-azure"), new PluginDescriptor("repository-gcs"), new PluginDescriptor("repository-s3"))
         );
+
         final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.empty());
+
         assertThat(pluginChanges.isEmpty(), is(true));
+        for (String plugin : List.of("repository-azure", "repository-gcs", "repository-s3")) {
+            assertThat(
+                terminal.getErrorOutput(),
+                containsString(
+                    "[" + plugin + "] is no longer a plugin but instead a module packaged with this distribution of Elasticsearch"
+                )
+            );
+        }
     }
 
     /**

@@ -128,7 +128,7 @@ plugins:
 * {plugins}/repository-hdfs.html[repository-hdfs] for HDFS repository support in
   Hadoop environments
 * <<repository-azure,repository-azure>> for Azure storage repositories
-* <<repositories-gcs,repositories-gcs>> for Google Cloud Storage repositories
+* <<repository-gcs,repository-gcs>> for Google Cloud Storage repositories
 --
 
 [[put-snapshot-repo-api-settings-param]]

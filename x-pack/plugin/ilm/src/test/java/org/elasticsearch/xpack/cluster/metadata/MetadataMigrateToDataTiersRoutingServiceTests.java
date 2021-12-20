@@ -277,7 +277,6 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 new AllocateAction(null, 1, null, null, Map.of("data", "cold"))
             );
 
-
             LifecycleExecutionState preMigrationExecutionState = LifecycleExecutionState.builder()
                 .setPhase("cold")
                 .setAction("allocate")
@@ -295,8 +294,10 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                         .putCustom(
                             IndexLifecycleMetadata.TYPE,
                             new IndexLifecycleMetadata(
-                                Collections.singletonMap(policyMetadataWithTotalShardsPerNode.getName(),
-                                    policyMetadataWithTotalShardsPerNode),
+                                Collections.singletonMap(
+                                    policyMetadataWithTotalShardsPerNode.getName(),
+                                    policyMetadataWithTotalShardsPerNode
+                                ),
                                 OperationMode.STOPPED
                             )
                         )

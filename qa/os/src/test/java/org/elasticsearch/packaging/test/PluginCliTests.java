@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
@@ -168,10 +169,14 @@ public class PluginCliTests extends PackagingTestCase {
     public void test40InstallOfModularizedPluginsSucceedsButDoesNothing() {
         for (String pluginId : List.of("repository-azure", "repository-gcs", "repository-s3")) {
             String stderr = installation.executables().pluginTool.run("install " + pluginId).stderr;
-            assertThat(stderr, containsString("[" + pluginId + "] is no longer a plugin"));
+            assertThat(
+                "Expected plugin installed to warn about migrated plugins",
+                stderr,
+                containsString("[" + pluginId + "] is no longer a plugin")
+            );
 
-            stderr = installation.executables().pluginTool.run("list").stderr;
-            assertThat(stderr.trim(), is(emptyString()));
+            String pluginList = installation.executables().pluginTool.run("list").stdout;
+            assertThat(pluginId + " should not appear in the plugin list", pluginList, not(containsString(pluginId)));
         }
     }
 
@@ -180,12 +185,16 @@ public class PluginCliTests extends PackagingTestCase {
      * succeeds, but does nothing.
      */
     public void test41RemovalOfModularizedPluginsSucceedsButDoesNothing() {
-        String stderr = installation.executables().pluginTool.run("list").stderr;
-        assertThat(stderr.trim(), is(emptyString()));
+        String pluginList = installation.executables().pluginTool.run("list").stdout;
+        assertThat("Expected no plugins to be installed", pluginList.trim(), is(emptyString()));
 
         for (String pluginId : List.of("repository-azure", "repository-gcs", "repository-s3")) {
-            stderr = installation.executables().pluginTool.run("remove " + pluginId).stderr;
-            assertThat(stderr, containsString("[" + pluginId + "] is no longer a plugin"));
+            String stderr = installation.executables().pluginTool.run("remove " + pluginId).stderr;
+            assertThat(
+                "Expected plugin installer to warn about migrated plugins",
+                stderr,
+                containsString("[" + pluginId + "] is no longer a plugin")
+            );
         }
     }
 }

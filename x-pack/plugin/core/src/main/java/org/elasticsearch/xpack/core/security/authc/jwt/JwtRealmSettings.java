@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc.jwt;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
@@ -70,10 +71,20 @@ public class JwtRealmSettings {
     // All settings
 
     /**
-     * Get all settings, except secure settings.
-     * @return All settings, except secure settings.
+     * Get all secure and non-secure settings.
+     * @return All secure and non-secure settings.
      */
     public static Set<Setting.AffixSetting<?>> getSettings() {
+        final Set<Setting.AffixSetting<?>> set = getNonSecureSettings();
+        set.addAll(getSecureSettings());
+        return set;
+    }
+
+    /**
+     * Get all non-secure settings.
+     * @return All non-secure settings.
+     */
+    public static Set<Setting.AffixSetting<?>> getNonSecureSettings() {
         final Set<Setting.AffixSetting<?>> set = Sets.newHashSet();
         // Standard realm settings: order, enabled
         set.addAll(RealmSettings.getStandardSettings(TYPE));
@@ -91,8 +102,10 @@ public class JwtRealmSettings {
                 POPULATE_USER_METADATA
             )
         );
-        // Delegated authorization settings: authorization_realms
+        // JWT End-user delegated authorization settings: authorization_realms
         set.addAll(DelegatedAuthorizationSettings.getSettings(TYPE));
+        // JWT Client settings
+        set.addAll(List.of(CLIENT_AUTHENTICATION_TYPE));
         // JWT Cache settings
         set.addAll(List.of(CACHE_TTL, CACHE_MAX_USERS));
         // Standard HTTP settings for outgoing connections to get JWT issuer jwkset_path
@@ -108,6 +121,14 @@ public class JwtRealmSettings {
         // Standard TLS connection settings for outgoing connections to get JWT issuer jwkset_path
         set.addAll(SSLConfigurationSettings.getRealmSettings(TYPE));
         return set;
+    }
+
+    /**
+     * Get all secure settings.
+     * @return All secure settings.
+     */
+    public static List<Setting.AffixSetting<SecureString>> getSecureSettings() {
+        return List.of(ISSUER_HMAC_SECRET_KEY, CLIENT_AUTHENTICATION_SHARED_SECRET);
     }
 
     // JWT issuer settings
@@ -138,7 +159,11 @@ public class JwtRealmSettings {
         "jwkset_path",
         key -> Setting.simpleString(key, value -> verifyNonNullNotEmpty(key, value, null), Setting.Property.NodeScope)
     );
-    // Note: <allowed_issuer>.issuer_hmac_key not defined here. It goes in the Elasticsearch keystore setting.
+
+    public static final Setting.AffixSetting<SecureString> ISSUER_HMAC_SECRET_KEY = RealmSettings.secureString(
+        TYPE,
+        "issuer_hmac_secret_key"
+    );
 
     // JWT audience settings
 
@@ -172,6 +197,11 @@ public class JwtRealmSettings {
                 );
             }
         }, Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<SecureString> CLIENT_AUTHENTICATION_SHARED_SECRET = RealmSettings.secureString(
+        TYPE,
+        "client_authentication.shared_secret"
     );
 
     // Individual Cache settings

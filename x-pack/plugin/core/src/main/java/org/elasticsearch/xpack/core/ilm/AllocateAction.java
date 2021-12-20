@@ -88,7 +88,8 @@ public class AllocateAction implements LifecycleAction {
         } else {
             this.require = require;
         }
-        if (this.include.isEmpty() && this.exclude.isEmpty() && this.require.isEmpty() && numberOfReplicas == null) {
+        if (this.include.isEmpty() && this.exclude.isEmpty() && this.require.isEmpty() && numberOfReplicas == null &&
+            totalShardsPerNode == null) {
             throw new IllegalArgumentException(
                 "At least one of "
                     + INCLUDE_FIELD.getPreferredName()

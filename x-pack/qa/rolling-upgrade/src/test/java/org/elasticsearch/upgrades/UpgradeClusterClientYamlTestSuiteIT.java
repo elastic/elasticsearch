@@ -55,7 +55,8 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
         }
     }
 
-    @Before
+    /*@Before
+    // AwaitFix=https://github.com/elastic/elasticsearch/issues/81110
     public void waitForWatcher() throws Exception {
         // Wait for watcher to be in started state in order to avoid errors due
         // to manually executing watches prior for watcher to be ready:
@@ -73,7 +74,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
         } catch (AssertionError e) {
             throw new AssertionError("Failure in test setup: Failed to initialize at least 3 watcher nodes", e);
         }
-    }
+    }*/
 
     @Override
     protected boolean preserveIndicesUponCompletion() {

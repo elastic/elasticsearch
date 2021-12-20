@@ -53,6 +53,8 @@ production mode. See <<docker-cli-run>>.
 [[start-msi]]
 === MSI packages
 
+deprecated::[7.16.2,"After 7.16.2, we'll no longer release Windows MSI installer packages for {es}. To install {es} on Windows, use the <<zip-windows,`.zip` archive package>> instead."]
+
 If you installed {es} on Windows using the `.msi` package, you can start {es} 
 from the command line. If you want it to start automatically at boot time 
 without any user interaction, 

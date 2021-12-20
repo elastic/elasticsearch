@@ -1,7 +1,9 @@
 [[windows]]
 === Install Elasticsearch with Windows MSI Installer
 
-beta[]
+deprecated::[7.16.2,"After 7.16.2, we'll no longer release Windows MSI installer packages for {es}. To install {es} on Windows, use the <<zip-windows,`.zip` archive package>> instead."]
+
+beta::[]
 
 Elasticsearch can be installed on Windows using the `.msi` package. This can
 install Elasticsearch as a Windows service or allow it to be run manually using

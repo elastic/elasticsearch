@@ -40,9 +40,11 @@ Elasticsearch website or from our RPM repository.
 +
 <<rpm>>
 
-`msi`::
+beta[] `msi`::
 
-beta[] The `msi` package is suitable for installation on Windows 64-bit systems with at least
+deprecated:[7.16.2,"After 7.16.2, we'll no longer release Windows MSI installer packages for {es}. To install {es} on Windows, use the <<zip-windows,`.zip` archive package>> instead."]
++
+The `msi` package is suitable for installation on Windows 64-bit systems with at least
 .NET 4.5 framework installed, and is the easiest choice for getting started with
 Elasticsearch on Windows. MSIs may be downloaded from the Elasticsearch website.
 +

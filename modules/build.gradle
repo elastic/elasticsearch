@@ -23,6 +23,11 @@ configure(subprojects.findAll { it.parent.path == project.path }) {
     throw new InvalidModelException("Modules cannot contain bin files")
   }
   if (project.file('src/main/config').exists()) {
-    throw new InvalidModelException("Modules cannot contain config files")
+    // The `config` directory is different, because we merge together log4j config files
+    // when we build a distribution. Any other files are forbidden, however.
+    def configFiles = fileTree('src/main/config').matching { exclude 'log4j2.properties' }
+    if (configFiles.empty == false) {
+      throw new InvalidModelException("Modules can only contain log4j config files, found: " + configFiles.files)
+    }
   }
 }

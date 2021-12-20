@@ -78,7 +78,8 @@ public class JwtRealmSettingsTests extends ESTestCase {
             assertThat(
                 exception.getMessage(),
                 equalTo(
-                    "Invalid value [unknown] for [xpack.security.authc.realms.jwt.jwt1-realm.allowed_signature_algorithms]. Allowed values are [HS256, HS384, HS512, RS256, RS384, RS512, ES256, ES384, ES512, PS256, PS384, PS512]}]."
+                    "Invalid value [unknown] for [xpack.security.authc.realms.jwt.jwt1-realm.allowed_signature_algorithms]." +
+                    " Allowed values are [HS256, HS384, HS512, RS256, RS384, RS512, ES256, ES384, ES512, PS256, PS384, PS512]}]."
                 )
             );
         }
@@ -208,7 +209,8 @@ public class JwtRealmSettingsTests extends ESTestCase {
                 equalTo(
                     "Invalid value ["
                         + unexpectedValue
-                        + "] for [xpack.security.authc.realms.jwt.jwt1-realm.client_authentication.type]. Allowed values are [sharedsecret, none]}]."
+                        + "] for [xpack.security.authc.realms.jwt.jwt1-realm.client_authentication.type]."
+                        + " Allowed values are [sharedsecret, none]}]."
                 )
             );
         }

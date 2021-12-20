@@ -15,10 +15,8 @@ import org.elasticsearch.core.Tuple;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,7 +36,8 @@ public class RealmSettings {
     public static final Setting.AffixSetting<List<String>> DOMAIN_TO_REALM_ASSOC_SETTING = Setting.affixKeySetting(
         "xpack.security.authc.domains.",
         "realms",
-        key -> Setting.stringListSetting(key, Setting.Property.NodeScope));
+        key -> Setting.stringListSetting(key, Setting.Property.NodeScope)
+    );
 
     public static final String RESERVED_REALM_NAME_PREFIX = "_";
     public static final String PREFIX = "xpack.security.authc.realms.";
@@ -127,8 +126,10 @@ public class RealmSettings {
         return null;
     }
 
-    public static void verifyRealmNameToDomainNameAssociation(Settings globalSettings,
-                                                              Collection<RealmConfig.RealmIdentifier> allRealmIdentifiers) {
+    public static void verifyRealmNameToDomainNameAssociation(
+        Settings globalSettings,
+        Collection<RealmConfig.RealmIdentifier> allRealmIdentifiers
+    ) {
         Map<String, Set<String>> realmToDomainsMap = new HashMap<>();
         for (String domainName : DOMAIN_TO_REALM_ASSOC_SETTING.getNamespaces(globalSettings)) {
             Setting<List<String>> realmsByDomainSetting = DOMAIN_TO_REALM_ASSOC_SETTING.getConcreteSettingForNamespace(domainName);
@@ -143,8 +144,7 @@ public class RealmSettings {
                 if (realmToMultipleDomains) {
                     domainValidationErrorMessageBuilder.append(" and");
                 }
-                domainValidationErrorMessageBuilder
-                    .append(" [")
+                domainValidationErrorMessageBuilder.append(" [")
                     .append(realmToDomains.getKey())
                     .append("] is associated to domains ")
                     .append(realmToDomains.getValue());

@@ -85,8 +85,8 @@ public class Verifier {
 
             Set<Failure> localFailures = new LinkedHashSet<>();
 
-            if (p instanceof Unresolvable) {
-                localFailures.add(fail(p, ((Unresolvable) p).unresolvedMessage()));
+            if (p instanceof Unresolvable unresolvable) {
+                localFailures.add(fail(p, unresolvable.unresolvedMessage()));
             } else {
                 p.forEachExpression(e -> {
                     // everything is fine, skip expression
@@ -99,7 +99,7 @@ public class Verifier {
                         if (ae.childrenResolved() == false) {
                             return;
                         }
-                        if (ae instanceof Unresolvable) {
+                        if (ae instanceof Unresolvable u) {
                             // handle Attributes differently to provide more context
                             if (ae instanceof UnresolvedAttribute ua) {
                                 // only work out the synonyms for raw unresolved attributes
@@ -121,7 +121,7 @@ public class Verifier {
                                 }
                             }
 
-                            localFailures.add(fail(ae, ((Unresolvable) ae).unresolvedMessage()));
+                            localFailures.add(fail(ae, u.unresolvedMessage()));
                             return;
                         }
                         // type resolution

@@ -5,10 +5,6 @@ Elasticsearch can be installed on Windows using the Windows `.zip` archive. This
 comes with a `elasticsearch-service.bat` command which will setup Elasticsearch to run as a
 service.
 
-TIP: Elasticsearch has historically been installed on Windows using the `.zip` archive.
-An <<windows, MSI installer package>> is available that provides the easiest getting started
-experience for Windows. You can continue using the `.zip` approach if you prefer.
-
 include::license.asciidoc[]
 
 NOTE: On Windows the Elasticsearch {ml} feature requires the Microsoft Universal

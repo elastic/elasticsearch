@@ -628,7 +628,8 @@ public abstract class ESTestCase extends LuceneTestCase {
                     statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
                     anyOf(
                         emptyCollectionOf(String.class),
-                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(0)), startsWith(LOG_4J_MSG_PREFIXES.get(1)))
+                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(0)), startsWith(LOG_4J_MSG_PREFIXES.get(1))),
+                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(1)))
                     )
                 );
             } finally {

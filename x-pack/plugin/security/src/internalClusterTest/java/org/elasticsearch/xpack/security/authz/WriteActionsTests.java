@@ -33,19 +33,19 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return SecuritySettingsSource.TEST_ROLE
-            + ":\n"
-            + "  cluster: [ ALL ]\n"
-            + "  indices:\n"
-            + "    - names: 'missing'\n"
-            + "      privileges: [ 'indices:admin/create', 'indices:admin/auto_create', "
-            + "'indices:admin/delete' ]\n"
-            + "    - names: ['/index.*/']\n"
-            + "      privileges: [ manage ]\n"
-            + "    - names: ['/test.*/']\n"
-            + "      privileges: [ manage, write ]\n"
-            + "    - names: '/test.*/'\n"
-            + "      privileges: [ read ]\n";
+        return """
+            %s:
+              cluster: [ ALL ]
+              indices:
+                - names: 'missing'
+                  privileges: [ 'indices:admin/create', 'indices:admin/auto_create', 'indices:admin/delete' ]
+                - names: ['/index.*/']
+                  privileges: [ manage ]
+                - names: ['/test.*/']
+                  privileges: [ manage, write ]
+                - names: '/test.*/'
+                  privileges: [ read ]
+            """.formatted(SecuritySettingsSource.TEST_ROLE);
     }
 
     public void testIndex() {

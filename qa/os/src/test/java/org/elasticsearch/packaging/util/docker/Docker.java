@@ -191,14 +191,18 @@ public class Docker {
 
         if (isElasticsearchRunning == false) {
             final Shell.Result dockerLogs = getContainerLogs();
-            fail(
-                "Elasticsearch container did not start successfully.\n\nps output:\n"
-                    + psOutput
-                    + "\n\nStdout:\n"
-                    + dockerLogs.stdout
-                    + "\n\nStderr:\n"
-                    + dockerLogs.stderr
-            );
+            fail("""
+                Elasticsearch container did not start successfully.
+
+                ps output:
+                %s
+
+                Stdout:
+                %s
+
+                Stderr:
+                %s\
+                """.formatted(psOutput, dockerLogs.stdout, dockerLogs.stderr));
         }
     }
 
@@ -225,7 +229,15 @@ public class Docker {
 
         if (isElasticsearchRunning) {
             final Shell.Result dockerLogs = getContainerLogs();
-            fail("Elasticsearch container didn't exit.\n\nStdout:\n" + dockerLogs.stdout + "\n\nStderr:\n" + dockerLogs.stderr);
+            fail("""
+                Elasticsearch container didn't exit.
+
+                Stdout:
+                %s
+
+                Stderr:
+                %s\
+                """.formatted(dockerLogs.stdout, dockerLogs.stderr));
         }
     }
 

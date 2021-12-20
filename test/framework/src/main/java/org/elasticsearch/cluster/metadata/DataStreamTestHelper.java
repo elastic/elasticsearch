@@ -99,17 +99,16 @@ public final class DataStreamTestHelper {
     }
 
     public static String generateMapping(String timestampFieldName) {
-        return "{"
-            + "     \"_doc\":{\n"
-            + "        \"properties\": {\n"
-            + "          \""
-            + timestampFieldName
-            + "\": {\n"
-            + "            \"type\": \"date\"\n"
-            + "          }\n"
-            + "      }\n"
-            + "    }"
-            + "}";
+        return """
+            {
+              "_doc":{
+                "properties": {
+                  "%s": {
+                    "type": "date"
+                  }
+                }
+              }
+            }""".formatted(timestampFieldName);
     }
 
     public static String generateMapping(String timestampFieldName, String type) {

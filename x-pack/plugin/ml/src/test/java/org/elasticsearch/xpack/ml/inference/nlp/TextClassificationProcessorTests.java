@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
@@ -25,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizerTests.TEST_CASED_VOCAB;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -33,30 +33,21 @@ public class TextClassificationProcessorTests extends ESTestCase {
     public void testInvalidResult() {
         {
             PyTorchInferenceResult torchResult = new PyTorchInferenceResult("foo", new double[][][] {}, 0L, null);
-            InferenceResults inferenceResults = TextClassificationProcessor.processResult(
-                null,
-                torchResult,
-                randomInt(),
-                List.of("a", "b"),
-                randomAlphaOfLength(10)
+            var e = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> TextClassificationProcessor.processResult(null, torchResult, randomInt(), List.of("a", "b"), randomAlphaOfLength(10))
             );
-            assertThat(inferenceResults, instanceOf(WarningInferenceResults.class));
-            assertEquals("Text classification result has no data", ((WarningInferenceResults) inferenceResults).getWarning());
+            assertThat(e, instanceOf(ElasticsearchStatusException.class));
+            assertThat(e.getMessage(), containsString("Text classification result has no data"));
         }
         {
             PyTorchInferenceResult torchResult = new PyTorchInferenceResult("foo", new double[][][] { { { 1.0 } } }, 0L, null);
-            InferenceResults inferenceResults = TextClassificationProcessor.processResult(
-                null,
-                torchResult,
-                randomInt(),
-                List.of("a", "b"),
-                randomAlphaOfLength(10)
+            var e = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> TextClassificationProcessor.processResult(null, torchResult, randomInt(), List.of("a", "b"), randomAlphaOfLength(10))
             );
-            assertThat(inferenceResults, instanceOf(WarningInferenceResults.class));
-            assertEquals(
-                "Expected exactly [2] values in text classification result; got [1]",
-                ((WarningInferenceResults) inferenceResults).getWarning()
-            );
+            assertThat(e, instanceOf(ElasticsearchStatusException.class));
+            assertThat(e.getMessage(), containsString("Expected exactly [2] values in text classification result; got [1]"));
         }
     }
 

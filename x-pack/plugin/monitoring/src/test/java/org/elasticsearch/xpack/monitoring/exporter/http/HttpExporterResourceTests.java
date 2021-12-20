@@ -649,8 +649,10 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         final Response response;
         if (randomBoolean()) {
             final HttpEntity entity = randomFrom(
-                new StringEntity("{\"features\":{\"watcher\":{\"enabled\":false,\"available\":true}}}", ContentType.APPLICATION_JSON),
-                new StringEntity("{\"features\":{\"watcher\":{\"enabled\":true,\"available\":false}}}", ContentType.APPLICATION_JSON),
+                new StringEntity("""
+                    {"features":{"watcher":{"enabled":false,"available":true}}}""", ContentType.APPLICATION_JSON),
+                new StringEntity("""
+                    {"features":{"watcher":{"enabled":true,"available":false}}}""", ContentType.APPLICATION_JSON),
                 new StringEntity("{}", ContentType.APPLICATION_JSON)
             );
 

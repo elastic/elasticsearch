@@ -38,14 +38,15 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
 
     @Override
     public String configRoles() {
-        return super.configRoles()
-            + "\n"
-            + "my_kibana_user:\n"
-            + "  indices:\n"
-            + "    - names: 'logstash-*'\n"
-            + "      privileges:\n"
-            + "        - view_index_metadata\n"
-            + "        - read\n";
+        return """
+            %s
+            my_kibana_user:
+              indices:
+                - names: 'logstash-*'
+                  privileges:
+                    - view_index_metadata
+                    - read
+            """.formatted(super.configRoles());
     }
 
     @Override

@@ -723,7 +723,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Endpoint specific actions. Kibana reads and writes to this index to track new actions and display them.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-endpoint.actions-*")
-                    .privileges("create_index", "read", "write")
+                    .privileges("auto_configure", "read", "write")
                     .build(),
                 // For ILM policy for APM & Endpoint packages that have delete action
                 RoleDescriptor.IndicesPrivileges.builder()

@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
@@ -562,7 +563,7 @@ public class ApiKeyService {
         if (roleDescriptors == null) {
             return null;
         }
-        return roleDescriptors.entrySet().stream().map(entry -> {
+        return maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors.entrySet().stream().map(entry -> {
             final String name = entry.getKey();
             @SuppressWarnings("unchecked")
             final Map<String, Object> rdMap = (Map<String, Object>) entry.getValue();
@@ -581,7 +582,7 @@ public class ApiKeyService {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-        }).collect(Collectors.toList());
+        }).collect(Collectors.toList()));
     }
 
     public List<RoleDescriptor> parseRoleDescriptorsBytes(final String apiKeyId, BytesReference bytesReference) {
@@ -607,7 +608,22 @@ public class ApiKeyService {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return Collections.unmodifiableList(roleDescriptors);
+        return maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors);
+    }
+
+    private List<RoleDescriptor> maybeReplaceSuperuserRoleDescriptor(String apiKeyId, List<RoleDescriptor> roleDescriptors) {
+        // TODO: Maybe we can just check list of size 1 since superuser role hides any other roles
+        //       In theory we just need check limited-by-roles but the benefit is not worth the extra effort because roles are cached
+        //       We don't replace if it is a superuser equivalent but manually created role
+        return roleDescriptors.stream().map(rd -> {
+            if (rd.equals(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR)) {
+                // TODO: Log level? Should it be warning or deprecation or something else? 
+                logger.info("replacing superuser role for API key [{}]", apiKeyId);
+                // TODO: replace with actual new superuser descriptor
+                return ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
+            }
+            return rd;
+        }).toList();
     }
 
     /**

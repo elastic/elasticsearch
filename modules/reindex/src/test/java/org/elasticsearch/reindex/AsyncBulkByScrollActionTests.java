@@ -123,7 +123,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class AsyncBulkByScrollActionTests extends ESTestCase {
     private MyMockClient client;
     private DummyAbstractBulkByScrollRequest testRequest;
-    private SearchRequest firstSearchRequest;
     private PlainActionFuture<BulkByScrollResponse> listener;
     private String scrollId;
     private ThreadPool threadPool;
@@ -142,8 +141,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         threadPool = new TestThreadPool(getTestName());
         setupClient(threadPool);
-        firstSearchRequest = new SearchRequest();
-        testRequest = new DummyAbstractBulkByScrollRequest(firstSearchRequest);
+        testRequest = new DummyAbstractBulkByScrollRequest(new SearchRequest());
         listener = new PlainActionFuture<>();
         scrollId = null;
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
@@ -362,6 +360,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         // given a request with max docs
         var size = between(1, 10);
         testRequest.setMaxDocs(size);
+        testRequest.getSearchRequest().source().size(100);
 
         // when receiving bulk response with max docs
         var responses = randomArray(size, size, BulkItemResponse[]::new, AsyncBulkByScrollActionTests::createBulkResponse);
@@ -552,7 +551,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         });
 
         // Set the base for the scroll to wait - this is added to the figure we calculate below
-        firstSearchRequest.scroll(timeValueSeconds(10));
+        testRequest.getSearchRequest().scroll(timeValueSeconds(10));
 
         DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
             @Override
@@ -886,7 +885,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testEnableScrollWhenMaxDocsIsGreaterThenScrollSize() {
-        testRequest.setMaxDocs(between(100, 1000));
+        testRequest.setMaxDocs(between(101, 1000));
         testRequest.getSearchRequest().source().size(100);
 
         var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
@@ -904,7 +903,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testEnableScrollWhenProceedOnVersionConflict() {
-        testRequest.setMaxDocs(between(1, 100));
+        testRequest.setMaxDocs(between(1, 110));
         testRequest.getSearchRequest().source().size(100);
         testRequest.setAbortOnVersionConflict(false);
 

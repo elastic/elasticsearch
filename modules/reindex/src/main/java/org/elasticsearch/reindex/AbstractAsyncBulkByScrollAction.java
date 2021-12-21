@@ -205,7 +205,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
          *
          * This modifies the original request!
          */
-        final SearchSourceBuilder sourceBuilder = mainRequest.getSearchRequest().source();
+        final SearchSourceBuilder sourceBuilder = preparedSearchRequest.source();
         List<SortBuilder<?>> sorts = sourceBuilder.sorts();
         if (sorts == null || sorts.isEmpty()) {
             sourceBuilder.sort(fieldSort("_doc"));

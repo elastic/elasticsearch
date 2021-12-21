@@ -14,7 +14,6 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.provider.ListProperty;
-import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputFile;
@@ -77,7 +76,6 @@ public abstract class FilePermissionsTask extends DefaultTask {
      */
     @InputFiles
     @SkipWhenEmpty
-    @IgnoreEmptyDirectories
     public FileCollection getFiles() {
         return getSources().get()
             .stream()

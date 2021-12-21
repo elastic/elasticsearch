@@ -93,9 +93,8 @@ class IndicesAndAliasesResolver {
      */
 
     ResolvedIndices resolve(String action, TransportRequest request, Metadata metadata, Set<String> authorizedIndices) {
-        if (request instanceof IndicesAliasesRequest) {
+        if (request instanceof IndicesAliasesRequest indicesAliasesRequest) {
             ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
-            IndicesAliasesRequest indicesAliasesRequest = (IndicesAliasesRequest) request;
             for (IndicesRequest indicesRequest : indicesAliasesRequest.getAliasActions()) {
                 final ResolvedIndices resolved = resolveIndicesAndAliases(action, indicesRequest, metadata, authorizedIndices);
                 resolvedIndicesBuilder.addLocal(resolved.getLocal());
@@ -200,8 +199,7 @@ class IndicesAndAliasesResolver {
             assert indicesRequest.indices() == null || indicesRequest.indices().length == 0
                 : "indices are: " + Arrays.toString(indicesRequest.indices()); // Arrays.toString() can handle null values - all good
             resolvedIndicesBuilder.addLocal(getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices, metadata));
-        } else if (indicesRequest instanceof IndicesRequest.Replaceable) {
-            final IndicesRequest.Replaceable replaceable = (IndicesRequest.Replaceable) indicesRequest;
+        } else if (indicesRequest instanceof final IndicesRequest.Replaceable replaceable) {
             final IndicesOptions indicesOptions = indicesRequest.indicesOptions();
             final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed();
 
@@ -265,10 +263,9 @@ class IndicesAndAliasesResolver {
             return resolveIndicesAndAliasesWithoutWildcards(action, indicesRequest);
         }
 
-        if (indicesRequest instanceof AliasesRequest) {
+        if (indicesRequest instanceof AliasesRequest aliasesRequest) {
             // special treatment for AliasesRequest since we need to replace wildcards among the specified aliases too.
             // AliasesRequest extends IndicesRequest.Replaceable, hence its indices have already been properly replaced.
-            AliasesRequest aliasesRequest = (AliasesRequest) indicesRequest;
             if (aliasesRequest.expandAliasesWildcards()) {
                 List<String> aliases = replaceWildcardsWithAuthorizedAliases(
                     aliasesRequest.aliases(),

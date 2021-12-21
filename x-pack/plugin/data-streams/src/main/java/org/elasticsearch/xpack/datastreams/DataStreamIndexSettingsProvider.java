@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 

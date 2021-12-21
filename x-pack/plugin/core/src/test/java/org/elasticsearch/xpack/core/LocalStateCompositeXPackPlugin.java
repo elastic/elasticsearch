@@ -46,6 +46,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.engine.EngineFactory;

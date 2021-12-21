@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 
 import java.util.Objects;
@@ -18,7 +19,7 @@ import java.util.function.Supplier;
 public class RealmConfig {
 
     final RealmIdentifier identifier;
-    final String domain;
+    final @Nullable String domain;
     final boolean enabled;
     final int order;
     private final Environment env;
@@ -48,7 +49,7 @@ public class RealmConfig {
         return identifier;
     }
 
-    public String domain() {
+    public @Nullable String domain() {
         return domain;
     }
 

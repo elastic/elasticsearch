@@ -105,7 +105,7 @@ public class Stash implements ToXContentFragment {
     }
 
     private Object unstash(String key) throws IOException {
-        Object stashedValue = stashObjectPath.evaluate(key);
+        Object stashedValue = stashObjectPath.evaluate(key, this);
         if (stashedValue == null) {
             throw new IllegalArgumentException("stashed value not found for key [" + key + "]");
         }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -46,7 +47,7 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
         }
 
         public Request(String[] indices, IndicesOptions indicesOptions) {
-            this.indices = indices;
+            this.indices = indices != null ? indices : Strings.EMPTY_ARRAY;
             this.indicesOptions = indicesOptions;
         }
 
@@ -86,7 +87,7 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeStringArrayNullable(indices);
+            out.writeStringArray(indices);
             indicesOptions.writeIndicesOptions(out);
         }
     }

@@ -101,7 +101,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         ShardsIterator shardsIt = state.routingTable().allShards(concreteIndices);
         for (ShardRouting shard : shardsIt) {
             // only take primary shards, which should be exactly 1, this isn't strictly necessary
-            // and we should consider taking any shard copy, but than we need another way to de-dup
+            // and we should consider taking any shard copy, but then we need another way to de-dup
             if (shard.primary() == false) {
                 continue;
             }
@@ -131,8 +131,8 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             this.task = task;
             this.listener = listener;
             this.nodesAndShards = nodesAndShards;
-            nodes = clusterState.nodes();
-            localNodeId = clusterService.localNode().getId();
+            this.nodes = clusterState.nodes();
+            this.localNodeId = clusterService.localNode().getId();
         }
 
         public void start() {

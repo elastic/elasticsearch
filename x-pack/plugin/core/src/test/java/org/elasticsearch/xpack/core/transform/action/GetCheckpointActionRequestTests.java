@@ -24,7 +24,7 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTest
     @Override
     protected Request createTestInstance() {
         return new Request(
-            generateRandomStringArray(10, 10, false, false),
+            randomBoolean() ? null : generateRandomStringArray(10, 10, false, false),
             IndicesOptions.fromParameters(
                 randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
                 Boolean.toString(randomBoolean()),
@@ -42,7 +42,7 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTest
 
     @Override
     protected Request mutateInstance(Request instance) throws IOException {
-        List<String> indices = new ArrayList<>(Arrays.asList(instance.indices()));
+        List<String> indices = instance.indices() != null ? new ArrayList<>(Arrays.asList(instance.indices())) : new ArrayList<>();
         IndicesOptions indicesOptions = instance.indicesOptions();
 
         switch (between(0, 1)) {

@@ -129,7 +129,7 @@ script on Windows in the root of the repository. The examples below show the
 usage on Unix.
 
 We support development in IntelliJ versions IntelliJ 2020.1 and
-onwards and Eclipse 2021-09 and onwards.
+onwards and Eclipse 2021-12 and onwards.
 
 [Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
 
@@ -203,10 +203,8 @@ automatically formatted in
 
 ### Importing the project into Eclipse
 
-Elasticsearch builds using Gradle and Java 17. You'll need Eclipse 2021-09
-and it's [Java 17 support ](https://marketplace.eclipse.org/content/java-17-support-eclipse-2021-09-421)
-Then point [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini)'s `-vm` to
-Java 17.
+Elasticsearch builds using Gradle and Java 17. You'll need to point
+[eclipse.ini](https://wiki.eclipse.org/Eclipse.ini)'s `-vm` to Java 17.
 
  - Select **File > Import...**
  - Select **Existing Gradle Project**

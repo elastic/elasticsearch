@@ -167,7 +167,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
 
     @Override
     public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult<User>> listener) {
-        if (token instanceof OpenIdConnectToken oidcToken && isTokenForRealm((OpenIdConnectToken) token)) {
+        if (token instanceof OpenIdConnectToken oidcToken && isTokenForRealm(oidcToken)) {
             openIdConnectAuthenticator.authenticate(
                 oidcToken,
                 ActionListener.wrap(jwtClaimsSet -> { buildUserFromClaims(jwtClaimsSet, listener); }, e -> {

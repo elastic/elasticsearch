@@ -233,7 +233,8 @@ public final class TransformAggregations {
             );
         }
 
-        if (agg instanceof ValuesSourceAggregationBuilder<?> valueSourceAggregation) {
+        if (agg instanceof ValuesSourceAggregationBuilder) {
+            ValuesSourceAggregationBuilder<?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?>) agg;
             return new Tuple<>(
                 Collections.singletonMap(valueSourceAggregation.getName(), valueSourceAggregation.field()),
                 Collections.singletonMap(valueSourceAggregation.getName(), valueSourceAggregation.getType())

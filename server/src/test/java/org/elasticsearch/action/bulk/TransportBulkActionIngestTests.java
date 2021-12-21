@@ -769,7 +769,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             eq(Names.WRITE)
         );
-        indexRequest1.process();
+        indexRequest1.process(Version.CURRENT, null, "index");
         completionHandler.getValue().accept(Thread.currentThread(), null);
 
         // check failure passed through to the listener

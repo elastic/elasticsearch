@@ -209,7 +209,7 @@ public class Realms implements Iterable<Realm> {
         for (RealmConfig config : realmConfigs) {
             Realm.Factory factory = factories.get(config.identifier().getType());
             assert factory != null : "unknown realm type [" + config.identifier().getType() + "]";
-            if (config.identifier().getName().startsWith(RealmSettings.RESERVED_REALM_NAME_PREFIX)) {
+            if (config.identifier().getName().startsWith(RealmSettings.RESERVED_REALM_AND_DOMAIN_NAME_PREFIX)) {
                 reservedPrefixedRealmIdentifiers.add(config.identifier());
             }
             if (config.enabled() == false) {
@@ -408,7 +408,7 @@ public class Realms implements Iterable<Realm> {
                     + (realmIdentifiers.size() == 1 ? "name" : "names")
                     + " with reserved prefix [{}]: [{}]. "
                     + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
-                RealmSettings.RESERVED_REALM_NAME_PREFIX,
+                RealmSettings.RESERVED_REALM_AND_DOMAIN_NAME_PREFIX,
                 realmIdentifiers.stream()
                     .map(rid -> RealmSettings.PREFIX + rid.getType() + "." + rid.getName())
                     .sorted()

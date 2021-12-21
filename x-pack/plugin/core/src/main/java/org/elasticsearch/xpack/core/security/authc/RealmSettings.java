@@ -38,11 +38,22 @@ public class RealmSettings {
 
     public static final Setting.AffixSetting<List<String>> DOMAIN_TO_REALM_ASSOC_SETTING = Setting.affixKeySetting(
         "xpack.security.authc.domains.",
-        "realms", //TODO prevent domains with_ (and check that the synthetic realms use this, __attach, account tokens)
-        key -> Setting.stringListSetting(key, Setting.Property.NodeScope)
+        "realms", // TODO prevent domains with_ (and check that the synthetic realms use this, __attach, account tokens)
+        key -> Setting.stringListSetting(key, new Setting.Validator<>() {
+            @Override
+            public void validate(List<String> realms) {
+                for (String realm : realms) {
+                    if (realm.startsWith(RESERVED_REALM_AND_DOMAIN_NAME_PREFIX)) {
+                        throw new IllegalArgumentException(
+                            "Realm names must not start with \"" + RESERVED_REALM_AND_DOMAIN_NAME_PREFIX + "\""
+                        );
+                    }
+                }
+            }
+        }, Setting.Property.NodeScope)
     );
 
-    public static final String RESERVED_REALM_NAME_PREFIX = "_";
+    public static final String RESERVED_REALM_AND_DOMAIN_NAME_PREFIX = "_";
     public static final String PREFIX = "xpack.security.authc.realms.";
 
     public static final Function<String, Setting.AffixSetting<Boolean>> ENABLED_SETTING = affixSetting(
@@ -148,6 +159,11 @@ public class RealmSettings {
     ) {
         final Map<String, Set<String>> realmToDomainsMap = new HashMap<>();
         for (String domainName : DOMAIN_TO_REALM_ASSOC_SETTING.getNamespaces(globalSettings)) {
+            if (domainName.startsWith(RESERVED_REALM_AND_DOMAIN_NAME_PREFIX)) {
+                throw new IllegalArgumentException(
+                    "Security domain name must not start with \"" + RESERVED_REALM_AND_DOMAIN_NAME_PREFIX + "\""
+                );
+            }
             Setting<List<String>> realmsByDomainSetting = DOMAIN_TO_REALM_ASSOC_SETTING.getConcreteSettingForNamespace(domainName);
             for (String realmName : realmsByDomainSetting.get(globalSettings)) {
                 realmToDomainsMap.computeIfAbsent(realmName, k -> new HashSet<>()).add(domainName);

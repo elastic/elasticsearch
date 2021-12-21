@@ -259,9 +259,7 @@ public class RealmsTests extends ESTestCase {
                         if (false == realmsForDomain.isEmpty()) {
                             realmsForDomain.append(", ");
                         }
-                        realmsForDomain
-                            .append("realm_")
-                            .append(indexAndDomain.getKey());
+                        realmsForDomain.append("realm_").append(indexAndDomain.getKey());
                     }
                 }
                 if (domain.equals(fileRealmDomain)) {

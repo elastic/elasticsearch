@@ -683,13 +683,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Fleet Server indices. Kibana create this indice before Fleet Server use them.
                 // Fleet Server indices. Kibana read and write to this indice to manage Elastic Agents
                 RoleDescriptor.IndicesPrivileges.builder().indices(".fleet*").allowRestrictedIndices(true).privileges("all").build(),
-                // Endpoint specific action responses. Kibana reads from these to display responses to the user.
-                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.action.responses-*").privileges("read").build(),
-                // Endpoint specific actions. Kibana reads and writes to this index to track new actions and display them.
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".logs-endpoint.actions-*")
-                    .privileges("create_index", "auto_configure", "read", "write")
-                    .build(),
                 // Legacy "Alerts as data" used in Security Solution.
                 // Kibana user creates these indices; reads / writes to them.
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTS_LEGACY_INDEX).privileges("all").build(),
@@ -724,6 +717,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ".logs-endpoint.actions-*"
                     )
                     .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
+                    .build(),
+                // Endpoint specific action responses. Kibana reads from these to display responses to the user.
+                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.action.responses-*").privileges("read").build(),
+                // Endpoint specific actions. Kibana reads and writes to this index to track new actions and display them.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".logs-endpoint.actions-*")
+                    .privileges("create_index", "read", "write")
                     .build(),
                 // For ILM policy for APM & Endpoint packages that have delete action
                 RoleDescriptor.IndicesPrivileges.builder()

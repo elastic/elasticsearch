@@ -15,17 +15,12 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -37,31 +32,22 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
     private final BulkItemRequest[] items;
 
     // Local, not serialized
-    private final Resources resources = new Resources();
+    private final RequestMemory requestMemory;
 
     public BulkShardRequest(StreamInput in) throws IOException {
-        this(in, null);
-    }
-
-    public BulkShardRequest(StreamInput in, RecyclerBytesStreamOutput recycler) throws IOException {
         super(in);
-        boolean success = false;
-        try {
-            items = in.readArray(
-                i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt, recycler, resources.toRelease)),
-                BulkItemRequest[]::new
-            );
-            success = true;
-        } finally {
-            if (success == false) {
-                resources.decRef();
-            }
-        }
+        items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
+        requestMemory = new RequestMemory(() -> {});
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
+        this(shardId, refreshPolicy, items, RequestMemory.NO_OP);
+    }
+
+    private BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items, RequestMemory requestMemory) {
         super(shardId);
         this.items = items;
+        this.requestMemory = requestMemory;
         setRefreshPolicy(refreshPolicy);
     }
 
@@ -167,39 +153,12 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
         }
     }
 
+    public RequestMemory getRequestMemory() {
+        return requestMemory;
+    }
+
     @Override
     public long ramBytesUsed() {
         return SHALLOW_SIZE + Stream.of(items).mapToLong(Accountable::ramBytesUsed).sum();
-    }
-
-    @Override
-    public void incRef() {
-        resources.incRef();
-    }
-
-    @Override
-    public boolean tryIncRef() {
-        return resources.tryIncRef();
-    }
-
-    @Override
-    public boolean decRef() {
-        return resources.decRef();
-    }
-
-    @Override
-    public boolean hasReferences() {
-        return resources.hasReferences();
-    }
-
-    private static class Resources extends AbstractRefCounted {
-
-        private final ArrayList<Releasable> toRelease = new ArrayList<>();
-
-        @Override
-        protected void closeInternal() {
-            Releasables.close(toRelease);
-            toRelease.clear();
-        }
     }
 }

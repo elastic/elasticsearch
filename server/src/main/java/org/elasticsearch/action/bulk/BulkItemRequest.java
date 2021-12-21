@@ -12,12 +12,10 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -32,10 +30,9 @@ public class BulkItemRequest implements Writeable, Accountable {
     private final DocWriteRequest<?> request;
     private volatile BulkItemResponse primaryResponse;
 
-    BulkItemRequest(@Nullable ShardId shardId, StreamInput in, RecyclerBytesStreamOutput recycler, ArrayList<Releasable> toRelease)
-        throws IOException {
+    BulkItemRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         id = in.readVInt();
-        request = DocWriteRequest.readDocumentRequestWithRecycler(shardId, in, recycler, toRelease);
+        request = DocWriteRequest.readDocumentRequest(shardId, in, true, new ArrayList<>());
         if (in.readBoolean()) {
             if (shardId == null) {
                 primaryResponse = new BulkItemResponse(in);

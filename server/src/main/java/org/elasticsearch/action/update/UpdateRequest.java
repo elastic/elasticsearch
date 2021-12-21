@@ -20,7 +20,6 @@ import org.elasticsearch.action.support.single.instance.InstanceShardOperationRe
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -137,15 +136,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     public UpdateRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
-        this(shardId, in, null, null);
+        this(shardId, in, false, null);
     }
 
-    public UpdateRequest(
-        @Nullable ShardId shardId,
-        StreamInput in,
-        @Nullable RecyclerBytesStreamOutput recyclerStream,
-        @Nullable ArrayList<Releasable> toRelease
-    ) throws IOException {
+    public UpdateRequest(@Nullable ShardId shardId, StreamInput in, boolean sliceBytes, @Nullable ArrayList<Releasable> toRelease)
+        throws IOException {
         super(shardId, in);
         waitForActiveShards = ActiveShardCount.readFrom(in);
         if (in.getVersion().before(Version.V_8_0_0)) {
@@ -160,11 +155,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         retryOnConflict = in.readVInt();
         refreshPolicy = RefreshPolicy.readFrom(in);
         if (in.readBoolean()) {
-            doc = new IndexRequest(shardId, in, recyclerStream, toRelease);
+            doc = new IndexRequest(shardId, in, sliceBytes, toRelease);
         }
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         if (in.readBoolean()) {
-            upsertRequest = new IndexRequest(shardId, in, recyclerStream, toRelease);
+            upsertRequest = new IndexRequest(shardId, in, sliceBytes, toRelease);
         }
         docAsUpsert = in.readBoolean();
         ifSeqNo = in.readZLong();

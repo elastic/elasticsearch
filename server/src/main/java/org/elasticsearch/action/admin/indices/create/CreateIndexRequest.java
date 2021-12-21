@@ -395,8 +395,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (MAPPINGS.match(name, deprecationHandler)) {
-                Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
-                for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
+                Map<String, Object> typeToMappings = (Map<String, Object>) entry.getValue();
+                for (Map.Entry<String, Object> entry1 : typeToMappings.entrySet()) {
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
             } else if (ALIASES.match(name, deprecationHandler)) {

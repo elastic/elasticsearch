@@ -747,6 +747,7 @@ public final class SearchPhaseController {
             }
         }
 
+        @SuppressWarnings("HiddenField")
         void add(TopDocsAndMaxScore topDocs, boolean timedOut, Boolean terminatedEarly) {
             if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 totalHits += topDocs.topDocs.totalHits.value;

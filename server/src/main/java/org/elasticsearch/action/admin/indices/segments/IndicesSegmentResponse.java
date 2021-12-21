@@ -59,7 +59,7 @@ public class IndicesSegmentResponse extends BroadcastResponse {
         if (indicesSegments != null) {
             return indicesSegments;
         }
-        Map<String, IndexSegments> indicesSegments = new HashMap<>();
+        Map<String, IndexSegments> indicesSegmentsByIndex = new HashMap<>();
 
         Set<String> indices = new HashSet<>();
         for (ShardSegments shard : shards) {
@@ -75,8 +75,8 @@ public class IndicesSegmentResponse extends BroadcastResponse {
             }
             indicesSegments.put(indexName, new IndexSegments(indexName, shards.toArray(new ShardSegments[shards.size()])));
         }
-        this.indicesSegments = indicesSegments;
-        return indicesSegments;
+        this.indicesSegments = indicesSegmentsByIndex;
+        return indicesSegmentsByIndex;
     }
 
     @Override

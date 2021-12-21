@@ -16,6 +16,8 @@ setting to mount the index directly to the phase's corresponding data tier. In
 the frozen phase, the action mounts a <<partially-mounted,partially mounted
 index>> prefixed with `partial-` to the frozen tier. In other phases, the action mounts a
 <<fully-mounted,fully mounted index>> prefixed with `restored-` to the corresponding data tier.
+The `searchable_snapshot` action should only be included in either hot or cold phases, but
+not both.
 
 If the `searchable_snapshot` action is used in the hot phase the subsequent
 phases cannot include the `shrink` or `forcemerge` actions.

@@ -20,11 +20,12 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -43,6 +44,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileUserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -122,7 +124,9 @@ public class ProfileService {
             builder = XContentFactory.jsonBuilder();
             builder.startObject();
             if (false == request.getAccess().isEmpty()) {
-                builder.field("access", request.getAccess());
+                builder.startObject("access");
+                builder.field("applications", request.getAccess());
+                builder.endObject();
             }
             if (false == request.getData().isEmpty()) {
                 builder.field("application_data", request.getData());
@@ -133,33 +137,41 @@ public class ProfileService {
             return;
         }
 
-        final String docId = uidToDocId(request.getUid());
-        final UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate(SECURITY_PROFILE_ALIAS, docId)
-            .setDoc(builder)
-            .setRefreshPolicy(request.getRefreshPolicy());
-
-        if (request.getIfPrimaryTerm() >= 0) {
-            updateRequestBuilder.setIfPrimaryTerm(request.getIfPrimaryTerm());
-        }
-        if (request.getIfSeqNo() >= 0) {
-            updateRequestBuilder.setIfSeqNo(request.getIfSeqNo());
-        }
-
-        profileIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client,
-                SECURITY_ORIGIN,
-                UpdateAction.INSTANCE,
-                updateRequestBuilder.request(),
-                ActionListener.wrap(updateResponse -> {
-                    assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
-                        || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
-                    listener.onResponse(AcknowledgedResponse.TRUE);
-                }, listener::onFailure)
-            )
+        doUpdate(
+            buildUpdateRequest(request.getUid(), builder, request.getRefreshPolicy(), request.getIfPrimaryTerm(), request.getIfSeqNo()),
+            listener.map(updateResponse -> AcknowledgedResponse.TRUE)
         );
+    }
 
+    public void updateProfileUser(UpdateProfileUserRequest request, ActionListener<AcknowledgedResponse> listener) {
+        final XContentBuilder builder;
+        try {
+            builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            builder.startObject("user");
+            if (request.getEmail() != null) {
+                builder.field("email", request.getEmail());
+            }
+            if (request.getFullName() != null) {
+                builder.field("full_name", request.getFullName());
+            }
+            if (request.getDisplayName() != null) {
+                builder.field("display_name", request.getDisplayName());
+            }
+            if (request.getActive() != null) {
+                builder.field("active", request.getActive());
+            }
+            builder.endObject();
+            builder.endObject();
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        doUpdate(
+            buildUpdateRequest(request.getUid(), builder, request.getRefreshPolicy(), request.getIfPrimaryTerm(), request.getIfSeqNo()),
+            listener.map(updateResponse -> AcknowledgedResponse.TRUE)
+        );
     }
 
     private void getVersionedDocument(String uid, ActionListener<VersionedDocument> listener) {
@@ -250,7 +262,7 @@ public class ProfileService {
             client.prepareIndex(SECURITY_PROFILE_ALIAS)
                 .setSource(profileDocument.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
                 .setId(docId)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                 .request()
         );
         profileIndex.prepareIndexIfNeededThenExecute(
@@ -274,13 +286,44 @@ public class ProfileService {
     private void updateProfileForActivate(Subject subject, VersionedDocument versionedDocument, ActionListener<Profile> listener)
         throws IOException {
         final ProfileDocument profileDocument = versionedDocument.doc.updateWithSubjectAndStripApplicationData(subject);
-        final String docId = uidToDocId(profileDocument.uid());
-        final UpdateRequest updateRequest = client.prepareUpdate(SECURITY_PROFILE_ALIAS, docId)
-            .setDoc(profileDocument.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
-            .setIfPrimaryTerm(versionedDocument.primaryTerm)
-            .setIfSeqNo(versionedDocument.seqNo)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
-            .request();
+
+        doUpdate(
+            buildUpdateRequest(
+                profileDocument.uid(),
+                profileDocument.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS),
+                RefreshPolicy.WAIT_UNTIL,
+                versionedDocument.primaryTerm,
+                versionedDocument.seqNo
+            ),
+            listener.map(
+                updateResponse -> new VersionedDocument(profileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo())
+                    .toProfile(null)
+            )
+        );
+    }
+
+    private UpdateRequest buildUpdateRequest(
+        String uid,
+        XContentBuilder builder,
+        RefreshPolicy refreshPolicy,
+        long ifPrimaryTerm,
+        long ifSeqNo
+    ) {
+        final String docId = uidToDocId(uid);
+        final UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate(SECURITY_PROFILE_ALIAS, docId)
+            .setDoc(builder)
+            .setRefreshPolicy(refreshPolicy);
+
+        if (ifPrimaryTerm >= 0) {
+            updateRequestBuilder.setIfPrimaryTerm(ifPrimaryTerm);
+        }
+        if (ifSeqNo >= 0) {
+            updateRequestBuilder.setIfSeqNo(ifSeqNo);
+        }
+        return updateRequestBuilder.request();
+    }
+
+    private void doUpdate(UpdateRequest updateRequest, ActionListener<UpdateResponse> listener) {
         profileIndex.prepareIndexIfNeededThenExecute(
             listener::onFailure,
             () -> executeAsyncWithOrigin(
@@ -291,9 +334,7 @@ public class ProfileService {
                 ActionListener.wrap(updateResponse -> {
                     assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
                         || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
-                    listener.onResponse(
-                        new VersionedDocument(profileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo()).toProfile(null)
-                    );
+                    listener.onResponse(updateResponse);
                 }, listener::onFailure)
             )
         );

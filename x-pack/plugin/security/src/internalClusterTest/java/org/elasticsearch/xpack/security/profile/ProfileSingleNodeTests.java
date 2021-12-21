@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.core.security.action.profile.GetProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileUserAction;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileUserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -35,6 +37,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -176,7 +179,7 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
 
         final UpdateProfileDataRequest updateProfileDataRequest1 = new UpdateProfileDataRequest(
             profile1.uid(),
-            null,
+            Map.of("app1", List.of("tab1", "tab2")),
             Map.of("app1", Map.of("name", "app1", "type", "app")),
             -1,
             -1,
@@ -187,6 +190,7 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         final Profile profile2 = getProfile(profile1.uid(), Set.of("app1", "app2"));
 
         assertThat(profile2.uid(), equalTo(profile1.uid()));
+        assertThat(profile2.access().applications(), equalTo(Map.of("app1", List.of("tab1", "tab2"))));
         assertThat(profile2.applicationData(), equalTo(Map.of("app1", Map.of("name", "app1", "type", "app"))));
 
         // Update again
@@ -255,6 +259,41 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
             ).execute(UpdateProfileDataAction.INSTANCE, updateProfileDataRequest2).actionGet()
         );
         assertThat(e2.getMessage(), containsString("is unauthorized"));
+    }
+
+    public void testUpdateProfileUser() {
+        final Profile profile1 = doActivateProfile();
+
+        final UpdateProfileUserRequest updateProfileUserRequest1 = new UpdateProfileUserRequest(
+            profile1.uid(),
+            "rac_user@example.com",
+            null,
+            null,
+            null,
+            -1,
+            -1,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL
+        );
+        client().execute(UpdateProfileUserAction.INSTANCE, updateProfileUserRequest1).actionGet();
+
+        assertThat(getProfile(profile1.uid(), Set.of()).user().email(), equalTo("rac_user@example.com"));
+
+        final UpdateProfileUserRequest updateProfileUserRequest2 = new UpdateProfileUserRequest(
+            profile1.uid(),
+            null,
+            "User RAC",
+            "RAC",
+            null,
+            -1,
+            -1,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL
+        );
+        client().execute(UpdateProfileUserAction.INSTANCE, updateProfileUserRequest2).actionGet();
+
+        final Profile.ProfileUser user2 = getProfile(profile1.uid(), Set.of()).user();
+        assertThat(user2.email(), equalTo("rac_user@example.com"));
+        assertThat(user2.fullName(), equalTo("User RAC"));
+        assertThat(user2.displayName(), equalTo("RAC"));
     }
 
     private Profile doActivateProfile() {

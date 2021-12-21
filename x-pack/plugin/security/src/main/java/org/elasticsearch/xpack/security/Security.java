@@ -110,6 +110,7 @@ import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesActio
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileUserAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
@@ -186,6 +187,7 @@ import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesA
 import org.elasticsearch.xpack.security.action.profile.TransportActivateProfileAction;
 import org.elasticsearch.xpack.security.action.profile.TransportGetProfilesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportUpdateProfileDataAction;
+import org.elasticsearch.xpack.security.action.profile.TransportUpdateProfileUserAction;
 import org.elasticsearch.xpack.security.action.realm.TransportClearRealmCacheAction;
 import org.elasticsearch.xpack.security.action.role.TransportClearRolesCacheAction;
 import org.elasticsearch.xpack.security.action.role.TransportDeleteRoleAction;
@@ -280,6 +282,7 @@ import org.elasticsearch.xpack.security.rest.action.privilege.RestPutPrivilegesA
 import org.elasticsearch.xpack.security.rest.action.profile.RestActivateProfileAction;
 import org.elasticsearch.xpack.security.rest.action.profile.RestGetProfileAction;
 import org.elasticsearch.xpack.security.rest.action.profile.RestUpdateProfileDataAction;
+import org.elasticsearch.xpack.security.rest.action.profile.RestUpdateProfileUserAction;
 import org.elasticsearch.xpack.security.rest.action.realm.RestClearRealmCacheAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestClearRolesCacheAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestDeleteRoleAction;
@@ -1204,6 +1207,7 @@ public class Security extends Plugin
             new ActionHandler<>(GetProfilesAction.INSTANCE, TransportGetProfilesAction.class),
             new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
             new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
+            new ActionHandler<>(UpdateProfileUserAction.INSTANCE, TransportUpdateProfileUserAction.class),
             usageAction,
             infoAction
         );
@@ -1280,7 +1284,8 @@ public class Security extends Plugin
             new RestNodeEnrollmentAction(settings, getLicenseState()),
             new RestGetProfileAction(settings, getLicenseState()),
             new RestActivateProfileAction(settings, getLicenseState()),
-            new RestUpdateProfileDataAction(settings, getLicenseState())
+            new RestUpdateProfileDataAction(settings, getLicenseState()),
+            new RestUpdateProfileUserAction(settings, getLicenseState())
         );
     }
 

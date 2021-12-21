@@ -94,16 +94,26 @@ public class UpdateProfileDataRequest extends ActionRequest {
         if (applicationNames.isEmpty()) {
             validationException = addValidationError("update request is empty", validationException);
         }
-        final Set<String> invalidNames = applicationNames.stream()
+        final Set<String> namesWithDot = applicationNames.stream()
             .filter(name -> name.contains("."))
             .collect(Collectors.toUnmodifiableSet());
-        if (false == invalidNames.isEmpty()) {
+        if (false == namesWithDot.isEmpty()) {
             validationException = addValidationError(
-                "application name must not contain dot, but found [" + Strings.collectionToCommaDelimitedString(invalidNames) + "]",
+                "application name must not contain dot, but found [" + Strings.collectionToCommaDelimitedString(namesWithDot) + "]",
+                validationException
+            );
+        }
+        final Set<String> namesStartsWithUnderscore = applicationNames.stream()
+            .filter(name -> name.startsWith("_"))
+            .collect(Collectors.toUnmodifiableSet());
+        if (false == namesStartsWithUnderscore.isEmpty()) {
+            validationException = addValidationError(
+                "application name must not start with underscore, but found ["
+                    + Strings.collectionToCommaDelimitedString(namesStartsWithUnderscore)
+                    + "]",
                 validationException
             );
         }
         return validationException;
     }
-
 }

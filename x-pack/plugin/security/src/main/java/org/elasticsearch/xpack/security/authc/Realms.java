@@ -388,7 +388,6 @@ public class Realms implements Iterable<Realm> {
             }
             realmConfigs.add(config);
         }
-
         return realmConfigs;
     }
 

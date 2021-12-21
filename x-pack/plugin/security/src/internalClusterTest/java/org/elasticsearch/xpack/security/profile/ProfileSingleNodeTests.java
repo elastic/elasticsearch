@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.profile;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -55,20 +57,38 @@ import static org.hamcrest.Matchers.nullValue;
 public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
 
     private static final String RAC_USER_NAME = "rac_user";
+    private static final String RAC_APP_USER_NAME = "rac_app";
 
     @Override
     protected String configUsers() {
-        return super.configUsers() + RAC_USER_NAME + ":" + TEST_PASSWORD_HASHED + "\n";
+        return super.configUsers()
+            + RAC_USER_NAME
+            + ":"
+            + TEST_PASSWORD_HASHED
+            + "\n"
+            + RAC_APP_USER_NAME
+            + ":"
+            + TEST_PASSWORD_HASHED
+            + "\n";
     }
 
     @Override
     protected String configRoles() {
-        return super.configRoles() + "rac_role:\n" + "  cluster:\n" + "    - 'manage_own_api_key'\n" + "    - 'monitor'\n";
+        return super.configRoles()
+            + "rac_role:\n"
+            + "  cluster:\n"
+            + "    - 'manage_own_api_key'\n"
+            + "    - 'monitor'\n"
+            + "rac_app_role:\n"
+            + "  global:\n"
+            + "    profile:\n"
+            + "        write:\n"
+            + "            applications: ['rac_app'] \n";
     }
 
     @Override
     protected String configUsersRoles() {
-        return super.configUsersRoles() + "rac_role:" + RAC_USER_NAME + "\n";
+        return super.configUsersRoles() + "rac_role:" + RAC_USER_NAME + "\n" + "rac_app_role:" + RAC_APP_USER_NAME + "\n";
     }
 
     @Override
@@ -196,7 +216,45 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
             -1,
             WriteRequest.RefreshPolicy.WAIT_UNTIL
         );
-        expectThrows(DocumentMissingException.class, () -> client().execute(UpdateProfileDataAction.INSTANCE, updateProfileDataRequest3).actionGet());
+        expectThrows(
+            DocumentMissingException.class,
+            () -> client().execute(UpdateProfileDataAction.INSTANCE, updateProfileDataRequest3).actionGet()
+        );
+    }
+
+    public void testUpdateProfileDataPrivileges() {
+        final Profile profile1 = doActivateProfile();
+        final UpdateProfileDataRequest updateProfileDataRequest1 = new UpdateProfileDataRequest(
+            profile1.uid(),
+            null,
+            Map.of("rac_app", Map.of("theme", "light")),
+            -1,
+            -1,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL
+        );
+        client().filterWithHeader(
+            Map.of("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RAC_APP_USER_NAME, TEST_PASSWORD_SECURE_STRING))
+        ).execute(UpdateProfileDataAction.INSTANCE, updateProfileDataRequest1).actionGet();
+
+        final Profile profile2 = getProfile(profile1.uid(), Set.of("*"));
+        assertThat(profile2.uid(), equalTo(profile1.uid()));
+        assertThat(profile2.applicationData(), equalTo(Map.of("rac_app", Map.of("theme", "light"))));
+
+        final UpdateProfileDataRequest updateProfileDataRequest2 = new UpdateProfileDataRequest(
+            profile1.uid(),
+            null,
+            Map.of("not_rac_app", Map.of("theme", "light")),
+            -1,
+            -1,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL
+        );
+        final ElasticsearchSecurityException e2 = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> client().filterWithHeader(
+                Map.of("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RAC_APP_USER_NAME, TEST_PASSWORD_SECURE_STRING))
+            ).execute(UpdateProfileDataAction.INSTANCE, updateProfileDataRequest2).actionGet()
+        );
+        assertThat(e2.getMessage(), containsString("is unauthorized"));
     }
 
     private Profile doActivateProfile() {

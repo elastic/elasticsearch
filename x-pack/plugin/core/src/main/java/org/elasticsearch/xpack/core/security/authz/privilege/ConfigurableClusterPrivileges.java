@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -18,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.privilege.ApplicationPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege.Category;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
@@ -30,8 +32,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Static utility class for working with {@link ConfigurableClusterPrivilege} instances
@@ -71,12 +76,12 @@ public final class ConfigurableClusterPrivileges {
         Collection<ConfigurableClusterPrivilege> privileges
     ) throws IOException {
         builder.startObject();
-        for (Category category : Category.values()) {
-            builder.startObject(category.field.getPreferredName());
-            for (ConfigurableClusterPrivilege privilege : privileges) {
-                if (category == privilege.getCategory()) {
-                    privilege.toXContent(builder, params);
-                }
+        final Map<Category, List<ConfigurableClusterPrivilege>> privilegesGroup = privileges.stream()
+            .collect(Collectors.groupingBy(ConfigurableClusterPrivilege::getCategory, Collectors.toList()));
+        for (Map.Entry<Category, List<ConfigurableClusterPrivilege>> entry : privilegesGroup.entrySet()) {
+            builder.startObject(entry.getKey().field.getPreferredName());
+            for (ConfigurableClusterPrivilege privilege : entry.getValue()) {
+                privilege.toXContent(builder, params);
             }
             builder.endObject();
         }
@@ -94,12 +99,16 @@ public final class ConfigurableClusterPrivileges {
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
 
-            expectFieldName(parser, Category.APPLICATION.field);
+            expectFieldName(parser, Category.APPLICATION.field, Category.PROFILE.field);
+            final CheckedFunction<XContentParser, ConfigurableClusterPrivilege, IOException> privilegeFunc;
+            if (Category.APPLICATION.field.match(parser.currentName(), parser.getDeprecationHandler())) {
+                privilegeFunc = ManageApplicationPrivileges::parse;
+            } else {
+                privilegeFunc = UpdateProfileDataPrivileges::parse;
+            }
             expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
             expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
-
-            expectFieldName(parser, ManageApplicationPrivileges.Fields.MANAGE);
-            privileges.add(ManageApplicationPrivileges.parse(parser));
+            privileges.add(privilegeFunc.apply(parser));
             expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
         }
 
@@ -237,10 +246,98 @@ public final class ConfigurableClusterPrivileges {
         public ClusterPermission.Builder buildPermission(final ClusterPermission.Builder builder) {
             return builder.add(this, Set.of("cluster:admin/xpack/security/privilege/*"), requestPredicate);
         }
+    }
 
-        private interface Fields {
-            ParseField MANAGE = new ParseField("manage");
-            ParseField APPLICATIONS = new ParseField("applications");
+    public static class UpdateProfileDataPrivileges implements ConfigurableClusterPrivilege {
+        public static final String WRITEABLE_NAME = "update-profile-data";
+
+        private final Set<String> applicationNames;
+        private final Predicate<String> applicationPredicate;
+        private final Predicate<TransportRequest> requestPredicate;
+
+        public UpdateProfileDataPrivileges(Set<String> applicationNames) {
+            this.applicationNames = Collections.unmodifiableSet(applicationNames);
+            this.applicationPredicate = StringMatcher.of(applicationNames);
+            this.requestPredicate = request -> {
+                if (request instanceof UpdateProfileDataRequest updateProfileDataRequest) {
+                    final Collection<String> requestApplicationNames = updateProfileDataRequest.applicationNames();
+                    return requestApplicationNames.stream().allMatch(applicationPredicate::test);
+                }
+                return false;
+            };
         }
+
+        @Override
+        public String getWriteableName() {
+            return WRITEABLE_NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeCollection(this.applicationNames, StreamOutput::writeString);
+        }
+
+        @Override
+        public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
+            return builder.add(this, Set.of("cluster:admin/xpack/security/profile/put/data"), requestPredicate);
+        }
+
+        @Override
+        public Category getCategory() {
+            return Category.PROFILE;
+        }
+
+        public Collection<String> getApplicationNames() {
+            return applicationNames;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.field(Fields.WRITE.getPreferredName(), Map.of(Fields.APPLICATIONS.getPreferredName(), applicationNames));
+        }
+
+        @Override
+        public String toString() {
+            return "{"
+                + getCategory()
+                + ":"
+                + Fields.WRITE.getPreferredName()
+                + ":"
+                + Fields.APPLICATIONS.getPreferredName()
+                + "="
+                + Strings.collectionToDelimitedString(applicationNames, ",")
+                + "}";
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            UpdateProfileDataPrivileges that = (UpdateProfileDataPrivileges) o;
+            return applicationNames.equals(that.applicationNames);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(applicationNames);
+        }
+
+        public static UpdateProfileDataPrivileges parse(XContentParser parser) throws IOException {
+            expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
+            expectFieldName(parser, Fields.WRITE);
+            expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
+            expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
+            expectFieldName(parser, Fields.APPLICATIONS);
+            expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
+            final String[] applications = XContentUtils.readStringArray(parser, false);
+            expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
+            return new UpdateProfileDataPrivileges(new LinkedHashSet<>(Arrays.asList(applications)));
+        }
+    }
+
+    private interface Fields {
+        ParseField MANAGE = new ParseField("manage");
+        ParseField WRITE = new ParseField("write");
+        ParseField APPLICATIONS = new ParseField("applications");
     }
 }

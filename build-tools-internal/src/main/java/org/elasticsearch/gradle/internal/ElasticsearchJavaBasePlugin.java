@@ -14,12 +14,15 @@ import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Named;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ResolutionStrategy;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
@@ -34,14 +37,19 @@ import org.gradle.process.CommandLineArgumentProvider;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * A wrapper around Gradle's Java Base plugin that applies our
  * common configuration for production code.
  */
 public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
+
+    private static final Logger logger = Logging.getLogger(ElasticsearchJavaBasePlugin.class);
+
     @Override
     public void apply(Project project) {
         // make sure the global build info plugin is applied to the root project
@@ -120,6 +128,20 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         java.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion());
 
         project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
+
+            if (compileTask.getName().equals("compileJava")) { // TODO: do similar(ish) for test
+                Configuration moduleCompilePath = moduleCompilePathConfiguration(project);
+                compileTask.dependsOn(moduleCompilePath);
+                compileTask.getOptions()
+                    .getCompilerArgumentProviders()
+                    .add(new ModulePathArgumentProvider(project, compileTask, () -> Util.getJavaMainSourceSet(project).get()));
+
+                // Remove the mp entries from the classpath
+                FileCollection trimmedCp = Util.getJavaMainSourceSet(project).get().getCompileClasspath().minus(moduleCompilePath);
+                // logger.info("Class path for %s:[%s]".formatted(compileTask.getPath(), trimmedCp.getAsPath()));
+                compileTask.setClasspath(trimmedCp);
+            }
+
             CompileOptions compileOptions = compileTask.getOptions();
             List<String> compilerArgs = compileOptions.getCompilerArgs();
             String moduleLintSuppressions = "";
@@ -129,7 +151,6 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
                 moduleLintSuppressions += ",-exports"; // TODO: server has a lot of exports warnings, first reduce exports then fix remains
                 // moduleLintSuppressions += ",-module"; // TODO: qualified exports, should fix with module-source-path
                 moduleLintSuppressions += ",-missing-explicit-ctor"; // TODO: this should be fixed by adding explicit ctors
-                compileOptions.getCompilerArgumentProviders().add(new ModulePathArgumentProvider(project));
             }
 
             /*
@@ -172,7 +193,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         });
     }
 
-    static boolean hasModuleInfo(Project project) {
+    static boolean hasModuleInfo(Project project) {  // TODO: this is main source only, not tests
         Optional<SourceSet> main = Util.getJavaMainSourceSet(project);
         if (main.isPresent()) {
             Optional<Path> moduleInfoJava = main.get()
@@ -190,25 +211,43 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
     static class ModulePathArgumentProvider implements CommandLineArgumentProvider, Named {
         private final Project project;
+        private final JavaCompile compileTask;
+        private final Supplier<SourceSet> sourceSetSupplier;
 
-        ModulePathArgumentProvider(Project project) {
+        ModulePathArgumentProvider(Project project, JavaCompile compileTask, Supplier<SourceSet> sourceSetSupplier) {
             this.project = project;
+            this.compileTask = compileTask;
+            this.sourceSetSupplier = sourceSetSupplier;
         }
 
         @Override
         public Iterable<String> asArguments() {
-            // class-path to module-path
-            String path = Util.getJavaMainSourceSet(project)
-                .orElseThrow(() -> new GradleException("expected main source set for: " + project))
-                .getCompileClasspath()
-                .getAsPath();
-            return List.of("--module-path", path);
+            Configuration moduleCompilePath = moduleCompilePathConfiguration(project);
+            List<String> extraArgs = new ArrayList<>();
+            if (moduleCompilePath.isEmpty() == false) {
+                if (hasModuleInfo(project) == false) {
+                    extraArgs.add("--add-modules=ALL-MODULE-PATH");
+                }
+                String mp = moduleCompilePath.getAsPath();
+                logger.info("Module path for %s :[%s]".formatted(compileTask.getPath(), mp));
+                extraArgs.add("--module-path=" + mp);
+
+                // Remove the mp entries from the classpath
+                // FileCollection trimmedCp = sourceSetSupplier.get().getCompileClasspath().minus(moduleCompilePath);
+                // logger.info("Class path for %s:[%s]".formatted(compileTask.getPath(), trimmedCp.getAsPath()));
+                // compileTask.setClasspath(trimmedCp);
+            }
+            return List.copyOf(extraArgs);
         }
 
         @Internal
         @Override
         public String getName() {
-            return "module-path-arg-provider";
+            return "module-compile-path-arg-provider";
         }
+    }
+
+    private static Configuration moduleCompilePathConfiguration(Project project) {
+        return project.getConfigurations().getByName(ElasticsearchJavaPlugin.MODULE_COMPILE_PATH_CONFIGURATION_NAME);
     }
 }

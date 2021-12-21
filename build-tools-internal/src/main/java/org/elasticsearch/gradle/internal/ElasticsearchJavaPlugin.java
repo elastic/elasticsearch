@@ -20,16 +20,19 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
+import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.gradle.internal.conventions.util.Util.toStringable;
@@ -39,16 +42,76 @@ import static org.elasticsearch.gradle.internal.conventions.util.Util.toStringab
  * common configuration for production code.
  */
 public class ElasticsearchJavaPlugin implements Plugin<Project> {
+
+    public static final String MODULE_API_CONFIGURATION_NAME = "moduleApi";
+    public static final String MODULE_IMPLEMENTATION_CONFIGURATION_NAME = "moduleImplementation";
+    public static final String MODULE_RUNTIME_ONLY_CONFIGURATION_NAME = "moduleRuntimeOnly";
+    public static final String MODULE_COMPILE_ONLY_CONFIGURATION_NAME = "moduleCompileOnly";
+    public static final String MODULE_COMPILE_PATH_CONFIGURATION_NAME = "moduleCompilePath";
+
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(JavaLibraryPlugin.class);
 
         // configureConfigurations(project);
+        configureModuleConfigurations(project);
         configureJars(project);
         configureJarManifest(project);
         configureJavadoc(project);
         testCompileOnlyDeps(project);
+    }
+
+    private static void configureModuleConfigurations(Project project) {
+        // disable Gradle's modular support
+        project.getTasks()
+            .withType(JavaCompile.class)
+            .configureEach(compileTask -> compileTask.getModularity().getInferModulePath().set(false));
+
+        defineModuleConfigurations(project);
+    }
+
+    private static void defineModuleConfigurations(Project project) {
+        ConfigurationContainer configurations = project.getConfigurations();
+
+        Configuration moduleApiConfiguration = configurations.create(MODULE_API_CONFIGURATION_NAME);
+        moduleApiConfiguration.setDescription("Module API dependencies");
+        configurations.getByName(JavaPlugin.API_CONFIGURATION_NAME).extendsFrom(moduleApiConfiguration);
+
+        Configuration moduleImplementationConfiguration = configurations.create(MODULE_IMPLEMENTATION_CONFIGURATION_NAME);
+        moduleImplementationConfiguration.setDescription("Module implementation dependencies");
+        configurations.getByName(JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME).extendsFrom(moduleImplementationConfiguration);
+
+        Configuration moduleRuntimeOnlyConfiguration = configurations.create(MODULE_RUNTIME_ONLY_CONFIGURATION_NAME);
+        moduleRuntimeOnlyConfiguration.setDescription("Module runtime only dependencies");
+        configurations.getByName(JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME).extendsFrom(moduleRuntimeOnlyConfiguration);
+
+        Configuration moduleCompileOnlyConfiguration = configurations.create(MODULE_COMPILE_ONLY_CONFIGURATION_NAME);
+        moduleCompileOnlyConfiguration.setDescription("Module compile only dependencies");
+        configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME).extendsFrom(moduleCompileOnlyConfiguration); // << HACKING here
+
+        Configuration moduleCompilePathConfiguration = configurations.create(MODULE_COMPILE_PATH_CONFIGURATION_NAME);
+        moduleCompilePathConfiguration.setDescription("Module compile path dependencies");
+        moduleCompilePathConfiguration.extendsFrom(
+            moduleApiConfiguration,
+            moduleImplementationConfiguration,
+            moduleCompileOnlyConfiguration
+        );
+
+        // All these configurations are for resolution only and have a preference to see 'classes'
+        // folder instead of JARs for inter-project references.
+        List.of(
+            moduleApiConfiguration,
+            moduleImplementationConfiguration,
+            moduleRuntimeOnlyConfiguration,
+            moduleCompileOnlyConfiguration,
+            moduleCompilePathConfiguration
+        ).forEach(conf -> {
+            conf.setCanBeConsumed(false);
+            conf.setCanBeResolved(true);
+            // conf.attributes(attr ->
+            // attr(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.CLASSES)))
+        });
     }
 
     private static void testCompileOnlyDeps(Project project) {

@@ -10,18 +10,18 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
 dependencies {
-  api project(':libs:elasticsearch-core')
+  moduleApi project(':libs:elasticsearch-core')
 
-  api "org.yaml:snakeyaml:${versions.snakeyaml}"
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  moduleApi "org.yaml:snakeyaml:${versions.snakeyaml}"
+  moduleApi "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  moduleApi "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
+  moduleApi "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+  moduleApi "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
 
   // The jackson-dataformat-XXX modules requires databind, databind require annotations
   // We live "on the edge" without databind/annotations! - these are just impl deps?
-  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  moduleImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  moduleImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"

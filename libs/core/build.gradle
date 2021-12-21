@@ -11,7 +11,7 @@ apply plugin: 'elasticsearch.publish'
 
 dependencies {
   // This dependency is used only by :libs:core for null-checking interop with other tools
-  compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+  moduleCompileOnly "com.google.code.findbugs:jsr305:3.0.2"
 
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"

@@ -169,7 +169,7 @@ allprojects {
 
   plugins.withType(InternalPluginBuildPlugin).whenPluginAdded {
     project.dependencies {
-      compileOnly project(":server")
+      moduleCompileOnly project(":server")
       testImplementation project(":test:framework")
     }
   }

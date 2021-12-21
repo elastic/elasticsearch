@@ -8,8 +8,8 @@
 apply plugin: 'elasticsearch.publish'
 
 dependencies {
-  api 'org.lz4:lz4-java:1.8.0'
-  api project(':libs:elasticsearch-core')
+  moduleApi 'org.lz4:lz4-java:1.8.0'
+  moduleApi project(':libs:elasticsearch-core')
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-lz4'

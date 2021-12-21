@@ -45,46 +45,46 @@ allprojects {
 
 dependencies {
 
-  api project(':libs:elasticsearch-core')
-  api project(':libs:elasticsearch-secure-sm')
-  api project(':libs:elasticsearch-x-content')
-  api project(":libs:elasticsearch-geo")
-  api project(":libs:elasticsearch-lz4")
+  moduleApi project(':libs:elasticsearch-core')
+  moduleApi project(':libs:elasticsearch-secure-sm')
+  moduleApi project(':libs:elasticsearch-x-content')
+  moduleApi project(":libs:elasticsearch-geo")
+  moduleApi project(":libs:elasticsearch-lz4")
 
-  implementation project(':libs:elasticsearch-plugin-classloader')
+  moduleImplementation project(':libs:elasticsearch-plugin-classloader')
 
   // lucene
-  api "org.apache.lucene:lucene-core:${versions.lucene}"
-  api "org.apache.lucene:lucene-analysis-common:${versions.lucene}"
-  api "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
-  api "org.apache.lucene:lucene-grouping:${versions.lucene}"
-  api "org.apache.lucene:lucene-highlighter:${versions.lucene}"
-  api "org.apache.lucene:lucene-join:${versions.lucene}"
-  api "org.apache.lucene:lucene-memory:${versions.lucene}"
-  api "org.apache.lucene:lucene-misc:${versions.lucene}"
-  api "org.apache.lucene:lucene-queries:${versions.lucene}"
-  api "org.apache.lucene:lucene-queryparser:${versions.lucene}"
-  api "org.apache.lucene:lucene-sandbox:${versions.lucene}"
-  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
-  api "org.apache.lucene:lucene-suggest:${versions.lucene}"
+  moduleApi "org.apache.lucene:lucene-core:${versions.lucene}"
+  moduleApi "org.apache.lucene:lucene-analysis-common:${versions.lucene}"
+  moduleApi "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
+  moduleApi "org.apache.lucene:lucene-grouping:${versions.lucene}"
+  moduleApi "org.apache.lucene:lucene-highlighter:${versions.lucene}"
+  moduleApi "org.apache.lucene:lucene-join:${versions.lucene}"
+  moduleApi "org.apache.lucene:lucene-memory:${versions.lucene}"
+  moduleApi "org.apache.lucene:lucene-misc:${versions.lucene}"
+  moduleApi "org.apache.lucene:lucene-queries:${versions.lucene}"
+  moduleApi "org.apache.lucene:lucene-queryparser:${versions.lucene}"
+  moduleApi "org.apache.lucene:lucene-sandbox:${versions.lucene}"
+  moduleApi "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  moduleApi "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities
-  api project(":libs:elasticsearch-cli")
-  api 'com.carrotsearch:hppc:0.8.1'
+  moduleApi project(":libs:elasticsearch-cli")
+  moduleApi 'com.carrotsearch:hppc:0.8.1'
 
   // percentiles aggregation
-  api 'com.tdunning:t-digest:3.2'
+  moduleApi 'com.tdunning:t-digest:3.2'
   // precentil ranks aggregation
-  api 'org.hdrhistogram:HdrHistogram:2.1.9'
+  moduleApi 'org.hdrhistogram:HdrHistogram:2.1.9'
 
   // logging
-  api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-  api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
+  moduleApi "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  moduleApi "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
 
-  api "net.java.dev.jna:jna:${versions.jna}"
+  moduleApi "net.java.dev.jna:jna:${versions.jna}"
 
-  api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
-  api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
+  moduleApi "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
+  moduleApi "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server

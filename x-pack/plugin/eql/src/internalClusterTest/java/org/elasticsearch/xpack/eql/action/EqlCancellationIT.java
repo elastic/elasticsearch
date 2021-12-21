@@ -74,7 +74,9 @@ public class EqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         logger.trace("Preparing search");
         // We might perform field caps on the same thread if it is local client, so we cannot use the standard mechanism
         Future<EqlSearchResponse> future = executorService.submit(
-            () -> client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, id)).execute(EqlSearchAction.INSTANCE, request).get()
+            () -> client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, id))
+                .execute(EqlSearchAction.INSTANCE, request)
+                .get()
         );
         logger.trace("Waiting for block to be established");
         if (cancelDuringSearch) {

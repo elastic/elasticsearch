@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -47,6 +50,7 @@ import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocat
  * Index-specific deprecation checks
  */
 public class IndexDeprecationChecks {
+    private static final Logger logger = LogManager.getLogger(IndexDeprecationChecks.class);
 
     static final String JODA_TIME_DEPRECATION_DETAILS_SUFFIX = " See https://www.elastic.co/guide/en/elasticsearch/reference/master"
         + "/migrate-to-java-time.html for details. Failure to update custom data formats to java.time could cause inconsistentencies in "
@@ -124,12 +128,52 @@ public class IndexDeprecationChecks {
         return issues;
     }
 
+    /**
+     * iterates through the "dynamicProperties" field of mappings and returns any predicates that match in the
+     * form of issue-strings.
+     *
+     * @param type the document type
+     * @param parentMap the mapping to read properties from
+     * @param predicate the predicate to check against for issues, issue is returned if predicate evaluates to true
+     * @param fieldFormatter a function that takes a type and template entry and returns a formatted field representation
+     * @return a list of issues found in fields
+     */
+    @SuppressWarnings("unchecked")
+    static List<String> findInDynamicTemplates(
+        String type,
+        Map<String, Object> parentMap,
+        Function<Map<?, ?>, Boolean> predicate,
+        BiFunction<String, Map.Entry<?, ?>, String> fieldFormatter,
+        String fieldBeginMarker,
+        String fieldEndMarker
+    ) {
+        List<String> issues = new ArrayList<>();
+        List<?> dynamicTemplates = (List<?>) parentMap.get("dynamic_templates");
+        if (dynamicTemplates == null) {
+            return issues;
+        }
+        // List of named object
+        for (Object entry : dynamicTemplates) {
+            Map<String, Object> topLevelTemplate = ((Map<String, Object>) entry);
+            Iterator<Map.Entry<String, Object>> templateCursor = topLevelTemplate.entrySet().iterator();
+            if (templateCursor.hasNext()) {
+                Map.Entry<String, Object> templateEntry = templateCursor.next();
+                Map<String, Object> templateBody = ((Map<String, Object>) templateEntry.getValue());
+                if (predicate.apply(templateBody)) {
+                    issues.add(fieldBeginMarker + fieldFormatter.apply(type, templateEntry) + fieldEndMarker);
+                }
+            }
+        }
+
+        return issues;
+    }
+
     private static String formatDateField(String type, Map.Entry<?, ?> entry) {
         Map<?, ?> value = (Map<?, ?>) entry.getValue();
         return String.format(Locale.ROOT, "Convert [%s] format %s to java.time.", entry.getKey(), value.get("format"));
     }
 
-    private static String formatField(String type, Map.Entry<?, ?> entry) {
+    static String formatField(String type, Map.Entry<?, ?> entry) {
         return entry.getKey().toString();
     }
 
@@ -223,6 +267,90 @@ public class IndexDeprecationChecks {
             && JodaDeprecationPatterns.isDeprecatedPattern((String) property.get("format"));
     }
 
+    static DeprecationIssue boostMappingCheck(IndexMetadata indexMetadata) {
+        List<String> issues = new ArrayList<>();
+        fieldLevelMappingIssue(
+            indexMetadata,
+            ((mappingMetadata, sourceAsMap) -> issues.addAll(
+                findInPropertiesRecursively(
+                    mappingMetadata.type(),
+                    sourceAsMap,
+                    IndexDeprecationChecks::containsBoostedFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                )
+            ))
+        );
+        if (issues.size() > 0) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Configuring boost values in field mappings is deprecated",
+                "https://ela.st/es-deprecation-7-boost-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove boost fields from the \"%s\" mapping%s. Configuring a boost value on mapping fields "
+                        + "is not supported in 8.0.",
+                    issues.stream().collect(Collectors.joining(",")),
+                    issues.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    static DeprecationIssue boostDynamicTemplateCheck(IndexMetadata indexMetadata) {
+        List<String> issues = new ArrayList<>();
+        fieldLevelMappingIssue(
+            indexMetadata,
+            ((mappingMetadata, sourceAsMap) -> issues.addAll(
+                findInDynamicTemplates(
+                    mappingMetadata.type(),
+                    sourceAsMap,
+                    IndexDeprecationChecks::containsMappingWithBoostedFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                )
+            ))
+        );
+        if (issues.size() > 0) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Configuring boost values in field mappings is deprecated",
+                "https://ela.st/es-deprecation-7-boost-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove boost fields from the \"%s\" dynamic template%s. Configuring a boost value on mapping fields "
+                        + "is not supported in 8.0.",
+                    issues.stream().collect(Collectors.joining(",")),
+                    issues.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Predicate for dynamic templates that contain `boost` fields
+     * @param property A dynamic mapping template body
+     */
+    static boolean containsMappingWithBoostedFields(Map<?, ?> property) {
+        if (property.containsKey("mapping")) {
+            Map<?, ?> mappings = (Map<?, ?>) property.get("mapping");
+            return containsBoostedFields(mappings);
+        }
+        return false;
+    }
+
+    static boolean containsBoostedFields(Map<?, ?> property) {
+        return property.containsKey("boost");
+    }
+
     static DeprecationIssue chainedMultiFieldsCheck(IndexMetadata indexMetadata) {
         List<String> issues = new ArrayList<>();
         fieldLevelMappingIssue(
@@ -257,7 +385,53 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    private static boolean containsChainedMultiFields(Map<?, ?> property) {
+    static DeprecationIssue chainedMultiFieldsDynamicTemplateCheck(IndexMetadata indexMetadata) {
+        List<String> issues = new ArrayList<>();
+        fieldLevelMappingIssue(
+            indexMetadata,
+            ((mappingMetadata, sourceAsMap) -> issues.addAll(
+                findInDynamicTemplates(
+                    mappingMetadata.type(),
+                    sourceAsMap,
+                    IndexDeprecationChecks::containsMappingWithChainedMultiFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                )
+            ))
+        );
+        if (issues.size() > 0) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Defining multi-fields within multi-fields inside dynamic templates is deprecated",
+                "https://ela.st/es-deprecation-7-chained-multi-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove chained multi-fields from the \"%s\" dynamic template%s. Multi-fields within multi-fields "
+                        + "are not supported in 8.0.",
+                    issues.stream().collect(Collectors.joining(",")),
+                    issues.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Predicate for dynamic templates that contain `fields` within `fields` entries
+     * @param property A dynamic mapping template body
+     */
+    static boolean containsMappingWithChainedMultiFields(Map<?, ?> property) {
+        if (property.containsKey("mapping")) {
+            Map<?, ?> mappings = (Map<?, ?>) property.get("mapping");
+            return containsChainedMultiFields(mappings);
+        }
+        return false;
+    }
+
+    static boolean containsChainedMultiFields(Map<?, ?> property) {
         if (property.containsKey("fields")) {
             Map<?, ?> fields = (Map<?, ?>) property.get("fields");
             for (Object rawSubField : fields.values()) {

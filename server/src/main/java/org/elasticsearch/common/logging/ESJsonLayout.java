@@ -109,7 +109,7 @@ public class ESJsonLayout extends AbstractStringLayout {
             separator = ", ";
         }
         sb.append(notEmpty(", %node_and_cluster_id "));
-        sb.append(notEmpty(", %trace_id "));
+        sb.append(notEmpty(", \"trace.id\": \"%trace_id\" "));
         sb.append("%exceptionAsJson ");
         sb.append("}");
         sb.append(System.lineSeparator());

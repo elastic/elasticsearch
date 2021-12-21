@@ -78,8 +78,8 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
     @Before
     public void waitForTemplates() throws Exception {
-        // no transform before 7.2
-        if (UPGRADE_FROM_VERSION.before(Version.V_7_2_0)) {
+        // no transform before 7.2, after 7.16 this check isn't required anymore
+        if (UPGRADE_FROM_VERSION.before(Version.V_7_2_0) || UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_16_0)) {
             return;
         }
 

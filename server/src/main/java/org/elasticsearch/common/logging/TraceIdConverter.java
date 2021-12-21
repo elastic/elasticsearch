@@ -45,14 +45,13 @@ public final class TraceIdConverter extends LogEventPatternConverter {
     /**
      * Formats the trace.id into json fields.
      *
-     * @param event - a log event is ignored in this method as it uses the clusterId value
-     *              from <code>NodeAndClusterIdStateListener</code> to format
+     * @param event - a log event is ignored in this method  as it uses the value from ThreadContext
      */
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
         String traceId = getTraceId();
         if (traceId != null) {
-            toAppendTo.append("\"trace.id\": \"" + traceId + "\"");
+            toAppendTo.append(traceId);
         }
     }
 

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -1385,7 +1386,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testCheckForDeprecationWithSkipSetting() {
-        final String settingName = "foo.bar";
+        final String settingName = "foo.bar.hide.this";
         final String settingValue = "blat";
         final Setting<String> setting = Setting.simpleString(settingName, settingValue);
         final Settings settings = Settings.builder().put(settingName, settingValue).build();
@@ -1398,6 +1399,7 @@ public class SettingTests extends ESTestCase {
             .put(settingName, settingValue)
             .putList("deprecation.skip_deprecated_settings", settingName)
             .build();
+        DeprecationLogger.initialize(settingsWithSkipDeprecationSetting);
         deprecatedSetting.checkDeprecation(settingsWithSkipDeprecationSetting);
         ensureNoWarnings();
     }

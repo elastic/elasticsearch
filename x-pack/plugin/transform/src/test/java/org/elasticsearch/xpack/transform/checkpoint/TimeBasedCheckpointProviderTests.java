@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
@@ -94,10 +95,25 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             0,
             false,
             TransformCheckpoint.EMPTY,
+            VersionUtils.randomVersionBetween(random(), Version.V_7_15_0, Version.CURRENT),
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.ZERO,
             tuple(0L, 123000000L)
+        );
+    }
+
+    public void testSourceHasChanged_NotChanged_DoNotAlignCheckpointsBecauseOfVersion() throws InterruptedException {
+        testSourceHasChanged(
+            0,
+            false,
+            TransformCheckpoint.EMPTY,
+            Version.V_7_14_0,
+            TIMESTAMP_FIELD,
+            TimeValue.timeValueMinutes(10),
+            TimeValue.ZERO,
+            // Checkpoint alignment doesn't work here because the transform was created without alignment.
+            tuple(0L, 123456789L)
         );
     }
 
@@ -106,6 +122,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             1,
             true,
             TransformCheckpoint.EMPTY,
+            Version.CURRENT,
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.ZERO,
@@ -118,6 +135,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             0,
             false,
             new TransformCheckpoint("", 100000000L, 7, emptyMap(), null),
+            Version.CURRENT,
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.ZERO,
@@ -130,6 +148,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             0,
             false,
             new TransformCheckpoint("", 100000000L, 7, emptyMap(), 120000000L),
+            Version.CURRENT,
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.ZERO,
@@ -142,6 +161,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             0,
             false,
             new TransformCheckpoint("", 100000000L, 7, emptyMap(), 120000000L),
+            Version.CURRENT,
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.timeValueMinutes(5),
@@ -153,6 +173,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         long totalHits,
         boolean expectedHasChangedValue,
         TransformCheckpoint lastCheckpoint,
+        Version transformVersion,
         String dateHistogramField,
         TimeValue dateHistogramInterval,
         TimeValue delay,
@@ -162,6 +183,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         String transformId = getTestName();
         TransformConfig transformConfig = newTransformConfigWithDateHistogram(
             transformId,
+            transformVersion,
             dateHistogramField,
             dateHistogramInterval,
             delay
@@ -249,6 +271,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
 
         TransformConfig transformConfig = newTransformConfigWithDateHistogram(
             transformId,
+            Version.CURRENT,
             dateHistogramField,
             dateHistogramInterval,
             delay
@@ -280,6 +303,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
 
     private static TransformConfig newTransformConfigWithDateHistogram(
         String transformId,
+        Version transformVersion,
         String dateHistogramField,
         TimeValue dateHistogramInterval,
         TimeValue delay
@@ -316,7 +340,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         } else {
             // Leave align_checkpoints setting unset. This will be interpreted as "true".
         }
-        return new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId)).setSettings(
+        return new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId, transformVersion)).setSettings(
             settingsConfigBuilder.build()
         ).setPivotConfig(pivotConfigWithDateHistogramSource).setSyncConfig(new TimeSyncConfig(TIMESTAMP_FIELD, delay)).build();
     }

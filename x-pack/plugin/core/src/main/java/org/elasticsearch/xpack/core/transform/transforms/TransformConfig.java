@@ -408,7 +408,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     Level.CRITICAL,
                     "Transform [" + id + "] uses an obsolete configuration format",
                     TransformDeprecations.UPGRADE_TRANSFORM_URL,
-                    "Use [_update] or [_upgrade] to update the configuration of [" + id + "].",
+                    TransformDeprecations.ACTION_UPGRADE_TRANSFORMS_API,
                     false,
                     null
                 )

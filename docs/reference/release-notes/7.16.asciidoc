@@ -1,3 +1,145 @@
+[[release-notes-7.16.2]]
+== {es} version 7.16.2
+
+Also see <<breaking-changes-7.16,Breaking changes in 7.16>>.
+
+[[enhancement-7.16.2]]
+[float]
+=== Enhancements
+
+Other::
+* Add deprecation notices for boost mappings to API {es-pull}81605[#81605] (issue: {es-issue}78396[#78396])
+
+Packaging::
+* Improve Docker image's cacert scripting {es-pull}81659[#81659]
+
+
+[[bug-7.16.2]]
+[float]
+=== Bug fixes
+
+Authorization::
+* Add delete privilege to `kibana_system` for APM and Endpoint ILM policies {es-pull}81811[#81811]
+
+Infra/Logging::
+* Add `doPrivileged` section in deprecation logger {es-pull}81819[#81819] (issue: {es-issue}81708[#81708])
+
+Java High Level REST Client::
+* Change HLRC's `LifecyclePolicy` to allow all valid ILM actions {es-pull}81483[#81483] (issue: {es-issue}81461[#81461])
+
+Machine Learning::
+* Fix `LangIdent` model when multiple unicode scripts are present {es-pull}81876[#81876] (issue: {es-issue}80675[#80675])
+* Model snapshot upgrade needs a stats endpoint {es-pull}81641[#81641] (issue: {es-issue}81519[#81519])
+
+Packaging::
+* Change default shell to bash in default Docker image {es-pull}81828[#81828] (issue: {es-issue}80820[#80820])
+
+
+[[regression-7.16.2]]
+[float]
+=== Regressions
+
+Infra/Scripting::
+* Fix superclass functional interface resolution in Painless {es-pull}81698[#81698] (issue: {es-issue}81696[#81696])
+
+
+[[upgrade-7.16.2]]
+[float]
+=== Upgrades
+
+Infra/Logging::
+* Upgrade to log4j 2.17.0 {es-pull}81902[#81902]
+
+
+[[release-notes-7.16.1]]
+== {es} version 7.16.1
+
+Also see <<breaking-changes-7.16,Breaking changes in 7.16>>.
+
+[discrete]
+[[security-updates-7.16.1]]
+=== Security updates
+
+* A high severity vulnerability
+(https://cve.mitre.org/cgi-bin/cvename.cgi?name=2021-44228[CVE-2021-44228]) for
+https://logging.apache.org/log4j/2.x/[Apache Log4j 2] versions 2.0 to 2.14 was
+disclosed publicly on the project's
+https://github.com/apache/logging-log4j2/pull/608[GitHub] on December 9, 2021.
++
+For information about affected {es} versions and mitigation steps, see our
+related
+https://discuss.elastic.co/t/apache-log4j2-remote-code-execution-rce-vulnerability-cve-2021-44228-esa-2021-31/291476[security
+announcement].
+
+[[known-issues-7.16.1]]
+[discrete]
+=== Known issues
+
+include::7.16.asciidoc[tag=painless-functional-interface-resolution-81696-known-issue]
+
+[[enhancement-7.16.1]]
+[float]
+=== Enhancements
+
+Infra/Logging::
+* Disable JNDI lookups via the `log4j2.formatMsgNoLookups` system property {es-pull}81622[#81622]
+* Patch log4j jar to remove the `JndiLookup` class from the classpath {es-pull}81629[#81629]
+
+Infra/Core::
+* Allow plugins permission to register MBeans {es-pull}81508[#81508] (issue: {es-issue}76329[#76329])
+
+Other::
+* Deprecate multifield mappings templates {es-pull}81329[#81329] (issue: {es-issue}78445[#78445])
+
+[[bug-7.16.1]]
+[float]
+=== Bug fixes
+
+Autoscaling::
+* Calculate autoscaling capacity off the transport threads {es-pull}80499[#80499] (issue: {es-issue}79104[#79104])
+
+CCR::
+* Stop auto-followers when resetting metadata {es-pull}81290[#81290] (issues: {es-issue}81242[#81242], {es-issue}81247[#81247])
+
+ILM+SLM::
+* Allow the `unfollow` action in the frozen phase {es-pull}81434[#81434]
+
+Indices APIs::
+* Implement `getMinimalSupportedVersion` for all `NameDiffs` {es-pull}81374[#81374] (issue: {es-issue}81262[#81262])
+
+Infra/Core::
+* Allow configuration of `ThreadPool` warning times {es-pull}81487[#81487]
+
+Infra/Logging::
+* Add `trace.id` to indexed deprecation logs {es-pull}81524[#81524]
+
+Infra/Scripting::
+* Use the implicit context cache {es-pull}81552[#81552] (issue: {es-issue}81486[#81486])
+
+Machine Learning::
+* Make model snapshot upgrade autoscaling friendly {es-pull}81123[#81123] (issue: {es-issue}81012[#81012])
+
+Network::
+* Fail fast remote cluster requests when `skip_unavailable` is `true` {es-pull}80589[#80589] (issue: {es-issue}74773[#74773])
+* Fix channel open trace logging {es-pull}81308[#81308]
+
+Other::
+* Adding a deprecation info API check for `discovery.zen.minimum_master_nodes` {es-pull}81282[#81282] (issue: {es-issue}81260[#81260])
+
+SQL::
+* Fix metrics reporting when sorting on aggregated values {es-pull}81510[#81510] (issue: {es-issue}81502[#81502])
+* Fix rearranging columns in PIVOT queries {es-pull}81032[#81032] (issue: {es-issue}80952[#80952])
+* Only resolve aliases if asked for local cluster {es-pull}81158[#81158] (issue: {es-issue}81157[#81157])
+
+Search::
+* Handle partial search result with point in time {es-pull}81349[#81349] (issue: {es-issue}81256[#81256])
+
+Transform::
+* Fix wire compatibility version for transform cluster state {es-pull}81300[#81300] (issue: {es-issue}81292[#81292])
+* Handle `PIT index not found` error {es-pull}81368[#81368] (issues: {es-issue}81252[#81252], {es-issue}81256[#81256])
+
+
+
 [[release-notes-7.16.0]]
 == {es} version 7.16.0
 
@@ -48,6 +190,36 @@ Monitoring::
 * Deprecate monitoring settings {es-pull}79499[#79499]
 * Deprecate `create_legacy_templates` setting on HTTP exporters {es-pull}78564[#78564]
 * Deprecate the monitoring ingest settings {es-pull}77659[#77659] (issue: {es-issue}77459[#77459])
+
+[[known-issues-7.16.0]]
+[discrete]
+=== Known issues
+
+// tag::painless-functional-interface-resolution-81696-known-issue[]
+* Painless: Any Painless script where a method call resolves a lambda argument
+to a `UnaryOperator` or a `BinaryOperator` type results in an
+`IllegalArgumentException`. This exception results in a compilation error when
+static types are used, or a runtime error for dynamic types. Use standard
+procedural statements as a workaround, such as `if/else`, `while`, and `for`
+statements.
++
+The following example is a `UnaryOperator` type that will result in a failure:
++
+[source,Java]
+----
+List l = ['abc', '123']; l.replaceAll(f -> f.replace('abc', 'doremi');
+----
++
+The following example is a possible workaround:
++
+[source,Java]
+----
+List l = ['abc', '123'];
+for (int i = 0; i < l.size(); ++i) {
+    l.set(i, l.get(i).replace('abc', 'doremi'));
+}
+----
+// end::painless-functional-interface-resolution-81696-known-issue[]
 
 [[feature-7.16.0]]
 [float]
@@ -231,7 +403,7 @@ Search::
 * Add `_ignored` and `_routing` metatada fields to fields API {es-pull}78981[#78981] (issues: {es-issue}75836[#75836], {es-issue}78828[#78828])
 * Add `_index` and `_version` metatada fields to fields API {es-pull}79042[#79042] (issues: {es-issue}75836[#75836], {es-issue}78828[#78828])
 * Add ability to retrieve `_id` via fields option {es-pull}78828[#78828] (issue: {es-issue}75836[#75836])
-* Add node-level field caps requests {es-pull}79212[#79212] (issues: {es-issue}74648[#74648], {es-issue}77047[#77047], {es-issue}78647[#78647])
+* Add node-level field capabilities API requests {es-pull}79212[#79212] (issues: {es-issue}74648[#74648], {es-issue}77047[#77047], {es-issue}78647[#78647])
 * Add segment sorter for data streams {es-pull}75195[#75195]
 * Add sort optimization with after from Lucene {es-pull}64292[#64292]
 * Don't always rewrite the Lucene query in search phases {es-pull}79358[#79358]
@@ -239,7 +411,7 @@ Search::
 * Node level can match action {es-pull}78765[#78765]
 * Search - return ignored field values from fields API {es-pull}78697[#78697] (issue: {es-issue}74121[#74121])
 * Support request cache on frozen tier {es-pull}77694[#77694] (issue: {es-issue}75309[#75309])
-* Use `search_coordination` threadpool in field caps {es-pull}79378[#79378] (issue: {es-issue}79212[#79212])
+* Use `search_coordination` threadpool for field capabilities API requests {es-pull}79378[#79378] (issue: {es-issue}79212[#79212])
 * Create a sha-256 hash of the shard request cache key {es-pull}74877[#74877] (issue: {es-issue}74061[#74061])
 
 Security::

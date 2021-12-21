@@ -145,8 +145,8 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     void setAfter(Comparable<?> value) {
         if (missingBucket && value == null) {
             afterValue = null;
-        } else if (value.getClass() == String.class) {
-            afterValue = format.parseBytesRef(value.toString());
+        } else if (value.getClass() == String.class || value.getClass() == BytesRef.class) {
+            afterValue = format.parseBytesRef(value);
         } else {
             throw new IllegalArgumentException("invalid value, expected string, got " + value.getClass().getSimpleName());
         }

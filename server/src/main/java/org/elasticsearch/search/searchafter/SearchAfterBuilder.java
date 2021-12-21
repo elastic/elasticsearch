@@ -199,7 +199,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
                 case STRING_VAL:
                 case STRING:
-                    return format.parseBytesRef(value.toString());
+                    return format.parseBytesRef(value);
 
                 default:
                     throw new IllegalArgumentException(

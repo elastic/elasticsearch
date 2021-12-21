@@ -201,7 +201,7 @@ public class MetadataCreateDataStreamService {
                 "initialize_data_stream",
                 firstBackingIndexName,
                 firstBackingIndexName
-            ).dataStreamName(dataStreamName).systemDataStreamDescriptor(systemDataStreamDescriptor);
+            ).dataStreamName(dataStreamName).systemDataStreamDescriptor(systemDataStreamDescriptor).nameResolvedInstant(request.startTime);
 
             if (isSystem) {
                 createIndexRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);

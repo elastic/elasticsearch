@@ -100,7 +100,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     }
 
     public void test() throws Exception {
-        assertResponse(runQuery(index, query));
+        assertResponse(runQuery());
     }
 
     protected void assertResponse(EqlSearchResponse response) {
@@ -114,7 +114,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         }
     }
 
-    protected EqlSearchResponse runQuery(String index, String query) throws Exception {
+    protected EqlSearchResponse runQuery() throws Exception {
         EqlSearchRequest request = new EqlSearchRequest(index, query);
 
         request.eventCategoryField(eventCategory());

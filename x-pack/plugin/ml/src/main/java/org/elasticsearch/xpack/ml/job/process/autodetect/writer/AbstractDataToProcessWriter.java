@@ -318,29 +318,29 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     /**
      * Create a map of input index to output index. This does not include the time or control fields.
      *
-     * @param inFieldIndexes Map of field name to index in the input array
+     * @param inputFieldIndexes Map of field name to index in the input array
      */
-    private List<InputOutputMap> createInputOutputMap(Map<String, Integer> inFieldIndexes) {
-        List<InputOutputMap> inputOutputMap = new ArrayList<>();
+    private List<InputOutputMap> createInputOutputMap(Map<String, Integer> inputFieldIndexes) {
+        List<InputOutputMap> inputOutputMapList = new ArrayList<>();
 
         int outIndex = TIME_FIELD_OUT_INDEX;
-        Integer inIndex = inFieldIndexes.get(dataDescription.getTimeField());
+        Integer inIndex = inputFieldIndexes.get(dataDescription.getTimeField());
         if (inIndex == null) {
             throw new IllegalStateException(String.format(Locale.ROOT, "Input time field '%s' not found", dataDescription.getTimeField()));
         }
-        inputOutputMap.add(new InputOutputMap(inIndex, outIndex));
+        inputOutputMapList.add(new InputOutputMap(inIndex, outIndex));
 
         for (String field : analysisConfig.analysisFields()) {
             if (AnalysisConfig.ML_CATEGORY_FIELD.equals(field) == false) {
                 ++outIndex;
-                inIndex = inFieldIndexes.get(field);
+                inIndex = inputFieldIndexes.get(field);
                 if (inIndex != null) {
-                    inputOutputMap.add(new InputOutputMap(inIndex, outIndex));
+                    inputOutputMapList.add(new InputOutputMap(inIndex, outIndex));
                 }
             }
         }
 
-        return inputOutputMap;
+        return inputOutputMapList;
     }
 
     protected List<InputOutputMap> getInputOutputMap() {

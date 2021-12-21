@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -31,7 +30,6 @@ import java.util.stream.Stream;
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD_HASHED;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.INTERNAL_SECURITY_PROFILE_INDEX_8;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -105,24 +103,22 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         );
 
         // Profile does not exist yet
-        final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
-        profileService.getProfile(authentication, future1);
+        final PlainActionFuture<ProfileService.VersionedDocument> future1 = new PlainActionFuture<>();
+        profileService.getVersionedDocument(authentication, future1);
         assertThat(future1.actionGet(), nullValue());
 
         // Index the document so it can be found
         final String uid2 = indexDocument();
-        final PlainActionFuture<Profile> future2 = new PlainActionFuture<>();
-        profileService.getProfile(authentication, future2);
-        final Profile profile = future2.actionGet();
-        assertThat(profile, notNullValue());
-        assertThat(profile.uid(), equalTo(uid2));
-        // Does not return any application data
-        assertThat(profile.applicationData(), anEmptyMap());
+        final PlainActionFuture<ProfileService.VersionedDocument> future2 = new PlainActionFuture<>();
+        profileService.getVersionedDocument(authentication, future2);
+        final ProfileService.VersionedDocument versionedDocument = future2.actionGet();
+        assertThat(versionedDocument, notNullValue());
+        assertThat(versionedDocument.doc().uid(), equalTo(uid2));
 
         // Index it again to trigger duplicate exception
         final String uid3 = indexDocument();
-        final PlainActionFuture<Profile> future3 = new PlainActionFuture<>();
-        profileService.getProfile(authentication, future3);
+        final PlainActionFuture<ProfileService.VersionedDocument> future3 = new PlainActionFuture<>();
+        profileService.getVersionedDocument(authentication, future3);
         final IllegalStateException e3 = expectThrows(IllegalStateException.class, future3::actionGet);
 
         assertThat(

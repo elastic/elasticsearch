@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -61,6 +62,13 @@ public class ProfileService {
     }
 
     public void getProfile(String uid, @Nullable Set<String> dataKeys, ActionListener<Profile> listener) {
+        getVersionedDocument(uid, ActionListener.wrap(versionedDocument -> {
+            // TODO: replace null with actual domain lookup
+            listener.onResponse(versionedDocument.toProfile(null, dataKeys));
+        }, listener::onFailure));
+    }
+
+    private void getVersionedDocument(String uid, ActionListener<VersionedDocument> listener) {
         if (maybeHandleIndexStatusIssue(listener)) {
             return;
         }
@@ -76,14 +84,19 @@ public class ProfileService {
                         return;
                     }
                     listener.onResponse(
-                        buildProfile(response.getSourceAsBytesRef(), response.getPrimaryTerm(), response.getSeqNo(), dataKeys)
+                        new VersionedDocument(
+                            buildProfileDocument(response.getSourceAsBytesRef()),
+                            response.getPrimaryTerm(),
+                            response.getSeqNo()
+                        )
                     );
                 }, listener::onFailure))
             );
         }
     }
 
-    public void getProfile(Authentication authentication, ActionListener<Profile> listener) {
+    // Package private for testing
+    void getVersionedDocument(Authentication authentication, ActionListener<VersionedDocument> listener) {
         if (maybeHandleIndexStatusIssue(listener)) {
             return;
         }
@@ -116,7 +129,9 @@ public class ProfileService {
                             listener.onResponse(null);
                         } else if (hits.length == 1) {
                             final SearchHit hit = hits[0];
-                            listener.onResponse(buildProfile(hit.getSourceRef(), hit.getPrimaryTerm(), hit.getSeqNo(), Set.of()));
+                            listener.onResponse(
+                                new VersionedDocument(buildProfileDocument(hit.getSourceRef()), hit.getPrimaryTerm(), hit.getSeqNo())
+                            );
                         } else {
                             final ParameterizedMessage errorMessage = new ParameterizedMessage(
                                 "multiple [{}] profiles [{}] found for user [{}]",
@@ -145,13 +160,12 @@ public class ProfileService {
         return docId.substring(DOC_ID_PREFIX.length());
     }
 
-    private Profile buildProfile(BytesReference source, long primaryTerm, long seqNo, Set<String> dataKeys) throws IOException {
+    ProfileDocument buildProfileDocument(BytesReference source) throws IOException {
         if (source == null) {
             throw new IllegalStateException("profile document did not have source but source should have been fetched");
         }
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, XContentType.JSON)) {
-            // TODO: replace null with actual domain lookup
-            return ProfileDocument.fromXContent(parser).toProfile(primaryTerm, seqNo, null, dataKeys);
+            return ProfileDocument.fromXContent(parser);
         }
     }
 
@@ -166,5 +180,32 @@ public class ProfileService {
             return true;
         }
         return false;
+    }
+
+    // Package private for testing
+    record VersionedDocument(ProfileDocument doc, long primaryTerm, long seqNo) {
+
+        Profile toProfile(@Nullable String realmDomain) {
+            return toProfile(realmDomain, Set.of());
+        }
+
+        Profile toProfile(@Nullable String realmDomain, @Nullable Set<String> dataKeys) {
+            final Map<String, Object> applicationData;
+            if (dataKeys != null && dataKeys.isEmpty()) {
+                applicationData = Map.of();
+            } else {
+                applicationData = XContentHelper.convertToMap(doc.applicationData(), false, XContentType.JSON, dataKeys, null).v2();
+            }
+
+            return new Profile(
+                doc.uid(),
+                doc.enabled(),
+                doc.lastSynchronized(),
+                doc.user().toProfileUser(realmDomain),
+                doc.access().toProfileAccess(),
+                applicationData,
+                new Profile.VersionControl(primaryTerm, seqNo)
+            );
+        }
     }
 }

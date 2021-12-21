@@ -117,10 +117,9 @@ class AggregationToJsonProcessor {
         for (Aggregation agg : aggregations) {
             if (agg instanceof MultiBucketsAggregation) {
                 bucketAggregations.add((MultiBucketsAggregation) agg);
-            } else if (agg instanceof SingleBucketAggregation) {
+            } else if (agg instanceof SingleBucketAggregation singleBucketAggregation) {
                 // Skip a level down for single bucket aggs, if they have a sub-agg that is not
                 // a bucketed agg we should treat it like a leaf in this bucket
-                SingleBucketAggregation singleBucketAggregation = (SingleBucketAggregation) agg;
                 for (Aggregation subAgg : singleBucketAggregation.getAggregations()) {
                     if (subAgg instanceof MultiBucketsAggregation || subAgg instanceof SingleBucketAggregation) {
                         singleBucketAggregations.add(singleBucketAggregation);

@@ -9,6 +9,9 @@ buildConfiguration_branch {
     daemon = warm // value can be "warm", "cold", or "none"
     warm-ups = 5
     iterations = 10
+    system-properties {
+        "BUILD_PERFORMANCE_TEST" = "true"
+    }
     git-checkout = {
         build = "@testGitCommit@"
     }
@@ -22,6 +25,9 @@ buildConfiguration_master {
     daemon = warm // value can be "warm", "cold", or "none"
     warm-ups = 5
     iterations = 10
+    system-properties {
+        "BUILD_PERFORMANCE_TEST" = "true"
+    }
     git-checkout = {
         build = "master"
     }
@@ -36,6 +42,9 @@ precommit_branch {
     daemon = warm // value can be "warm", "cold", or "none"
     warm-ups = 5
     iterations = 10
+    system-properties {
+        "BUILD_PERFORMANCE_TEST" = "true"
+    }
     git-checkout = {
         build = "@testGitCommit@"
     }
@@ -50,6 +59,9 @@ precommit_master {
     daemon = warm // value can be "warm", "cold", or "none"
     warm-ups = 5
     iterations = 10
+    system-properties {
+        "BUILD_PERFORMANCE_TEST" = "true"
+    }
     git-checkout = {
         build = "master"
     }
@@ -65,6 +77,9 @@ single_project_branch {
     daemon = warm // value can be "warm", "cold", or "none"
     warm-ups = 5
     iterations = 10
+    system-properties {
+        "BUILD_PERFORMANCE_TEST" = "true"
+    }
     git-checkout = {
         build = "@testGitCommit@"
     }
@@ -80,6 +95,9 @@ single_project_master {
     daemon = warm // value can be "warm", "cold", or "none"
     warm-ups = 5
     iterations = 10
+    system-properties {
+        "BUILD_PERFORMANCE_TEST" = "true"
+    }
     git-checkout = {
         build = "master"
     }

@@ -359,8 +359,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 fetchExceptions.put(from, Tuple.tuple(retryCounter, ExceptionsHelper.convertToElastic(e)));
             }
             Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (cause instanceof ResourceNotFoundException) {
-                ResourceNotFoundException resourceNotFoundException = (ResourceNotFoundException) cause;
+            if (cause instanceof ResourceNotFoundException resourceNotFoundException) {
                 if (resourceNotFoundException.getMetadataKeys().contains(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY)) {
                     handleFallenBehindLeaderShard(e, from, maxOperationCount, maxRequiredSeqNo, retryCounter);
                     return;

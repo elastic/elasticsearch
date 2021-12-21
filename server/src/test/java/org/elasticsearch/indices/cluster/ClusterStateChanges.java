@@ -77,6 +77,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -98,6 +99,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -258,7 +260,8 @@ public class ClusterStateChanges {
             threadPool,
             xContentRegistry,
             EmptySystemIndices.INSTANCE,
-            true
+            true,
+            new IndexSettingProviders(Set.of())
         );
 
         transportCloseIndexAction = new TransportCloseIndexAction(

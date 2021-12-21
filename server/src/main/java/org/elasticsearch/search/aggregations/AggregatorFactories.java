@@ -362,7 +362,7 @@ public class AggregatorFactories {
         private void validatePipelines(PipelineAggregationBuilder.ValidationContext context) {
             List<PipelineAggregationBuilder> orderedPipelineAggregators;
             try {
-                orderedPipelineAggregators = resolvePipelineAggregatorOrder(pipelineAggregatorBuilders, aggregationBuilders);
+                orderedPipelineAggregators = resolvePipelineAggregatorOrder();
             } catch (IllegalArgumentException iae) {
                 context.addValidationError(iae.getMessage());
                 return;
@@ -397,33 +397,30 @@ public class AggregatorFactories {
             return new AggregatorFactories(context, aggFactories);
         }
 
-        private List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(
-            Collection<PipelineAggregationBuilder> pipelineAggregatorBuilders,
-            Collection<AggregationBuilder> aggregationBuilders
-        ) {
+        private List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder() {
             Map<String, PipelineAggregationBuilder> pipelineAggregatorBuildersMap = new HashMap<>();
-            for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders) {
+            for (PipelineAggregationBuilder builder : this.pipelineAggregatorBuilders) {
                 pipelineAggregatorBuildersMap.put(builder.getName(), builder);
             }
             Map<String, AggregationBuilder> aggBuildersMap = new HashMap<>();
-            for (AggregationBuilder aggBuilder : aggregationBuilders) {
+            for (AggregationBuilder aggBuilder : this.aggregationBuilders) {
                 aggBuildersMap.put(aggBuilder.name, aggBuilder);
             }
-            List<PipelineAggregationBuilder> orderedPipelineAggregatorrs = new LinkedList<>();
-            List<PipelineAggregationBuilder> unmarkedBuilders = new ArrayList<>(pipelineAggregatorBuilders);
+            List<PipelineAggregationBuilder> orderedPipelineAggregators = new LinkedList<>();
+            List<PipelineAggregationBuilder> unmarkedBuilders = new ArrayList<>(this.pipelineAggregatorBuilders);
             Collection<PipelineAggregationBuilder> temporarilyMarked = new HashSet<>();
             while (unmarkedBuilders.isEmpty() == false) {
                 PipelineAggregationBuilder builder = unmarkedBuilders.get(0);
                 resolvePipelineAggregatorOrder(
                     aggBuildersMap,
                     pipelineAggregatorBuildersMap,
-                    orderedPipelineAggregatorrs,
+                    orderedPipelineAggregators,
                     unmarkedBuilders,
                     temporarilyMarked,
                     builder
                 );
             }
-            return orderedPipelineAggregatorrs;
+            return orderedPipelineAggregators;
         }
 
         private void resolvePipelineAggregatorOrder(
@@ -599,7 +596,7 @@ public class AggregatorFactories {
             }
             Map<String, PipelineTree> subTrees = aggregationBuilders.stream()
                 .collect(toMap(AggregationBuilder::getName, AggregationBuilder::buildPipelineTree));
-            List<PipelineAggregator> aggregators = resolvePipelineAggregatorOrder(pipelineAggregatorBuilders, aggregationBuilders).stream()
+            List<PipelineAggregator> aggregators = resolvePipelineAggregatorOrder().stream()
                 .map(PipelineAggregationBuilder::create)
                 .collect(toList());
             return new PipelineTree(subTrees, aggregators);

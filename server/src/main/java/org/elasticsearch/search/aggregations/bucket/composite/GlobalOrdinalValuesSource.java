@@ -110,6 +110,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
             // and doesn't have a string type
             afterValue = format.parseBytesRef(value);
         } else if (value.getClass() == BytesRef.class) {
+            // The value may be a bytes reference (eg an encoded tsid field)
             afterValue = (BytesRef) value;
         } else {
             throw new IllegalArgumentException("invalid value, expected string, got " + value.getClass().getSimpleName());

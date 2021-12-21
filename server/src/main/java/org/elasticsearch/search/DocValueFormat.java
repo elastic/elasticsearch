@@ -704,33 +704,43 @@ public interface DocValueFormat extends NamedWriteable {
         public BytesRef parseBytesRef(Object value) {
             if (value instanceof Map<?, ?> m) {
                 Map<String, BytesReference> dimensionFields = new LinkedHashMap<>(m.size());
-                m.forEach((k, v) -> {
+                for (Map.Entry<?, ?> entry : m.entrySet()) {
+                    String k = (String) entry.getKey();
+                    Object v = entry.getValue();
+                    BytesReference bytes;
+
                     if (v instanceof String s) {
-                        dimensionFields.put(k.toString(), TimeSeriesIdFieldMapper.encodeTsidValue(s));
+                        bytes = TimeSeriesIdFieldMapper.encodeTsidValue(s);
                     } else if (v instanceof Long l) {
+                        // For a long encoded number, we must check if the number can be the encoded value
+                        // of an unsigned_long.
                         Number ul = (Number) UNSIGNED_LONG_SHIFTED.format(l);
                         if (l == ul) {
-                            dimensionFields.put(k.toString(), TimeSeriesIdFieldMapper.encodeTsidValue(l));
+                            bytes = TimeSeriesIdFieldMapper.encodeTsidValue(l);
                         } else {
                             long ll = UNSIGNED_LONG_SHIFTED.parseLong(String.valueOf(l), false, () -> 0L);
-                            dimensionFields.put(k.toString(), TimeSeriesIdFieldMapper.encodeTsidUnsignedLongValue(ll));
+                            bytes = TimeSeriesIdFieldMapper.encodeTsidUnsignedLongValue(ll);
                         }
                     } else if (v instanceof BigInteger ul) {
                         long ll = UNSIGNED_LONG_SHIFTED.parseLong(ul.toString(), false, () -> 0L);
-                        dimensionFields.put(k.toString(), TimeSeriesIdFieldMapper.encodeTsidUnsignedLongValue(ll));
+                        bytes = TimeSeriesIdFieldMapper.encodeTsidUnsignedLongValue(ll);
                     } else {
                         throw new IllegalArgumentException("Unexpected value in tsid object [" + v + "]");
                     }
-                });
+
+                    assert bytes != null : "Could not parse fields in _tsid field [" + value + "].";
+                    dimensionFields.put(k, bytes);
+                }
 
                 try {
                     return TimeSeriesIdFieldMapper.buildTsidField(dimensionFields).toBytesRef();
                 } catch (IOException e) {
-                   throw new IllegalArgumentException(e);
+                    throw new IllegalArgumentException(e);
                 }
-            } if (value instanceof BytesRef bytesRef) {
-                 return bytesRef;
-            }  else {
+            } else if (value instanceof BytesRef bytesRef) {
+                // TODO: This branch should be removed. Called only SearchAfterBuilder#convertValueFromSortType (line 202)
+                return bytesRef;
+            } else {
                 throw new IllegalArgumentException("Cannot parse tsid object [" + value + "]");
             }
         }

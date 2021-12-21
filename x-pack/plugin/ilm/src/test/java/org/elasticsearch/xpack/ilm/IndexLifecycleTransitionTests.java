@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
@@ -307,13 +308,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> IndexLifecycleTransition.moveClusterStateToStep(index, clusterState, nextStepKey, () -> now, stepRegistry, true)
         );
-        assertThat(
-            exception.getMessage(),
-            equalTo(
-                "step [{\"phase\":\"next_phase\",\"action\":\"next_action\",\"name\":\"next_step\"}] "
-                    + "for index [my_index] with policy [my_policy] does not exist"
-            )
-        );
+        assertThat(exception.getMessage(), equalTo("""
+            step [{"phase":"next_phase","action":"next_action","name":"next_step"}] \
+            for index [my_index] with policy [my_policy] does not exist"""));
     }
 
     public void testMoveClusterStateToErrorStep() throws IOException {
@@ -337,14 +334,8 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             () -> now,
             (idxMeta, stepKey) -> new MockStep(stepKey, nextStepKey)
         );
-        assertClusterStateOnErrorStep(
-            clusterState,
-            index,
-            currentStep,
-            newClusterState,
-            now,
-            "{\"type\":\"exception\",\"reason\":\"THIS IS AN EXPECTED CAUSE\""
-        );
+        assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, now, """
+            {"type":"exception","reason":"THIS IS AN EXPECTED CAUSE\"""");
 
         cause = new IllegalArgumentException("non elasticsearch-exception");
         newClusterState = IndexLifecycleTransition.moveClusterStateToErrorStep(
@@ -354,14 +345,8 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             () -> now,
             (idxMeta, stepKey) -> new MockStep(stepKey, nextStepKey)
         );
-        assertClusterStateOnErrorStep(
-            clusterState,
-            index,
-            currentStep,
-            newClusterState,
-            now,
-            "{\"type\":\"illegal_argument_exception\",\"reason\":\"non elasticsearch-exception\",\"stack_trace\":\""
-        );
+        assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, now, """
+            {"type":"illegal_argument_exception","reason":"non elasticsearch-exception","stack_trace":\"""");
     }
 
     public void testAddStepInfoToClusterState() throws IOException {
@@ -585,24 +570,23 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .setPhase("hot")
             .setAction("rollover")
             .setStep("check-rollover-ready")
-            .setPhaseDefinition(
-                "{\n"
-                    + "        \"policy\" : \"my-policy\",\n"
-                    + "        \"phase_definition\" : {\n"
-                    + "          \"min_age\" : \"20m\",\n"
-                    + "          \"actions\" : {\n"
-                    + "            \"rollover\" : {\n"
-                    + "              \"max_age\" : \"5s\"\n"
-                    + "            },\n"
-                    + "            \"set_priority\" : {\n"
-                    + "              \"priority\" : 150\n"
-                    + "            }\n"
-                    + "          }\n"
-                    + "        },\n"
-                    + "        \"version\" : 1,\n"
-                    + "        \"modified_date_in_millis\" : 1578521007076\n"
-                    + "      }"
-            );
+            .setPhaseDefinition("""
+                {
+                        "policy" : "my-policy",
+                        "phase_definition" : {
+                          "min_age" : "20m",
+                          "actions" : {
+                            "rollover" : {
+                              "max_age" : "5s"
+                            },
+                            "set_priority" : {
+                              "priority" : 150
+                            }
+                          }
+                        },
+                        "version" : 1,
+                        "modified_date_in_millis" : 1578521007076
+                      }""");
 
         IndexMetadata meta = buildIndexMetadata("my-policy", executionState);
 
@@ -828,29 +812,28 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertThat(executionState.getFailedStepRetryCount(), is(1));
     }
 
-    public void testRefreshPhaseJson() {
+    public void testRefreshPhaseJson() throws IOException {
         LifecycleExecutionState.Builder exState = LifecycleExecutionState.builder()
             .setPhase("hot")
             .setAction("rollover")
             .setStep("check-rollover-ready")
-            .setPhaseDefinition(
-                "{\n"
-                    + "        \"policy\" : \"my-policy\",\n"
-                    + "        \"phase_definition\" : {\n"
-                    + "          \"min_age\" : \"20m\",\n"
-                    + "          \"actions\" : {\n"
-                    + "            \"rollover\" : {\n"
-                    + "              \"max_age\" : \"5s\"\n"
-                    + "            },\n"
-                    + "            \"set_priority\" : {\n"
-                    + "              \"priority\" : 150\n"
-                    + "            }\n"
-                    + "          }\n"
-                    + "        },\n"
-                    + "        \"version\" : 1,\n"
-                    + "        \"modified_date_in_millis\" : 1578521007076\n"
-                    + "      }"
-            );
+            .setPhaseDefinition("""
+                {
+                        "policy" : "my-policy",
+                        "phase_definition" : {
+                          "min_age" : "20m",
+                          "actions" : {
+                            "rollover" : {
+                              "max_age" : "5s"
+                            },
+                            "set_priority" : {
+                              "priority" : 150
+                            }
+                          }
+                        },
+                        "version" : 1,
+                        "modified_date_in_millis" : 1578521007076
+                      }""");
 
         IndexMetadata meta = buildIndexMetadata("my-policy", exState);
         String index = meta.getIndex().getName();
@@ -879,13 +862,23 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertThat(beforeState, equalTo(afterState));
 
         // Check that the phase definition has been refreshed
-        assertThat(
-            afterExState.getPhaseDefinition(),
-            equalTo(
-                "{\"policy\":\"my-policy\",\"phase_definition\":{\"min_age\":\"0ms\",\"actions\":{\"rollover\":{\"max_docs\":1},"
-                    + "\"set_priority\":{\"priority\":100}}},\"version\":2,\"modified_date_in_millis\":2}"
-            )
-        );
+        assertThat(afterExState.getPhaseDefinition(), equalTo(XContentHelper.stripWhitespace("""
+            {
+              "policy": "my-policy",
+              "phase_definition": {
+                "min_age": "0ms",
+                "actions": {
+                  "rollover": {
+                    "max_docs": 1
+                  },
+                  "set_priority": {
+                    "priority": 100
+                  }
+                }
+              },
+              "version": 2,
+              "modified_date_in_millis": 2
+            }""")));
     }
 
     public void testEligibleForRefresh() {
@@ -976,24 +969,23 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .setPhase("hot")
             .setAction("rollover")
             .setStep("check-rollover-ready")
-            .setPhaseDefinition(
-                "{\n"
-                    + "        \"policy\" : \"my-policy\",\n"
-                    + "        \"phase_definition\" : {\n"
-                    + "          \"min_age\" : \"20m\",\n"
-                    + "          \"actions\" : {\n"
-                    + "            \"rollover\" : {\n"
-                    + "              \"max_age\" : \"5s\"\n"
-                    + "            },\n"
-                    + "            \"set_priority\" : {\n"
-                    + "              \"priority\" : 150\n"
-                    + "            }\n"
-                    + "          }\n"
-                    + "        },\n"
-                    + "        \"version\" : 1,\n"
-                    + "        \"modified_date_in_millis\" : 1578521007076\n"
-                    + "      }"
-            );
+            .setPhaseDefinition("""
+                {
+                        "policy" : "my-policy",
+                        "phase_definition" : {
+                          "min_age" : "20m",
+                          "actions" : {
+                            "rollover" : {
+                              "max_age" : "5s"
+                            },
+                            "set_priority" : {
+                              "priority" : 150
+                            }
+                          }
+                        },
+                        "version" : 1,
+                        "modified_date_in_millis" : 1578521007076
+                      }""");
 
         IndexMetadata meta = buildIndexMetadata("my-policy", currentExecutionState);
 

@@ -59,6 +59,8 @@
   - match: { job_id: "job-crud-test-apis" }
   - match: { analysis_limits.model_memory_limit: "1024mb" }
   - match: { analysis_limits.categorization_examples_limit: 4 }
+  - is_true: create_time
+
 
   - do:
       ml.get_jobs:
@@ -110,6 +112,41 @@
   - match: { job_id: "job-model-prune-window" }
   - match: { analysis_config.bucket_span: "15m" }
   - match: { analysis_config.model_prune_window: "14d" }
+  - is_true: create_time
+
+  - do:
+      ml.put_job:
+        job_id: job-default-model-prune-window
+        body: >
+          {
+            "analysis_config" : {
+                "bucket_span": "15m",
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "job-default-model-prune-window" }
+  - match: { analysis_config.bucket_span: "15m" }
+  - match: { analysis_config.model_prune_window: "30d" }
+  - is_true: create_time
+
+  - do:
+      ml.put_job:
+        job_id: job-default-model-prune-window-40h
+        body: >
+          {
+            "analysis_config" : {
+                "bucket_span": "40h",
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "job-default-model-prune-window-40h" }
+  - match: { analysis_config.bucket_span: "40h" }
+  - match: { analysis_config.model_prune_window: "800h" }
+  - is_true: create_time
 
   - do:
       catch: /model_prune_window \[29m\] must be a multiple of bucket_span \[15m\]/
@@ -141,7 +178,62 @@
             }
           }
 
+# Here we test that in the case of the job being configured with an
+# unconventional bucket span (17m) that the generated model_prune_window
+# is the closest multiple of the bucket span greater than or equal to 30
+# days (43200m)
+  - do:
+      ml.put_job:
+        job_id: job-default-model-prune-window_with_odd_bucket_span
+        body: >
+          {
+            "analysis_config" : {
+                "bucket_span": "17m",
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "job-default-model-prune-window_with_odd_bucket_span" }
+  - match: { analysis_config.bucket_span: "17m" }
+  - match: { analysis_config.model_prune_window: "43214m" }
+  - is_true: create_time
 
+# We expect that the default model_prune_window will be set to
+# 20 * bucket_span if this value is greater than 30 daya
+  - do:
+      ml.put_job:
+        job_id: job-default-model-prune-window_with_large_bucket_span
+        body: >
+          {
+            "analysis_config" : {
+                "bucket_span": "14d",
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "job-default-model-prune-window_with_large_bucket_span" }
+  - match: { analysis_config.bucket_span: "14d" }
+  - match: { analysis_config.model_prune_window: "280d" }
+  - is_true: create_time
+
+  - do:
+      ml.put_job:
+        job_id: job-default-model-prune-window_with_small_bucket_span
+        body: >
+          {
+            "analysis_config" : {
+                "bucket_span": "1s",
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "job-default-model-prune-window_with_small_bucket_span" }
+  - match: { analysis_config.bucket_span: "1s" }
+  - match: { analysis_config.model_prune_window: "30d" }
+  - is_true: create_time
 ---
 "Test put job with model_memory_limit as string and lazy open":
   - skip:
@@ -163,6 +255,7 @@
           }
   - match: { job_id: "job-model-memory-limit-as-string" }
   - match: { analysis_limits.model_memory_limit: "3072000mb" }
+  - is_true: create_time
 
   # The assumption here is that a 3000GB job will not fit on the test
   # node - increase in future if the test ever fails because of this!
@@ -297,6 +390,7 @@
             }
           }
   - match: { job_id: "jobs-crud-id-already-taken" }
+  - is_true: create_time
 
   - do:
       catch: /resource_already_exists_exception/
@@ -376,6 +470,7 @@
   - match: { analysis_config.categorization_analyzer.char_filter.2.pattern: "cat2.*" }
   - match: { analysis_config.bucket_span: "5m" }
   - match: { analysis_config.model_prune_window: "30d" }
+  - is_true: create_time
 
   - do:
       ml.open_job:
@@ -591,6 +686,7 @@
             }
           }
   - match: { job_id: "jobs-crud-datafeed-job" }
+  - is_true: create_time
 
   - do:
       ml.put_datafeed:
@@ -626,6 +722,7 @@
             }
           }
   - match: { job_id: "delete-opened-job" }
+  - is_true: create_time
 
   - do:
       ml.open_job:
@@ -661,6 +758,7 @@
             }
           }
   - match: { job_id: "jobs-crud-close-job" }
+  - is_true: create_time
 
   - do:
       ml.open_job:
@@ -704,6 +802,7 @@
             }
           }
   - match: { job_id: "jobs-crud-close-a-closed-job" }
+  - is_true: create_time
 
   - do:
       ml.open_job:
@@ -738,6 +837,7 @@
             }
           }
   - match: { job_id: "jobs-crud-close-all-1" }
+  - is_true: create_time
 
   - do:
       ml.put_job:
@@ -756,6 +856,7 @@
             }
           }
   - match: { job_id: "jobs-crud-close-all-2" }
+  - is_true: create_time
 
   - do:
       ml.open_job:
@@ -892,6 +993,7 @@
             }
           }
   - match: { job_id: "jobs-crud-force-close-job" }
+  - is_true: create_time
 
   - do:
       ml.open_job:
@@ -936,6 +1038,7 @@
             }
           }
   - match: { job_id: "jobs-crud-close-a-closed-job" }
+  - is_true: create_time
 
   - do:
       ml.open_job:
@@ -1077,6 +1180,7 @@
   - is_true: datafeed_config
   - match: { datafeed_config.job_id: "jobs-crud-put-with-datafeed" }
   - match: { datafeed_config.datafeed_id: "jobs-crud-put-with-datafeed" }
+  - is_true: create_time
 
   - do:
       ml.get_datafeeds:
@@ -1104,6 +1208,8 @@
             }
           }
   - match: { job_id: "jobs-crud-get-with-datafeed" }
+  - is_true: create_time
+
   - do:
       ml.put_datafeed:
         datafeed_id: jobs-crud-get-with-datafeed
@@ -1157,6 +1263,7 @@
   - match: { job_id: "jobs-crud-put-with-datafeed-with-indices-options" }
   - match: { datafeed_config.datafeed_id: "jobs-crud-put-with-datafeed-with-indices-options" }
   - match: { datafeed_config.indices_options.ignore_throttled: false }
+  - is_true: create_time
 
   - do:
       ml.get_datafeeds:
@@ -1193,6 +1300,7 @@
           }
   - match: { job_id: "job-model-memory-limit-below-global-max" }
   - match: { analysis_limits.model_memory_limit: "8192mb" }
+  - is_true: create_time
 
   - do:
       catch: /model_memory_limit \[10gb\] must be less than the value of the xpack.ml.max_model_memory_limit setting \[9gb\]/
@@ -1235,6 +1343,7 @@
           }
   - match: { job_id: "job-model-memory-limit-above-removed-global-max" }
   - match: { analysis_limits.model_memory_limit: "10240mb" }
+  - is_true: create_time
 
 ---
 "Test jobs with named and custom categorization_analyzer":
@@ -1255,6 +1364,7 @@
           }
   - match: { job_id: "jobs-crud-named-categorization-analyzer-job" }
   - match: { analysis_config.categorization_analyzer: "standard" }
+  - is_true: create_time
 
   - do:
       ml.put_job:
@@ -1278,6 +1388,7 @@
   - match: { analysis_config.categorization_analyzer.char_filter.0: "html_strip" }
   - match: { analysis_config.categorization_analyzer.tokenizer: "classic" }
   - match: { analysis_config.categorization_analyzer.filter.0: "stop" }
+  - is_true: create_time
 
 ---
 "Test job with categorization_analyzer and categorization_filters":
@@ -1383,6 +1494,7 @@
           }
   - match: { job_id: "jobs-function-shortcut-expansion" }
   - match: { analysis_config.detectors.0.function: "non_zero_count"}
+  - is_true: create_time
 
 ---
 "Test open job when persistent task allocation disabled":
@@ -1412,6 +1524,7 @@
             }
           }
   - match: { job_id: "persistent-task-allocation-allowed-test" }
+  - is_true: create_time
 
   - do:
       catch: /Cannot open jobs because persistent task assignment is disabled by the \[cluster.persistent_tasks.allocation.enable\] setting/
@@ -1447,6 +1560,7 @@
             }
           }
   - match: { job_id: jobs-crud-reset-finished-time }
+  - is_true: create_time
 
   - do:
       ml.open_job:

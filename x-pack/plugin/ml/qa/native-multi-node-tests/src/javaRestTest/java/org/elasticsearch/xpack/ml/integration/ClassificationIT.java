@@ -1096,64 +1096,56 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     static void createIndex(String index, boolean isDatastream) {
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"@timestamp\": {\n"
-            + "          \"type\": \"date\"\n"
-            + "        },"
-            + "        \""
-            + BOOLEAN_FIELD
-            + "\": {\n"
-            + "          \"type\": \"boolean\"\n"
-            + "        },"
-            + "        \""
-            + NUMERICAL_FIELD
-            + "\": {\n"
-            + "          \"type\": \"double\"\n"
-            + "        },"
-            + "        \""
-            + DISCRETE_NUMERICAL_FIELD
-            + "\": {\n"
-            + "          \"type\": \"integer\"\n"
-            + "        },"
-            + "        \""
-            + TEXT_FIELD
-            + "\": {\n"
-            + "          \"type\": \"text\",\n"
-            + "          \"fields\": {"
-            + "            \"keyword\": {"
-            + "              \"type\": \"keyword\"\n"
-            + "            }"
-            + "          }"
-            + "        },"
-            + "        \""
-            + KEYWORD_FIELD
-            + "\": {\n"
-            + "          \"type\": \"keyword\"\n"
-            + "        },"
-            + "        \""
-            + NESTED_FIELD
-            + "\": {\n"
-            + "          \"type\": \"keyword\"\n"
-            + "        },"
-            + "        \""
-            + ALIAS_TO_KEYWORD_FIELD
-            + "\": {\n"
-            + "          \"type\": \"alias\",\n"
-            + "          \"path\": \""
-            + KEYWORD_FIELD
-            + "\"\n"
-            + "        },"
-            + "        \""
-            + ALIAS_TO_NESTED_FIELD
-            + "\": {\n"
-            + "          \"type\": \"alias\",\n"
-            + "          \"path\": \""
-            + NESTED_FIELD
-            + "\"\n"
-            + "        }"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+              "properties": {
+                "@timestamp": {
+                  "type": "date"
+                },
+                "%s": {
+                  "type": "boolean"
+                },
+                "%s": {
+                  "type": "double"
+                },
+                "%s": {
+                  "type": "integer"
+                },
+                "%s": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "%s": {
+                  "type": "keyword"
+                },
+                "%s": {
+                  "type": "keyword"
+                },
+                "%s": {
+                  "type": "alias",
+                  "path": "%s"
+                },
+                "%s": {
+                  "type": "alias",
+                  "path": "%s"
+                }
+              }
+            }""".formatted(
+            BOOLEAN_FIELD,
+            NUMERICAL_FIELD,
+            DISCRETE_NUMERICAL_FIELD,
+            TEXT_FIELD,
+            KEYWORD_FIELD,
+            NESTED_FIELD,
+            ALIAS_TO_KEYWORD_FIELD,
+            KEYWORD_FIELD,
+            ALIAS_TO_NESTED_FIELD,
+            NESTED_FIELD
+        );
         if (isDatastream) {
             try {
                 createDataStreamAndTemplate(index, mapping);

@@ -343,7 +343,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     @Deprecated
     public UpdateRequest addScriptParam(String name, Object value) {
-        Script script = script();
         if (script == null) {
             HashMap<String, Object> scriptParams = new HashMap<>();
             scriptParams.put(name, value);
@@ -373,7 +372,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     private void updateOrCreateScript(String scriptContent, ScriptType type, String lang, Map<String, Object> params) {
-        Script script = script();
         if (script == null) {
             script = new Script(type == null ? ScriptType.INLINE : type, lang, scriptContent == null ? "" : scriptContent, params);
         } else {

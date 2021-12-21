@@ -202,15 +202,42 @@ public class ApiKeyService {
 
     // This following fixed role descriptor is for fleet-server BWC on and before 7.14.
     // It is fixed and must NOT be updated when the fleet-server service account updates.
-    private static final BytesArray FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14 = new BytesArray(
-        "{\"elastic/fleet-server\":{\"cluster\":[\"monitor\",\"manage_own_api_key\"],"
-            + "\"indices\":[{\"names\":[\"logs-*\",\"metrics-*\",\"traces-*\",\"synthetics-*\","
-            + "\".logs-endpoint.diagnostic.collection-*\"],"
-            + "\"privileges\":[\"write\",\"create_index\",\"auto_configure\"],\"allow_restricted_indices\":false},"
-            + "{\"names\":[\".fleet-*\"],\"privileges\":[\"read\",\"write\",\"monitor\",\"create_index\",\"auto_configure\"],"
-            + "\"allow_restricted_indices\":false}],\"applications\":[],\"run_as\":[],\"metadata\":{},"
-            + "\"transient_metadata\":{\"enabled\":true}}}"
-    );
+    private static final BytesArray FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14 = new BytesArray("""
+        {
+          "elastic/fleet-server": {
+            "cluster": [ "monitor", "manage_own_api_key" ],
+            "indices": [
+              {
+                "names": [
+                  "logs-*",
+                  "metrics-*",
+                  "traces-*",
+                  "synthetics-*",
+                  ".logs-endpoint.diagnostic.collection-*"
+                ],
+                "privileges": [ "write", "create_index", "auto_configure" ],
+                "allow_restricted_indices": false
+              },
+              {
+                "names": [ ".fleet-*" ],
+                "privileges": [
+                  "read",
+                  "write",
+                  "monitor",
+                  "create_index",
+                  "auto_configure"
+                ],
+                "allow_restricted_indices": false
+              }
+            ],
+            "applications": [],
+            "run_as": [],
+            "metadata": {},
+            "transient_metadata": {
+              "enabled": true
+            }
+          }
+        }""");
 
     private final Clock clock;
     private final Client client;
@@ -594,7 +621,7 @@ public class ApiKeyService {
         String docId,
         ApiKeyDoc apiKeyDoc,
         ApiKeyCredentials credentials,
-        Clock clock,
+        @SuppressWarnings("HiddenField") Clock clock,
         ActionListener<AuthenticationResult<User>> listener
     ) {
         if ("api_key".equals(apiKeyDoc.docType) == false) {
@@ -690,7 +717,7 @@ public class ApiKeyService {
     void validateApiKeyExpiration(
         ApiKeyDoc apiKeyDoc,
         ApiKeyCredentials credentials,
-        Clock clock,
+        @SuppressWarnings("HiddenField") Clock clock,
         ActionListener<AuthenticationResult<User>> listener
     ) {
         if (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant())) {
@@ -772,10 +799,10 @@ public class ApiKeyService {
     // Protected instance method so this can be mocked
     protected void verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials, ActionListener<Boolean> listener) {
         threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> {
-            Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
+            Hasher hasher1 = Hasher.resolveFromHash(apiKeyHash.toCharArray());
             final char[] apiKeyHashChars = apiKeyHash.toCharArray();
             try {
-                return hasher.verify(credentials.getKey(), apiKeyHashChars);
+                return hasher1.verify(credentials.getKey(), apiKeyHashChars);
             } finally {
                 Arrays.fill(apiKeyHashChars, (char) 0);
             }

@@ -82,17 +82,13 @@ public class ActionWrapperTests extends ESTestCase {
 
     public void testThatMultipleResultsCanBeReturned() throws Exception {
         final LoggingAction loggingAction = new LoggingAction(new TextTemplate("{{key}}"), null, null);
-        final ExecutableAction<LoggingAction> executableAction = new ExecutableLoggingAction(
-            loggingAction,
-            logger,
-            new MockTextTemplateEngine()
-        );
+        final ExecutableAction<LoggingAction> action = new ExecutableLoggingAction(loggingAction, logger, new MockTextTemplateEngine());
         ActionWrapper wrapper = new ActionWrapper(
             "_action",
             null,
             InternalAlwaysCondition.INSTANCE,
             null,
-            executableAction,
+            action,
             "ctx.payload.my_path",
             null
         );
@@ -285,15 +281,15 @@ public class ActionWrapperTests extends ESTestCase {
         }
     }
 
-    private WatchExecutionContext mockExecutionContent(Watch watch) {
+    private WatchExecutionContext mockExecutionContent(Watch watch1) {
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
-        when(watch.id()).thenReturn("watchId");
-        when(ctx.watch()).thenReturn(watch);
-        final ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        final Wid wid = new Wid("watchId", now);
+        when(watch1.id()).thenReturn("watchId");
+        when(ctx.watch()).thenReturn(watch1);
+        final ZonedDateTime now1 = ZonedDateTime.now(ZoneOffset.UTC);
+        final Wid wid = new Wid("watchId", now1);
         when(ctx.id()).thenReturn(wid);
-        when(ctx.executionTime()).thenReturn(now);
-        final TriggerEvent triggerEvent = new ScheduleTriggerEvent("watchId", now, now);
+        when(ctx.executionTime()).thenReturn(now1);
+        final TriggerEvent triggerEvent = new ScheduleTriggerEvent("watchId", now1, now1);
         when(ctx.triggerEvent()).thenReturn(triggerEvent);
         when(ctx.skipThrottling(eq("_action"))).thenReturn(true);
         return ctx;

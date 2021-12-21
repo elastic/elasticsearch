@@ -139,41 +139,42 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"nested\" : {\n"
-            + "    \"query\" : {\n"
-            + "      \"bool\" : {\n"
-            + "        \"must\" : [ {\n"
-            + "          \"match\" : {\n"
-            + "            \"obj1.name\" : {\n"
-            + "              \"query\" : \"blue\",\n"
-            + "              \"operator\" : \"OR\",\n"
-            + "              \"prefix_length\" : 0,\n"
-            + "              \"max_expansions\" : 50,\n"
-            + "              \"fuzzy_transpositions\" : true,\n"
-            + "              \"lenient\" : false,\n"
-            + "              \"zero_terms_query\" : \"NONE\",\n"
-            + "              \"auto_generate_synonyms_phrase_query\" : true,\n"
-            + "              \"boost\" : 1.0\n"
-            + "            }\n"
-            + "          }\n"
-            + "        }, {\n"
-            + "          \"range\" : {\n"
-            + "            \"obj1.count\" : {\n"
-            + "              \"gt\" : 5,\n"
-            + "              \"boost\" : 1.0\n"
-            + "            }\n"
-            + "          }\n"
-            + "        } ],\n"
-            + "        \"boost\" : 1.0\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"path\" : \"obj1\",\n"
-            + "    \"ignore_unmapped\" : false,\n"
-            + "    \"score_mode\" : \"avg\",\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "nested" : {
+                "query" : {
+                  "bool" : {
+                    "must" : [ {
+                      "match" : {
+                        "obj1.name" : {
+                          "query" : "blue",
+                          "operator" : "OR",
+                          "prefix_length" : 0,
+                          "max_expansions" : 50,
+                          "fuzzy_transpositions" : true,
+                          "lenient" : false,
+                          "zero_terms_query" : "NONE",
+                          "auto_generate_synonyms_phrase_query" : true,
+                          "boost" : 1.0
+                        }
+                      }
+                    }, {
+                      "range" : {
+                        "obj1.count" : {
+                          "gt" : 5,
+                          "boost" : 1.0
+                        }
+                      }
+                    } ],
+                    "boost" : 1.0
+                  }
+                },
+                "path" : "obj1",
+                "ignore_unmapped" : false,
+                "score_mode" : "avg",
+                "boost" : 1.0
+              }
+            }""";
 
         NestedQueryBuilder parsed = (NestedQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

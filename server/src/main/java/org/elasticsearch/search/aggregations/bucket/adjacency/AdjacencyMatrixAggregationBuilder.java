@@ -8,13 +8,12 @@
 
 package org.elasticsearch.search.aggregations.bucket.adjacency;
 
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -204,17 +203,15 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     @Override
     protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
         throws IOException {
-        int maxFilters = BooleanQuery.getMaxClauseCount();
+        int maxFilters = IndexSearcher.getMaxClauseCount();
         if (filters.size() > maxFilters) {
             throw new IllegalArgumentException(
                 "Number of filters is too large, must be less than or equal to: ["
                     + maxFilters
                     + "] but was ["
                     + filters.size()
-                    + "]."
-                    + "This limit can be set by changing the ["
-                    + SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()
-                    + "] setting."
+                    + "].  "
+                    + "You can increase this limit by scaling up your java heap"
             );
         }
         return new AdjacencyMatrixAggregatorFactory(name, filters, separator, context, parent, subFactoriesBuilder, metadata);

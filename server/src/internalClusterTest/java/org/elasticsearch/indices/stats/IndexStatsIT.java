@@ -1001,15 +1001,31 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testCompletionFieldsParam() throws Exception {
-        assertAcked(
-            prepareCreate("test1").setMapping(
-                "{ \"properties\": { \"bar\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}"
-                    + ",\"baz\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}"
-            )
-        );
+        assertAcked(prepareCreate("test1").setMapping("""
+            {
+              "properties": {
+                "bar": {
+                  "type": "text",
+                  "fields": {
+                    "completion": {
+                      "type": "completion"
+                    }
+                  }
+                },
+                "baz": {
+                  "type": "text",
+                  "fields": {
+                    "completion": {
+                      "type": "completion"
+                    }
+                  }
+                }
+              }
+            }"""));
         ensureGreen();
 
-        client().prepareIndex("test1").setId(Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}", XContentType.JSON).get();
+        client().prepareIndex("test1").setId(Integer.toString(1)).setSource("""
+            {"bar":"bar","baz":"baz"}""", XContentType.JSON).get();
         refresh();
 
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();

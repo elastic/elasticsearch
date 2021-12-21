@@ -174,3 +174,9 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
     task.addAllowedWarningRegex("\\[types removal\\].*")
 }
 
+if (BuildParams.isSnapshotBuild() == false) {
+  testClusters.configureEach {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
+}
+

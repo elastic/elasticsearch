@@ -21,7 +21,9 @@ public class TimestampBounds {
     TimestampBounds(IndexScopedSettings scopedSettings) {
         startTime = scopedSettings.get(IndexSettings.TIME_SERIES_START_TIME).toEpochMilli();
         endTime = scopedSettings.get(IndexSettings.TIME_SERIES_END_TIME).toEpochMilli();
-        scopedSettings.addSettingsUpdateConsumer(IndexSettings.TIME_SERIES_END_TIME, this::updateEndTime);
+        if (IndexSettings.isTimeSeriesModeEnabled()) {
+            scopedSettings.addSettingsUpdateConsumer(IndexSettings.TIME_SERIES_END_TIME, this::updateEndTime);
+        }
     }
 
     /**

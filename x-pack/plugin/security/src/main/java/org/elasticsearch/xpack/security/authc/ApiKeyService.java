@@ -613,11 +613,11 @@ public class ApiKeyService {
 
     private List<RoleDescriptor> maybeReplaceSuperuserRoleDescriptor(String apiKeyId, List<RoleDescriptor> roleDescriptors) {
         // TODO: Maybe we can just check list of size 1 since superuser role hides any other roles
-        //       In theory we just need check limited-by-roles but the benefit is not worth the extra effort because roles are cached
-        //       We don't replace if it is a superuser equivalent but manually created role
+        // In theory we just need check limited-by-roles but the benefit is not worth the extra effort because roles are cached
+        // We don't replace if it is a superuser equivalent but manually created role
         return roleDescriptors.stream().map(rd -> {
             if (rd.equals(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR)) {
-                // TODO: Log level? Should it be warning or deprecation or something else? 
+                // TODO: Log level? Should it be warning or deprecation or something else?
                 logger.info("replacing superuser role for API key [{}]", apiKeyId);
                 // TODO: replace with actual new superuser descriptor
                 return ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;

@@ -151,30 +151,32 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
         builder.endObject();
         String expected;
         if (keyed) {
-            expected = "{\n"
-                + "  \"values\" : {\n"
-                + "    \"1.0\" : null,\n"
-                + "    \"2.0\" : null,\n"
-                + "    \"3.0\" : null\n"
-                + "  }\n"
-                + "}";
+            expected = """
+                {
+                  "values" : {
+                    "1.0" : null,
+                    "2.0" : null,
+                    "3.0" : null
+                  }
+                }""";
         } else {
-            expected = "{\n"
-                + "  \"values\" : [\n"
-                + "    {\n"
-                + "      \"key\" : 1.0,\n"
-                + "      \"value\" : null\n"
-                + "    },\n"
-                + "    {\n"
-                + "      \"key\" : 2.0,\n"
-                + "      \"value\" : null\n"
-                + "    },\n"
-                + "    {\n"
-                + "      \"key\" : 3.0,\n"
-                + "      \"value\" : null\n"
-                + "    }\n"
-                + "  ]\n"
-                + "}";
+            expected = """
+                {
+                  "values" : [
+                    {
+                      "key" : 1.0,
+                      "value" : null
+                    },
+                    {
+                      "key" : 2.0,
+                      "value" : null
+                    },
+                    {
+                      "key" : 3.0,
+                      "value" : null
+                    }
+                  ]
+                }""";
         }
 
         assertThat(Strings.toString(builder), equalTo(expected));

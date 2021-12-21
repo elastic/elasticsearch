@@ -56,9 +56,9 @@ abstract class AbstractProcessor implements ElementVisitor<Boolean> {
         }
     }
 
-    public void process(InjectorImpl injector, List<Element> elements) {
+    public void process(InjectorImpl injectorImpl, List<Element> elements) {
         Errors errorsAnyElement = this.errors;
-        this.injector = injector;
+        this.injector = injectorImpl;
         try {
             for (Iterator<Element> i = elements.iterator(); i.hasNext();) {
                 Element element = i.next();

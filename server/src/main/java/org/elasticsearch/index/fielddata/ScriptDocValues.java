@@ -15,13 +15,10 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.script.field.DocValuesField;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.AbstractList;
 import java.util.Comparator;
@@ -161,63 +158,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static class DatesSupplier implements Supplier<ZonedDateTime> {
-
-        private final SortedNumericDocValues in;
-        private final boolean isNanos;
-
-        /**
-         * Values wrapped in {@link java.time.ZonedDateTime} objects.
-         */
-        private ZonedDateTime[] dates;
-        private int count;
-
-        public DatesSupplier(SortedNumericDocValues in, boolean isNanos) {
-            this.in = in;
-            this.isNanos = isNanos;
-        }
-
-        @Override
-        public ZonedDateTime getInternal(int index) {
-            return dates[index];
-        }
-
-        @Override
-        public int size() {
-            return count;
-        }
-
-        @Override
-        public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
-                count = in.docValueCount();
-            } else {
-                count = 0;
-            }
-            refreshArray();
-        }
-
-        /**
-         * Refresh the backing array. Package private so it can be called when {@link Longs} loads dates.
-         */
-        private void refreshArray() throws IOException {
-            if (count == 0) {
-                return;
-            }
-            if (dates == null || count > dates.length) {
-                // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
-                dates = new ZonedDateTime[count];
-            }
-            for (int i = 0; i < count; ++i) {
-                if (isNanos) {
-                    dates[i] = ZonedDateTime.ofInstant(DateUtils.toInstant(in.nextValue()), ZoneOffset.UTC);
-                } else {
-                    dates[i] = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
-                }
-            }
-        }
-    }
-
     public static class Dates extends ScriptDocValues<ZonedDateTime> {
 
         public Dates(Supplier<ZonedDateTime> supplier) {
@@ -347,101 +287,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public interface GeometrySupplier<T> extends Supplier<T> {
 
-        GeoPoint getCentroid();
+        GeoPoint getInternalCentroid();
 
-        GeoBoundingBox getBoundingBox();
-    }
-
-    public static class GeoPointsSupplier implements GeometrySupplier<GeoPoint> {
-
-        private final MultiGeoPointValues in;
-        private GeoPoint[] values = new GeoPoint[0];
-        private final GeoPoint centroid = new GeoPoint();
-        private final GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
-        private int count;
-
-        public GeoPointsSupplier(MultiGeoPointValues in) {
-            this.in = in;
-        }
-
-        @Override
-        public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
-                resize(in.docValueCount());
-                if (count == 1) {
-                    setSingleValue();
-                } else {
-                    setMultiValue();
-                }
-            } else {
-                resize(0);
-            }
-        }
-
-        private void setSingleValue() throws IOException {
-            GeoPoint point = in.nextValue();
-            values[0].reset(point.lat(), point.lon());
-            centroid.reset(point.lat(), point.lon());
-            boundingBox.topLeft().reset(point.lat(), point.lon());
-            boundingBox.bottomRight().reset(point.lat(), point.lon());
-        }
-
-        private void setMultiValue() throws IOException {
-            double centroidLat = 0;
-            double centroidLon = 0;
-            double maxLon = Double.NEGATIVE_INFINITY;
-            double minLon = Double.POSITIVE_INFINITY;
-            double maxLat = Double.NEGATIVE_INFINITY;
-            double minLat = Double.POSITIVE_INFINITY;
-            for (int i = 0; i < count; i++) {
-                GeoPoint point = in.nextValue();
-                values[i].reset(point.lat(), point.lon());
-                centroidLat += point.getLat();
-                centroidLon += point.getLon();
-                maxLon = Math.max(maxLon, values[i].getLon());
-                minLon = Math.min(minLon, values[i].getLon());
-                maxLat = Math.max(maxLat, values[i].getLat());
-                minLat = Math.min(minLat, values[i].getLat());
-            }
-            centroid.reset(centroidLat / count, centroidLon / count);
-            boundingBox.topLeft().reset(maxLat, minLon);
-            boundingBox.bottomRight().reset(minLat, maxLon);
-        }
-
-        /**
-         * Set the {@link #size()} and ensure that the {@link #values} array can
-         * store at least that many entries.
-         */
-        private void resize(int newSize) {
-            count = newSize;
-            if (newSize > values.length) {
-                int oldLength = values.length;
-                values = ArrayUtil.grow(values, count);
-                for (int i = oldLength; i < values.length; ++i) {
-                    values[i] = new GeoPoint();
-                }
-            }
-        }
-
-        @Override
-        public GeoPoint getInternal(int index) {
-            return values[index];
-        }
-
-        @Override
-        public GeoPoint getCentroid() {
-            return centroid;
-        }
-
-        @Override
-        public GeoBoundingBox getBoundingBox() {
-            return boundingBox;
-        }
-
-        @Override
-        public int size() {
-            return count;
-        }
+        GeoBoundingBox getInternalBoundingBox();
     }
 
     public static class GeoPoints extends Geometry<GeoPoint> {
@@ -541,7 +389,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public GeoPoint getCentroid() {
-            return size() == 0 ? null : geometrySupplier.getCentroid();
+            return size() == 0 ? null : geometrySupplier.getInternalCentroid();
         }
 
         @Override
@@ -556,7 +404,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public GeoBoundingBox getBoundingBox() {
-            return size() == 0 ? null : geometrySupplier.getBoundingBox();
+            return size() == 0 ? null : geometrySupplier.getInternalBoundingBox();
         }
     }
 

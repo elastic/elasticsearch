@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ilm.history;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -63,50 +64,51 @@ public class ILMHistoryItemTests extends ESTestCase {
         try (XContentBuilder builder = jsonBuilder()) {
             success.toXContent(builder, ToXContent.EMPTY_PARAMS);
             String json = Strings.toString(builder);
-            assertThat(
-                json,
-                equalTo(
-                    "{\"index\":\"index\","
-                        + "\"policy\":\"policy\","
-                        + "\"@timestamp\":1234,"
-                        + "\"index_age\":100,"
-                        + "\"success\":true,"
-                        + "\"state\":{\"phase\":\"phase\","
-                        + "\"phase_definition\":\"{}\","
-                        + "\"action_time\":\"20\","
-                        + "\"phase_time\":\"10\","
-                        + "\"step_info\":\"{\\\"step_info\\\": \\\"foo\\\"\",\"action\":\"action\",\"step\":\"step\",\"step_time\":\"30\"}}"
-                )
-            );
+            assertThat(json, equalTo(XContentHelper.stripWhitespace("""
+                {
+                  "index": "index",
+                  "policy": "policy",
+                  "@timestamp": 1234,
+                  "index_age": 100,
+                  "success": true,
+                  "state": {
+                    "phase": "phase",
+                    "phase_definition": "{}",
+                    "action_time": "20",
+                    "phase_time": "10",
+                    "step_info": "{\\"step_info\\": \\"foo\\"",
+                    "action": "action",
+                    "step": "step",
+                    "step_time": "30"
+                  }
+                }""")));
         }
 
         try (XContentBuilder builder = jsonBuilder()) {
             failure.toXContent(builder, ToXContent.EMPTY_PARAMS);
             String json = Strings.toString(builder);
-            assertThat(
-                json,
-                startsWith(
-                    "{\"index\":\"index\","
-                        + "\"policy\":\"policy\","
-                        + "\"@timestamp\":1234,"
-                        + "\"index_age\":100,"
-                        + "\"success\":false,"
-                        + "\"state\":{\"phase\":\"phase\","
-                        + "\"failed_step\":\"step\","
-                        + "\"phase_definition\":\"{\\\"phase_json\\\": \\\"eggplant\\\"}\","
-                        + "\"action_time\":\"20\","
-                        + "\"is_auto_retryable_error\":\"true\","
-                        + "\"failed_step_retry_count\":\"7\","
-                        + "\"phase_time\":\"10\","
-                        + "\"step_info\":\"{\\\"step_info\\\": \\\"foo\\\"\","
-                        + "\"action\":\"action\","
-                        + "\"step\":\"ERROR\","
-                        + "\"step_time\":\"30\"},"
-                        + "\"error_details\":\"{\\\"type\\\":\\\"illegal_argument_exception\\\","
-                        + "\\\"reason\\\":\\\"failure\\\","
-                        + "\\\"stack_trace\\\":\\\"java.lang.IllegalArgumentException: failure"
-                )
-            );
+            assertThat(json.replaceAll("\\s", ""), startsWith("""
+                {
+                  "index": "index",
+                  "policy": "policy",
+                  "@timestamp": 1234,
+                  "index_age": 100,
+                  "success": false,
+                  "state": {
+                    "phase": "phase",
+                    "failed_step": "step",
+                    "phase_definition": "{\\"phase_json\\": \\"eggplant\\"}",
+                    "action_time": "20",
+                    "is_auto_retryable_error": "true",
+                    "failed_step_retry_count": "7",
+                    "phase_time": "10",
+                    "step_info": "{\\"step_info\\": \\"foo\\"",
+                    "action": "action",
+                    "step": "ERROR",
+                    "step_time": "30"
+                  },
+                  "error_details": "{\\"type\\":\\"illegal_argument_exception\\",\\"reason\\":\\"failure\\",\
+                \\"stack_trace\\":\\"java.lang.IllegalArgumentException: failure""".replaceAll("\\s", "")));
         }
     }
 }

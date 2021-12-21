@@ -15,6 +15,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
+import java.util.Locale;
+
 /**
  * Describes the indices where ML is storing various stats about the users jobs.
  */
@@ -27,7 +29,10 @@ public class MlStatsIndex {
     private MlStatsIndex() {}
 
     public static String wrappedMapping() {
-        return "{\n\"_doc\" : " + mapping() + "\n}";
+        return String.format(Locale.ROOT, """
+            {
+            "_doc" : %s
+            }""", mapping());
     }
 
     public static String mapping() {

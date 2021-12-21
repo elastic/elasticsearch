@@ -17,12 +17,15 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
@@ -47,7 +51,9 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
     private final MetadataIndexTemplateService indexTemplateService;
     private final NamedXContentRegistry xContentRegistry;
     private final IndicesService indicesService;
-    private AliasValidator aliasValidator;
+    private final AliasValidator aliasValidator;
+    private final SystemIndices systemIndices;
+    private final Set<IndexSettingProvider> indexSettingProviders;
 
     @Inject
     public TransportSimulateTemplateAction(
@@ -58,7 +64,9 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
-        IndicesService indicesService
+        IndicesService indicesService,
+        SystemIndices systemIndices,
+        MetadataCreateIndexService service
     ) {
         super(
             SimulateTemplateAction.NAME,
@@ -75,6 +83,8 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         this.xContentRegistry = xContentRegistry;
         this.indicesService = indicesService;
         this.aliasValidator = new AliasValidator();
+        this.systemIndices = systemIndices;
+        this.indexSettingProviders = service.getIndexSettingProviders();
     }
 
     @Override
@@ -152,7 +162,9 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             stateWithTemplate,
             xContentRegistry,
             indicesService,
-            aliasValidator
+            aliasValidator,
+            systemIndices,
+            indexSettingProviders
         );
         listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
     }

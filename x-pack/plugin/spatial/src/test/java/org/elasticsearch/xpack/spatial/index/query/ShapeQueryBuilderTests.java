@@ -153,19 +153,20 @@ public abstract class ShapeQueryBuilderTests extends AbstractQueryTestCase<Shape
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"shape\" : {\n"
-            + "    \"geometry\" : {\n"
-            + "      \"shape\" : {\n"
-            + "        \"type\" : \"envelope\",\n"
-            + "        \"coordinates\" : [ [ 1300.0, 5300.0 ], [ 1400.0, 5200.0 ] ]\n"
-            + "      },\n"
-            + "      \"relation\" : \"intersects\"\n"
-            + "    },\n"
-            + "    \"ignore_unmapped\" : false,\n"
-            + "    \"boost\" : 42.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "shape" : {
+                "geometry" : {
+                  "shape" : {
+                    "type" : "envelope",
+                    "coordinates" : [ [ 1300.0, 5300.0 ], [ 1400.0, 5200.0 ] ]
+                  },
+                  "relation" : "intersects"
+                },
+                "ignore_unmapped" : false,
+                "boost" : 42.0
+              }
+            }""";
         ShapeQueryBuilder parsed = (ShapeQueryBuilder) parseQuery(json);
         checkGeneratedJson(json.replaceAll("envelope", "Envelope"), parsed);
         assertEquals(json, 42.0, parsed.boost(), 0.0001);

@@ -416,13 +416,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
 
         PostDataAction.Request postDataRequest = new PostDataAction.Request(jobId);
-        postDataRequest.setContent(
-            new BytesArray(
-                "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n"
-                    + "{\"airline\":\"JZA\",\"responsetime\":\"990.4628\",\"sourcetype\":\"farequote\",\"time\":\"1403481700\"}"
-            ),
-            XContentType.JSON
-        );
+        postDataRequest.setContent(new BytesArray("""
+            {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+            {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}"""), XContentType.JSON);
         PostDataAction.Response response = client().execute(PostDataAction.INSTANCE, postDataRequest).actionGet();
         assertEquals(2, response.getDataCounts().getProcessedRecordCount());
 

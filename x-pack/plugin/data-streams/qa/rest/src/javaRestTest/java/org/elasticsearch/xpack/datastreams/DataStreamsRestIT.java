@@ -34,7 +34,13 @@ public class DataStreamsRestIT extends ESRestTestCase {
     public void testHiddenDataStream() throws IOException {
         // Create a template
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/hidden");
-        putComposableIndexTemplateRequest.setJsonEntity("{\"index_patterns\": [\"hidden\"], \"data_stream\": {\"hidden\": true}}");
+        putComposableIndexTemplateRequest.setJsonEntity("""
+            {
+              "index_patterns": [ "hidden" ],
+              "data_stream": {
+                "hidden": true
+              }
+            }""");
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         Request createDocRequest = new Request("POST", "/hidden/_doc?refresh=true");
@@ -102,10 +108,23 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         // Add logs-myapp1 -> logs & logs-myapp2 -> logs
         Request updateAliasesRequest = new Request("POST", "/_aliases");
-        updateAliasesRequest.setJsonEntity(
-            "{\"actions\":[{\"add\":{\"index\":\"logs-myapp1\",\"alias\":\"logs\"}},"
-                + "{\"add\":{\"index\":\"logs-myapp2\",\"alias\":\"logs\"}}]}"
-        );
+        updateAliasesRequest.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "logs-myapp1",
+                    "alias": "logs"
+                  }
+                },
+                {
+                  "add": {
+                    "index": "logs-myapp2",
+                    "alias": "logs"
+                  }
+                }
+              ]
+            }""");
         assertOK(client().performRequest(updateAliasesRequest));
 
         Request getAliasesRequest = new Request("GET", "/_aliases");
@@ -120,10 +139,23 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         // Remove logs-myapp1 -> logs & logs-myapp2 -> logs
         updateAliasesRequest = new Request("POST", "/_aliases");
-        updateAliasesRequest.setJsonEntity(
-            "{\"actions\":[{\"remove\":{\"index\":\"logs-myapp1\",\"alias\":\"logs\"}},"
-                + "{\"remove\":{\"index\":\"logs-myapp2\",\"alias\":\"logs\"}}]}"
-        );
+        updateAliasesRequest.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "remove": {
+                    "index": "logs-myapp1",
+                    "alias": "logs"
+                  }
+                },
+                {
+                  "remove": {
+                    "index": "logs-myapp2",
+                    "alias": "logs"
+                  }
+                }
+              ]
+            }""");
         assertOK(client().performRequest(updateAliasesRequest));
 
         getAliasesRequest = new Request("GET", "/_aliases");
@@ -147,7 +179,10 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         // Remove logs-* -> logs
         updateAliasesRequest = new Request("POST", "/_aliases");
-        updateAliasesRequest.setJsonEntity("{\"actions\":[{\"remove\":{\"index\":\"logs-*\",\"alias\":\"logs\"}}]}");
+        updateAliasesRequest.setJsonEntity("""
+            {
+              "actions": [ { "remove": { "index": "logs-*", "alias": "logs" } } ]
+            }""");
         assertOK(client().performRequest(updateAliasesRequest));
 
         getAliasesRequest = new Request("GET", "/_aliases");
@@ -171,10 +206,23 @@ public class DataStreamsRestIT extends ESRestTestCase {
         assertOK(client().performRequest(createDocRequest));
 
         Request updateAliasesRequest = new Request("POST", "/_aliases");
-        updateAliasesRequest.setJsonEntity(
-            "{\"actions\":[{\"add\":{\"index\":\"logs-emea\",\"alias\":\"logs\"}},"
-                + "{\"add\":{\"index\":\"logs-nasa\",\"alias\":\"logs\"}}]}"
-        );
+        updateAliasesRequest.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "logs-emea",
+                    "alias": "logs"
+                  }
+                },
+                {
+                  "add": {
+                    "index": "logs-nasa",
+                    "alias": "logs"
+                  }
+                }
+              ]
+            }""");
         assertOK(client().performRequest(updateAliasesRequest));
 
         Request getAliasesRequest = new Request("GET", "/logs-*/_alias");
@@ -209,10 +257,23 @@ public class DataStreamsRestIT extends ESRestTestCase {
         assertOK(client().performRequest(createDocRequest));
 
         Request updateAliasesRequest = new Request("POST", "/_aliases");
-        updateAliasesRequest.setJsonEntity(
-            "{\"actions\":[{\"add\":{\"index\":\"logs-emea\",\"alias\":\"emea\"}},"
-                + "{\"add\":{\"index\":\"logs-nasa\",\"alias\":\"nasa\"}}]}"
-        );
+        updateAliasesRequest.setJsonEntity("""
+            {
+               "actions": [
+                 {
+                   "add": {
+                     "index": "logs-emea",
+                     "alias": "emea"
+                   }
+                 },
+                 {
+                   "add": {
+                     "index": "logs-nasa",
+                     "alias": "nasa"
+                   }
+                 }
+               ]
+             }""");
         assertOK(client().performRequest(updateAliasesRequest));
 
         Response response = client().performRequest(new Request("GET", "/_alias"));
@@ -243,9 +304,16 @@ public class DataStreamsRestIT extends ESRestTestCase {
     public void testDataStreamWithAliasFromTemplate() throws IOException {
         // Create a template
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
-        putComposableIndexTemplateRequest.setJsonEntity(
-            "{\"index_patterns\": [\"logs-*\"], \"template\": { \"aliases\": { \"logs\": {} } }, \"data_stream\": {}}"
-        );
+        putComposableIndexTemplateRequest.setJsonEntity("""
+            {
+              "index_patterns": [ "logs-*" ],
+              "template": {
+                "aliases": {
+                  "logs": {}
+                }
+              },
+              "data_stream": {}
+            }""");
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         Request createDocRequest = new Request("POST", "/logs-emea/_doc?refresh=true");
@@ -282,10 +350,24 @@ public class DataStreamsRestIT extends ESRestTestCase {
         assertOK(client().performRequest(createDocRequest));
 
         Request updateAliasesRequest = new Request("POST", "/_aliases");
-        updateAliasesRequest.setJsonEntity(
-            "{\"actions\":[{\"add\":{\"index\":\"logs-emea\",\"alias\":\"logs\",\"is_write_index\":true}},"
-                + "{\"add\":{\"index\":\"logs-nasa\",\"alias\":\"logs\"}}]}"
-        );
+        updateAliasesRequest.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "logs-emea",
+                    "alias": "logs",
+                    "is_write_index": true
+                  }
+                },
+                {
+                  "add": {
+                    "index": "logs-nasa",
+                    "alias": "logs"
+                  }
+                }
+              ]
+            }""");
         assertOK(client().performRequest(updateAliasesRequest));
 
         Request getAliasesRequest = new Request("GET", "/_aliases");
@@ -307,12 +389,25 @@ public class DataStreamsRestIT extends ESRestTestCase {
         assertThat((String) entityAsMap(createDocResponse).get("_index"), startsWith(".ds-logs-emea"));
 
         updateAliasesRequest = new Request("POST", "/_aliases");
-        updateAliasesRequest.setJsonEntity(
-            "{\"actions\":["
-                + "{\"add\":{\"index\":\"logs-emea\",\"alias\":\"logs\",\"is_write_index\":false}},"
-                + "{\"add\":{\"index\":\"logs-nasa\",\"alias\":\"logs\",\"is_write_index\":true}}"
-                + "]}"
-        );
+        updateAliasesRequest.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "logs-emea",
+                    "alias": "logs",
+                    "is_write_index": false
+                  }
+                },
+                {
+                  "add": {
+                    "index": "logs-nasa",
+                    "alias": "logs",
+                    "is_write_index": true
+                  }
+                }
+              ]
+            }""");
         assertOK(client().performRequest(updateAliasesRequest));
 
         createDocRequest = new Request("POST", "/logs/_doc?refresh=true");

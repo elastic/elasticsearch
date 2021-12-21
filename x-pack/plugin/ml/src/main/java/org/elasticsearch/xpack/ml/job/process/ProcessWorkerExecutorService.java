@@ -25,6 +25,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /*
  * Native ML processes can only handle a single operation at a time. In order to guarantee that, all
@@ -39,6 +40,7 @@ public class ProcessWorkerExecutorService extends AbstractExecutorService {
     private final String processName;
     private final CountDownLatch awaitTermination = new CountDownLatch(1);
     private final BlockingQueue<Runnable> queue;
+    private final AtomicReference<Exception> error = new AtomicReference<>();
 
     private volatile boolean running = true;
 
@@ -57,6 +59,11 @@ public class ProcessWorkerExecutorService extends AbstractExecutorService {
 
     public int queueSize() {
         return queue.size();
+    }
+
+    public void shutdownWithError(Exception e) {
+        error.set(e);
+        shutdown();
     }
 
     @Override
@@ -88,8 +95,8 @@ public class ProcessWorkerExecutorService extends AbstractExecutorService {
     public synchronized void execute(Runnable command) {
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(processName + " worker service has shutdown", true);
-            if (command instanceof AbstractRunnable) {
-                ((AbstractRunnable) command).onRejection(rejected);
+            if (command instanceof AbstractRunnable runnable) {
+                runnable.onRejection(rejected);
             } else {
                 throw rejected;
             }
@@ -122,9 +129,14 @@ public class ProcessWorkerExecutorService extends AbstractExecutorService {
                     queue.drainTo(notExecuted);
 
                     String msg = "unable to process as " + processName + " worker service has shutdown";
+                    Exception ex = error.get();
                     for (Runnable runnable : notExecuted) {
-                        if (runnable instanceof AbstractRunnable) {
-                            ((AbstractRunnable) runnable).onRejection(new EsRejectedExecutionException(msg, true));
+                        if (runnable instanceof AbstractRunnable ar) {
+                            if (ex != null) {
+                                ar.onFailure(ex);
+                            } else {
+                                ar.onRejection(new EsRejectedExecutionException(msg, true));
+                            }
                         }
                     }
                 }

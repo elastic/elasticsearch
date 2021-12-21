@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
@@ -230,6 +228,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         return applyStartedShardsUntilNoChange(clusterState, strategy);
     }
 
+    @SuppressWarnings("HiddenField")
     private void assertReplicaBalance(
         RoutingNodes nodes,
         int numberOfNodes,
@@ -261,6 +260,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         }
     }
 
+    @SuppressWarnings("HiddenField")
     private void assertIndexBalance(
         RoutingTable routingTable,
         RoutingNodes nodes,
@@ -276,10 +276,10 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         final int minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - threshold)));
         final int maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + threshold)));
 
-        for (ObjectCursor<String> index : routingTable.indicesRouting().keys()) {
+        for (String index : routingTable.indicesRouting().keySet()) {
             for (RoutingNode node : nodes) {
-                assertThat(node.shardsWithState(index.value, STARTED).size(), Matchers.greaterThanOrEqualTo(minAvgNumberOfShards));
-                assertThat(node.shardsWithState(index.value, STARTED).size(), Matchers.lessThanOrEqualTo(maxAvgNumberOfShards));
+                assertThat(node.shardsWithState(index, STARTED).size(), Matchers.greaterThanOrEqualTo(minAvgNumberOfShards));
+                assertThat(node.shardsWithState(index, STARTED).size(), Matchers.lessThanOrEqualTo(maxAvgNumberOfShards));
             }
         }
     }

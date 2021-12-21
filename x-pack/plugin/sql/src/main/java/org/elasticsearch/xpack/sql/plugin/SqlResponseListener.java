@@ -68,8 +68,7 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
         RestResponse restResponse;
 
         // XContent branch
-        if (mediaType instanceof XContentType) {
-            XContentType type = (XContentType) mediaType;
+        if (mediaType instanceof XContentType type) {
             XContentBuilder builder = channel.newBuilder(request.getXContentType(), type, true);
             response.toXContent(builder, request);
             restResponse = new BytesRestResponse(RestStatus.OK, builder);

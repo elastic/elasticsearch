@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.action.shard;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -249,10 +247,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         // add shards from a non-existent index
         String nonExistentIndexUUID = "non-existent";
         Index index = new Index("non-existent", nonExistentIndexUUID);
-        List<String> nodeIds = new ArrayList<>();
-        for (ObjectCursor<String> nodeId : currentState.nodes().getNodes().keys()) {
-            nodeIds.add(nodeId.toString());
-        }
+        List<String> nodeIds = new ArrayList<>(currentState.nodes().getNodes().keySet());
         List<ShardRouting> nonExistentShards = new ArrayList<>();
         nonExistentShards.add(nonExistentShardRouting(index, nodeIds, true));
         for (int i = 0; i < numberOfReplicas; i++) {

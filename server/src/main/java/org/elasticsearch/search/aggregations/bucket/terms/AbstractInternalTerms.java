@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.DelayedBucket;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -84,7 +85,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
     protected abstract B createBucket(long docCount, InternalAggregations aggs, long docCountError, B prototype);
 
     @Override
-    public B reduceBucket(List<B> buckets, ReduceContext context) {
+    public B reduceBucket(List<B> buckets, AggregationReduceContext context) {
         assert buckets.size() > 0;
         long docCount = 0;
         // For the per term doc count error we add up the errors from the
@@ -151,7 +152,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
      */
     private BucketOrder reduceBuckets(
         List<InternalAggregation> aggregations,
-        InternalAggregation.ReduceContext reduceContext,
+        AggregationReduceContext reduceContext,
         Function<DelayedBucket<B>, Boolean> sink
     ) {
         /*
@@ -174,7 +175,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
     private void reduceMergeSort(
         List<InternalAggregation> aggregations,
         BucketOrder thisReduceOrder,
-        InternalAggregation.ReduceContext reduceContext,
+        AggregationReduceContext reduceContext,
         Function<DelayedBucket<B>, Boolean> sink
     ) {
         assert isKeyOrder(thisReduceOrder);
@@ -231,7 +232,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
 
     private void reduceLegacy(
         List<InternalAggregation> aggregations,
-        InternalAggregation.ReduceContext reduceContext,
+        AggregationReduceContext reduceContext,
         Function<DelayedBucket<B>, Boolean> sink
     ) {
         Map<Object, List<B>> bucketMap = new HashMap<>();
@@ -254,7 +255,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         }
     }
 
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, InternalAggregation.ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         long sumDocCountError = 0;
         long[] otherDocCount = new long[] { 0 };
         A referenceTerms = null;

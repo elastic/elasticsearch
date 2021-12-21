@@ -10,6 +10,7 @@ package org.elasticsearch.transport;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -80,7 +82,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseConnectionException;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
@@ -97,6 +98,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     // this limit is per-address
     private static final int LIMIT_LOCAL_PORTS_COUNT = 6;
+
+    // Deliberately unregistered, only used in unit tests. Copied to AbstractSimpleTransportTestCase#IGNORE_DESERIALIZATION_ERRORS_SETTING
+    // so that tests in other packages can see it too.
+    static final Setting<Boolean> IGNORE_DESERIALIZATION_ERRORS_SETTING = Setting.boolSetting(
+        "transport.ignore_deserialization_errors",
+        false,
+        Setting.Property.NodeScope
+    );
 
     protected final Settings settings;
     protected final ThreadPool threadPool;
@@ -144,6 +153,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         this.recycler = createRecycler(settings, pageCacheRecycler);
         this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, recycler, outboundHandlingTimeTracker);
+
+        final boolean ignoreDeserializationErrors = IGNORE_DESERIALIZATION_ERRORS_SETTING.get(settings);
+
         this.handshaker = new TransportHandshaker(
             version,
             threadPool,
@@ -157,7 +169,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 v,
                 null,
                 true
-            )
+            ),
+            ignoreDeserializationErrors
         );
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
         this.inboundHandler = new InboundHandler(
@@ -168,7 +181,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             keepAlive,
             requestHandlers,
             responseHandlers,
-            networkService.getHandlingTimeTracker()
+            networkService.getHandlingTimeTracker(),
+            ignoreDeserializationErrors
         );
     }
 
@@ -339,8 +353,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         for (int i = 0; i < numConnections; ++i) {
             try {
-                TcpChannel channel = initiateChannel(node);
-                logger.trace(() -> new ParameterizedMessage("Tcp transport channel opened: {}", channel));
+                final TcpChannel channel = initiateChannel(node);
+                if (logger.isTraceEnabled()) {
+                    channel.addConnectListener(new ChannelOpenTraceLogger(channel));
+                }
                 channels.add(channel);
             } catch (ConnectTransportException e) {
                 CloseableChannel.closeChannels(channels, false);
@@ -644,56 +660,66 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     // exposed for tests
     static void handleException(TcpChannel channel, Exception e, Lifecycle lifecycle, OutboundHandler outboundHandler) {
-        if (lifecycle.started() == false) {
-            // just close and ignore - we are already stopped and just need to make sure we release all resources
-            CloseableChannel.closeChannel(channel);
-            return;
-        }
 
-        if (isCloseConnectionException(e)) {
-            logger.debug(
-                () -> new ParameterizedMessage(
-                    "close connection exception caught on transport layer [{}], disconnecting from relevant node",
-                    channel
-                ),
-                e
-            );
-            // close the channel, which will cause a node to be disconnected if relevant
-            CloseableChannel.closeChannel(channel);
-        } else if (isConnectException(e)) {
-            logger.debug(() -> new ParameterizedMessage("connect exception caught on transport layer [{}]", channel), e);
-            // close the channel as safe measure, which will cause a node to be disconnected if relevant
-            CloseableChannel.closeChannel(channel);
-        } else if (e instanceof BindException) {
-            logger.debug(() -> new ParameterizedMessage("bind exception caught on transport layer [{}]", channel), e);
-            // close the channel as safe measure, which will cause a node to be disconnected if relevant
-            CloseableChannel.closeChannel(channel);
-        } else if (e instanceof CancelledKeyException) {
-            logger.debug(
-                () -> new ParameterizedMessage(
-                    "cancelled key exception caught on transport layer [{}], disconnecting from relevant node",
-                    channel
-                ),
-                e
-            );
-            // close the channel as safe measure, which will cause a node to be disconnected if relevant
-            CloseableChannel.closeChannel(channel);
-        } else if (e instanceof HttpRequestOnTransportException) {
-            // in case we are able to return data, serialize the exception content and sent it back to the client
-            if (channel.isOpen()) {
-                BytesArray message = new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8));
-                outboundHandler.sendBytes(channel, message, ActionListener.wrap(() -> CloseableChannel.closeChannel(channel)));
+        // these exceptions mean the channel cannot be salvaged: disconnect the node so that we reset everything back to a known-good state
+        boolean closeChannel = true;
+
+        try {
+            if (lifecycle.started() == false) {
+                return;
             }
-        } else if (e instanceof StreamCorruptedException) {
-            logger.warn(() -> new ParameterizedMessage("{}, [{}], closing connection", e.getMessage(), channel));
-            CloseableChannel.closeChannel(channel);
-        } else if (e instanceof TransportNotReadyException) {
-            logger.debug(() -> new ParameterizedMessage("{} on [{}], closing connection", e.getMessage(), channel));
-            CloseableChannel.closeChannel(channel);
-        } else {
-            logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
-            // close the channel, which will cause a node to be disconnected if relevant
-            CloseableChannel.closeChannel(channel);
+
+            final Level closeConnectionExceptionLevel = NetworkExceptionHelper.getCloseConnectionExceptionLevel(e);
+            if (closeConnectionExceptionLevel != Level.OFF) {
+                if (closeConnectionExceptionLevel == Level.INFO && logger.isDebugEnabled() == false) {
+                    logger.info(
+                        "close connection exception caught on transport layer [{}], disconnecting from relevant node: {}",
+                        channel,
+                        e.getMessage()
+                    );
+                } else {
+                    logger.log(
+                        closeConnectionExceptionLevel,
+                        new ParameterizedMessage(
+                            "close connection exception caught on transport layer [{}], disconnecting from relevant node",
+                            channel
+                        ),
+                        e
+                    );
+                }
+            } else if (isConnectException(e)) {
+                logger.debug(() -> new ParameterizedMessage("connect exception caught on transport layer [{}]", channel), e);
+            } else if (e instanceof BindException) {
+                logger.debug(() -> new ParameterizedMessage("bind exception caught on transport layer [{}]", channel), e);
+            } else if (e instanceof CancelledKeyException) {
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "cancelled key exception caught on transport layer [{}], disconnecting from relevant node",
+                        channel
+                    ),
+                    e
+                );
+            } else if (e instanceof HttpRequestOnTransportException) {
+                // in this case the client is speaking HTTP so we can do something a bit more useful than simply closing the channel
+                if (channel.isOpen()) {
+                    outboundHandler.sendBytes(
+                        channel,
+                        new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8)),
+                        ActionListener.wrap(() -> CloseableChannel.closeChannel(channel))
+                    );
+                    closeChannel = false;
+                }
+            } else if (e instanceof StreamCorruptedException) {
+                logger.warn(() -> new ParameterizedMessage("{}, [{}], closing connection", e.getMessage(), channel));
+            } else if (e instanceof TransportNotReadyException) {
+                logger.debug(() -> new ParameterizedMessage("{} on [{}], closing connection", e.getMessage(), channel));
+            } else {
+                logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
+            }
+        } finally {
+            if (closeChannel) {
+                CloseableChannel.closeChannel(channel);
+            }
         }
     }
 
@@ -1096,6 +1122,27 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         @Override
         public void onFailure(Exception e) {
             assert false : e; // never called
+        }
+    }
+
+    private static final class ChannelOpenTraceLogger implements ActionListener<Void> {
+        private final TcpChannel channel;
+
+        ChannelOpenTraceLogger(TcpChannel channel) {
+            this.channel = channel;
+        }
+
+        @Override
+        public void onResponse(Void unused) {
+            logger.trace("Tcp transport channel opened: {}", channel);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            // Connection failures are generally logged elsewhere, but go via the ChannelsConnectedListener which only captures the first
+            // exception for each bundle of channels. If the ChannelOpenTraceLogger is installed then trace-logging is enabled so we can log
+            // every failure.
+            logger.trace(new ParameterizedMessage("failed to open transport channel: {}", channel), e);
         }
     }
 

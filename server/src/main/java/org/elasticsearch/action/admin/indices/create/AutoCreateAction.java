@@ -41,8 +41,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 
 /**
  * Api that auto creates an index or data stream that originate from requests that write into an index that doesn't yet exist.
@@ -187,6 +190,22 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                                 }
 
                                 updateRequest = buildSystemIndexUpdateRequest(indexName, descriptor);
+                            } else if (isSystemIndex) {
+                                updateRequest = buildUpdateRequest(indexName);
+
+                                if (Objects.isNull(request.settings())) {
+                                    updateRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
+                                } else if (false == request.settings().hasValue(SETTING_INDEX_HIDDEN)) {
+                                    updateRequest.settings(
+                                        Settings.builder().put(request.settings()).put(SETTING_INDEX_HIDDEN, true).build()
+                                    );
+                                } else if ("false".equals(request.settings().get(SETTING_INDEX_HIDDEN))) {
+                                    final String message = "Cannot auto-create system index ["
+                                        + indexName
+                                        + "] with [index.hidden] set to 'false'";
+                                    logger.warn(message);
+                                    throw new IllegalStateException(message);
+                                }
                             } else {
                                 updateRequest = buildUpdateRequest(indexName);
                             }
@@ -231,7 +250,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             updateRequest.settings(settings);
                         }
                         if (aliasName != null) {
-                            updateRequest.aliases(Set.of(new Alias(aliasName)));
+                            updateRequest.aliases(Set.of(new Alias(aliasName).isHidden(true)));
                         }
 
                         if (logger.isDebugEnabled()) {

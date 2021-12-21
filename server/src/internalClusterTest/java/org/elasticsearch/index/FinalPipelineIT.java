@@ -79,7 +79,8 @@ public class FinalPipelineIT extends ESIntegTestCase {
         final Settings settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
         createIndex("index", settings);
 
-        final BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"changing_dest\": {}}]}");
+        final BytesReference finalPipelineBody = new BytesArray("""
+            {"processors": [{"changing_dest": {}}]}""");
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
         final IllegalStateException e = expectThrows(
@@ -96,13 +97,15 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .build();
         createIndex("index", settings);
 
-        BytesReference defaultPipelineBody = new BytesArray("{\"processors\": [{\"changing_dest\": {}}]}");
+        BytesReference defaultPipelineBody = new BytesArray("""
+            {"processors": [{"changing_dest": {}}]}""");
         client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
             .actionGet();
 
-        BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {\"exists\":\"no_such_field\"}}]}");
+        BytesReference finalPipelineBody = new BytesArray("""
+            {"processors": [{"final": {"exists":"no_such_field"}}]}""");
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
         IndexResponse indexResponse = client().prepareIndex("index")
@@ -123,13 +126,15 @@ public class FinalPipelineIT extends ESIntegTestCase {
         settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
         createIndex("target", settings);
 
-        BytesReference defaultPipelineBody = new BytesArray("{\"processors\": [{\"changing_dest\": {}}]}");
+        BytesReference defaultPipelineBody = new BytesArray("""
+            {"processors": [{"changing_dest": {}}]}""");
         client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
             .actionGet();
 
-        BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {}}]}");
+        BytesReference finalPipelineBody = new BytesArray("""
+            {"processors": [{"final": {}}]}""");
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
         IndexResponse indexResponse = client().prepareIndex("index")
@@ -150,13 +155,15 @@ public class FinalPipelineIT extends ESIntegTestCase {
         settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "target_default_pipeline").build();
         createIndex("target", settings);
 
-        BytesReference defaultPipelineBody = new BytesArray("{\"processors\": [{\"changing_dest\": {}}]}");
+        BytesReference defaultPipelineBody = new BytesArray("""
+            {"processors": [{"changing_dest": {}}]}""");
         client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
             .actionGet();
 
-        BytesReference targetPipeline = new BytesArray("{\"processors\": [{\"final\": {}}]}");
+        BytesReference targetPipeline = new BytesArray("""
+            {"processors": [{"final": {}}]}""");
         client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON))
@@ -186,12 +193,14 @@ public class FinalPipelineIT extends ESIntegTestCase {
     }
 
     public void testRequestPipelineAndFinalPipeline() {
-        final BytesReference requestPipelineBody = new BytesArray("{\"processors\": [{\"request\": {}}]}");
+        final BytesReference requestPipelineBody = new BytesArray("""
+            {"processors": [{"request": {}}]}""");
         client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest("request_pipeline", requestPipelineBody, XContentType.JSON))
             .actionGet();
-        final BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {\"exists\":\"request\"}}]}");
+        final BytesReference finalPipelineBody = new BytesArray("""
+            {"processors": [{"final": {"exists":"request"}}]}""");
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
         final Settings settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
         createIndex("index", settings);
@@ -212,12 +221,14 @@ public class FinalPipelineIT extends ESIntegTestCase {
     }
 
     public void testDefaultAndFinalPipeline() {
-        final BytesReference defaultPipelineBody = new BytesArray("{\"processors\": [{\"default\": {}}]}");
+        final BytesReference defaultPipelineBody = new BytesArray("""
+            {"processors": [{"default": {}}]}""");
         client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
             .actionGet();
-        final BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {\"exists\":\"default\"}}]}");
+        final BytesReference finalPipelineBody = new BytesArray("""
+            {"processors": [{"final": {"exists":"default"}}]}""");
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
         final Settings settings = Settings.builder()
             .put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline")
@@ -240,12 +251,14 @@ public class FinalPipelineIT extends ESIntegTestCase {
     }
 
     public void testDefaultAndFinalPipelineFromTemplates() {
-        final BytesReference defaultPipelineBody = new BytesArray("{\"processors\": [{\"default\": {}}]}");
+        final BytesReference defaultPipelineBody = new BytesArray("""
+            {"processors": [{"default": {}}]}""");
         client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
             .actionGet();
-        final BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {\"exists\":\"default\"}}]}");
+        final BytesReference finalPipelineBody = new BytesArray("""
+            {"processors": [{"final": {"exists":"default"}}]}""");
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
         final int lowOrder = randomIntBetween(0, Integer.MAX_VALUE - 1);
         final int highOrder = randomIntBetween(lowOrder + 1, Integer.MAX_VALUE);

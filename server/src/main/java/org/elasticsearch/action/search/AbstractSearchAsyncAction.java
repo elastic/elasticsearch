@@ -265,8 +265,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         successfulShardExecution(iterator);
     }
 
-    private boolean checkMinimumVersion(GroupShardsIterator<SearchShardIterator> shardsIts) {
-        for (SearchShardIterator it : shardsIts) {
+    private boolean checkMinimumVersion(GroupShardsIterator<SearchShardIterator> groupShardsIterator) {
+        for (SearchShardIterator it : groupShardsIterator) {
             if (it.getTargetNodeIds().isEmpty() == false) {
                 boolean isCompatible = it.getTargetNodeIds().stream().anyMatch(nodeId -> {
                     Transport.Connection conn = getConnection(it.getClusterAlias(), nodeId);
@@ -473,11 +473,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private ShardSearchFailure[] buildShardFailures() {
-        AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
-        if (shardFailures == null) {
+        AtomicArray<ShardSearchFailure> shardFailuresArray = this.shardFailures.get();
+        if (shardFailuresArray == null) {
             return ShardSearchFailure.EMPTY_ARRAY;
         }
-        List<ShardSearchFailure> entries = shardFailures.asList();
+        List<ShardSearchFailure> entries = shardFailuresArray.asList();
         ShardSearchFailure[] failures = new ShardSearchFailure[entries.size()];
         for (int i = 0; i < failures.length; i++) {
             failures[i] = entries.get(i);
@@ -504,12 +504,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             }
             onShardGroupFailure(shardIndex, shard, e);
         }
-        final int totalOps = this.totalOps.incrementAndGet();
-        if (totalOps == expectedTotalOps) {
+        final int updatedTotalOps = this.totalOps.incrementAndGet();
+        if (updatedTotalOps == expectedTotalOps) {
             onPhaseDone();
-        } else if (totalOps > expectedTotalOps) {
+        } else if (updatedTotalOps > expectedTotalOps) {
             throw new AssertionError(
-                "unexpected higher total ops [" + totalOps + "] compared to expected [" + expectedTotalOps + "]",
+                "unexpected higher total ops [" + updatedTotalOps + "] compared to expected [" + expectedTotalOps + "]",
                 new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures())
             );
         } else {
@@ -546,25 +546,25 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // we don't aggregate shard on failures due to the internal cancellation,
         // but do keep the header counts right
         if ((requestCancelled.get() && isTaskCancelledException(e)) == false) {
-            AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
+            AtomicArray<ShardSearchFailure> failures = this.shardFailures.get();
             // lazily create shard failures, so we can early build the empty shard failure list in most cases (no failures)
-            if (shardFailures == null) { // this is double checked locking but it's fine since SetOnce uses a volatile read internally
+            if (failures == null) { // this is double-checked locking, but it's fine since SetOnce uses a volatile read internally
                 synchronized (shardFailuresMutex) {
-                    shardFailures = this.shardFailures.get(); // read again otherwise somebody else has created it?
-                    if (shardFailures == null) { // still null so we are the first and create a new instance
-                        shardFailures = new AtomicArray<>(getNumShards());
-                        this.shardFailures.set(shardFailures);
+                    failures = this.shardFailures.get(); // read again otherwise somebody else has created it?
+                    if (failures == null) { // still null, so we are the first and create a new instance
+                        failures = new AtomicArray<>(getNumShards());
+                        this.shardFailures.set(failures);
                     }
                 }
             }
-            ShardSearchFailure failure = shardFailures.get(shardIndex);
+            ShardSearchFailure failure = failures.get(shardIndex);
             if (failure == null) {
-                shardFailures.set(shardIndex, new ShardSearchFailure(e, shardTarget));
+                failures.set(shardIndex, new ShardSearchFailure(e, shardTarget));
             } else {
                 // the failure is already present, try and not override it with an exception that is less meaningless
                 // for example, getting illegal shard state
                 if (TransportActions.isReadOverrideException(e) && (e instanceof SearchContextMissingException == false)) {
-                    shardFailures.set(shardIndex, new ShardSearchFailure(e, shardTarget));
+                    failures.set(shardIndex, new ShardSearchFailure(e, shardTarget));
                 }
             }
 
@@ -600,9 +600,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // clean a previous error on this shard group (note, this code will be serialized on the same shardIndex value level
         // so its ok concurrency wise to miss potentially the shard failures being created because of another failure
         // in the #addShardFailure, because by definition, it will happen on *another* shardIndex
-        AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
-        if (shardFailures != null) {
-            shardFailures.set(result.getShardIndex(), null);
+        AtomicArray<ShardSearchFailure> failures = this.shardFailures.get();
+        if (failures != null) {
+            failures.set(result.getShardIndex(), null);
         }
         // we need to increment successful ops first before we compare the exit condition otherwise if we
         // are fast we could concurrently update totalOps but then preempt one of the threads which can

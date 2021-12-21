@@ -122,7 +122,7 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
         ConstructingObjectParser<SnapshotIndexStatus, String> innerParser = new ConstructingObjectParser<>(
             "snapshot_index_status",
             true,
-            (Object[] parsedObjects, String index) -> {
+            (Object[] parsedObjects, String indexName) -> {
                 int i = 0;
                 SnapshotShardsStats shardsStats = ((SnapshotShardsStats) parsedObjects[i++]);
                 SnapshotStats stats = ((SnapshotStats) parsedObjects[i++]);
@@ -138,7 +138,7 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
                         indexShards.put(shardStatus.getShardId().getId(), shardStatus);
                     }
                 }
-                return new SnapshotIndexStatus(index, indexShards, shardsStats, stats);
+                return new SnapshotIndexStatus(indexName, indexShards, shardsStats, stats);
             }
         );
         innerParser.declareObject(

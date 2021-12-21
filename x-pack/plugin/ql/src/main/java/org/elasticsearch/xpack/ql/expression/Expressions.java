@@ -199,8 +199,7 @@ public final class Expressions {
 
         for (Attribute a : attributes) {
             if (DataTypes.isUnsupported(a.dataType()) == false && DataTypes.isPrimitive(a.dataType())) {
-                if (a instanceof FieldAttribute) {
-                    FieldAttribute fa = (FieldAttribute) a;
+                if (a instanceof FieldAttribute fa) {
                     // skip nested fields and seen multi-fields
                     if (fa.isNested() == false && seenMultiFields.contains(fa.parent()) == false) {
                         filtered.add(a);

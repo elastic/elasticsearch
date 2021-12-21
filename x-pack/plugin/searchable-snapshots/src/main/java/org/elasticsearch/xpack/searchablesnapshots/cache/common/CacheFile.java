@@ -180,8 +180,8 @@ public class CacheFile {
         return tracker.getInitialLength();
     }
 
-    public void acquire(final EvictionListener listener) throws IOException {
-        assert listener != null;
+    public void acquire(final EvictionListener evictionListener) throws IOException {
+        assert evictionListener != null;
 
         ensureOpen();
         boolean success = false;
@@ -194,8 +194,8 @@ public class CacheFile {
                         channelRef = new FileChannelReference(fileExists ? OPEN_OPTIONS : CREATE_OPTIONS);
                         fileExists = true;
                     }
-                    final boolean added = listeners.add(listener);
-                    assert added : "listener already exists " + listener;
+                    final boolean added = listeners.add(evictionListener);
+                    assert added : "listener already exists " + evictionListener;
                 }
                 success = true;
             } finally {
@@ -210,14 +210,14 @@ public class CacheFile {
         assert invariant();
     }
 
-    public void release(final EvictionListener listener) {
-        assert listener != null;
+    public void release(final EvictionListener evictionListener) {
+        assert evictionListener != null;
 
         boolean success = false;
         try {
             synchronized (listeners) {
-                final boolean removed = listeners.remove(Objects.requireNonNull(listener));
-                assert removed : "listener does not exist " + listener;
+                final boolean removed = listeners.remove(Objects.requireNonNull(evictionListener));
+                assert removed : "listener does not exist " + evictionListener;
                 if (removed == false) {
                     throw new IllegalStateException("Cannot remove an unknown listener");
                 }
@@ -251,15 +251,15 @@ public class CacheFile {
 
     private boolean assertRefCounted(boolean isReleased) {
         final boolean isEvicted = evicted.get();
-        final boolean fileExists = Files.exists(file);
-        assert isReleased == false || (isEvicted && fileExists == false)
+        final boolean fileDoesExist = Files.exists(file);
+        assert isReleased == false || (isEvicted && fileDoesExist == false)
             : "fully released cache file should be deleted from disk but got ["
                 + "released="
                 + isReleased
                 + ", evicted="
                 + isEvicted
                 + ", file exists="
-                + fileExists
+                + fileDoesExist
                 + ']';
         return true;
     }
@@ -274,7 +274,7 @@ public class CacheFile {
                 evictionListeners = new HashSet<>(listeners);
             }
             decrementRefCount();
-            evictionListeners.forEach(listener -> listener.onEviction(this));
+            evictionListeners.forEach(eachListener -> eachListener.onEviction(this));
         }
         assert invariant();
     }

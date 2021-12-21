@@ -67,19 +67,20 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
 
     @Override
     protected String configRoles() {
-        return super.configRoles()
-            + "app_role:\n"
-            + "  cluster: ['monitor']\n"
-            + "  indices:\n"
-            + "    - names: ['*']\n"
-            + "      privileges: ['read']\n"
-            + "  applications:\n"
-            + "    - application: 'app-1'\n"
-            + "      privileges: ['read', 'check']\n"
-            + "      resources: ['foo']\n"
-            + "    - application: 'app-2'\n"
-            + "      privileges: ['check']\n"
-            + "      resources: ['foo']\n";
+        return super.configRoles() + """
+            app_role:
+              cluster: ['monitor']
+              indices:
+                - names: ['*']
+                  privileges: ['read']
+              applications:
+                - application: 'app-1'
+                  privileges: ['read', 'check']
+                  resources: ['foo']
+                - application: 'app-2'
+                  privileges: ['check']
+                  resources: ['foo']
+            """;
     }
 
     @Override

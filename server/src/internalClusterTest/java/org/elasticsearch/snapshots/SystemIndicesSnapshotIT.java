@@ -323,6 +323,36 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
+    public void testSnapshottingSystemIndexByNameIsRejected() throws Exception {
+        createRepository(REPO_NAME, "fs");
+        // put a document in system index
+        indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
+        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+                .setIndices(SystemIndexTestPlugin.SYSTEM_INDEX_NAME)
+                .setWaitForCompletion(true)
+                .setIncludeGlobalState(randomBoolean())
+                .get()
+        );
+        assertThat(
+            error.getMessage(),
+            equalTo(
+                "the [indices] parameter includes system indices [.test-system-idx]; to include or exclude system indices from a snapshot, "
+                    + "use the [include_global_state] or [feature_states] parameters"
+            )
+        );
+
+        // And create a successful snapshot so we don't upset the test framework
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+            .setWaitForCompletion(true)
+            .setIncludeGlobalState(true)
+            .get();
+        assertSnapshotSuccess(createSnapshotResponse);
+    }
+
     /**
      * Check that directly requesting a system index in a restore request throws an Exception.
      */

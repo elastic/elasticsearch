@@ -499,6 +499,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         /**
          * Collect the field capabilities for an index.
          */
+        @SuppressWarnings("HiddenField")
         void add(
             String index,
             boolean isMetadataField,

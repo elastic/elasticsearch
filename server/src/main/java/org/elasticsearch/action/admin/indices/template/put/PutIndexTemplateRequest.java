@@ -297,10 +297,9 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     @SuppressWarnings("unchecked")
     public PutIndexTemplateRequest source(Map<String, Object> templateSource) {
-        Map<String, Object> source = templateSource;
-        for (Map.Entry<String, Object> entry : source.entrySet()) {
-            String name = entry.getKey();
-            if (name.equals("index_patterns")) {
+        for (Map.Entry<String, Object> entry : templateSource.entrySet()) {
+            String key = entry.getKey();
+            if (key.equals("index_patterns")) {
                 if (entry.getValue() instanceof String) {
                     patterns(Collections.singletonList((String) entry.getValue()));
                 } else if (entry.getValue() instanceof List) {
@@ -309,21 +308,21 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 } else {
                     throw new IllegalArgumentException("Malformed [index_patterns] value, should be a string or a list of strings");
                 }
-            } else if (name.equals("order")) {
+            } else if (key.equals("order")) {
                 order(XContentMapValues.nodeIntegerValue(entry.getValue(), order()));
-            } else if ("version".equals(name)) {
+            } else if ("version".equals(key)) {
                 if ((entry.getValue() instanceof Integer) == false) {
                     throw new IllegalArgumentException("Malformed [version] value, should be an integer");
                 }
                 version((Integer) entry.getValue());
-            } else if (name.equals("settings")) {
+            } else if (key.equals("settings")) {
                 if ((entry.getValue() instanceof Map) == false) {
                     throw new IllegalArgumentException("Malformed [settings] section, should include an inner object");
                 }
                 settings((Map<String, Object>) entry.getValue());
-            } else if (name.equals("mappings")) {
-                Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
-                for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
+            } else if (key.equals("mappings")) {
+                Map<String, Object> mappings1 = (Map<String, Object>) entry.getValue();
+                for (Map.Entry<String, Object> entry1 : mappings1.entrySet()) {
                     if ((entry1.getValue() instanceof Map) == false) {
                         throw new IllegalArgumentException(
                             "Malformed [mappings] section for type ["
@@ -333,10 +332,10 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                     }
                     mapping((Map<String, Object>) entry1.getValue());
                 }
-            } else if (name.equals("aliases")) {
+            } else if (key.equals("aliases")) {
                 aliases((Map<String, Object>) entry.getValue());
             } else {
-                throw new ElasticsearchParseException("unknown key [{}] in the template ", name);
+                throw new ElasticsearchParseException("unknown key [{}] in the template ", key);
             }
         }
         return this;

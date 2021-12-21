@@ -120,8 +120,8 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         for (int lvl = 0; lvl <= extractorLevel; lvl++) {
             // TODO: add support for multi-nested doc
             if (hit != null) {
-                SearchHit[] innerHits = flatInnerHits.get(hit).get(innerHit);
-                sh = innerHits == null ? SearchHits.EMPTY : innerHits;
+                SearchHit[] innerSearchHits = flatInnerHits.get(hit).get(innerHit);
+                sh = innerSearchHits == null ? SearchHits.EMPTY : innerSearchHits;
             }
             hit = sh[indexPerLevel[lvl]];
         }
@@ -197,8 +197,8 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
                     // TODO: improve this for multi-nested responses
                     String path = lvl == 0 ? innerHit : null;
                     if (path != null) {
-                        SearchHit[] innerHits = flatInnerHits.get(h).get(path);
-                        sh = innerHits == null ? SearchHits.EMPTY : innerHits;
+                        SearchHit[] innerSearchHits = flatInnerHits.get(h).get(path);
+                        sh = innerSearchHits == null ? SearchHits.EMPTY : innerSearchHits;
                     }
                 }
             }

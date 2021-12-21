@@ -203,15 +203,15 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             matchingTemplate
         );
 
+        ComposableIndexTemplate template = simulatedState.metadata().templatesV2().get(matchingTemplate);
         // create the index with dummy settings in the cluster state so we can parse and validate the aliases
         Settings.Builder dummySettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(settings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
-        ComposableIndexTemplate template = simulatedState.metadata().templatesV2().get(matchingTemplate);
+        // First apply settings sourced from index settings providers
         for (var provider : indexSettingProviders) {
             dummySettings.put(
                 provider.getAdditionalIndexSettings(
@@ -223,6 +223,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 )
             );
         }
+        // Then apply settings resolved from templates:
+        dummySettings.put(settings);
 
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(dummySettings).build();
 

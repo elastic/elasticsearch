@@ -619,8 +619,8 @@ public class MetadataIndexTemplateService {
         // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
         var finalTemplate = Optional.ofNullable(indexTemplate.template());
         var finalSettings = Settings.builder();
-        finalSettings.put(finalTemplate.map(Template::settings).orElse(Settings.EMPTY));
 
+        // First apply settings sourced from index setting providers:
         for (var provider : metadataCreateIndexService.getIndexSettingProviders()) {
             finalSettings.put(
                 provider.getAdditionalIndexSettings(
@@ -632,6 +632,8 @@ public class MetadataIndexTemplateService {
                 )
             );
         }
+        // Then apply settings resolved from templates:
+        finalSettings.put(finalTemplate.map(Template::settings).orElse(Settings.EMPTY));
 
         var templateToValidate = new ComposableIndexTemplate(
             indexTemplate.indexPatterns(),

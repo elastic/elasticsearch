@@ -185,7 +185,7 @@ public class JwtRealmSettings {
         key -> Setting.boolSetting(key, DEFAULT_POPULATE_USER_METADATA, Setting.Property.NodeScope)
     );
 
-    // Client TLS settings for incoming connections (subset of SSLConfigurationSettings)
+    // Client authentication settings for incoming connections
 
     public static final Setting.AffixSetting<String> CLIENT_AUTHENTICATION_TYPE = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
@@ -248,8 +248,9 @@ public class JwtRealmSettings {
     );
 
     private static void verifyNonNullNotEmpty(final String key, final String value, final List<String> allowedValues) {
-        if ((value == null) || (value.isEmpty())) {
-            throw new IllegalArgumentException("Invalid null or empty value for [" + key + "].");
+        assert value != null : "Invalid null value for [" + key + "].";
+        if (value.isEmpty()) {
+            throw new IllegalArgumentException("Invalid empty value for [" + key + "].");
         }
         if (allowedValues != null) {
             if (allowedValues.contains(value) == false) {
@@ -261,14 +262,9 @@ public class JwtRealmSettings {
     }
 
     private static void verifyNonNullNotEmpty(final String key, final List<String> values, final List<String> allowedValues) {
-        if ((values == null) || (values.isEmpty())) {
-            if (allowedValues == null) {
-                throw new IllegalArgumentException("Invalid null or empty value for [" + key + "].");
-            } else {
-                throw new IllegalArgumentException(
-                    "Invalid null or empty list for [" + key + "]. Allowed values are " + allowedValues + "}]."
-                );
-            }
+        assert values != null : "Invalid null list of values for [" + key + "].";
+        if (values.isEmpty()) {
+            throw new IllegalArgumentException("Invalid empty list for [" + key + "]. Allowed values are " + allowedValues + "}].");
         }
         for (final String value : values) {
             verifyNonNullNotEmpty(key, value, allowedValues);

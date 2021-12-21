@@ -27,6 +27,16 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * JWT realm settings unit tests. These are low-level tests against ES settings parsers.
+ *
+ * Test inputs are direct against ES settings parsers. Tests do not assume inputs have
+ * been formatted by wrapping code such as YAML parsers or KeyStoreWrapper.
+ *
+ * For example, YAML parsers accept many boolean-like strings and reduce them down to
+ * "true" or "false", but the corresponding ES boolean parser only accepts "true" or "false".
+ * @see org.elasticsearch.core.Booleans#parseBoolean(String)
+ */
 public class JwtRealmSettingsTests extends ESTestCase {
 
     private static final String REALM_NAME = "jwt1";

@@ -2045,8 +2045,8 @@ provided by the JWT claims. Defaults to `true`.
 // tag::jwt-client-authentication-type-tag[]
 `client_authentication.type` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Specifies whether to use `sharedsecret`, `ssl`, or `none` authentication
-to incoming client requests. Defaults to `sharedsecret`.
+Specifies whether to use `sharedsecret` or `none` to authenticate
+incoming client requests. Defaults to `sharedsecret`.
 // end::jwt-client-authentication-type-tag[]
 
 `authorization_realms`::
@@ -2162,12 +2162,6 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 // end::jwt-ssl-keystore-type-tag[]
-
-// tag::jwt-ssl-keystore-password-tag[]
-`ssl.keystore.password` {ess-icon}::
-(<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
-// end::jwt-ssl-keystore-password-tag[]
 
 `ssl.keystore.secure_password`::
 (<<secure-settings,Secure>>)

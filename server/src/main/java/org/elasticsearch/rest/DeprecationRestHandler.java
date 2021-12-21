@@ -8,11 +8,11 @@
 package org.elasticsearch.rest;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.internal.client.node.NodeClient;
 
 import java.util.Objects;
 

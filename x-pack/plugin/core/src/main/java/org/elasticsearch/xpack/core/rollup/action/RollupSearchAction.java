@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.internal.client.ElasticsearchClient;
 
 public class RollupSearchAction extends ActionType<SearchResponse> {
 

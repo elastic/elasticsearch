@@ -7,12 +7,12 @@
 
 package org.elasticsearch.index.engine.frozen;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.internal.client.Client;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.test.ESIntegTestCase;

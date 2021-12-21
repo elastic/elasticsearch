@@ -11,8 +11,8 @@ package org.elasticsearch.action.support.broadcast;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.internal.client.ElasticsearchClient;
 
 public abstract class BroadcastOperationRequestBuilder<
     Request extends BroadcastRequest<Request>,

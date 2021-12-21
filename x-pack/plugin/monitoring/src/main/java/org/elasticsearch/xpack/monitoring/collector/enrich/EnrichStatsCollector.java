@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.enrich;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.internal.client.Client;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;

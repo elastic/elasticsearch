@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.internal.client.Client;
+import org.elasticsearch.internal.client.OriginSettingClient;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.utils.persistence;
 
-import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.internal.client.OriginSettingClient;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.Objects;

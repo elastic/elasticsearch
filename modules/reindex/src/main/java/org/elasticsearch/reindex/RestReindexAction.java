@@ -9,10 +9,10 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.internal.client.node.NodeClient;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.xcontent.XContentParser;

@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -23,6 +22,7 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.internal.client.Client;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -106,8 +106,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     /**
      * This method can be overridden to specify a different {@link Client} to be used for indexing than that used for the search/input
-     * part of the reindex. For example, a {@link org.elasticsearch.client.FilterClient} can be provided to transform bulk index requests
-     * before they are fully performed.
+     * part of the reindex. For example, a {@link org.elasticsearch.internal.client.FilterClient} can be provided to transform bulk index
+     * requests before they are fully performed.
      */
     protected Client getBulkClient() {
         return client;

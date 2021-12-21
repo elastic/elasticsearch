@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.internal.client.Client;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;

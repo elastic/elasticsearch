@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.internal.client.Client;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;

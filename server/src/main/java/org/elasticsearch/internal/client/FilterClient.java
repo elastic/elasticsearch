@@ -5,14 +5,14 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.client;
+package org.elasticsearch.internal.client;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.internal.client.support.AbstractClient;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**

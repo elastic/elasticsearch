@@ -8,13 +8,13 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.internal.client.Client;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.function.LongSupplier;

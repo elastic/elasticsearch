@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.eql.execution;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.internal.client.Client;
 import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.Verifier;

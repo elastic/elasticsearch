@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.internal.client.ElasticsearchClient;
 
 public class GetAliasesRequestBuilder extends BaseAliasesRequestBuilder<GetAliasesResponse, GetAliasesRequestBuilder> {
 

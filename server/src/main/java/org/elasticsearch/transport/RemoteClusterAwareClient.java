@@ -12,10 +12,10 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.internal.client.Client;
+import org.elasticsearch.internal.client.support.AbstractClient;
 import org.elasticsearch.threadpool.ThreadPool;
 
 final class RemoteClusterAwareClient extends AbstractClient {

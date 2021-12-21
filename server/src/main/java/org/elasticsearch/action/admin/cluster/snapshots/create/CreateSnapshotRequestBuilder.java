@@ -10,8 +10,8 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.internal.client.ElasticsearchClient;
 
 import java.util.Map;
 

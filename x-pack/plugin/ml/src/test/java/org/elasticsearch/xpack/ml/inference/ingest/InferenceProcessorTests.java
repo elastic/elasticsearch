@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.inference.ingest;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.internal.client.Client;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationFeatureImportance;

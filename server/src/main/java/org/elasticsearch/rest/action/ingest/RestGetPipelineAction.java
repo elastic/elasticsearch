@@ -9,8 +9,8 @@
 package org.elasticsearch.rest.action.ingest;
 
 import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.internal.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;

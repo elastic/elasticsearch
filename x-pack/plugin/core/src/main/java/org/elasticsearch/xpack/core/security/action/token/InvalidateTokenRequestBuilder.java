@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.action.token;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.internal.client.ElasticsearchClient;
 
 /**
  * Request builder that is used to populate a {@link InvalidateTokenRequest}

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.security.action.rolemapping;
 
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.internal.client.ElasticsearchClient;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;

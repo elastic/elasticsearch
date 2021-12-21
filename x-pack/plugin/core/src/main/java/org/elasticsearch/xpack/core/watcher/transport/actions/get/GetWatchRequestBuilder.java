@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.get;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.internal.client.ElasticsearchClient;
 
 /**
  * A delete document action request builder.

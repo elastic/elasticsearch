@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.internal.client.ElasticsearchClient;
 
 public class EqlSearchRequestBuilder extends ActionRequestBuilder<EqlSearchRequest, EqlSearchResponse> {
     public EqlSearchRequestBuilder(ElasticsearchClient client, EqlSearchAction action) {

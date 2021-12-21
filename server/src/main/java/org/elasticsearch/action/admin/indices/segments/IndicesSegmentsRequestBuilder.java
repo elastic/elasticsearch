@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.segments;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.internal.client.ElasticsearchClient;
 
 public class IndicesSegmentsRequestBuilder extends BroadcastOperationRequestBuilder<
     IndicesSegmentsRequest,

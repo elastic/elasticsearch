@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.notifications;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.internal.client.Client;
 import org.elasticsearch.xpack.core.ml.notifications.DataFrameAnalyticsAuditMessage;
 
 public class DataFrameAnalyticsAuditor extends AbstractMlAuditor<DataFrameAnalyticsAuditMessage> {

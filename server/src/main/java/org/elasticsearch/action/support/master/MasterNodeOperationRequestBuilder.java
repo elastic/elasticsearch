@@ -11,8 +11,8 @@ package org.elasticsearch.action.support.master;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.internal.client.ElasticsearchClient;
 
 /**
  * Base request builder for master node operations

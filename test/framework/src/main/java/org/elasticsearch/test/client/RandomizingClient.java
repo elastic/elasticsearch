@@ -13,10 +13,10 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.internal.client.Client;
+import org.elasticsearch.internal.client.FilterClient;
 
 import java.util.Arrays;
 import java.util.Random;

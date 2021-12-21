@@ -7,7 +7,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.internal.client.ElasticsearchClient;
 
 class GetBasicStatusRequestBuilder extends ActionRequestBuilder<GetBasicStatusRequest, GetBasicStatusResponse> {
 

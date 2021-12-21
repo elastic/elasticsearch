@@ -9,8 +9,8 @@
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.internal.client.ElasticsearchClient;
 import org.elasticsearch.monitor.jvm.HotThreads;
 
 public class NodesHotThreadsRequestBuilder extends NodesOperationRequestBuilder<

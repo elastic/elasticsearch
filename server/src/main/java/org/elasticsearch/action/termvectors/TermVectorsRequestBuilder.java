@@ -9,8 +9,8 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.internal.client.ElasticsearchClient;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.Map;

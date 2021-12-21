@@ -6,13 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.client;
+package org.elasticsearch.internal.client;
 
 /**
  * Administrative actions/operations against the cluster or the indices.
  *
  *
- * @see org.elasticsearch.client.Client#admin()
+ * @see org.elasticsearch.internal.client.Client#admin()
  */
 public interface AdminClient {
 

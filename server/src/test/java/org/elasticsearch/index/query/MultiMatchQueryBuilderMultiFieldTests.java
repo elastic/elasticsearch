@@ -51,13 +51,16 @@ public class MultiMatchQueryBuilderMultiFieldTests extends MapperServiceTestCase
                 // default value 'index.query.default_field = *' sets leniency to true
                 SearchExecutionContext context = createSearchExecutionContext(mapperService, searcher);
                 Query query = new MultiMatchQueryBuilder("hello").toQuery(context);
-                Query expected = new DisjunctionMaxQuery(List.of(
-                    new TermQuery(new Term("f_text1", "hello")),
-                    new TermQuery(new Term("f_text2", "hello")),
-                    new TermQuery(new Term("f_keyword1", "hello")),
-                    new TermQuery(new Term("f_keyword2", "hello")),
-                    new MatchNoDocsQuery()
-                ), 0f);
+                Query expected = new DisjunctionMaxQuery(
+                    List.of(
+                        new TermQuery(new Term("f_text1", "hello")),
+                        new TermQuery(new Term("f_text2", "hello")),
+                        new TermQuery(new Term("f_keyword1", "hello")),
+                        new TermQuery(new Term("f_keyword2", "hello")),
+                        new MatchNoDocsQuery()
+                    ),
+                    0f
+                );
                 assertThat(query, equalTo(expected));
             }
 
@@ -66,13 +69,16 @@ public class MultiMatchQueryBuilderMultiFieldTests extends MapperServiceTestCase
                 Settings settings = Settings.builder().putList("index.query.default_field", "f_text1", "*").build();
                 SearchExecutionContext context = createSearchExecutionContext(mapperService, searcher, settings);
                 Query query = new MultiMatchQueryBuilder("hello").toQuery(context);
-                Query expected = new DisjunctionMaxQuery(List.of(
-                    new TermQuery(new Term("f_text1", "hello")),
-                    new TermQuery(new Term("f_text2", "hello")),
-                    new TermQuery(new Term("f_keyword1", "hello")),
-                    new TermQuery(new Term("f_keyword2", "hello")),
-                    new MatchNoDocsQuery()
-                ), 0f);
+                Query expected = new DisjunctionMaxQuery(
+                    List.of(
+                        new TermQuery(new Term("f_text1", "hello")),
+                        new TermQuery(new Term("f_text2", "hello")),
+                        new TermQuery(new Term("f_keyword1", "hello")),
+                        new TermQuery(new Term("f_keyword2", "hello")),
+                        new MatchNoDocsQuery()
+                    ),
+                    0f
+                );
                 assertThat(query, equalTo(expected));
             }
 
@@ -89,26 +95,27 @@ public class MultiMatchQueryBuilderMultiFieldTests extends MapperServiceTestCase
                 Settings settings = Settings.builder().putList("index.query.default_field", "f_text1", "f_text2^4").build();
                 SearchExecutionContext context = createSearchExecutionContext(mapperService, searcher, settings);
                 Query query = new MultiMatchQueryBuilder("hello").toQuery(context);
-                Query expected = new DisjunctionMaxQuery(List.of(
-                    new TermQuery(new Term("f_text1", "hello")),
-                    new BoostQuery(new TermQuery(new Term("f_text2", "hello")), 4f)
-                ), 0f);
+                Query expected = new DisjunctionMaxQuery(
+                    List.of(new TermQuery(new Term("f_text1", "hello")), new BoostQuery(new TermQuery(new Term("f_text2", "hello")), 4f)),
+                    0f
+                );
                 assertThat(query, equalTo(expected));
             }
 
             {
                 // set tiebreaker
                 SearchExecutionContext context = createSearchExecutionContext(mapperService, searcher);
-                Query query = new MultiMatchQueryBuilder("hello")
-                    .tieBreaker(0.5f)
-                    .toQuery(context);
-                Query expected = new DisjunctionMaxQuery(List.of(
-                    new TermQuery(new Term("f_text1", "hello")),
-                    new TermQuery(new Term("f_text2", "hello")),
-                    new TermQuery(new Term("f_keyword1", "hello")),
-                    new TermQuery(new Term("f_keyword2", "hello")),
-                    new MatchNoDocsQuery()
-                ), 0.5f);
+                Query query = new MultiMatchQueryBuilder("hello").tieBreaker(0.5f).toQuery(context);
+                Query expected = new DisjunctionMaxQuery(
+                    List.of(
+                        new TermQuery(new Term("f_text1", "hello")),
+                        new TermQuery(new Term("f_text2", "hello")),
+                        new TermQuery(new Term("f_keyword1", "hello")),
+                        new TermQuery(new Term("f_keyword2", "hello")),
+                        new MatchNoDocsQuery()
+                    ),
+                    0.5f
+                );
                 assertThat(query, equalTo(expected));
             }
 
@@ -133,13 +140,16 @@ public class MultiMatchQueryBuilderMultiFieldTests extends MapperServiceTestCase
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
             SearchExecutionContext context = createSearchExecutionContext(mapperService, new IndexSearcher(ir));
-            Query expected = new DisjunctionMaxQuery(List.of(
-                new TermQuery(new Term("f_text1", "hello")),
-                new TermQuery(new Term("f_text2", "hello")),
-                new TermQuery(new Term("f_keyword1", "hello")),
-                new TermQuery(new Term("f_keyword2", "hello")),
-                new MatchNoDocsQuery()
-            ), 0f);
+            Query expected = new DisjunctionMaxQuery(
+                List.of(
+                    new TermQuery(new Term("f_text1", "hello")),
+                    new TermQuery(new Term("f_text2", "hello")),
+                    new TermQuery(new Term("f_keyword1", "hello")),
+                    new TermQuery(new Term("f_keyword2", "hello")),
+                    new MatchNoDocsQuery()
+                ),
+                0f
+            );
             assertEquals(expected, new MultiMatchQueryBuilder("hello").field("*").toQuery(context));
             assertEquals(expected, new MultiMatchQueryBuilder("hello").field("f_text1").field("*").toQuery(context));
         });

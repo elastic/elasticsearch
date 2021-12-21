@@ -244,8 +244,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals("fields cannot be null", e.getMessage());
     }
 
-
-
     /*
      * This assumes that Lucene query parsing is being checked already, adding
      * checks only for our parsing extensions.
@@ -601,8 +599,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), parser.parse("bar"));
         assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), parser.parse("\"bar\""));
     }
-
-
 
     public void testToFuzzyQuery() throws Exception {
         Query query = new SimpleQueryStringBuilder("text~2").field(TEXT_FIELD_NAME)

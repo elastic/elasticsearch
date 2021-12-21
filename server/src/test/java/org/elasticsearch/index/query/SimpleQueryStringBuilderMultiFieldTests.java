@@ -53,13 +53,16 @@ public class SimpleQueryStringBuilderMultiFieldTests extends MapperServiceTestCa
                 // default value 'index.query.default_field = *' sets leniency to true
                 SearchExecutionContext context = createSearchExecutionContext(mapperService, searcher);
                 Query query = new SimpleQueryStringBuilder("hello").toQuery(context);
-                Query expected = new DisjunctionMaxQuery(List.of(
-                    new TermQuery(new Term("f_text1", "hello")),
-                    new TermQuery(new Term("f_text2", "hello")),
-                    new TermQuery(new Term("f_keyword1", "hello")),
-                    new TermQuery(new Term("f_keyword2", "hello")),
-                    new MatchNoDocsQuery()
-                ), 1f);
+                Query expected = new DisjunctionMaxQuery(
+                    List.of(
+                        new TermQuery(new Term("f_text1", "hello")),
+                        new TermQuery(new Term("f_text2", "hello")),
+                        new TermQuery(new Term("f_keyword1", "hello")),
+                        new TermQuery(new Term("f_keyword2", "hello")),
+                        new MatchNoDocsQuery()
+                    ),
+                    1f
+                );
                 assertThat(query, equalTo(expected));
             }
 
@@ -68,13 +71,16 @@ public class SimpleQueryStringBuilderMultiFieldTests extends MapperServiceTestCa
                 Settings settings = Settings.builder().putList("index.query.default_field", "f_text1", "*").build();
                 SearchExecutionContext context = createSearchExecutionContext(mapperService, searcher, settings);
                 Query query = new SimpleQueryStringBuilder("hello").toQuery(context);
-                Query expected = new DisjunctionMaxQuery(List.of(
-                    new TermQuery(new Term("f_text1", "hello")),
-                    new TermQuery(new Term("f_text2", "hello")),
-                    new TermQuery(new Term("f_keyword1", "hello")),
-                    new TermQuery(new Term("f_keyword2", "hello")),
-                    new MatchNoDocsQuery()
-                ), 1f);
+                Query expected = new DisjunctionMaxQuery(
+                    List.of(
+                        new TermQuery(new Term("f_text1", "hello")),
+                        new TermQuery(new Term("f_text2", "hello")),
+                        new TermQuery(new Term("f_keyword1", "hello")),
+                        new TermQuery(new Term("f_keyword2", "hello")),
+                        new MatchNoDocsQuery()
+                    ),
+                    1f
+                );
                 assertThat(query, equalTo(expected));
             }
 
@@ -91,10 +97,10 @@ public class SimpleQueryStringBuilderMultiFieldTests extends MapperServiceTestCa
                 Settings settings = Settings.builder().putList("index.query.default_field", "f_text1", "f_text2^4").build();
                 SearchExecutionContext context = createSearchExecutionContext(mapperService, searcher, settings);
                 Query query = new SimpleQueryStringBuilder("hello").toQuery(context);
-                Query expected = new DisjunctionMaxQuery(List.of(
-                    new TermQuery(new Term("f_text1", "hello")),
-                    new BoostQuery(new TermQuery(new Term("f_text2", "hello")), 4f)
-                ), 1f);
+                Query expected = new DisjunctionMaxQuery(
+                    List.of(new TermQuery(new Term("f_text1", "hello")), new BoostQuery(new TermQuery(new Term("f_text2", "hello")), 4f)),
+                    1f
+                );
                 assertThat(query, equalTo(expected));
             }
 
@@ -119,13 +125,16 @@ public class SimpleQueryStringBuilderMultiFieldTests extends MapperServiceTestCa
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
             SearchExecutionContext context = createSearchExecutionContext(mapperService, new IndexSearcher(ir));
-            Query expected = new DisjunctionMaxQuery(List.of(
-                new TermQuery(new Term("f_text1", "hello")),
-                new TermQuery(new Term("f_text2", "hello")),
-                new TermQuery(new Term("f_keyword1", "hello")),
-                new TermQuery(new Term("f_keyword2", "hello")),
-                new MatchNoDocsQuery()
-            ), 1f);
+            Query expected = new DisjunctionMaxQuery(
+                List.of(
+                    new TermQuery(new Term("f_text1", "hello")),
+                    new TermQuery(new Term("f_text2", "hello")),
+                    new TermQuery(new Term("f_keyword1", "hello")),
+                    new TermQuery(new Term("f_keyword2", "hello")),
+                    new MatchNoDocsQuery()
+                ),
+                1f
+            );
             assertEquals(expected, new SimpleQueryStringBuilder("hello").field("*").toQuery(context));
             assertEquals(expected, new SimpleQueryStringBuilder("hello").field("f_text1").field("*").toQuery(context));
         });
@@ -167,7 +176,8 @@ public class SimpleQueryStringBuilderMultiFieldTests extends MapperServiceTestCa
         });
     }
 
-    private void assertQueryCachability(SimpleQueryStringBuilder qb, SearchExecutionContext context, boolean cachingExpected) throws IOException {
+    private void assertQueryCachability(SimpleQueryStringBuilder qb, SearchExecutionContext context, boolean cachingExpected)
+        throws IOException {
         assert context.isCacheable();
         /*
          * We use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not. We do it

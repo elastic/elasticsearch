@@ -1197,10 +1197,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     }
 
-
-
-
-
     /**
      * the quote analyzer should overwrite any other forced analyzer in quoted parts of the query
      */
@@ -1409,8 +1405,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         );
         assertThat(exc.getMessage(), CoreMatchers.containsString("negative [boost]"));
     }
-
-
 
     private static IndexMetadata newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
         Settings build = Settings.builder().put(oldIndexSettings).put(indexSettings).build();

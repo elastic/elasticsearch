@@ -144,8 +144,7 @@ public class NerProcessor implements NlpTask.Processor {
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
-        if (config instanceof NerConfig) {
-            NerConfig nerConfig = (NerConfig) config;
+        if (config instanceof NerConfig nerConfig) {
             return new NerResultProcessor(iobMap, nerConfig.getResultsField(), ignoreCase);
         }
         return new NerResultProcessor(iobMap, resultsField, ignoreCase);

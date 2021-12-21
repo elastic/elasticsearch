@@ -12,9 +12,9 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -115,23 +117,22 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         );
 
         // Profile does not exist yet
-        final PlainActionFuture<SearchHit> future1 = new PlainActionFuture<>();
-        profileService.getProfile(authentication, future1);
+        final PlainActionFuture<ProfileService.VersionedDocument> future1 = new PlainActionFuture<>();
+        profileService.getVersionedDocument(authentication, future1);
         assertThat(future1.actionGet(), nullValue());
 
         // Index the document so it can be found
         final String uid2 = indexDocument();
-        final PlainActionFuture<SearchHit> future2 = new PlainActionFuture<>();
-        profileService.getProfile(authentication, future2);
-        final SearchHit hit = future2.actionGet();
-        assertThat(hit, notNullValue());
-        final ProfileDocument profileDocument = profileService.buildProfileDocument(hit.getSourceRef());
-        assertThat(profileDocument.uid(), equalTo(uid2));
+        final PlainActionFuture<ProfileService.VersionedDocument> future2 = new PlainActionFuture<>();
+        profileService.getVersionedDocument(authentication, future2);
+        final ProfileService.VersionedDocument versionedDocument = future2.actionGet();
+        assertThat(versionedDocument, notNullValue());
+        assertThat(versionedDocument.doc().uid(), equalTo(uid2));
 
         // Index it again to trigger duplicate exception
         final String uid3 = indexDocument();
-        final PlainActionFuture<SearchHit> future3 = new PlainActionFuture<>();
-        profileService.getProfile(authentication, future3);
+        final PlainActionFuture<ProfileService.VersionedDocument> future3 = new PlainActionFuture<>();
+        profileService.getVersionedDocument(authentication, future3);
         final IllegalStateException e3 = expectThrows(IllegalStateException.class, future3::actionGet);
 
         assertThat(
@@ -143,6 +144,62 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     public void testActivateProfile() {
+        final Profile profile = doActivateProfile();
+        assertThat(getProfile(profile.uid(), Set.of()), equalTo(profile));
+
+        // activate again should be getting the same profile
+        assertThat(doActivateProfile().uid(), equalTo(profile.uid()));
+    }
+
+    public void testUpdateProfileData() {
+        final Profile profile1 = doActivateProfile();
+
+        final UpdateProfileDataRequest updateProfileDataRequest1 = new UpdateProfileDataRequest(
+            profile1.uid(),
+            null,
+            Map.of("app1", Map.of("name", "app1", "type", "app")),
+            -1,
+            -1,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL
+        );
+        client().execute(UpdateProfileDataAction.INSTANCE, updateProfileDataRequest1).actionGet();
+
+        final Profile profile2 = getProfile(profile1.uid(), Set.of("app1", "app2"));
+
+        assertThat(profile2.uid(), equalTo(profile1.uid()));
+        assertThat(profile2.applicationData(), equalTo(Map.of("app1", Map.of("name", "app1", "type", "app"))));
+
+        // Update again
+        final UpdateProfileDataRequest updateProfileDataRequest2 = new UpdateProfileDataRequest(
+            profile1.uid(),
+            null,
+            Map.of("app1", Map.of("name", "app1_take2", "active", false), "app2", Map.of("name", "app2")),
+            -1,
+            -1,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL
+        );
+        client().execute(UpdateProfileDataAction.INSTANCE, updateProfileDataRequest2).actionGet();
+
+        final Profile profile3 = getProfile(profile1.uid(), Set.of("app1", "app2"));
+        assertThat(profile3.uid(), equalTo(profile1.uid()));
+        assertThat(
+            profile3.applicationData(),
+            equalTo(Map.of("app1", Map.of("name", "app1_take2", "type", "app", "active", false), "app2", Map.of("name", "app2")))
+        );
+
+        // Update non-existent profile should throw
+        final UpdateProfileDataRequest updateProfileDataRequest3 = new UpdateProfileDataRequest(
+            "not-" + profile1.uid(),
+            null,
+            Map.of("foo", "bar"),
+            -1,
+            -1,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL
+        );
+        expectThrows(DocumentMissingException.class, () -> client().execute(UpdateProfileDataAction.INSTANCE, updateProfileDataRequest3).actionGet());
+    }
+
+    private Profile doActivateProfile() {
         final ActivateProfileRequest activateProfileRequest = new ActivateProfileRequest();
         activateProfileRequest.getGrant().setType("password");
         activateProfileRequest.getGrant().setUsername(RAC_USER_NAME);
@@ -154,22 +211,17 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(profile, notNullValue());
         assertThat(profile.user().username(), equalTo(RAC_USER_NAME));
         assertThat(profile.applicationData(), anEmptyMap());
-
-        final GetProfilesResponse getProfilesResponse = client().execute(
-            GetProfilesAction.INSTANCE,
-            new GetProfilesRequest(profile.uid(), Set.of())
-        ).actionGet();
-        assertThat(getProfilesResponse.getProfiles(), arrayWithSize(1));
-        assertThat(getProfilesResponse.getProfiles()[0], equalTo(profile));
-
-        // activate again should be getting the same profile
-        assertThat(
-            client().execute(ActivateProfileAction.INSTANCE, activateProfileRequest).actionGet().getProfile().uid(),
-            equalTo(profile.uid())
-        );
+        return profile;
     }
 
-    public String indexDocument() {
+    private Profile getProfile(String uid, Set<String> dataKeys) {
+        final GetProfilesResponse getProfilesResponse = client().execute(GetProfilesAction.INSTANCE, new GetProfilesRequest(uid, dataKeys))
+            .actionGet();
+        assertThat(getProfilesResponse.getProfiles(), arrayWithSize(1));
+        return getProfilesResponse.getProfiles()[0];
+    }
+
+    private String indexDocument() {
         final String uid = randomAlphaOfLength(20);
         final String source = ProfileServiceTests.SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(uid, Instant.now().toEpochMilli());
         client().prepareIndex(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS))

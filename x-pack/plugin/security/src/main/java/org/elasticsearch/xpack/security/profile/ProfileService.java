@@ -21,8 +21,10 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -34,11 +36,13 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -49,6 +53,7 @@ import java.io.IOException;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -76,6 +81,88 @@ public class ProfileService {
     }
 
     public void getProfile(String uid, @Nullable Set<String> dataKeys, ActionListener<Profile> listener) {
+        getVersionedDocument(uid, ActionListener.wrap(versionedDocument -> {
+            // TODO: replace null with actual domain lookup
+            listener.onResponse(versionedDocument.toProfile(null, dataKeys));
+        }, listener::onFailure));
+    }
+
+    // TODO: with request
+    public void activateProfile(Authentication authentication, ActionListener<Profile> listener) {
+        final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
+        if (Subject.Type.USER != subject.getType()) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "profile is supported for user only, but subject is a [" + subject.getType().name().toLowerCase(Locale.ROOT) + "]"
+                )
+            );
+            return;
+        }
+
+        if (User.isInternal(subject.getUser())) {
+            listener.onFailure(
+                new IllegalStateException("profile should not be created for internal user [" + subject.getUser().principal() + "]")
+            );
+            return;
+        }
+
+        getVersionedDocument(authentication, ActionListener.wrap(versionedDocument -> {
+            if (versionedDocument == null) {
+                createProfile(subject, listener);
+            } else {
+                updateProfileForActivate(subject, versionedDocument, listener);
+
+            }
+        }, listener::onFailure));
+    }
+
+    public void updateProfileData(UpdateProfileDataRequest request, ActionListener<AcknowledgedResponse> listener) {
+        final XContentBuilder builder;
+        try {
+            builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            if (false == request.getAccess().isEmpty()) {
+                builder.field("access", request.getAccess());
+            }
+            if (false == request.getData().isEmpty()) {
+                builder.field("application_data", request.getData());
+            }
+            builder.endObject();
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        final String docId = uidToDocId(request.getUid());
+        final UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate(SECURITY_PROFILE_ALIAS, docId)
+            .setDoc(builder)
+            .setRefreshPolicy(request.getRefreshPolicy());
+
+        if (request.getIfPrimaryTerm() >= 0) {
+            updateRequestBuilder.setIfPrimaryTerm(request.getIfPrimaryTerm());
+        }
+        if (request.getIfSeqNo() >= 0) {
+            updateRequestBuilder.setIfSeqNo(request.getIfSeqNo());
+        }
+
+        profileIndex.prepareIndexIfNeededThenExecute(
+            listener::onFailure,
+            () -> executeAsyncWithOrigin(
+                client,
+                SECURITY_ORIGIN,
+                UpdateAction.INSTANCE,
+                updateRequestBuilder.request(),
+                ActionListener.wrap(updateResponse -> {
+                    assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
+                        || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                }, listener::onFailure)
+            )
+        );
+
+    }
+
+    private void getVersionedDocument(String uid, ActionListener<VersionedDocument> listener) {
         if (maybeHandleIndexStatusIssue(listener)) {
             return;
         }
@@ -91,14 +178,19 @@ public class ProfileService {
                         return;
                     }
                     listener.onResponse(
-                        buildProfile(response.getSourceAsBytesRef(), response.getPrimaryTerm(), response.getSeqNo(), dataKeys)
+                        new VersionedDocument(
+                            buildProfileDocument(response.getSourceAsBytesRef()),
+                            response.getPrimaryTerm(),
+                            response.getSeqNo()
+                        )
                     );
                 }, listener::onFailure))
             );
         }
     }
 
-    public void getProfile(Authentication authentication, ActionListener<SearchHit> listener) {
+    // Package private for testing
+    void getVersionedDocument(Authentication authentication, ActionListener<VersionedDocument> listener) {
         if (maybeHandleIndexStatusIssue(listener)) {
             return;
         }
@@ -131,7 +223,9 @@ public class ProfileService {
                             listener.onResponse(null);
                         } else if (hits.length == 1) {
                             final SearchHit hit = hits[0];
-                            listener.onResponse(hit);
+                            listener.onResponse(
+                                new VersionedDocument(buildProfileDocument(hit.getSourceRef()), hit.getPrimaryTerm(), hit.getSeqNo())
+                            );
                         } else {
                             final ParameterizedMessage errorMessage = new ParameterizedMessage(
                                 "multiple [{}] profiles [{}] found for user [{}]",
@@ -147,35 +241,6 @@ public class ProfileService {
                 )
             );
         }
-    }
-
-    // TODO: with request
-    public void activateProfile(Authentication authentication, ActionListener<Profile> listener) {
-        final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
-        if (Subject.Type.USER != subject.getType()) {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "profile is supported for user only, but subject is a [" + subject.getType().name().toLowerCase(Locale.ROOT) + "]"
-                )
-            );
-            return;
-        }
-
-        if (User.isInternal(subject.getUser())) {
-            listener.onFailure(
-                new IllegalStateException("profile should not be created for internal user [" + subject.getUser().principal() + "]")
-            );
-            return;
-        }
-
-        getProfile(authentication, ActionListener.wrap(hit -> {
-            if (hit == null) {
-                createProfile(subject, listener);
-            } else {
-                updateProfile(subject, hit, listener);
-
-            }
-        }, listener::onFailure));
     }
 
     private void createProfile(Subject subject, ActionListener<Profile> listener) throws IOException {
@@ -199,26 +264,21 @@ public class ProfileService {
                     assert docId.equals(indexResponse.getId());
                     // TODO: replace realm doain with domain
                     listener.onResponse(
-                        profileDocument.toProfile(
-                            indexResponse.getPrimaryTerm(),
-                            indexResponse.getSeqNo(),
-                            null,
-                            Set.of()
-                        )
+                        new VersionedDocument(profileDocument, indexResponse.getPrimaryTerm(), indexResponse.getSeqNo()).toProfile(null)
                     );
                 }, listener::onFailure))
             )
         );
     }
 
-    private void updateProfile(Subject subject, SearchHit hit, ActionListener<Profile> listener) throws IOException {
-        final ProfileDocument doc = buildProfileDocument(hit.getSourceRef());
-        final ProfileDocument profileDocument = doc.updateWithSubjectAndStripApplicationData(subject);
+    private void updateProfileForActivate(Subject subject, VersionedDocument versionedDocument, ActionListener<Profile> listener)
+        throws IOException {
+        final ProfileDocument profileDocument = versionedDocument.doc.updateWithSubjectAndStripApplicationData(subject);
         final String docId = uidToDocId(profileDocument.uid());
         final UpdateRequest updateRequest = client.prepareUpdate(SECURITY_PROFILE_ALIAS, docId)
             .setDoc(profileDocument.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
-            .setIfPrimaryTerm(hit.getPrimaryTerm())
-            .setIfSeqNo(hit.getSeqNo())
+            .setIfPrimaryTerm(versionedDocument.primaryTerm)
+            .setIfSeqNo(versionedDocument.seqNo)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
             .request();
         profileIndex.prepareIndexIfNeededThenExecute(
@@ -232,12 +292,7 @@ public class ProfileService {
                     assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
                         || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
                     listener.onResponse(
-                        profileDocument.toProfile(
-                            updateResponse.getPrimaryTerm(),
-                            updateResponse.getSeqNo(),
-                            subject.getRealm().getName(),
-                            Set.of()
-                        )
+                        new VersionedDocument(profileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo()).toProfile(null)
                     );
                 }, listener::onFailure)
             )
@@ -264,12 +319,6 @@ public class ProfileService {
         }
     }
 
-    private Profile buildProfile(BytesReference source, long primaryTerm, long seqNo, Set<String> dataKeys) throws IOException {
-        final ProfileDocument profileDocument = buildProfileDocument(source);
-        // TODO: replace null with actual domain lookup
-        return profileDocument.toProfile(primaryTerm, seqNo, null, dataKeys);
-    }
-
     private <T> boolean maybeHandleIndexStatusIssue(ActionListener<T> listener) {
         final SecurityIndexManager frozenProfileIndex = profileIndex.freeze();
         if (false == frozenProfileIndex.indexExists()) {
@@ -281,5 +330,32 @@ public class ProfileService {
             return true;
         }
         return false;
+    }
+
+    // Package private for testing
+    record VersionedDocument(ProfileDocument doc, long primaryTerm, long seqNo) {
+
+        Profile toProfile(@Nullable String realmDomain) {
+            return toProfile(realmDomain, Set.of());
+        }
+
+        Profile toProfile(@Nullable String realmDomain, @Nullable Set<String> dataKeys) {
+            final Map<String, Object> applicationData;
+            if (dataKeys != null && dataKeys.isEmpty()) {
+                applicationData = Map.of();
+            } else {
+                applicationData = XContentHelper.convertToMap(doc.applicationData(), false, XContentType.JSON, dataKeys, null).v2();
+            }
+
+            return new Profile(
+                doc.uid(),
+                doc.enabled(),
+                doc.lastSynchronized(),
+                doc.user().toProfileUser(realmDomain),
+                doc.access().toProfileAccess(),
+                applicationData,
+                new Profile.VersionControl(primaryTerm, seqNo)
+            );
+        }
     }
 }

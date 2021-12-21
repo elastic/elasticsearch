@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.profile;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -18,7 +17,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -28,7 +26,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -86,25 +83,6 @@ public record ProfileDocument(
         public Profile.Access toProfileAccess() {
             return new Profile.Access(roles, applications);
         }
-    }
-
-    public Profile toProfile(long primaryTerm, long seqNo, @Nullable String realmDomain, @Nullable Set<String> dataKeys) {
-        final Map<String, Object> applicationData;
-        if (dataKeys != null && dataKeys.isEmpty()) {
-            applicationData = Map.of();
-        } else {
-            applicationData = XContentHelper.convertToMap(applicationData(), false, XContentType.JSON, dataKeys, null).v2();
-        }
-
-        return new Profile(
-            uid,
-            enabled,
-            lastSynchronized,
-            user.toProfileUser(realmDomain),
-            access.toProfileAccess(),
-            applicationData,
-            new Profile.VersionControl(primaryTerm, seqNo)
-        );
     }
 
     @Override

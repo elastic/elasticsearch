@@ -235,7 +235,7 @@ if (useFixture) {
     keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
     keystore 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
     setting 's3.client.integration_test_permanent.endpoint', { "${-> fixtureAddress('minio-fixture', 'minio-fixture', '9000')}" }, IGNORE_VALUE
-    plugin tasks.bundlePlugin.archiveFile
+    module tasks.bundlePlugin.archiveFile
   }
 }
 
@@ -260,7 +260,7 @@ if (useFixture) {
 
   testClusters.matching { it.name == "yamlRestTestECS" }.configureEach {
     setting 's3.client.integration_test_ecs.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ecs', '80')}" }, IGNORE_VALUE
-    plugin tasks.bundlePlugin.archiveFile
+    module tasks.bundlePlugin.archiveFile
     environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ecs', '80')}/ecs_credentials_endpoint" }, IGNORE_VALUE
   }
 }

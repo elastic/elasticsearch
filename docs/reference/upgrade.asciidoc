@@ -39,7 +39,7 @@ ifeval::[ "{bare_version}" != "{minor-version}.0" ]
 |<<rolling-upgrades,Rolling upgrade>> to {version}
 endif::[]
 
-|7.0–7.15
+|7.0–7.16
 |<<rolling-upgrades,Rolling upgrade>> to {version}
 
 |6.8

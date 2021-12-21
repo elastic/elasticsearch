@@ -46,6 +46,7 @@ tasks.named("shadowJar").configure {
   manifest {
     attributes 'Main-Class': 'org.elasticsearch.xpack.sql.cli.Cli'
   }
+  exclude '/org/apache/logging/log4j/core/lookup/JndiLookup.class'
 }
 
 tasks.named('forbiddenApisMain').configure {

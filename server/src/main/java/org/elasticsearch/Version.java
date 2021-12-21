@@ -44,6 +44,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * The unreleased last minor is the current major with a upped minor: 7._4_.0
      * The unreleased revision is the very release with a upped revision 7.3._1_
      */
+    private static final org.apache.lucene.util.Version LUCENE_8_11_1 = org.apache.lucene.util.Version.fromBits(8, 11, 1);
+
     public static final int V_EMPTY_ID = 0;
     public static final Version V_EMPTY = new Version(V_EMPTY_ID, org.apache.lucene.util.Version.LATEST);
     public static final Version V_7_0_0 = new Version(7000099, org.apache.lucene.util.Version.LUCENE_8_0_0);
@@ -94,7 +96,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_16_0 = new Version(7160099, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_7_16_1 = new Version(7160199, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_7_16_2 = new Version(7160299, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version V_7_17_0 = new Version(7170099, org.apache.lucene.util.Version.LUCENE_8_10_1);
+    public static final Version V_7_16_3 = new Version(7160399, org.apache.lucene.util.Version.LUCENE_8_10_1);
+    public static final Version V_7_17_0 = new Version(7170099, LUCENE_8_11_1);
     public static final Version V_8_0_0 = new Version(8000099, org.apache.lucene.util.Version.LUCENE_9_0_0);
     public static final Version V_8_1_0 = new Version(8010099, org.apache.lucene.util.Version.LUCENE_9_0_0);
     public static final Version CURRENT = V_8_1_0;

@@ -31,7 +31,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -59,6 +61,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     private final NamedXContentRegistry xContentRegistry;
     private final IndicesService indicesService;
     private final AliasValidator aliasValidator;
+    private final SystemIndices systemIndices;
+    private final Set<IndexSettingProvider> indexSettingProviders;
 
     @Inject
     public TransportSimulateIndexTemplateAction(
@@ -69,7 +73,9 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
-        IndicesService indicesService
+        IndicesService indicesService,
+        SystemIndices systemIndices,
+        MetadataCreateIndexService metadataCreateIndexService
     ) {
         super(
             SimulateIndexTemplateAction.NAME,
@@ -86,6 +92,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         this.xContentRegistry = xContentRegistry;
         this.indicesService = indicesService;
         this.aliasValidator = new AliasValidator();
+        this.systemIndices = systemIndices;
+        this.indexSettingProviders = metadataCreateIndexService.getIndexSettingProviders();
     }
 
     @Override
@@ -131,7 +139,9 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             stateWithTemplate,
             xContentRegistry,
             indicesService,
-            aliasValidator
+            aliasValidator,
+            systemIndices,
+            indexSettingProviders
         );
 
         final Map<String, List<String>> overlapping = new HashMap<>();
@@ -182,7 +192,9 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         final ClusterState simulatedState,
         final NamedXContentRegistry xContentRegistry,
         final IndicesService indicesService,
-        final AliasValidator aliasValidator
+        final AliasValidator aliasValidator,
+        final SystemIndices systemIndices,
+        Set<IndexSettingProvider> indexSettingProviders
     ) throws Exception {
         Settings settings = resolveSettings(simulatedState.metadata(), matchingTemplate);
 
@@ -191,14 +203,29 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             matchingTemplate
         );
 
+        ComposableIndexTemplate template = simulatedState.metadata().templatesV2().get(matchingTemplate);
         // create the index with dummy settings in the cluster state so we can parse and validate the aliases
-        Settings dummySettings = Settings.builder()
+        Settings.Builder dummySettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(settings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .build();
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+
+        // First apply settings sourced from index settings providers
+        for (var provider : indexSettingProviders) {
+            dummySettings.put(
+                provider.getAdditionalIndexSettings(
+                    indexName,
+                    template.getDataStreamTemplate() != null ? indexName : null,
+                    true,
+                    System.currentTimeMillis(),
+                    settings
+                )
+            );
+        }
+        // Then apply settings resolved from templates:
+        dummySettings.put(settings);
+
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(dummySettings).build();
 
         final ClusterState tempClusterState = ClusterState.builder(simulatedState)
@@ -217,7 +244,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                tempIndexService.dateMathExpressionResolverAt()
+                tempIndexService.dateMathExpressionResolverAt(),
+                systemIndices::isSystemName
             )
         );
 

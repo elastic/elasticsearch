@@ -6,8 +6,14 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -38,6 +44,8 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -78,11 +86,25 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 )
             )
         );
+        final DiscoveryNode localNode = new DiscoveryNode(
+            "test_node",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT
+        );
         clusterService = new ClusterService(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_node").build(),
             clusterSettings,
             threadPool
         );
+        clusterService.getClusterApplierService()
+            .setInitialState(
+                ClusterState.builder(new ClusterName("DatafeedJobBuilderTests"))
+                    .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+                    .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+                    .build()
+            );
 
         datafeedJobBuilder = new DatafeedJobBuilder(
             client,

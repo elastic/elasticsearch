@@ -55,7 +55,10 @@ public class BulkRequestTests extends ESTestCase {
     }
 
     public void testSimpleBulkWithCarriageReturn() throws Exception {
-        String bulkAction = "{ \"index\":{\"_index\":\"test\",\"_id\":\"1\"} }\r\n{ \"field1\" : \"value1\" }\r\n";
+        String bulkAction = """
+            { "index":{"_index":"test","_id":"1"} }
+            { "field1" : "value1" }
+            """;
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(1));
@@ -182,7 +185,10 @@ public class BulkRequestTests extends ESTestCase {
     }
 
     public void testBulkActionShouldNotContainArray() throws Exception {
-        String bulkAction = "{ \"index\":{\"_index\":[\"index1\", \"index2\"],\"_id\":\"1\"} }\r\n" + "{ \"field1\" : \"value1\" }\r\n";
+        String bulkAction = """
+            { "index":{"_index":["index1", "index2"],"_id":"1"} }\r
+            { "field1" : "value1" }\r
+            """;
         BulkRequest bulkRequest = new BulkRequest();
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
@@ -195,9 +201,15 @@ public class BulkRequestTests extends ESTestCase {
     }
 
     public void testBulkEmptyObject() throws Exception {
-        String bulkIndexAction = "{ \"index\":{\"_index\":\"test\",\"_id\":\"1\"} }\r\n";
-        String bulkIndexSource = "{ \"field1\" : \"value1\" }\r\n";
-        String emptyObject = "{}\r\n";
+        String bulkIndexAction = """
+            { "index":{"_index":"test","_id":"1"} }
+            """;
+        String bulkIndexSource = """
+            { "field1" : "value1" }
+            """;
+        String emptyObject = """
+            {}
+            """;
         StringBuilder bulk = new StringBuilder();
         int emptyLine;
         if (randomBoolean()) {
@@ -354,25 +366,17 @@ public class BulkRequestTests extends ESTestCase {
     }
 
     public void testDynamicTemplates() throws Exception {
-        BytesArray data = new BytesArray(
-            "{ \"index\":{\"_index\":\"test\",\"dynamic_templates\":{\"baz\":\"t1\", \"foo.bar\":\"t2\"}}}\n"
-                + "{ \"field1\" : \"value1\" }\n"
-                +
-
-                "{ \"delete\" : { \"_index\" : \"test\", \"_id\" : \"2\" } }\n"
-                +
-
-                "{ \"create\" : {\"_index\":\"test\",\"dynamic_templates\":{\"bar\":\"t1\"}}}\n"
-                + "{ \"field1\" : \"value3\" }\n"
-                +
-
-                "{ \"create\" : {\"dynamic_templates\":{\"foo.bar\":\"xyz\"}}}\n"
-                + "{ \"field1\" : \"value3\" }\n"
-                +
-
-                "{ \"index\" : {\"dynamic_templates\":{}}}\n"
-                + "{ \"field1\" : \"value3\" }\n"
-        );
+        BytesArray data = new BytesArray("""
+            { "index":{"_index":"test","dynamic_templates":{"baz":"t1", "foo.bar":"t2"}}}
+            { "field1" : "value1" }
+            { "delete" : { "_index" : "test", "_id" : "2" } }
+            { "create" : {"_index":"test","dynamic_templates":{"bar":"t1"}}}
+            { "field1" : "value3" }
+            { "create" : {"dynamic_templates":{"foo.bar":"xyz"}}}
+            { "field1" : "value3" }
+            { "index" : {"dynamic_templates":{}}}
+            { "field1" : "value3" }
+            """);
         BulkRequest bulkRequest = new BulkRequest().add(data, null, XContentType.JSON);
         assertThat(bulkRequest.requests, hasSize(5));
         assertThat(((IndexRequest) bulkRequest.requests.get(0)).getDynamicTemplates(), equalTo(Map.of("baz", "t1", "foo.bar", "t2")));
@@ -382,27 +386,29 @@ public class BulkRequestTests extends ESTestCase {
     }
 
     public void testInvalidDynamicTemplates() {
-        BytesArray deleteWithDynamicTemplates = new BytesArray(
-            "{ \"delete\" : { \"_index\" : \"test\", \"_id\" : \"2\", \"dynamic_templates\":{\"baz\":\"t1\"}} }\n"
-        );
+        BytesArray deleteWithDynamicTemplates = new BytesArray("""
+            {"delete" : { "_index" : "test", "_id" : "2", "dynamic_templates":{"baz":"t1"}} }
+            """);
         IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
             () -> new BulkRequest().add(deleteWithDynamicTemplates, null, XContentType.JSON)
         );
         assertThat(error.getMessage(), equalTo("Delete request in line [1] does not accept dynamic_templates"));
 
-        BytesArray updateWithDynamicTemplates = new BytesArray(
-            "{ \"update\" : {\"dynamic_templates\":{\"foo.bar\":\"xyz\"}}}\n" + "{ \"field1\" : \"value3\" }\n"
-        );
+        BytesArray updateWithDynamicTemplates = new BytesArray("""
+            { "update" : {"dynamic_templates":{"foo.bar":"xyz"}}}
+            { "field1" : "value3" }
+            """);
         error = expectThrows(
             IllegalArgumentException.class,
             () -> new BulkRequest().add(updateWithDynamicTemplates, null, XContentType.JSON)
         );
         assertThat(error.getMessage(), equalTo("Update request in line [2] does not accept dynamic_templates"));
 
-        BytesArray invalidDynamicTemplates = new BytesArray(
-            "{ \"index\":{\"_index\":\"test\",\"dynamic_templates\":[]}\n" + "{ \"field1\" : \"value1\" }\n"
-        );
+        BytesArray invalidDynamicTemplates = new BytesArray("""
+            { "index":{"_index":"test","dynamic_templates":[]}
+            { "field1" : "value1" }
+            """);
         error = expectThrows(IllegalArgumentException.class, () -> new BulkRequest().add(invalidDynamicTemplates, null, XContentType.JSON));
         assertThat(
             error.getMessage(),
@@ -413,7 +419,10 @@ public class BulkRequestTests extends ESTestCase {
     }
 
     public void testBulkActionWithoutCurlyBrace() throws Exception {
-        String bulkAction = "{ \"index\":{\"_index\":\"test\",\"_id\":\"1\"} \n" + "{ \"field1\" : \"value1\" }\n";
+        String bulkAction = """
+            { "index":{"_index":"test","_id":"1"}\s
+            { "field1" : "value1" }
+            """;
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
 
@@ -424,7 +433,10 @@ public class BulkRequestTests extends ESTestCase {
     }
 
     public void testBulkActionWithAdditionalKeys() throws Exception {
-        String bulkAction = "{ \"index\":{\"_index\":\"test\",\"_id\":\"1\"}, \"a\":\"b\"} \n" + "{ \"field1\" : \"value1\" }\n";
+        String bulkAction = """
+            { "index":{"_index":"test","_id":"1"}, "a":"b"}\s
+            { "field1" : "value1" }
+            """;
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
 
@@ -435,7 +447,10 @@ public class BulkRequestTests extends ESTestCase {
     }
 
     public void testBulkActionWithTrailingData() throws Exception {
-        String bulkAction = "{ \"index\":{\"_index\":\"test\",\"_id\":\"1\"} } {\"a\":\"b\"} \n" + "{ \"field1\" : \"value1\" }\n";
+        String bulkAction = """
+            { "index":{"_index":"test","_id":"1"} } {"a":"b"}\s
+            { "field1" : "value1" }
+            """;
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
 
@@ -446,7 +461,9 @@ public class BulkRequestTests extends ESTestCase {
     }
 
     public void testUnsupportedAction() throws Exception {
-        String bulkAction = "{ \"get\":{\"_index\":\"test\",\"_id\":\"1\"} }\n";
+        String bulkAction = """
+            { "get":{"_index":"test","_id":"1"} }
+            """;
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
 

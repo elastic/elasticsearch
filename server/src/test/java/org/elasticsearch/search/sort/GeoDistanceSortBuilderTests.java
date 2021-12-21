@@ -190,15 +190,16 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     }
 
     public void testSortModeSumIsRejectedInJSON() throws IOException {
-        String json = "{\n"
-            + "  \"testname\" : [ {\n"
-            + "    \"lat\" : -6.046997540714173,\n"
-            + "    \"lon\" : -51.94128329747579\n"
-            + "  } ],\n"
-            + "  \"unit\" : \"m\",\n"
-            + "  \"distance_type\" : \"arc\",\n"
-            + "  \"mode\" : \"SUM\"\n"
-            + "}";
+        String json = """
+            {
+              "testname" : [ {
+                "lat" : -6.046997540714173,
+                "lon" : -51.94128329747579
+              } ],
+              "unit" : "m",
+              "distance_type" : "arc",
+              "mode" : "SUM"
+            }""";
         try (XContentParser itemParser = createParser(JsonXContent.jsonXContent, json)) {
             itemParser.nextToken();
 
@@ -211,22 +212,22 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     }
 
     public void testGeoDistanceSortCanBeParsedFromGeoHash() throws IOException {
-        String json = "{\n"
-            + "    \"VDcvDuFjE\" : [ \"7umzzv8eychg\", \"dmdgmt5z13uw\", "
-            + "    \"ezu09wxw6v4c\", \"kc7s3515p6k6\", \"jgeuvjwrmfzn\", \"kcpcfj7ruyf8\" ],\n"
-            + "    \"unit\" : \"m\",\n"
-            + "    \"distance_type\" : \"arc\",\n"
-            + "    \"mode\" : \"MAX\",\n"
-            + "    \"nested\" : {\n"
-            + "      \"filter\" : {\n"
-            + "        \"ids\" : {\n"
-            + "          \"values\" : [ ],\n"
-            + "          \"boost\" : 5.711116\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"validation_method\" : \"STRICT\"\n"
-            + "  }";
+        String json = """
+            {
+                "VDcvDuFjE" : [ "7umzzv8eychg", "dmdgmt5z13uw",     "ezu09wxw6v4c", "kc7s3515p6k6", "jgeuvjwrmfzn", "kcpcfj7ruyf8" ],
+                "unit" : "m",
+                "distance_type" : "arc",
+                "mode" : "MAX",
+                "nested" : {
+                  "filter" : {
+                    "ids" : {
+                      "values" : [ ],
+                      "boost" : 5.711116
+                    }
+                  }
+                },
+                "validation_method" : "STRICT"
+              }""";
         try (XContentParser itemParser = createParser(JsonXContent.jsonXContent, json)) {
             itemParser.nextToken();
 

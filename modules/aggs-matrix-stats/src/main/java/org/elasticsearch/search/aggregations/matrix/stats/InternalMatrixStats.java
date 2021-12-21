@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations.matrix.stats;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -226,7 +227,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         // merge stats across all shards
         List<InternalAggregation> aggs = new ArrayList<>(aggregations);
         aggs.removeIf(p -> ((InternalMatrixStats) p).stats == null);

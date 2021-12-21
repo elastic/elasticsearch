@@ -1087,11 +1087,12 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
 
     public void testBillionLaughsAttack() throws Exception {
         // There is no need to go up to N iterations
-        String xml = "<!DOCTYPE lolz [\n"
-            + " <!ENTITY lol \"lol\">\n"
-            + " <!ENTITY lol1 \"&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;\">\n"
-            + "]>\n"
-            + "<attack>&lol1;</attack>";
+        String xml = """
+            <!DOCTYPE lolz [
+             <!ENTITY lol "lol">
+             <!ENTITY lol1 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">
+            ]>
+            <attack>&lol1;</attack>""";
         final SamlToken token = token(xml);
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getCause(), instanceOf(SAXException.class));

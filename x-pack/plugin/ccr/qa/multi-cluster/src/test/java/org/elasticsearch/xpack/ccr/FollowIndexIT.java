@@ -26,8 +26,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
-import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,7 +45,8 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             logger.info("Running against leader cluster");
             String mapping = "";
             if (randomBoolean()) { // randomly do source filtering on indexing
-                mapping = "\"_source\": {" + "  \"includes\": [\"field\"]," + "  \"excludes\": [\"filtered_field\"]" + "}";
+                mapping = """
+                    "_source": {  "includes": ["field"],  "excludes": ["filtered_field"]}""";
             }
             createIndex(leaderIndexName, Settings.EMPTY, mapping);
             for (int i = 0; i < numDocs; i++) {
@@ -244,7 +245,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
     public void testFollowTsdbIndex() throws Exception {
         final int numDocs = 128;
         final String leaderIndexName = "tsdb_leader";
-        long basetime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2021-01-01T00:00:00Z");
+        long basetime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2021-04-28T18:35:24.467Z");
         if ("leader".equals(targetCluster)) {
             logger.info("Running against leader cluster");
             createIndex(
@@ -252,8 +253,11 @@ public class FollowIndexIT extends ESCCRRestTestCase {
                 Settings.builder()
                     .put(IndexSettings.MODE.getKey(), "time_series")
                     .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                     .build(),
-                "\"properties\": {\"@timestamp\": {\"type\": \"date\"}, \"dim\": {\"type\": \"keyword\", \"time_series_dimension\": true}}"
+                """
+                    "properties": {"@timestamp": {"type": "date"}, "dim": {"type": "keyword", "time_series_dimension": true}}"""
             );
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);

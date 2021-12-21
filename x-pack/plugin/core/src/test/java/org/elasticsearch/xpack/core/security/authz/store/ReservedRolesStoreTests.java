@@ -543,7 +543,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         Arrays.asList(".logs-endpoint.diagnostic.collection-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
@@ -557,6 +556,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(PutMappingAction.NAME).test(mockIndexAbstraction(index)), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            // Privileges needed for installing current ILM policy with delete action
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
         });
 
         Arrays.asList(
@@ -714,7 +715,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(indexAbstraction), is(false));
 
@@ -723,6 +723,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));
+
+            // Endpoint diagnostic and sampled traces data streams also have an ILM policy with a delete action, all others should not.
+            final boolean isAlsoIlmDeleteIndex = indexName.startsWith(".logs-endpoint.diagnostic.collection-")
+                || indexName.startsWith("traces-apm.sampled-");
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(isAlsoIlmDeleteIndex));
         });
 
         // 4. Transform for endpoint package
@@ -779,6 +784,31 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(false));
+        });
+
+        // Ensure privileges necessary for ILM policies in APM & Endpoint packages
+        Arrays.asList(
+            "metrics-apm.app-" + randomAlphaOfLengthBetween(3, 8),
+            "metrics-apm.internal-" + randomAlphaOfLengthBetween(3, 8),
+            "metrics-apm.profiling-" + randomAlphaOfLengthBetween(3, 8),
+            "logs-apm.error_logs-" + randomAlphaOfLengthBetween(3, 8),
+            "traces-apm-" + randomAlphaOfLengthBetween(3, 8)
+        ).forEach(indexName -> {
+            logger.info("index name [{}]", indexName);
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+        });
+        Arrays.asList(
+            ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(3, 8),
+            "traces-apm.sampled-" + randomAlphaOfLengthBetween(3, 8)
+        ).forEach(indexName -> {
+            logger.info("index name [{}]", indexName);
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
     }
 
@@ -2168,6 +2198,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, "heardbeat-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "kibana_sample_data_-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".siem-signals-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".alerts-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".preview.alerts-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5) + "-transaction-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "logs-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "auditbeat-" + randomIntBetween(0, 5));
@@ -2230,6 +2262,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".lists-" + randomIntBetween(0, 5));
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".items-" + randomIntBetween(0, 5));
         assertReadWriteDocsButNotDeleteIndexAllowed(role, "observability-annotations");
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, ".alerts-" + randomIntBetween(0, 5));
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, ".internal.alerts-" + randomIntBetween(0, 5));
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, ".preview.alerts-" + randomIntBetween(0, 5));
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, ".internal.preview.alerts-" + randomIntBetween(0, 5));
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));

@@ -34,12 +34,14 @@ public class RestartIT extends ESCCRRestTestCase {
 
                 // now create an auto-follow pattern for "leader-*"
                 final Request putPatternRequest = new Request("PUT", "/_ccr/auto_follow/leader_cluster_pattern");
-                putPatternRequest.setJsonEntity(
-                    "{"
-                        + "\"leader_index_patterns\": [\"leader-*\"],"
-                        + "\"remote_cluster\": \"leader_cluster\","
-                        + "\"follow_index_pattern\":\"follow-{{leader_index}}\"}"
-                );
+                putPatternRequest.setJsonEntity("""
+                    {
+                      "leader_index_patterns": [
+                        "leader-*"
+                      ],
+                      "remote_cluster": "leader_cluster",
+                      "follow_index_pattern": "follow-{{leader_index}}"
+                    }""");
                 assertOK(client().performRequest(putPatternRequest));
                 try (RestClient leaderClient = buildLeaderClient()) {
                     // create "leader-1" on the leader, which should be replicated to "follow-leader-1" on the follower

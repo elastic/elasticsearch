@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -50,6 +52,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -400,7 +403,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
+            return new SortedSetOrdinalsIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
+            );
         }
 
         @Override
@@ -630,25 +637,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             if (ts.incrementToken() == false) {
-                throw new IllegalStateException(
-                    "The normalization token stream is "
-                        + "expected to produce exactly 1 token, but got 0 for analyzer "
-                        + normalizer
-                        + " and input \""
-                        + value
-                        + "\""
-                );
+                throw new IllegalStateException(String.format(Locale.ROOT, """
+                    The normalization token stream is expected to produce exactly 1 token, \
+                    but got 0 for analyzer %s and input "%s"
+                    """, normalizer, value));
             }
             final String newValue = termAtt.toString();
             if (ts.incrementToken()) {
-                throw new IllegalStateException(
-                    "The normalization token stream is "
-                        + "expected to produce exactly 1 token, but got 2+ for analyzer "
-                        + normalizer
-                        + " and input \""
-                        + value
-                        + "\""
-                );
+                throw new IllegalStateException(String.format(Locale.ROOT, """
+                    The normalization token stream is expected to produce exactly 1 token, \
+                    but got 2+ for analyzer %s and input "%s"
+                    """, normalizer, value));
             }
             ts.end();
             return newValue;

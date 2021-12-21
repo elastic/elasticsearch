@@ -12,6 +12,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -271,7 +272,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
      * rounding returned across all the shards so the resolution of the buckets
      * is the same and they can be reduced together.
      */
-    private BucketReduceResult reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    private BucketReduceResult reduceBuckets(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
 
         // First we need to find the highest level rounding used across all the
         // shards
@@ -338,7 +339,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         return mergeBucketsIfNeeded(new BucketReduceResult(reducedBuckets, reduceRoundingIdx, 1, reduceRounding, min, max), reduceContext);
     }
 
-    private BucketReduceResult mergeBucketsIfNeeded(BucketReduceResult firstPassResult, ReduceContext reduceContext) {
+    private BucketReduceResult mergeBucketsIfNeeded(BucketReduceResult firstPassResult, AggregationReduceContext reduceContext) {
         int idx = firstPassResult.roundingIdx;
         RoundingInfo info = bucketInfo.roundingInfos[idx];
         List<Bucket> buckets = firstPassResult.buckets;
@@ -357,7 +358,11 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         return min <= max ? rounding.prepare(min, max) : rounding.prepareForUnknown();
     }
 
-    private List<Bucket> mergeBuckets(List<Bucket> reducedBuckets, Rounding.Prepared reduceRounding, ReduceContext reduceContext) {
+    private List<Bucket> mergeBuckets(
+        List<Bucket> reducedBuckets,
+        Rounding.Prepared reduceRounding,
+        AggregationReduceContext reduceContext
+    ) {
         List<Bucket> mergedBuckets = new ArrayList<>();
 
         List<Bucket> sameKeyedBuckets = new ArrayList<>();
@@ -384,7 +389,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
     }
 
     @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
+    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         assert buckets.size() > 0;
         List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
         long docCount = 0;
@@ -421,7 +426,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         }
     }
 
-    private BucketReduceResult addEmptyBuckets(BucketReduceResult current, ReduceContext reduceContext) {
+    private BucketReduceResult addEmptyBuckets(BucketReduceResult current, AggregationReduceContext reduceContext) {
         List<Bucket> list = current.buckets;
         if (list.isEmpty()) {
             return current;
@@ -500,7 +505,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         BucketReduceResult reducedBucketsResult = reduceBuckets(aggregations, reduceContext);
 
         if (reduceContext.isFinalReduce()) {
@@ -531,7 +536,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         );
     }
 
-    private BucketReduceResult maybeMergeConsecutiveBuckets(BucketReduceResult current, ReduceContext reduceContext) {
+    private BucketReduceResult maybeMergeConsecutiveBuckets(BucketReduceResult current, AggregationReduceContext reduceContext) {
         List<Bucket> buckets = current.buckets;
         RoundingInfo roundingInfo = bucketInfo.roundingInfos[current.roundingIdx];
         if (buckets.size() > targetBuckets) {
@@ -548,7 +553,11 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         return current;
     }
 
-    private BucketReduceResult mergeConsecutiveBuckets(BucketReduceResult current, int mergeInterval, ReduceContext reduceContext) {
+    private BucketReduceResult mergeConsecutiveBuckets(
+        BucketReduceResult current,
+        int mergeInterval,
+        AggregationReduceContext reduceContext
+    ) {
         List<Bucket> mergedBuckets = new ArrayList<>();
         List<Bucket> sameKeyedBuckets = new ArrayList<>();
 

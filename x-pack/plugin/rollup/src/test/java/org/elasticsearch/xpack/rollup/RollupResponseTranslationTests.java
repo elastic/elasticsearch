@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -44,6 +45,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -100,7 +102,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             RuntimeException.class,
             () -> RollupResponseTranslator.combineResponses(
                 failure,
-                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
+                new AggregationReduceContext.ForFinal(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
             )
         );
         assertThat(e.getMessage(), equalTo("foo"));
@@ -109,7 +111,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             RuntimeException.class,
             () -> RollupResponseTranslator.translateResponse(
                 failure,
-                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
+                new AggregationReduceContext.ForFinal(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
             )
         );
         assertThat(e.getMessage(), equalTo("foo"));
@@ -129,7 +131,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             RuntimeException.class,
             () -> RollupResponseTranslator.translateResponse(
                 failure,
-                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
+                new AggregationReduceContext.ForFinal(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
             )
         );
         assertThat(e.getMessage(), equalTo("rollup failure"));
@@ -147,7 +149,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             ResourceNotFoundException.class,
             () -> RollupResponseTranslator.combineResponses(
                 failure,
-                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
+                new AggregationReduceContext.ForFinal(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
             )
         );
         assertThat(
@@ -202,7 +204,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             ResourceNotFoundException.class,
             () -> RollupResponseTranslator.combineResponses(
                 msearch,
-                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
+                new AggregationReduceContext.ForFinal(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
             )
         );
         assertThat(
@@ -227,7 +229,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         SearchResponse response = RollupResponseTranslator.translateResponse(
             msearch,
-            InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
+            new AggregationReduceContext.ForFinal(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
         );
         assertNotNull(response);
         Aggregations responseAggs = response.getAggregations();
@@ -248,7 +250,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             ResourceNotFoundException.class,
             () -> RollupResponseTranslator.combineResponses(
                 msearch,
-                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
+                new AggregationReduceContext.ForFinal(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
             )
         );
         assertThat(
@@ -309,7 +311,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
-        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             scriptService,
             b -> {},
@@ -329,7 +331,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         MultiSearchResponse.Item missing = new MultiSearchResponse.Item(null, new IndexNotFoundException("foo"));
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
-        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             scriptService,
             b -> {},
@@ -378,7 +380,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             RuntimeException.class,
             () -> RollupResponseTranslator.combineResponses(
                 msearch,
-                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
+                new AggregationReduceContext.ForFinal(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
             )
         );
         assertThat(e.getMessage(), containsString("Expected [bizzbuzz] to be a FilterAggregation"));
@@ -411,7 +413,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             RuntimeException.class,
             () -> RollupResponseTranslator.combineResponses(
                 msearch,
-                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
+                new AggregationReduceContext.ForFinal(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
             )
         );
         assertThat(e.getMessage(), equalTo("Expected [filter_foo] to be a FilterAggregation, but was [InternalMax]"));
@@ -466,7 +468,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         SearchResponse response = RollupResponseTranslator.combineResponses(
             msearch,
-            InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
+            new AggregationReduceContext.ForFinal(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)
         );
         assertNotNull(response);
         Aggregations responseAggs = response.getAggregations();
@@ -597,7 +599,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
-        InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
+        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
             bigArrays,
             scriptService,
             b -> {},
@@ -684,7 +686,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         // Reduce the InternalDateHistogram response so we can fill buckets
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
-        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             scriptService,
             b -> {},
@@ -693,15 +695,36 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         );
 
         InternalAggregation reduced = ((InternalDateHistogram) unrolled).reduce(Collections.singletonList(unrolled), context);
-        assertThat(
-            reduced.toString(),
-            equalTo(
-                "{\"histo\":{\"buckets\":[{\"key_as_string\":\"1970-01-01T00:00:00.100Z\",\"key\":100,"
-                    + "\"doc_count\":1},{\"key_as_string\":\"1970-01-01T00:00:00.200Z\",\"key\":200,\"doc_count\":1},"
-                    + "{\"key_as_string\":\"1970-01-01T00:00:00.300Z\",\"key\":300,\"doc_count\":0,\"histo._count\":{\"value\":0.0}},"
-                    + "{\"key_as_string\":\"1970-01-01T00:00:00.400Z\",\"key\":400,\"doc_count\":1}]}}"
-            )
-        );
+        assertThat(reduced.toString(), equalTo(XContentHelper.stripWhitespace("""
+            {
+              "histo": {
+                "buckets": [
+                  {
+                    "key_as_string": "1970-01-01T00:00:00.100Z",
+                    "key": 100,
+                    "doc_count": 1
+                  },
+                  {
+                    "key_as_string": "1970-01-01T00:00:00.200Z",
+                    "key": 200,
+                    "doc_count": 1
+                  },
+                  {
+                    "key_as_string": "1970-01-01T00:00:00.300Z",
+                    "key": 300,
+                    "doc_count": 0,
+                    "histo._count": {
+                      "value": 0.0
+                    }
+                  },
+                  {
+                    "key_as_string": "1970-01-01T00:00:00.400Z",
+                    "key": 400,
+                    "doc_count": 1
+                  }
+                ]
+              }
+            }""")));
     }
 
     public void testNonMatchingPartition() throws IOException {
@@ -798,13 +821,23 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         assertThat(((InternalDateHistogram) unrolled).getBuckets().get(0).getDocCount(), equalTo(2L)); // two "a" at 100
         assertThat(((InternalDateHistogram) unrolled).getBuckets().get(1).getDocCount(), equalTo(1L)); // one "a" at 200
         assertThat(((InternalDateHistogram) unrolled).getBuckets().get(0).getKeyAsString(), equalTo("1970-01-01T00:00:00.100Z"));
-        assertThat(
-            unrolled.toString(),
-            equalTo(
-                "{\"histo\":{\"buckets\":[{\"key_as_string\":\"1970-01-01T00:00:00.100Z\","
-                    + "\"key\":100,\"doc_count\":2},{\"key_as_string\":\"1970-01-01T00:00:00.200Z\",\"key\":200,\"doc_count\":1}]}}"
-            )
-        );
+        assertThat(unrolled.toString(), equalTo(XContentHelper.stripWhitespace("""
+            {
+              "histo": {
+                "buckets": [
+                  {
+                    "key_as_string": "1970-01-01T00:00:00.100Z",
+                    "key": 100,
+                    "doc_count": 2
+                  },
+                  {
+                    "key_as_string": "1970-01-01T00:00:00.200Z",
+                    "key": 200,
+                    "doc_count": 1
+                  }
+                ]
+              }
+            }""")));
         assertThat(unrolled.toString(), not(equalTo(results.get(1).toString())));
     }
 
@@ -1251,10 +1284,8 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         assertThat(((InternalDateHistogram) unrolled).getBuckets().size(), equalTo(1));
         assertThat(((InternalDateHistogram) unrolled).getBuckets().get(0).getDocCount(), equalTo(1L));
         assertThat(((InternalDateHistogram) unrolled).getBuckets().get(0).getKeyAsString(), equalTo("1970-01-01T00:00:00.400Z"));
-        assertThat(
-            unrolled.toString(),
-            equalTo("{\"histo\":{\"buckets\":[{\"key_as_string\":\"1970-01-01T00:00:00.400Z\"," + "\"key\":400,\"doc_count\":1}]}}")
-        );
+        assertThat(unrolled.toString(), equalTo("""
+            {"histo":{"buckets":[{"key_as_string":"1970-01-01T00:00:00.400Z","key":400,"doc_count":1}]}}"""));
         assertThat(unrolled.toString(), not(equalTo(responses.get(1).toString())));
     }
 

@@ -116,6 +116,10 @@ public class RealmSettings {
         }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
     }
 
+    /**
+     * Returns the domain name that the given realm is assigned to.
+     * Assumes {@code #verifyRealmNameToDomainNameAssociation} successfully verified the configuration.
+     */
     public static @Nullable String getDomainForRealm(Settings globalSettings, RealmConfig.RealmIdentifier realmIdentifier) {
         // TODO reserved realm settings need to be pulled into core
         if (realmIdentifier.equals(new RealmConfig.RealmIdentifier("reserved", "reserved"))) {
@@ -134,6 +138,10 @@ public class RealmSettings {
         return null;
     }
 
+    /**
+     * Verifies that realms are assigned to at most one domain and that domains do not refer to undefined realms.
+     * Must be invoked once on node start-up (and usually not by cmd line tools).
+     */
     public static void verifyRealmNameToDomainNameAssociation(
         Settings globalSettings,
         Collection<RealmConfig.RealmIdentifier> allRealmIdentifiers

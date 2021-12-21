@@ -97,10 +97,10 @@ public abstract class SearchProgressListener {
      */
     protected void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
 
-    final void notifyListShards(List<SearchShard> shards, List<SearchShard> skippedShards, Clusters clusters, boolean fetchPhase) {
-        this.shards = shards;
+    final void notifyListShards(List<SearchShard> searchShards, List<SearchShard> skippedShards, Clusters clusters, boolean fetchPhase) {
+        this.shards = searchShards;
         try {
-            onListShards(shards, skippedShards, clusters, fetchPhase);
+            onListShards(searchShards, skippedShards, clusters, fetchPhase);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("Failed to execute progress listener on list shards"), e);
         }

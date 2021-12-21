@@ -166,6 +166,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             }
         }
 
+        @SuppressWarnings("HiddenField")
         private void listStartedShards(
             ShardId shardId,
             String customDataPath,

@@ -537,9 +537,9 @@ public abstract class AggregationContext implements Releasable {
              * Add the breakerService to the end of the list so we release it
              * after all the aggregations that allocate bytes on it.
              */
-            List<Releasable> releaseMe = new ArrayList<>(this.releaseMe);
-            releaseMe.add(preallocatedBreakerService);
-            Releasables.close(releaseMe);
+            List<Releasable> releasables = new ArrayList<>(this.releaseMe);
+            releasables.add(preallocatedBreakerService);
+            Releasables.close(releasables);
         }
     }
 }

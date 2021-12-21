@@ -313,8 +313,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        boolean scroll = scroll() != null;
-        if (scroll) {
+        boolean shouldScroll = scroll() != null;
+        if (shouldScroll) {
             if (source != null) {
                 if (source.trackTotalHitsUpTo() != null && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
                     validationException = addValidationError(
@@ -342,7 +342,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             }
         }
         if (pointInTimeBuilder() != null) {
-            if (scroll) {
+            if (shouldScroll) {
                 validationException = addValidationError("using [point in time] is not allowed in a scroll context", validationException);
             }
         } else if (source != null && source.sorts() != null) {
@@ -727,25 +727,25 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             return this;
         }
 
-        SearchSourceBuilder source = this.source.rewrite(ctx);
-        boolean hasChanged = source != this.source;
+        SearchSourceBuilder newSource = this.source.rewrite(ctx);
+        boolean hasChanged = newSource != this.source;
 
         // add a sort tiebreaker for PIT search requests if not explicitly set
-        Object[] searchAfter = source.searchAfter();
-        if (source.pointInTimeBuilder() != null && source.sorts() != null && source.sorts().isEmpty() == false
+        Object[] searchAfter = newSource.searchAfter();
+        if (newSource.pointInTimeBuilder() != null && newSource.sorts() != null && newSource.sorts().isEmpty() == false
         // skip the tiebreaker if it is not provided in the search after values
-            && (searchAfter == null || searchAfter.length == source.sorts().size() + 1)) {
-            SortBuilder<?> lastSort = source.sorts().get(source.sorts().size() - 1);
+            && (searchAfter == null || searchAfter.length == newSource.sorts().size() + 1)) {
+            SortBuilder<?> lastSort = newSource.sorts().get(newSource.sorts().size() - 1);
             if (lastSort instanceof FieldSortBuilder == false
                 || FieldSortBuilder.SHARD_DOC_FIELD_NAME.equals(((FieldSortBuilder) lastSort).getFieldName()) == false) {
-                List<SortBuilder<?>> newSorts = new ArrayList<>(source.sorts());
+                List<SortBuilder<?>> newSorts = new ArrayList<>(newSource.sorts());
                 newSorts.add(SortBuilders.pitTiebreaker().unmappedType("long"));
-                source = source.shallowCopy().sort(newSorts);
+                newSource = newSource.shallowCopy().sort(newSorts);
                 hasChanged = true;
             }
         }
 
-        return hasChanged ? new SearchRequest(this).source(source) : this;
+        return hasChanged ? new SearchRequest(this).source(newSource) : this;
     }
 
     public static int resolveTrackTotalHitsUpTo(Scroll scroll, SearchSourceBuilder source) {

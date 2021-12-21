@@ -47,7 +47,7 @@ import java.util.function.LongSupplier;
  */
 public class UpdateHelper {
 
-    private static final Logger logger = LogManager.getLogger(UpdateHelper.class);
+    private static final Logger LOGGER = LogManager.getLogger(UpdateHelper.class);
 
     private final ScriptService scriptService;
 
@@ -95,13 +95,13 @@ public class UpdateHelper {
         ctx.put(ContextFields.NOW, nowInMillis.getAsLong());
         ctx = executeScript(script, ctx);
 
-        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, script.getIdOrCode());
+        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), LOGGER, script.getIdOrCode());
         @SuppressWarnings("unchecked")
         Map<String, Object> newSource = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
 
         if (operation != UpdateOpType.CREATE && operation != UpdateOpType.NONE) {
             // Only valid options for an upsert script are "create" (the default) or "none", meaning abort upsert
-            logger.warn("Invalid upsert operation [{}] for script [{}], doing nothing...", operation, script.getIdOrCode());
+            LOGGER.warn("Invalid upsert operation [{}] for script [{}], doing nothing...", operation, script.getIdOrCode());
             operation = UpdateOpType.NONE;
         }
 
@@ -252,7 +252,7 @@ public class UpdateHelper {
 
         ctx = executeScript(request.script, ctx);
 
-        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, request.script.getIdOrCode());
+        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), LOGGER, request.script.getIdOrCode());
 
         @SuppressWarnings("unchecked")
         final Map<String, Object> updatedSourceAsMap = (Map<String, Object>) ctx.get(ContextFields.SOURCE);

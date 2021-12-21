@@ -204,8 +204,8 @@ public class AggregationDataExtractorTests extends ESTestCase {
         Histogram histogram2 = mock(Histogram.class);
         when(histogram2.getName()).thenReturn("hist_2");
 
-        Aggregations aggs = AggregationTestUtils.createAggs(Arrays.asList(histogram1, histogram2));
-        SearchResponse response = createSearchResponse(aggs);
+        Aggregations aggregations = AggregationTestUtils.createAggs(Arrays.asList(histogram1, histogram2));
+        SearchResponse response = createSearchResponse(aggregations);
         extractor.setNextResponse(response);
 
         assertThat(extractor.hasNext(), is(true));

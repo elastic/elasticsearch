@@ -511,7 +511,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             }
 
             if (scrollSource.hasScroll() == false) {
-                // scroll is disabled
+                // Index contains fewer matching docs then max_docs (found < max_docs <= scroll size)
                 refreshAndFinish(emptyList(), emptyList(), false);
                 return;
             }

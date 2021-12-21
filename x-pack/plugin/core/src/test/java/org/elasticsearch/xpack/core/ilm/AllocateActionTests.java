@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
+import static org.elasticsearch.xpack.core.ilm.AllocateAction.NUMBER_OF_REPLICAS_FIELD;
+import static org.elasticsearch.xpack.core.ilm.AllocateAction.TOTAL_SHARDS_PER_NODE_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -114,8 +116,13 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
                 + AllocateAction.EXCLUDE_FIELD.getPreferredName()
                 + " or "
                 + AllocateAction.REQUIRE_FIELD.getPreferredName()
-                + "must contain attributes for action "
-                + AllocateAction.NAME,
+                + " must contain attributes for action "
+                + AllocateAction.NAME
+                + ". Otherwise the "
+                + NUMBER_OF_REPLICAS_FIELD.getPreferredName()
+                + " or the "
+                + TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName()
+                + " options must be configured.",
             exception.getMessage()
         );
     }
@@ -128,7 +135,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
             IllegalArgumentException.class,
             () -> new AllocateAction(randomIntBetween(-1000, -1), randomIntBetween(0, 300), include, exclude, require)
         );
-        assertEquals("[" + AllocateAction.NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0", exception.getMessage());
+        assertEquals("[" + NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0", exception.getMessage());
     }
 
     public void testInvalidTotalShardsPerNode() {
@@ -139,7 +146,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
             IllegalArgumentException.class,
             () -> new AllocateAction(randomIntBetween(0, 300), randomIntBetween(-1000, -2), include, exclude, require)
         );
-        assertEquals("[" + AllocateAction.TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName() + "] must be >= -1", exception.getMessage());
+        assertEquals("[" + TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName() + "] must be >= -1", exception.getMessage());
     }
 
     public static Map<String, String> randomAllocationRoutingMap(int minEntries, int maxEntries) {

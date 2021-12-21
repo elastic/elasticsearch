@@ -193,7 +193,7 @@ public class JwtRealmSettings {
         key -> Setting.simpleString(key, DEFAULT_CLIENT_AUTHENTICATION_TYPE, value -> {
             if (SUPPORTED_CLIENT_AUTHENTICATION_TYPE.contains(value) == false) {
                 throw new IllegalArgumentException(
-                    "Invalid value [" + value + "] for [" + key + "]. Allowed values are " + SUPPORTED_CLIENT_AUTHENTICATION_TYPE + "}]."
+                    "Invalid value [" + value + "] for [" + key + "]. Allowed values are " + SUPPORTED_CLIENT_AUTHENTICATION_TYPE + "."
                 );
             }
         }, Setting.Property.NodeScope)
@@ -255,7 +255,7 @@ public class JwtRealmSettings {
         if (allowedValues != null) {
             if (allowedValues.contains(value) == false) {
                 throw new IllegalArgumentException(
-                    "Invalid value [" + value + "] for [" + key + "]. Allowed values are " + allowedValues + "}]."
+                    "Invalid value [" + value + "] for [" + key + "]. Allowed values are " + allowedValues + "."
                 );
             }
         }
@@ -264,7 +264,11 @@ public class JwtRealmSettings {
     private static void verifyNonNullNotEmpty(final String key, final List<String> values, final List<String> allowedValues) {
         assert values != null : "Invalid null list of values for [" + key + "].";
         if (values.isEmpty()) {
-            throw new IllegalArgumentException("Invalid empty list for [" + key + "]. Allowed values are " + allowedValues + "}].");
+            if (allowedValues == null) {
+                throw new IllegalArgumentException("Invalid empty list for [" + key + "].");
+            } else {
+                throw new IllegalArgumentException("Invalid empty list for [" + key + "]. Allowed values are " + allowedValues + ".");
+            }
         }
         for (final String value : values) {
             verifyNonNullNotEmpty(key, value, allowedValues);

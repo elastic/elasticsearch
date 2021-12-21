@@ -59,7 +59,7 @@ public class JwtRealmSettingsTests extends ESTestCase {
                 final String actualValue = this.buildConfig(settings).getSetting(setting);
                 fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
             });
-            assertThat(exception.getMessage(), equalTo("Invalid null or empty value for [" + settingKey + "]."));
+            assertThat(exception.getMessage(), equalTo("Invalid empty value for [" + settingKey + "]."));
         }
         for (final String acceptedValue : new String[] { "http://localhost/iss1", "issuer1", "i" }) {
             final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
@@ -85,7 +85,7 @@ public class JwtRealmSettingsTests extends ESTestCase {
                         + "]."
                         + " Allowed values are "
                         + JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS
-                        + "}]."
+                        + "."
                 )
             );
         }
@@ -111,7 +111,7 @@ public class JwtRealmSettingsTests extends ESTestCase {
                 final String actualValue = this.buildConfig(settings).getSetting(setting);
                 fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
             });
-            assertThat(exception.getMessage(), equalTo("Invalid null or empty value for [" + settingKey + "]."));
+            assertThat(exception.getMessage(), equalTo("Invalid empty value for [" + settingKey + "]."));
         }
         for (final String acceptedValue : new String[] { "./config/jwkset.json", "http://localhost/jwkset.json" }) {
             final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
@@ -129,7 +129,7 @@ public class JwtRealmSettingsTests extends ESTestCase {
                 final List<String> actualValue = this.buildConfig(settings).getSetting(setting);
                 fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
             });
-            assertThat(exception.getMessage(), equalTo("Invalid null or empty value for [" + settingKey + "]."));
+            assertThat(exception.getMessage(), equalTo("Invalid empty list for [" + settingKey + "]."));
         }
         for (final String acceptedValue : new String[] { "elasticsearch", "elasticsearch,other" }) {
             final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
@@ -219,7 +219,16 @@ public class JwtRealmSettingsTests extends ESTestCase {
             });
             assertThat(
                 exception.getMessage(),
-                equalTo("Invalid value [" + rejectedValue + "] for [" + settingKey + "]." + " Allowed values are [sharedsecret, none]}].")
+                equalTo(
+                    "Invalid value ["
+                        + rejectedValue
+                        + "] for ["
+                        + settingKey
+                        + "]."
+                        + " Allowed values are "
+                        + JwtRealmSettings.SUPPORTED_CLIENT_AUTHENTICATION_TYPE
+                        + "."
+                )
             );
         }
         for (final String ignoredValue : new String[] { null }) {

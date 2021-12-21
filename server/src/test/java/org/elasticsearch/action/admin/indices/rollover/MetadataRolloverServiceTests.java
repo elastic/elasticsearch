@@ -894,7 +894,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             null,
             EmptySystemIndices.INSTANCE,
             false,
-            null
+            new IndexSettingProviders(Set.of())
         );
         MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
             clusterService,

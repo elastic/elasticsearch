@@ -197,9 +197,16 @@ public class DataTier {
      *   1 if tier1 is warmer than tier2 (ie. compare("data_hot", "data_cold"))
      *
      * The provided tiers parameters must be valid data tiers values (ie. {@link #ALL_DATA_TIERS}.
+     * NOTE: `data_content` is treated as "equal to data_hot" in the tiers hierarchy.
      * If invalid tier names are passed the result is non-deterministic.
      */
     public static int compare(String tier1, String tier2) {
+        if (tier1.equals(DATA_CONTENT)) {
+            tier1 = DATA_HOT;
+        }
+        if (tier2.equals(DATA_CONTENT)) {
+            tier2 = DATA_HOT;
+        }
         int indexOfTier1 = ORDERED_FROZEN_TO_HOT_TIERS.indexOf(tier1);
         assert indexOfTier1 >= 0 : "expecting a valid tier to compare but got:" + tier1;
         int indexOfTier2 = ORDERED_FROZEN_TO_HOT_TIERS.indexOf(tier2);

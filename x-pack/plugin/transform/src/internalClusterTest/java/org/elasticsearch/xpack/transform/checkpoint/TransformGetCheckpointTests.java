@@ -69,6 +69,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     private TestTransportGetCheckpointNodeAction getCheckpointNodeAction;
     private ClusterState clusterStateWithIndex;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -109,6 +110,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         clusterStateWithIndex = ClusterStateCreationUtils.state(indexName, 3, NUMBER_OF_SHARDS);
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
@@ -148,10 +150,11 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
 
     class TestTransportGetCheckpointAction extends TransportGetCheckpointAction {
 
-        public TestTransportGetCheckpointAction() {
+        TestTransportGetCheckpointAction() {
             super(transportService, new ActionFilters(emptySet()), indicesService, clusterService, indexNameExpressionResolver);
         }
 
+        @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             resolveIndicesAndGetCheckpoint(task, request, listener, clusterStateWithIndex);
         }
@@ -160,10 +163,11 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
 
     class TestTransportGetCheckpointNodeAction extends TransportGetCheckpointNodeAction {
 
-        public TestTransportGetCheckpointNodeAction() {
+        TestTransportGetCheckpointNodeAction() {
             super(transportService, new ActionFilters(emptySet()), indicesService);
         }
 
+        @Override
         protected void doExecute(
             Task task,
             GetCheckpointNodeAction.Request request,
@@ -198,6 +202,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             return request.indices();
         }
 
+        @Override
         public String[] concreteIndexNames(
             ClusterState state,
             IndicesOptions options,

@@ -38,7 +38,7 @@ public class RealmSettings {
 
     public static final Setting.AffixSetting<List<String>> DOMAIN_TO_REALM_ASSOC_SETTING = Setting.affixKeySetting(
         "xpack.security.authc.domains.",
-        "realms",
+        "realms", //TODO prevent domains with_ (and check that the synthetic realms use this, __attach, account tokens)
         key -> Setting.stringListSetting(key, Setting.Property.NodeScope)
     );
 

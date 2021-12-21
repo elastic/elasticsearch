@@ -789,27 +789,27 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // (this will happen if pre-processing all items in the bulk failed)
                         actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
                     } else {
+                        ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
+                            @Override
+                            protected void doRun() {
+                                doInternalExecute(task, bulkRequest, executorName, actionListener);
+                            }
+
+                            @Override
+                            public boolean isForceExecution() {
+                                // If we fork back to a write thread we **not** should fail, because tp queue is full.
+                                // (Otherwise the work done during ingest will be lost)
+                                // It is okay to force execution here. Throttling of write requests happens prior to
+                                // ingest when a node receives a bulk request.
+                                return true;
+                            }
+                        };
                         // If a processor went async and returned a response on a different thread then
                         // before we continue the bulk request we should fork back on a write thread:
                         if (originalThread == Thread.currentThread()) {
-                            assert Thread.currentThread().getName().contains(executorName);
-                            doInternalExecute(task, bulkRequest, executorName, actionListener);
+                            threadPool.executor(Names.SAME).execute(runnable);
                         } else {
-                            threadPool.executor(executorName).execute(new ActionRunnable<>(actionListener) {
-                                @Override
-                                protected void doRun() {
-                                    doInternalExecute(task, bulkRequest, executorName, actionListener);
-                                }
-
-                                @Override
-                                public boolean isForceExecution() {
-                                    // If we fork back to a write thread we **not** should fail, because tp queue is full.
-                                    // (Otherwise the work done during ingest will be lost)
-                                    // It is okay to force execution here. Throttling of write requests happens prior to
-                                    // ingest when a node receives a bulk request.
-                                    return true;
-                                }
-                            });
+                            threadPool.executor(executorName).execute(runnable);
                         }
                     }
                 }

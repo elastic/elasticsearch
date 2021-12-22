@@ -42,7 +42,6 @@ public class BinaryOptionalMathProcessor implements Processor {
         }
 
         @Override
-        @SuppressWarnings("HiddenField")
         public final Number apply(Number left, Number right) {
             if (left == null) {
                 return null;
@@ -94,7 +93,6 @@ public class BinaryOptionalMathProcessor implements Processor {
         return doProcess(left().process(input), right() == null ? null : right().process(input));
     }
 
-    @SuppressWarnings("HiddenField")
     public Number doProcess(Object left, Object right) {
         if (left == null) {
             return null;

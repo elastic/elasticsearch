@@ -44,16 +44,16 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
     }
 
     private void removeData(
-        Iterator<Job> iterator,
+        Iterator<Job> jobIterator,
         float requestsPerSecond,
         ActionListener<Boolean> listener,
         BooleanSupplier isTimedOutSupplier
     ) {
-        if (iterator.hasNext() == false) {
+        if (jobIterator.hasNext() == false) {
             listener.onResponse(true);
             return;
         }
-        Job job = iterator.next();
+        Job job = jobIterator.next();
         if (job == null) {
             // maybe null if the batched iterator search return no results
             listener.onResponse(true);
@@ -67,20 +67,20 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
 
         Long retentionDays = getRetentionDays(job);
         if (retentionDays == null) {
-            removeData(iterator, requestsPerSecond, listener, isTimedOutSupplier);
+            removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier);
             return;
         }
 
         calcCutoffEpochMs(job.getId(), retentionDays, ActionListener.wrap(response -> {
             if (response == null) {
-                removeData(iterator, requestsPerSecond, listener, isTimedOutSupplier);
+                removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier);
             } else {
                 removeDataBefore(
                     job,
                     requestsPerSecond,
                     response.latestTimeMs,
                     response.cutoffEpochMs,
-                    ActionListener.wrap(r -> removeData(iterator, requestsPerSecond, listener, isTimedOutSupplier), listener::onFailure)
+                    ActionListener.wrap(r -> removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier), listener::onFailure)
                 );
             }
         }, listener::onFailure));

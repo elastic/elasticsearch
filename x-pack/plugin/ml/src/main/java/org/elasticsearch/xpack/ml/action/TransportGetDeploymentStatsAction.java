@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -240,7 +239,6 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                 updatedAllocationStats.add(
                     new AllocationStats(
                         stat.getModelId(),
-                        stat.getModelSize(),
                         stat.getInferenceThreads(),
                         stat.getModelThreads(),
                         stat.getQueueCapacity(),
@@ -274,7 +272,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
 
                 nodeStats.sort(Comparator.comparing(n -> n.getNode().getId()));
 
-                updatedAllocationStats.add(new AllocationStats(modelId, null, null, null, null, allocation.getStartTime(), nodeStats));
+                updatedAllocationStats.add(new AllocationStats(modelId, null, null, null, allocation.getStartTime(), nodeStats));
             }
         }
 
@@ -319,7 +317,6 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
         listener.onResponse(
             new AllocationStats(
                 task.getModelId(),
-                ByteSizeValue.ofBytes(task.getParams().getModelBytes()),
                 task.getParams().getInferenceThreads(),
                 task.getParams().getModelThreads(),
                 task.getParams().getQueueCapacity(),

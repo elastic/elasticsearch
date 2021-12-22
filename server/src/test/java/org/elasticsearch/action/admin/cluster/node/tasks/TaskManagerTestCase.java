@@ -40,6 +40,7 @@ import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.nio.MockNioTransport;
 import org.junit.After;
 import org.junit.Before;
@@ -78,8 +79,12 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     public void setupTestNodes(Settings settings, Version version) {
         nodesCount = randomIntBetween(2, 10);
         testNodes = new TestNode[nodesCount];
+        final Settings reservedPortRangeSettings = Settings.builder()
+            .put(TransportSettings.PORT.getKey(), getPortRange())
+            .put(settings)
+            .build();
         for (int i = 0; i < testNodes.length; i++) {
-            testNodes[i] = new TestNode("node" + i, threadPool, version, settings);
+            testNodes[i] = new TestNode("node" + i, threadPool, version, reservedPortRangeSettings);
         }
     }
 

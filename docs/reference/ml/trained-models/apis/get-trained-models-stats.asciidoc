@@ -245,8 +245,6 @@ section in <<cluster-nodes-stats>>.
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
-=====
-
 `model_size_stats`:::
 (object)
 A collection of model size stats fields.

@@ -591,7 +591,8 @@ end::mappings[]
 tag::max_docs[]
 `max_docs`::
 (Optional, integer) Maximum number of documents to process. Defaults to all
-documents.
+documents. When set to a value less then or equal to `scroll_size` then a
+scroll will not be used to retrieve the results for the operation.
 end::max_docs[]
 
 tag::memory[]

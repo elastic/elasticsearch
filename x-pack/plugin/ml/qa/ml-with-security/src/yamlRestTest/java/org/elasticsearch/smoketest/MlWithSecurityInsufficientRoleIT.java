@@ -39,13 +39,12 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
 
             // We should have got here if and only if no ML endpoints were called
             for (ExecutableSection section : testCandidate.getTestSection().getExecutableSections()) {
-                if (section instanceof DoSection) {
-                    String apiName = ((DoSection) section).getApiCallSection().getApi();
+                if (section instanceof DoSection doSection) {
+                    String apiName = doSection.getApiCallSection().getApi();
 
                     if (apiName.startsWith("ml.")) {
                         fail("call to ml endpoint [" + apiName + "] should have failed because of missing role");
                     } else if (apiName.startsWith("search")) {
-                        DoSection doSection = (DoSection) section;
                         List<Map<String, Object>> bodies = doSection.getApiCallSection().getBodies();
                         boolean containsInferenceAgg = false;
                         for (Map<String, Object> body : bodies) {

@@ -17,6 +17,7 @@ import org.junit.After;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
@@ -40,21 +41,21 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
         { "{}", "query is null or empty" },
         { """
             {"query": ""}""", "query is null or empty" },
-        { """
+        { String.format(Locale.ROOT, """
             {"query": "%s", "timestamp_field": ""}
-            """.formatted(validQuery), "timestamp field is null or empty" },
-        { """
+            """, validQuery), "timestamp field is null or empty" },
+        { String.format(Locale.ROOT, """
             {"query": "%s", "event_category_field": ""}
-            """.formatted(validQuery), "event category field is null or empty" },
-        { """
+            """, validQuery), "event category field is null or empty" },
+        { String.format(Locale.ROOT, """
             {"query": "%s", "size": -1}
-            """.formatted(validQuery), "size must be greater than or equal to 0" },
-        { """
+            """, validQuery), "size must be greater than or equal to 0" },
+        { String.format(Locale.ROOT, """
             {"query": "%s", "filter": null}
-            """.formatted(validQuery), "filter doesn't support values of type: VALUE_NULL" },
-        { """
+            """, validQuery), "filter doesn't support values of type: VALUE_NULL" },
+        { String.format(Locale.ROOT, """
             {"query": "%s", "filter": {}}
-            """.formatted(validQuery), "query malformed, empty clause found" } };
+            """, validQuery), "query malformed, empty clause found" } };
 
     public void testBadRequests() throws Exception {
         createIndex(defaultValidationIndexName, (String) null);

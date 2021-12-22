@@ -312,7 +312,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
             }
 
             assertTrue(shouldStop.compareAndSet(false, true));
-            final long permitDeadlineMillis = threadPool.relativeTimeInMillis() + TimeUnit.SECONDS.toMillis(30);
+            final long permitDeadlineMillis = threadPool.relativeTimeInMillis() + TimeUnit.MINUTES.toMillis(2);
 
             final List<String> failedPermitAcquisitions = new ArrayList<>();
             acquirePermitsAtEnd(

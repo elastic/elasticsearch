@@ -1,0 +1,6 @@
+pr: 81819
+summary: Add `doPrivileged` section in deprecation logger
+area: Infra/Logging
+type: bug
+issues:
+ - 81708

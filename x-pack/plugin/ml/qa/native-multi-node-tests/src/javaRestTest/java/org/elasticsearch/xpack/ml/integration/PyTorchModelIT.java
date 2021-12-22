@@ -264,7 +264,10 @@ public class PyTorchModelIT extends ESRestTestCase {
                 is(not(nullValue()))
             );
             assertThat(stringModelSizeBytes, equalTo("1.5kb"));
-            String stringRequiredNativeMemory = (String) XContentMapValues.extractValue("model_size_stats.required_native_memory", stats.get(0));
+            String stringRequiredNativeMemory = (String) XContentMapValues.extractValue(
+                "model_size_stats.required_native_memory",
+                stats.get(0)
+            );
             assertThat(
                 "stats response: " + responseMap + " human stats response" + humanResponseMap,
                 stringRequiredNativeMemory,

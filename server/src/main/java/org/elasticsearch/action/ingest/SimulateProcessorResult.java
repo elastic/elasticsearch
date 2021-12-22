@@ -258,16 +258,16 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
-    Status getStatus(String typeValue) {
+    Status getStatus(String type) {
         // if no condition, or condition passed
-        if (conditionalWithResult == null || conditionalWithResult.v2()) {
+        if (conditionalWithResult == null || (conditionalWithResult != null && conditionalWithResult.v2())) {
             if (failure != null) {
                 if (ingestDocument == null) {
                     return Status.ERROR;
                 } else {
                     return Status.ERROR_IGNORED;
                 }
-            } else if (ingestDocument == null && "pipeline".equals(typeValue) == false) {
+            } else if (ingestDocument == null && "pipeline".equals(type) == false) {
                 return Status.DROPPED;
             }
             return Status.SUCCESS;

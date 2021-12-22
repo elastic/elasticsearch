@@ -38,7 +38,8 @@ public class ProfileIT extends ESRestTestCase {
             },
             "email": "foo@example.com",
             "full_name": "User Foo",
-            "display_name": "Curious Foo"
+            "display_name": "Curious Foo",
+            "active": true
           },
           "last_synchronized": %s,
           "access": {

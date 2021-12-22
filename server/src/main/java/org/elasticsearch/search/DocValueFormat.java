@@ -737,9 +737,6 @@ public interface DocValueFormat extends NamedWriteable {
                 } catch (IOException e) {
                     throw new IllegalArgumentException(e);
                 }
-            } else if (value instanceof BytesRef bytesRef) {
-                // TODO: This branch should be removed. Called only SearchAfterBuilder#convertValueFromSortType (line 202)
-                return bytesRef;
             } else {
                 throw new IllegalArgumentException("Cannot parse tsid object [" + value + "]");
             }

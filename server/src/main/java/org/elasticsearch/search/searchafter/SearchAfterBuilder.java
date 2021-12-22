@@ -12,6 +12,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -199,7 +200,12 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
                 case STRING_VAL:
                 case STRING:
-                    return format.parseBytesRef(value);
+                    if (value instanceof BytesRef bytesRef) {
+                        // TODO: We should replace this branch by finding the correct SortField.Type for binary data
+                        return bytesRef;
+                    } else {
+                        return format.parseBytesRef(value);
+                    }
 
                 default:
                     throw new IllegalArgumentException(

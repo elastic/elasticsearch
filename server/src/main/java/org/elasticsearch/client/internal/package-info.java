@@ -9,4 +9,4 @@
 /**
  * The client module allowing to easily perform actions/operations.
  */
-package org.elasticsearch.client;
+package org.elasticsearch.client.internal;

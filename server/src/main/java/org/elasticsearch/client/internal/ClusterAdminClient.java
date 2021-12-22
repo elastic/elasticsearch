@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.client;
+package org.elasticsearch.client.internal;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -204,7 +204,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      *
      * @param request The nodes info request
      * @return The result future
-     * @see org.elasticsearch.client.Requests#nodesInfoRequest(String...)
+     * @see org.elasticsearch.client.internal.Requests#nodesInfoRequest(String...)
      */
     ActionFuture<NodesInfoResponse> nodesInfo(NodesInfoRequest request);
 
@@ -213,7 +213,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      *
      * @param request  The nodes info request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#nodesInfoRequest(String...)
+     * @see org.elasticsearch.client.internal.Requests#nodesInfoRequest(String...)
      */
     void nodesInfo(NodesInfoRequest request, ActionListener<NodesInfoResponse> listener);
 
@@ -227,7 +227,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      *
      * @param request The cluster stats request
      * @return The result future
-     * @see org.elasticsearch.client.Requests#clusterStatsRequest
+     * @see org.elasticsearch.client.internal.Requests#clusterStatsRequest
      */
     ActionFuture<ClusterStatsResponse> clusterStats(ClusterStatsRequest request);
 
@@ -236,7 +236,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      *
      * @param request  The cluster stats request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#clusterStatsRequest()
+     * @see org.elasticsearch.client.internal.Requests#clusterStatsRequest()
      */
     void clusterStats(ClusterStatsRequest request, ActionListener<ClusterStatsResponse> listener);
 
@@ -247,7 +247,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      *
      * @param request The nodes stats request
      * @return The result future
-     * @see org.elasticsearch.client.Requests#nodesStatsRequest(String...)
+     * @see org.elasticsearch.client.internal.Requests#nodesStatsRequest(String...)
      */
     ActionFuture<NodesStatsResponse> nodesStats(NodesStatsRequest request);
 
@@ -256,7 +256,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      *
      * @param request  The nodes info request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#nodesStatsRequest(String...)
+     * @see org.elasticsearch.client.internal.Requests#nodesStatsRequest(String...)
      */
     void nodesStats(NodesStatsRequest request, ActionListener<NodesStatsResponse> listener);
 
@@ -273,7 +273,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * @param request
      *            The nodes usage request
      * @return The result future
-     * @see org.elasticsearch.client.Requests#nodesUsageRequest(String...)
+     * @see org.elasticsearch.client.internal.Requests#nodesUsageRequest(String...)
      */
     ActionFuture<NodesUsageResponse> nodesUsage(NodesUsageRequest request);
 
@@ -284,7 +284,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      *            The nodes usage request
      * @param listener
      *            A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#nodesUsageRequest(String...)
+     * @see org.elasticsearch.client.internal.Requests#nodesUsageRequest(String...)
      */
     void nodesUsage(NodesUsageRequest request, ActionListener<NodesUsageResponse> listener);
 
@@ -317,7 +317,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      *
      * @param request The nodes tasks request
      * @return The result future
-     * @see org.elasticsearch.client.Requests#listTasksRequest()
+     * @see org.elasticsearch.client.internal.Requests#listTasksRequest()
      */
     ActionFuture<ListTasksResponse> listTasks(ListTasksRequest request);
 
@@ -326,7 +326,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      *
      * @param request  The nodes tasks request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#listTasksRequest()
+     * @see org.elasticsearch.client.internal.Requests#listTasksRequest()
      */
     void listTasks(ListTasksRequest request, ActionListener<ListTasksResponse> listener);
 
@@ -340,7 +340,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      *
      * @param request the request
      * @return the result future
-     * @see org.elasticsearch.client.Requests#getTaskRequest()
+     * @see org.elasticsearch.client.internal.Requests#getTaskRequest()
      */
     ActionFuture<GetTaskResponse> getTask(GetTaskRequest request);
 
@@ -349,7 +349,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      *
      * @param request the request
      * @param listener A listener to be notified with the result
-     * @see org.elasticsearch.client.Requests#getTaskRequest()
+     * @see org.elasticsearch.client.internal.Requests#getTaskRequest()
      */
     void getTask(GetTaskRequest request, ActionListener<GetTaskResponse> listener);
 
@@ -368,7 +368,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      *
      * @param request The nodes tasks request
      * @return The result future
-     * @see org.elasticsearch.client.Requests#cancelTasksRequest()
+     * @see org.elasticsearch.client.internal.Requests#cancelTasksRequest()
      */
     ActionFuture<CancelTasksResponse> cancelTasks(CancelTasksRequest request);
 
@@ -377,7 +377,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      *
      * @param request  The nodes tasks request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#cancelTasksRequest()
+     * @see org.elasticsearch.client.internal.Requests#cancelTasksRequest()
      */
     void cancelTasks(CancelTasksRequest request, ActionListener<CancelTasksResponse> listener);
 

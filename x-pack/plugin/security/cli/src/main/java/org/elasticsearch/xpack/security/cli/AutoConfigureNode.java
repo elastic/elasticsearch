@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -227,7 +228,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             // or if the admin explicitly makes configuration immutable (read-only), both of which are reasons to skip auto-configuration
             // this will show a message to the console (the first time the node starts) and auto-configuration is effectively bypassed
             // the message will not be subsequently shown (because auto-configuration doesn't run for node restarts)
-            throw new UserException(ExitCodes.CANT_CREATE, "Could not create auto configuration directory", t);
+            throw new UserException(ExitCodes.CANT_CREATE, "Could not create auto-configuration directory", t);
         }
 
         // Check that the created auto-config dir has the same owner as the config dir.
@@ -405,7 +406,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 transportKey = transportKeyPair.getPrivate();
                 transportCert = CertGenUtils.generateSignedCertificate(
                     certificatePrincipal,
-                    getSubjectAltNames(),
+                    null, // transport only validates certificates not the hostname
                     transportKeyPair,
                     transportCaCert,
                     transportCaKey,
@@ -444,7 +445,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             // non-CA
             httpCert = CertGenUtils.generateSignedCertificate(
                 certificatePrincipal,
-                getSubjectAltNames(),
+                getSubjectAltNames(env.settings()),
                 httpKeyPair,
                 httpCaCert,
                 httpCaKey,
@@ -911,14 +912,31 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         FileUtils.moveDirectory(srcDir.toFile(), dstDir.toFile());
     }
 
-    private GeneralNames getSubjectAltNames() throws IOException {
+    private GeneralNames getSubjectAltNames(Settings settings) throws IOException {
         Set<GeneralName> generalNameSet = new HashSet<>();
         for (InetAddress ip : NetworkUtils.getAllAddresses()) {
             String ipString = NetworkAddress.format(ip);
             generalNameSet.add(new GeneralName(GeneralName.iPAddress, ipString));
         }
         generalNameSet.add(new GeneralName(GeneralName.dNSName, "localhost"));
+        // HOSTNAME should always be set by start-up scripts, and this code is always invoked only by the said startup scripts
         generalNameSet.add(new GeneralName(GeneralName.dNSName, System.getenv("HOSTNAME")));
+        for (List<String> publishAddresses : List.of(
+            NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.exists(settings)
+                ? NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings)
+                : List.<String>of(),
+            HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST.exists(settings)
+                ? HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST.get(settings)
+                : List.<String>of()
+        )) {
+            for (String publishAddress : publishAddresses) {
+                if (InetAddresses.isInetAddress(publishAddress)) {
+                    generalNameSet.add(new GeneralName(GeneralName.iPAddress, publishAddress));
+                } else {
+                    generalNameSet.add(new GeneralName(GeneralName.dNSName, publishAddress));
+                }
+            }
+        }
         return new GeneralNames(generalNameSet.toArray(new GeneralName[0]));
     }
 
@@ -1048,6 +1066,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         Path tmpPath = basePath.resolve(fileName + "." + UUIDs.randomBase64UUID() + ".tmp");
         try (OutputStream outputStream = Files.newOutputStream(tmpPath, StandardOpenOption.CREATE_NEW)) {
             writer.accept(outputStream);
+        }
+        // close file before moving, otherwise the windows FS throws IOException
+        try {
             PosixFileAttributeView view = Files.getFileAttributeView(tmpPath, PosixFileAttributeView.class);
             if (view != null) {
                 view.setPermissions(permission);

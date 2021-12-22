@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.profile;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -119,7 +120,7 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         final String uid3 = indexDocument();
         final PlainActionFuture<ProfileService.VersionedDocument> future3 = new PlainActionFuture<>();
         profileService.getVersionedDocument(authentication, future3);
-        final IllegalStateException e3 = expectThrows(IllegalStateException.class, future3::actionGet);
+        final ElasticsearchException e3 = expectThrows(ElasticsearchException.class, future3::actionGet);
 
         assertThat(
             e3.getMessage(),

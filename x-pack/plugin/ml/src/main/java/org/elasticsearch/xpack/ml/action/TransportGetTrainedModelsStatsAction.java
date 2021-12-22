@@ -208,7 +208,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         QueryBuilder query = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelDefinitionDoc.NAME))
             .filter(QueryBuilders.termsQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelIds))
-            .filter(QueryBuilders.termQuery(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName(), 1));
+            .filter(QueryBuilders.termQuery(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName(), 0));
         SearchRequest searchRequest = client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
             .setQuery(QueryBuilders.constantScoreQuery(query))
             .setFetchSource(false)

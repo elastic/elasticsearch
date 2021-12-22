@@ -379,7 +379,6 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             if (allocation != null) {
                 modelSizes.add(allocation.getTaskParams().getModelBytes());
             }
-            trainedModelAllocationMetadata.getModelAllocation(stats.getModelId()).getTaskParams().getModelBytes();
             for (var nodeStats : stats.getNodeStats()) {
                 long nodeInferenceCount = nodeStats.getInferenceCount().orElse(0L);
                 avgTimeSum += nodeStats.getAvgInferenceTime().orElse(0.0) * nodeInferenceCount;

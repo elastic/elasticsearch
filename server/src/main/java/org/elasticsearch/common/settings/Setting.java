@@ -832,7 +832,7 @@ public class Setting<T> implements ToXContentObject {
          * @return the raw list of dependencies for this setting
          */
         public Set<AffixSettingDependency> getDependencies() {
-            return Collections.unmodifiableSet(dependencies);
+            return dependencies;
         }
 
         @Override

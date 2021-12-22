@@ -202,6 +202,10 @@ public final class ExpandedIdsMatcher {
                 .collect(Collectors.toList());
         }
 
+        public SimpleIdsMatcher(String expression) {
+            this(tokenizeExpression(expression));
+        }
+
         /**
          * Do any of the matchers match {@code id}?
          *

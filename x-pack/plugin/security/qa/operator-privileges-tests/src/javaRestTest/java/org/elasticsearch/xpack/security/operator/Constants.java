@@ -152,6 +152,7 @@ public class Constants {
         "cluster:admin/xpack/ml/job/model_snapshots/revert",
         "cluster:admin/xpack/ml/job/model_snapshots/update",
         "cluster:admin/xpack/ml/job/model_snapshots/upgrade",
+        "cluster:admin/xpack/ml/job/model_snapshots/upgrade/cancel",
         "cluster:admin/xpack/ml/job/open",
         "cluster:admin/xpack/ml/job/persist",
         "cluster:admin/xpack/ml/job/put",

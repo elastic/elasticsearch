@@ -123,15 +123,21 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
 
     @Override
     public String toString() {
-        String json = "_na_";
+        String source = "_na_";
 
         try {
-            json = XContentHelper.convertToJson(content, false, xContentType);
+            source = XContentHelper.convertToJson(content, false, xContentType);
         } catch (Exception e) {
             // ignore
         }
 
-        return "put stored script {id [" + id + "]" + (context != null ? ", context [" + context + "]" : "") + ", content [" + json + "]}";
+        return "put stored script {id ["
+            + id
+            + "]"
+            + (context != null ? ", context [" + context + "]" : "")
+            + ", content ["
+            + source
+            + "]}";
     }
 
     @Override

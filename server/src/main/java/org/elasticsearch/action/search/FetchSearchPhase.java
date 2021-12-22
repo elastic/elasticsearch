@@ -268,12 +268,12 @@ final class FetchSearchPhase extends SearchPhase {
     }
 
     private void moveToNextPhase(
-        SearchPhaseController controller,
+        SearchPhaseController searchPhaseController,
         AtomicArray<SearchPhaseResult> queryPhaseResults,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr
     ) {
-        final InternalSearchResponse internalResponse = controller.merge(
+        final InternalSearchResponse internalResponse = searchPhaseController.merge(
             context.getRequest().scroll() != null,
             reducedQueryPhase,
             fetchResultsArr.asList(),

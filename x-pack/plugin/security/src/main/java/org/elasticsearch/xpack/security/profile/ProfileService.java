@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.profile;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -56,6 +57,7 @@ import java.time.Clock;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -175,13 +177,9 @@ public class ProfileService {
     }
 
     private void getVersionedDocument(String uid, ActionListener<VersionedDocument> listener) {
-        if (maybeHandleIndexStatusIssue(listener)) {
-            return;
-        }
-
-        final GetRequest getRequest = new GetRequest(SECURITY_PROFILE_ALIAS, uidToDocId(uid));
-        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
-            profileIndex.checkIndexVersionThenExecute(
+        tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
+            final GetRequest getRequest = new GetRequest(SECURITY_PROFILE_ALIAS, uidToDocId(uid));
+            frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(response -> {
                     if (false == response.isExists()) {
@@ -198,61 +196,63 @@ public class ProfileService {
                     );
                 }, listener::onFailure))
             );
-        }
+        });
     }
 
     // Package private for testing
     void getVersionedDocument(Authentication authentication, ActionListener<VersionedDocument> listener) {
-        if (maybeHandleIndexStatusIssue(listener)) {
-            return;
-        }
-
-        final SearchRequest searchRequest = client.prepareSearch(SECURITY_PROFILE_ALIAS)
-            .setQuery(
-                QueryBuilders.boolQuery()
-                    .must(QueryBuilders.termQuery("user.username", authentication.getUser().principal()))
-                    // TODO: this will be replaced by domain lookup and reverse lookup
-                    .must(QueryBuilders.termQuery("user.realm.name", authentication.getSourceRealm().getName()))
-            )
-            .request();
-        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
-            profileIndex.checkIndexVersionThenExecute(
-                listener::onFailure,
-                () -> executeAsyncWithOrigin(
-                    client,
-                    SECURITY_ORIGIN,
-                    SearchAction.INSTANCE,
-                    searchRequest,
-                    ActionListener.wrap(searchResponse -> {
-                        final SearchHits searchHits = searchResponse.getHits();
-                        final SearchHit[] hits = searchHits.getHits();
-                        if (hits.length < 1) {
-                            logger.debug(
-                                "profile does not exist for username [{}] and realm name [{}]",
-                                authentication.getUser().principal(),
-                                authentication.getSourceRealm().getName()
-                            );
-                            listener.onResponse(null);
-                        } else if (hits.length == 1) {
-                            final SearchHit hit = hits[0];
-                            listener.onResponse(
-                                new VersionedDocument(buildProfileDocument(hit.getSourceRef()), hit.getPrimaryTerm(), hit.getSeqNo())
-                            );
-                        } else {
-                            final ParameterizedMessage errorMessage = new ParameterizedMessage(
-                                "multiple [{}] profiles [{}] found for user [{}]",
-                                hits.length,
-                                Arrays.stream(hits).map(SearchHit::getId).map(this::docIdToUid).sorted().collect(Collectors.joining(",")),
-                                // TODO: include domain information
-                                authentication.getUser().principal()
-                            );
-                            logger.error(errorMessage);
-                            listener.onFailure(new IllegalStateException(errorMessage.getFormattedMessage()));
-                        }
-                    }, listener::onFailure)
+        tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
+            final SearchRequest searchRequest = client.prepareSearch(SECURITY_PROFILE_ALIAS)
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .must(QueryBuilders.termQuery("user.username", authentication.getUser().principal()))
+                        // TODO: this will be replaced by domain lookup and reverse lookup
+                        .must(QueryBuilders.termQuery("user.realm.name", authentication.getSourceRealm().getName()))
                 )
-            );
-        }
+                .request();
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
+                profileIndex.checkIndexVersionThenExecute(
+                    listener::onFailure,
+                    () -> executeAsyncWithOrigin(
+                        client,
+                        SECURITY_ORIGIN,
+                        SearchAction.INSTANCE,
+                        searchRequest,
+                        ActionListener.wrap(searchResponse -> {
+                            final SearchHits searchHits = searchResponse.getHits();
+                            final SearchHit[] hits = searchHits.getHits();
+                            if (hits.length < 1) {
+                                logger.debug(
+                                    "profile does not exist for username [{}] and realm name [{}]",
+                                    authentication.getUser().principal(),
+                                    authentication.getSourceRealm().getName()
+                                );
+                                listener.onResponse(null);
+                            } else if (hits.length == 1) {
+                                final SearchHit hit = hits[0];
+                                listener.onResponse(
+                                    new VersionedDocument(buildProfileDocument(hit.getSourceRef()), hit.getPrimaryTerm(), hit.getSeqNo())
+                                );
+                            } else {
+                                final ParameterizedMessage errorMessage = new ParameterizedMessage(
+                                    "multiple [{}] profiles [{}] found for user [{}]",
+                                    hits.length,
+                                    Arrays.stream(hits)
+                                        .map(SearchHit::getId)
+                                        .map(this::docIdToUid)
+                                        .sorted()
+                                        .collect(Collectors.joining(",")),
+                                    // TODO: include domain information
+                                    authentication.getUser().principal()
+                                );
+                                logger.error(errorMessage);
+                                listener.onFailure(new ElasticsearchException(errorMessage.getFormattedMessage()));
+                            }
+                        }, listener::onFailure)
+                    )
+                );
+            }
+        });
     }
 
     private void createProfile(Subject subject, ActionListener<Profile> listener) throws IOException {
@@ -360,17 +360,21 @@ public class ProfileService {
         }
     }
 
-    private <T> boolean maybeHandleIndexStatusIssue(ActionListener<T> listener) {
+    /**
+     * Freeze the profile index check its availability and return it if everything is ok.
+     * Otherwise it returns null.
+     */
+    private <T> Optional<SecurityIndexManager> tryFreezeAndCheckIndex(ActionListener<T> listener) {
         final SecurityIndexManager frozenProfileIndex = profileIndex.freeze();
         if (false == frozenProfileIndex.indexExists()) {
             logger.debug("profile index does not exist");
             listener.onResponse(null);
-            return true;
+            return Optional.empty();
         } else if (false == frozenProfileIndex.isAvailable()) {
             listener.onFailure(frozenProfileIndex.getUnavailableReason());
-            return true;
+            return Optional.empty();
         }
-        return false;
+        return Optional.of(frozenProfileIndex);
     }
 
     // Package private for testing

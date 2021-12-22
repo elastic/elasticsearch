@@ -268,8 +268,10 @@ public class RealmsTests extends ESTestCase {
                     realmsForDomain.add("default_native");
                 }
                 if (false == realmsForDomain.isEmpty() || randomBoolean()) {
-                    builder.put("xpack.security.authc.domains." + domain + ".realms",
-                        realmsForDomain.stream().collect(Collectors.joining(", ")));
+                    builder.put(
+                        "xpack.security.authc.domains." + domain + ".realms",
+                        realmsForDomain.stream().collect(Collectors.joining(", "))
+                    );
                 }
             }
         }
@@ -395,7 +397,7 @@ public class RealmsTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new Realms(settings2, env2, factories, licenseState, threadContext, reservedRealm)
         );
-        assertThat(e2.getMessage(), containsString("Realm names must not start with \"_\""));
+        assertThat(e2.getMessage(), containsString("Undefined realms [" + syntheticRealm + "] cannot be assigned to domains"));
     }
 
     public void testWithSettingsWhereDifferentRealmsHaveSameOrder() throws Exception {

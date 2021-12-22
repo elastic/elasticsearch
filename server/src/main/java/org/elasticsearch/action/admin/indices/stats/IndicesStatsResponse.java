@@ -50,11 +50,11 @@ public class IndicesStatsResponse extends BroadcastResponse {
 
     public Map<ShardRouting, ShardStats> asMap() {
         if (this.shardStatsMap == null) {
-            Map<ShardRouting, ShardStats> mutableShardStatsMap = new HashMap<>();
+            Map<ShardRouting, ShardStats> shardStatsMap = new HashMap<>();
             for (ShardStats ss : shards) {
-                mutableShardStatsMap.put(ss.getShardRouting(), ss);
+                shardStatsMap.put(ss.getShardRouting(), ss);
             }
-            this.shardStatsMap = unmodifiableMap(mutableShardStatsMap);
+            this.shardStatsMap = unmodifiableMap(shardStatsMap);
         }
         return this.shardStatsMap;
     }

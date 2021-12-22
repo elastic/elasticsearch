@@ -229,7 +229,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
 
         authenticatorChain.authenticateAsync(context, future);
-        authentication = future.actionGet();
+        final Authentication authentication = future.actionGet();
         assertThat(authentication.getUser(), is(hasFallbackUser ? fallbackUser : anonymousUser));
         verify(serviceAccountAuthenticator).extractCredentials(eq(context));
         verify(serviceAccountAuthenticator, never()).authenticate(eq(context), any());

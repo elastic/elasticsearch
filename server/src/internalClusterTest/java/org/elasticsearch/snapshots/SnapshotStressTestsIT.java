@@ -79,7 +79,6 @@ import static org.hamcrest.Matchers.notNullValue;
 @LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS") // we sometimes have >2048 open files
 public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79718")
     public void testRandomActivities() throws InterruptedException {
         final DiscoveryNodes discoveryNodes = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
         new TrackedCluster(internalCluster(), nodeNames(discoveryNodes.getMasterNodes()), nodeNames(discoveryNodes.getDataNodes())).run();
@@ -313,7 +312,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
             }
 
             assertTrue(shouldStop.compareAndSet(false, true));
-            final long permitDeadlineMillis = threadPool.relativeTimeInMillis() + TimeUnit.SECONDS.toMillis(30);
+            final long permitDeadlineMillis = threadPool.relativeTimeInMillis() + TimeUnit.MINUTES.toMillis(2);
 
             final List<String> failedPermitAcquisitions = new ArrayList<>();
             acquirePermitsAtEnd(

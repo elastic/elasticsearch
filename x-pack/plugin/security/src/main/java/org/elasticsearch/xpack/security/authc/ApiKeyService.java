@@ -621,7 +621,7 @@ public class ApiKeyService {
         String docId,
         ApiKeyDoc apiKeyDoc,
         ApiKeyCredentials credentials,
-        @SuppressWarnings("HiddenField") Clock clock,
+        Clock clock,
         ActionListener<AuthenticationResult<User>> listener
     ) {
         if ("api_key".equals(apiKeyDoc.docType) == false) {
@@ -717,7 +717,7 @@ public class ApiKeyService {
     void validateApiKeyExpiration(
         ApiKeyDoc apiKeyDoc,
         ApiKeyCredentials credentials,
-        @SuppressWarnings("HiddenField") Clock clock,
+        Clock clock,
         ActionListener<AuthenticationResult<User>> listener
     ) {
         if (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant())) {
@@ -799,10 +799,10 @@ public class ApiKeyService {
     // Protected instance method so this can be mocked
     protected void verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials, ActionListener<Boolean> listener) {
         threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> {
-            Hasher hasher1 = Hasher.resolveFromHash(apiKeyHash.toCharArray());
+            Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
             final char[] apiKeyHashChars = apiKeyHash.toCharArray();
             try {
-                return hasher1.verify(credentials.getKey(), apiKeyHashChars);
+                return hasher.verify(credentials.getKey(), apiKeyHashChars);
             } finally {
                 Arrays.fill(apiKeyHashChars, (char) 0);
             }

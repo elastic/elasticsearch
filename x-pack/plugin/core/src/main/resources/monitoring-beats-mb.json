@@ -1808,7 +1808,7 @@
                           "type": "alias",
                           "path": "beat.stats.libbeat.pipeline.clients"
                         },
-                        "event": {
+                        "events": {
                           "properties": {
                             "active": {
                               "type": "alias",

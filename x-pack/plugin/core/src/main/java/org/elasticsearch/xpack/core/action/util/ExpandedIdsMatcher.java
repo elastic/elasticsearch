@@ -10,6 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -173,6 +174,47 @@ public final class ExpandedIdsMatcher {
      */
     public boolean isOnlyExact() {
         return onlyExact;
+    }
+
+    /**
+     * A simple matcher with one purpose to test whether an id
+     * matches a expression that may contain wildcards.
+     * Use the {@link #idMatches(String)} function to
+     * test if the given id is matched by any of the matchers.
+     *
+     * Unlike {@link ExpandedIdsMatcher} there is no
+     * allowNoMatchForWildcards logic and the matchers
+     * are not be removed once they have been matched.
+     */
+    public static class SimpleIdsMatcher {
+
+        private final List<IdMatcher> matchers;
+
+        public SimpleIdsMatcher(String[] tokens) {
+
+            if (Strings.isAllOrWildcard(tokens)) {
+                matchers = Collections.singletonList(new WildcardMatcher("*"));
+                return;
+            }
+
+            matchers = Arrays.stream(tokens)
+                .map(token -> Regex.isSimpleMatchPattern(token) ? new WildcardMatcher(token) : new EqualsIdMatcher(token))
+                .collect(Collectors.toList());
+        }
+
+        public SimpleIdsMatcher(String expression) {
+            this(tokenizeExpression(expression));
+        }
+
+        /**
+         * Do any of the matchers match {@code id}?
+         *
+         * @param id Id to test
+         * @return True if the given id is matched by any of the matchers
+         */
+        public boolean idMatches(String id) {
+            return matchers.stream().anyMatch(idMatcher -> idMatcher.matches(id));
+        }
     }
 
     private abstract static class IdMatcher {

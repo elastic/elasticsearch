@@ -1,6 +1,5 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   name 'spatial'
@@ -14,17 +13,6 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('vector-tile'))
-  testImplementation project(path: ':modules:legacy-geo')
-  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
-}
-
-restResources {
-  restApi {
-    include '_common', 'bulk', 'indices', 'index', 'search', 'xpack'
-  }
-  restTests {
-    includeCore 'geo_shape'
-  }
 }
 
 testClusters.configureEach {

@@ -143,10 +143,10 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 assertEquals("6.0", ranges.get(1).getFromAsString());
                 assertEquals("10.6", ranges.get(1).getToAsString());
                 // NOTE: `getOriginalFrom` and `getOriginalTo` return double
-                assertEquals(5.0D, ranges.get(0).getOriginalFrom(), 0.0000001);
-                assertEquals(6.0D, ranges.get(0).getOriginalTo(), 0.0000001);
-                assertEquals(6.0D, ranges.get(1).getOriginalFrom(), 0.0000001);
-                assertEquals(10.6D, ranges.get(1).getOriginalTo(), 0.0000001);
+                assertEquals(5.0D, ranges.get(0).getOriginalFrom(), 0.0000000000001);
+                assertEquals(6.0D, ranges.get(0).getOriginalTo(), 0.0000000000001);
+                assertEquals(6.0D, ranges.get(1).getOriginalFrom(), 0.0000000000001);
+                assertEquals(10.6D, ranges.get(1).getOriginalTo(), 0.0000000000001);
                 assertEquals(1, ranges.get(0).getDocCount());
                 assertEquals(2, ranges.get(1).getDocCount());
             },

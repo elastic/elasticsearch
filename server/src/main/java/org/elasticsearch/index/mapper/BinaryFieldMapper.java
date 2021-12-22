@@ -92,6 +92,11 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean includeInFieldExpansion(SearchExecutionContext context) {
+            return false;
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
         }

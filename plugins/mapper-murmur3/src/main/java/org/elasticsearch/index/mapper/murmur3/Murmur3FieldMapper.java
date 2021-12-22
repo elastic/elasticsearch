@@ -110,6 +110,11 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean includeInFieldExpansion(SearchExecutionContext context) {
+            return false;
+        }
+
+        @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("Murmur3 fields are not searchable: [" + name() + "]");
         }

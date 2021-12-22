@@ -324,6 +324,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean includeInFieldExpansion(SearchExecutionContext context) {
+            return delegateFieldType().includeInFieldExpansion(context);    // TODO how does searching actually work here?
+        }
+
+        @Override
         public Query existsQuery(SearchExecutionContext context) {
             return delegateFieldType().existsQuery(context);
         }

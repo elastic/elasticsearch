@@ -128,6 +128,11 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("[" + NAME + "] is not searchable");
         }
+
+        @Override
+        public boolean includeInFieldExpansion(SearchExecutionContext context) {
+            return false;
+        }
     }
 
     private TimeSeriesIdFieldMapper() {

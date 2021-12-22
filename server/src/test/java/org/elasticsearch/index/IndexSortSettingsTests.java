@@ -132,6 +132,11 @@ public class IndexSortSettingsTests extends ESTestCase {
             }
 
             @Override
+            public boolean includeInFieldExpansion(SearchExecutionContext context) {
+                return false;
+            }
+
+            @Override
             public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
                 searchLookup.get();
                 return null;

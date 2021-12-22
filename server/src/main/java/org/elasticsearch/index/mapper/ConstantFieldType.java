@@ -44,6 +44,11 @@ public abstract class ConstantFieldType extends MappedFieldType {
         return true;
     }
 
+    @Override
+    public boolean includeInFieldExpansion(SearchExecutionContext context) {
+        return true;
+    }
+
     /**
      * Return whether the constant value of this field matches the provided {@code pattern}
      * as documented in {@link Regex#simpleMatch}.
@@ -113,10 +118,5 @@ public abstract class ConstantFieldType extends MappedFieldType {
         } else {
             return new MatchNoDocsQuery();
         }
-    }
-
-    @Override
-    public boolean fieldExists(SearchExecutionContext context) {
-        return true;
     }
 }

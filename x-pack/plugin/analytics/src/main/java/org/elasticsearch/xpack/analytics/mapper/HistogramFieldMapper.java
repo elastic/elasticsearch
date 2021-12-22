@@ -257,6 +257,11 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean includeInFieldExpansion(SearchExecutionContext context) {
+            return false;
+        }
+
+        @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException(
                 "[" + CONTENT_TYPE + "] field do not support searching, " + "use dedicated aggregations instead: [" + name() + "]"

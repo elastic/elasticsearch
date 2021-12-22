@@ -1183,6 +1183,11 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean includeInFieldExpansion(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(this.name());
+        }
+
+        @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexed();
             return type.termQuery(name(), value);

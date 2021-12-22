@@ -212,6 +212,11 @@ public class IpFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
+        @Override
+        public boolean includeInFieldExpansion(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name());
+        }
+
         private static InetAddress parse(Object value) {
             if (value instanceof InetAddress) {
                 return (InetAddress) value;

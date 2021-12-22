@@ -134,7 +134,7 @@ public final class QueryParserHelper {
                 continue;
             }
 
-            if (wildcardMatch && fieldType.fieldExists(context) == false) {
+            if (wildcardMatch && fieldType.includeInFieldExpansion(context) == false) {
                 // Ignore fields in the mappings that are not present in the lucene index
                 continue;
             }

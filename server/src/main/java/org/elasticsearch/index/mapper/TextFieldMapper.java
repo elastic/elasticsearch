@@ -528,6 +528,11 @@ public class TextFieldMapper extends FieldMapper {
             throw new UnsupportedOperationException();
         }
 
+        @Override
+        public boolean includeInFieldExpansion(SearchExecutionContext context) {
+            return false;
+        }
+
         boolean accept(int length) {
             return length >= minChars - 1 && length <= maxChars;
         }

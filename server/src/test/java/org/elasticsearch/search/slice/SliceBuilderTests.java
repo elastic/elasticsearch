@@ -156,6 +156,11 @@ public class SliceBuilderTests extends ESTestCase {
             }
 
             @Override
+            public boolean includeInFieldExpansion(SearchExecutionContext context) {
+                return false;
+            }
+
+            @Override
             public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
                 return null;
             }

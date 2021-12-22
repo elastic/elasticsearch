@@ -85,6 +85,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean includeInFieldExpansion(SearchExecutionContext context) {
+            return false;
+        }
+
+        @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }

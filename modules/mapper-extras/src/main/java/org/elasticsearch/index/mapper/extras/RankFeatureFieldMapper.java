@@ -107,6 +107,11 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean includeInFieldExpansion(SearchExecutionContext context) {
+            return false;
+        }
+
+        @Override
         public Query existsQuery(SearchExecutionContext context) {
             return new TermQuery(new Term("_feature", name()));
         }

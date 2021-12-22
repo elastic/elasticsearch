@@ -453,9 +453,12 @@ public abstract class MappedFieldType {
         return false;
     }
 
-    public boolean fieldExists(SearchExecutionContext context) {
-        return context.getFieldInfos().fieldInfo(name) != null;
-    }
+    /**
+     * @return if this field type should be matched by a wildcard field expansion
+     *
+     * @see org.elasticsearch.index.search.QueryParserHelper
+     */
+    public abstract boolean includeInFieldExpansion(SearchExecutionContext context);
 
     /**
      * Pick a {@link DocValueFormat} that can be used to display and parse

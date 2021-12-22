@@ -244,6 +244,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean includeInFieldExpansion(SearchExecutionContext context) {
+            return false;
+        }
+
+        @Override
         public String typeName() {
             return CONTENT_TYPE;
         }
@@ -635,6 +640,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public boolean eagerGlobalOrdinals() {
             return eagerGlobalOrdinals;
+        }
+
+        @Override
+        public boolean includeInFieldExpansion(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name());
         }
 
         @Override

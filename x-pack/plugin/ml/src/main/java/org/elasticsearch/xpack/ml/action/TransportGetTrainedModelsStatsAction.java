@@ -178,12 +178,14 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 Map<String, TrainedModelSizeStats> modelSizeStatsByModelId = new HashMap<>();
                 for (TrainedModelConfig model : models) {
                     if (model.getModelType() == TrainedModelType.PYTORCH) {
-                        long totalDefinitionLength = pytorchTotalDefinitionLengthsByModelId.get(model.getModelId());
+                        long totalDefinitionLength = pytorchTotalDefinitionLengthsByModelId.getOrDefault(model.getModelId(), 0L);
                         modelSizeStatsByModelId.put(
                             model.getModelId(),
                             new TrainedModelSizeStats(
                                 totalDefinitionLength,
-                                StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(totalDefinitionLength)
+                                totalDefinitionLength > 0L
+                                    ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(totalDefinitionLength)
+                                    : 0L
                             )
                         );
                     } else {

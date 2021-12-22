@@ -384,8 +384,8 @@ public class ServerUtils {
         final Settings newSettings = Settings.builder()
             .put(settings.filter(k -> k.startsWith("xpack.security") == false))
             .put("xpack.security.http.ssl.enabled", false)
-            .put("xpack.security.transport.ssl.enabled: false", false)
-            .put("xpack.security.enabled: false", false)
+            .put("xpack.security.transport.ssl.enabled", false)
+            .put("xpack.security.enabled", false)
             .build();
         Files.write(
             yamlFile,

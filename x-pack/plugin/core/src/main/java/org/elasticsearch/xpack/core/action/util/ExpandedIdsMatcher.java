@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.action.util;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats.IndexStatsBuilder;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -33,15 +34,24 @@ import static java.util.Collections.unmodifiableMap;
 
 public class IndicesStatsResponse extends BroadcastResponse {
 
-    private ClusterState clusterState;
+    private final Map<String, ClusterHealthStatus> indexHealthMap;
 
-    private ShardStats[] shards;
+    private final Map<String, IndexMetadata.State> indexStateMap;
+
+    private final ShardStats[] shards;
 
     private Map<ShardRouting, ShardStats> shardStatsMap;
 
     IndicesStatsResponse(StreamInput in) throws IOException {
         super(in);
-        shards = in.readArray(ShardStats::new, (size) -> new ShardStats[size]);
+        shards = in.readArray(ShardStats::new, ShardStats[]::new);
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            indexHealthMap = in.readMap(StreamInput::readString, ClusterHealthStatus::readFrom);
+            indexStateMap = in.readMap(StreamInput::readString, IndexMetadata.State::readFrom);
+        } else {
+            indexHealthMap = Map.of();
+            indexStateMap = Map.of();
+        }
     }
 
     IndicesStatsResponse(
@@ -54,7 +64,22 @@ public class IndicesStatsResponse extends BroadcastResponse {
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
-        this.clusterState = clusterState;
+        if (clusterState != null) {
+            indexHealthMap = new HashMap<>();
+            indexStateMap = new HashMap<>();
+            for (ShardStats shard : shards) {
+                Index index = shard.getShardRouting().index();
+                IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+                indexStateMap.computeIfAbsent(index.getName(), ignored -> indexMetadata.getState());
+                indexHealthMap.computeIfAbsent(
+                    index.getName(),
+                    ignored -> new ClusterIndexHealth(indexMetadata, clusterState.routingTable().index(index)).getStatus()
+                );
+            }
+        } else {
+            indexHealthMap = Map.of();
+            indexStateMap = Map.of();
+        }
     }
 
     public Map<ShardRouting, ShardStats> asMap() {
@@ -90,18 +115,10 @@ public class IndicesStatsResponse extends BroadcastResponse {
         final Map<String, IndexStatsBuilder> indexToIndexStatsBuilder = new HashMap<>();
         for (ShardStats shard : shards) {
             Index index = shard.getShardRouting().index();
-            IndexStatsBuilder indexStatsBuilder = indexToIndexStatsBuilder.computeIfAbsent(index.getName(), k -> {
-                ClusterHealthStatus health = null;
-                IndexMetadata.State state = null;
-                if (clusterState != null) {
-                    IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
-                    if (indexMetadata != null) {
-                        health = new ClusterIndexHealth(indexMetadata, clusterState.routingTable().index(index)).getStatus();
-                        state = indexMetadata.getState();
-                    }
-                }
-                return new IndexStatsBuilder(k, index.getUUID(), health, state);
-            });
+            IndexStatsBuilder indexStatsBuilder = indexToIndexStatsBuilder.computeIfAbsent(
+                index.getName(),
+                k -> new IndexStatsBuilder(k, index.getUUID(), indexHealthMap.get(index.getName()), indexStateMap.get(index.getName()))
+            );
             indexStatsBuilder.add(shard);
         }
 
@@ -145,6 +162,10 @@ public class IndicesStatsResponse extends BroadcastResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeArray(shards);
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            out.writeMap(indexHealthMap, StreamOutput::writeString, (o, s) -> s.writeTo(o));
+            out.writeMap(indexStateMap, StreamOutput::writeString, (o, s) -> s.writeTo(o));
+        }
     }
 
     @Override

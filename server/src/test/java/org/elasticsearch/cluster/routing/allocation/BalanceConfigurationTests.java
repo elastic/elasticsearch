@@ -228,7 +228,6 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         return applyStartedShardsUntilNoChange(clusterState, strategy);
     }
 
-    @SuppressWarnings("HiddenField")
     private void assertReplicaBalance(
         RoutingNodes nodes,
         int numberOfNodes,
@@ -260,7 +259,6 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         }
     }
 
-    @SuppressWarnings("HiddenField")
     private void assertIndexBalance(
         RoutingTable routingTable,
         RoutingNodes nodes,

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -268,7 +267,8 @@ public class SearchModule {
         4096,
         1,
         Integer.MAX_VALUE,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.DeprecatedWarning
     );
 
     public static final Setting<Integer> INDICES_MAX_NESTED_DEPTH_SETTING = Setting.intSetting(
@@ -292,8 +292,6 @@ public class SearchModule {
     /**
      * Constructs a new SearchModule object
      *
-     * NOTE: This constructor should not be called in production unless an accurate {@link Settings} object is provided.
-     *       When constructed, a static flag is set in Lucene {@link BooleanQuery#setMaxClauseCount} according to the settings.
      * @param settings Current settings
      * @param plugins List of included {@link SearchPlugin} objects.
      */
@@ -1057,7 +1055,6 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new, MatchAllQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(QueryStringQueryBuilder.NAME, QueryStringQueryBuilder::new, QueryStringQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(BoostingQueryBuilder.NAME, BoostingQueryBuilder::new, BoostingQueryBuilder::fromXContent));
-        BooleanQuery.setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
         registerBoolQuery(new ParseField(BoolQueryBuilder.NAME), BoolQueryBuilder::new);
         BoolQueryBuilder.setMaxNestedDepth(INDICES_MAX_NESTED_DEPTH_SETTING.get(settings));
         registerQuery(new QuerySpec<>(TermQueryBuilder.NAME, TermQueryBuilder::new, TermQueryBuilder::fromXContent));

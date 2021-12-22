@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;

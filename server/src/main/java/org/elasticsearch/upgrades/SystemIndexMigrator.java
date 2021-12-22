@@ -21,8 +21,8 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsCluster
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;

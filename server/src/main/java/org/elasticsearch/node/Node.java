@@ -10,6 +10,7 @@ package org.elasticsearch.node;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Assertions;
@@ -28,8 +29,8 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
@@ -156,6 +157,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.shutdown.PluginShutdownService;
@@ -472,6 +474,7 @@ public class Node implements Closeable {
             final UsageService usageService = new UsageService();
 
             SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
+            IndexSearcher.setMaxClauseCount(SearchUtils.calculateMaxClauseValue(threadPool));
             List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
                 NetworkModule.getNamedWriteables().stream(),
                 IndicesModule.getNamedWriteables().stream(),

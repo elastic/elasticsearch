@@ -654,7 +654,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public boolean fieldExistsInIndex(String fieldname) {
         if (searcher == null) {
-            throw new IllegalStateException("Cannot call fieldExistsInIndex if we're not on a shard");
+            return false;
         }
         for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
             if (ctx.reader().getFieldInfos().fieldInfo(fieldname) != null) {

@@ -571,7 +571,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     @Override
     public boolean maybeTriggerAsyncJob(long now) {
-        boolean triggered;
+        // threadpool: trigger_engine_scheduler if triggered from the scheduler, generic if called from the task on start
 
         if (context.getTaskState() == TransformTaskState.FAILED) {
             logger.debug("[{}] schedule was triggered for transform but task is failed. Ignoring trigger.", getJobId());
@@ -602,10 +602,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 return false;
             }
 
-            triggered = super.maybeTriggerAsyncJob(now);
+            return super.maybeTriggerAsyncJob(now);
         }
-
-        return triggered;
     }
 
     /**

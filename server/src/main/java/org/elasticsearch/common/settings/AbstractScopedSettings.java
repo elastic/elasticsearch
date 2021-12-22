@@ -142,8 +142,8 @@ public abstract class AbstractScopedSettings {
      * Validates the given settings by running it through all update listeners without applying it. This
      * method will not change any settings but will fail if any of the settings can't be applied.
      */
-    public synchronized Settings validateUpdate(Settings settings) {
-        final Settings current = Settings.builder().put(this.settings).put(settings).build();
+    public synchronized Settings validateUpdate(Settings settingsToValidate) {
+        final Settings current = Settings.builder().put(this.settings).put(settingsToValidate).build();
         final Settings previous = Settings.builder().put(this.settings).put(this.lastSettingsApplied).build();
         List<RuntimeException> exceptions = new ArrayList<>();
         for (SettingUpdater<?> settingUpdater : settingUpdaters) {
@@ -319,16 +319,19 @@ public abstract class AbstractScopedSettings {
     }
 
     /**
-     * Adds a affix settings consumer that accepts the settings for a group of settings. The consumer is only
+     * Adds an affix settings consumer that accepts the settings for a group of settings. The consumer is only
      * notified if at least one of the settings change.
      * <p>
      * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
      * </p>
      */
     @SuppressWarnings("rawtypes")
-    public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
-        List<SettingUpdater> affixUpdaters = new ArrayList<>(settings.size());
-        for (Setting.AffixSetting<?> setting : settings) {
+    public synchronized void addAffixGroupUpdateConsumer(
+        List<Setting.AffixSetting<?>> settingsToAdd,
+        BiConsumer<String, Settings> consumer
+    ) {
+        List<SettingUpdater> affixUpdaters = new ArrayList<>(settingsToAdd.size());
+        for (Setting.AffixSetting<?> setting : settingsToAdd) {
             ensureSettingIsRegistered(setting);
             affixUpdaters.add(setting.newAffixUpdater((a, b) -> {}, logger, (a, b) -> {}));
         }
@@ -343,14 +346,14 @@ public abstract class AbstractScopedSettings {
             @Override
             public Map<String, Settings> getValue(Settings current, Settings previous) {
                 Set<String> namespaces = new HashSet<>();
-                for (Setting.AffixSetting<?> setting : settings) {
+                for (Setting.AffixSetting<?> setting : settingsToAdd) {
                     SettingUpdater affixUpdaterA = setting.newAffixUpdater((k, v) -> namespaces.add(k), logger, (a, b) -> {});
                     affixUpdaterA.apply(current, previous);
                 }
                 Map<String, Settings> namespaceToSettings = new HashMap<>(namespaces.size());
                 for (String namespace : namespaces) {
-                    Set<String> concreteSettings = new HashSet<>(settings.size());
-                    for (Setting.AffixSetting<?> setting : settings) {
+                    Set<String> concreteSettings = new HashSet<>(settingsToAdd.size());
+                    for (Setting.AffixSetting<?> setting : settingsToAdd) {
                         concreteSettings.add(setting.getConcreteSettingForNamespace(namespace).getKey());
                     }
                     namespaceToSettings.put(namespace, current.filter(concreteSettings::contains));
@@ -481,7 +484,7 @@ public abstract class AbstractScopedSettings {
     /**
      * Validates that all settings are registered and valid.
      *
-     * @param settings                       the settings
+     * @param settingsToValidate             the settings
      * @param validateValues                 true if values should be validated, otherwise only keys are validated
      * @param ignorePrivateSettings          true if private settings should be ignored during validation
      * @param ignoreArchivedSettings         true if archived settings should be ignored during validation
@@ -489,14 +492,14 @@ public abstract class AbstractScopedSettings {
      * @see Setting#getSettingsDependencies(String)
      */
     public final void validate(
-        final Settings settings,
+        final Settings settingsToValidate,
         final boolean validateValues,
         final boolean ignorePrivateSettings,
         final boolean ignoreArchivedSettings,
         final boolean validateInternalOrPrivateIndex
     ) {
         final List<RuntimeException> exceptions = new ArrayList<>();
-        for (final String key : settings.keySet()) { // settings iterate in deterministic fashion
+        for (final String key : settingsToValidate.keySet()) { // settings iterate in deterministic fashion
             final Setting<?> setting = getRaw(key);
             if (((isPrivateSetting(key) || (setting != null && setting.isPrivateIndex())) && ignorePrivateSettings)) {
                 continue;
@@ -505,7 +508,7 @@ public abstract class AbstractScopedSettings {
                 continue;
             }
             try {
-                validate(key, settings, validateValues, validateInternalOrPrivateIndex);
+                validate(key, settingsToValidate, validateValues, validateInternalOrPrivateIndex);
             } catch (final RuntimeException ex) {
                 exceptions.add(ex);
             }
@@ -529,12 +532,17 @@ public abstract class AbstractScopedSettings {
      * Validates that the settings is valid.
      *
      * @param key                            the key of the setting to validate
-     * @param settings                       the settings
+     * @param settingsToValidate             the settings
      * @param validateValue                  true if value should be validated, otherwise only keys are validated
      * @param validateInternalOrPrivateIndex true if internal index settings should be validated
      * @throws IllegalArgumentException if the setting is invalid
      */
-    void validate(final String key, final Settings settings, final boolean validateValue, final boolean validateInternalOrPrivateIndex) {
+    void validate(
+        final String key,
+        final Settings settingsToValidate,
+        final boolean validateValue,
+        final boolean validateInternalOrPrivateIndex
+    ) {
         Setting<?> setting = getRaw(key);
         if (setting == null) {
             LevenshteinDistance ld = new LevenshteinDistance();
@@ -547,8 +555,8 @@ public abstract class AbstractScopedSettings {
             }
             CollectionUtil.timSort(scoredKeys, (a, b) -> b.v1().compareTo(a.v1()));
             String msgPrefix = "unknown setting";
-            SecureSettings secureSettings = settings.getSecureSettings();
-            if (secureSettings != null && settings.getSecureSettings().getSettingNames().contains(key)) {
+            SecureSettings secureSettings = settingsToValidate.getSecureSettings();
+            if (secureSettings != null && settingsToValidate.getSecureSettings().getSettingNames().contains(key)) {
                 msgPrefix = "unknown secure setting";
             }
             String msg = msgPrefix + " [" + key + "]";
@@ -569,7 +577,7 @@ public abstract class AbstractScopedSettings {
                 for (final Setting.SettingDependency settingDependency : settingsDependencies) {
                     final Setting<?> dependency = settingDependency.getSetting();
                     // validate the dependent setting is set
-                    if (dependency.existsOrFallbackExists(settings) == false) {
+                    if (dependency.existsOrFallbackExists(settingsToValidate) == false) {
                         final String message = String.format(
                             Locale.ROOT,
                             "missing required setting [%s] for setting [%s]",
@@ -579,7 +587,7 @@ public abstract class AbstractScopedSettings {
                         throw new IllegalArgumentException(message);
                     }
                     // validate the dependent setting value
-                    settingDependency.validate(setting.getKey(), setting.get(settings), dependency.get(settings));
+                    settingDependency.validate(setting.getKey(), setting.get(settingsToValidate), dependency.get(settingsToValidate));
                 }
             }
             // the only time that validateInternalOrPrivateIndex should be true is if this call is coming via the update settings API
@@ -596,7 +604,7 @@ public abstract class AbstractScopedSettings {
             }
         }
         if (validateValue) {
-            setting.get(settings);
+            setting.get(settingsToValidate);
         }
     }
 
@@ -869,29 +877,29 @@ public abstract class AbstractScopedSettings {
     /**
      * Upgrade all settings eligible for upgrade in the specified settings instance.
      *
-     * @param settings the settings instance that might contain settings to be upgraded
+     * @param settingsToUpgrade the settings instance that might contain settings to be upgraded
      * @return a new settings instance if any settings required upgrade, otherwise the same settings instance as specified
      */
-    public Settings upgradeSettings(final Settings settings) {
+    public Settings upgradeSettings(final Settings settingsToUpgrade) {
         final Settings.Builder builder = Settings.builder();
         boolean changed = false; // track if any settings were upgraded
-        for (final String key : settings.keySet()) {
+        for (final String key : settingsToUpgrade.keySet()) {
             final Setting<?> setting = getRaw(key);
             final SettingUpgrader<?> upgrader = settingUpgraders.get(setting);
             if (upgrader == null) {
                 // the setting does not have an upgrader, copy the setting
-                builder.copy(key, settings);
+                builder.copy(key, settingsToUpgrade);
             } else {
                 // the setting has an upgrader, so mark that we have changed a setting and apply the upgrade logic
                 changed = true;
                 // noinspection ConstantConditions
                 if (setting.getConcreteSetting(key).isListSetting()) {
-                    final List<String> value = settings.getAsList(key);
+                    final List<String> value = settingsToUpgrade.getAsList(key);
                     final String upgradedKey = upgrader.getKey(key);
                     final List<String> upgradedValue = upgrader.getListValue(value);
                     builder.putList(upgradedKey, upgradedValue);
                 } else {
-                    final String value = settings.get(key);
+                    final String value = settingsToUpgrade.get(key);
                     final String upgradedKey = upgrader.getKey(key);
                     final String upgradedValue = upgrader.getValue(value);
                     builder.put(upgradedKey, upgradedValue);
@@ -899,7 +907,7 @@ public abstract class AbstractScopedSettings {
             }
         }
         // we only return a new instance if there was an upgrade
-        return changed ? builder.build() : settings;
+        return changed ? builder.build() : settingsToUpgrade;
     }
 
     /**
@@ -907,7 +915,7 @@ public abstract class AbstractScopedSettings {
      * will be archived. This means the setting is prefixed with {@value ARCHIVED_SETTINGS_PREFIX}
      * and remains in the settings object. This can be used to detect invalid settings via APIs.
      *
-     * @param settings        the {@link Settings} instance to scan for unknown or invalid settings
+     * @param settingsToScan  the {@link Settings} instance to scan for unknown or invalid settings
      * @param unknownConsumer callback on unknown settings (consumer receives unknown key and its
      *                        associated value)
      * @param invalidConsumer callback on invalid settings (consumer receives invalid key, its
@@ -915,47 +923,47 @@ public abstract class AbstractScopedSettings {
      * @return a {@link Settings} instance with the unknown or invalid settings archived
      */
     public Settings archiveUnknownOrInvalidSettings(
-        final Settings settings,
+        final Settings settingsToScan,
         final Consumer<Map.Entry<String, String>> unknownConsumer,
         final BiConsumer<Map.Entry<String, String>, IllegalArgumentException> invalidConsumer
     ) {
         Settings.Builder builder = Settings.builder();
         boolean changed = false;
-        for (String key : settings.keySet()) {
+        for (String key : settingsToScan.keySet()) {
             try {
                 Setting<?> setting = get(key);
                 if (setting != null) {
-                    setting.get(settings);
-                    builder.copy(key, settings);
+                    setting.get(settingsToScan);
+                    builder.copy(key, settingsToScan);
                 } else {
                     if (key.startsWith(ARCHIVED_SETTINGS_PREFIX) || isPrivateSetting(key)) {
-                        builder.copy(key, settings);
+                        builder.copy(key, settingsToScan);
                     } else {
                         changed = true;
-                        unknownConsumer.accept(new Entry(key, settings));
+                        unknownConsumer.accept(new Entry(key, settingsToScan));
                         /*
                          * We put them back in here such that tools can check from the outside if there are any indices with invalid
                          * settings. The setting can remain there but we want users to be aware that some of their setting are invalid and
                          * they can research why and what they need to do to replace them.
                          */
-                        builder.copy(ARCHIVED_SETTINGS_PREFIX + key, key, settings);
+                        builder.copy(ARCHIVED_SETTINGS_PREFIX + key, key, settingsToScan);
                     }
                 }
             } catch (IllegalArgumentException ex) {
                 changed = true;
-                invalidConsumer.accept(new Entry(key, settings), ex);
+                invalidConsumer.accept(new Entry(key, settingsToScan), ex);
                 /*
                  * We put them back in here such that tools can check from the outside if there are any indices with invalid settings. The
                  * setting can remain there but we want users to be aware that some of their setting are invalid and they can research why
                  * and what they need to do to replace them.
                  */
-                builder.copy(ARCHIVED_SETTINGS_PREFIX + key, key, settings);
+                builder.copy(ARCHIVED_SETTINGS_PREFIX + key, key, settingsToScan);
             }
         }
         if (changed) {
             return builder.build();
         } else {
-            return settings;
+            return settingsToScan;
         }
     }
 

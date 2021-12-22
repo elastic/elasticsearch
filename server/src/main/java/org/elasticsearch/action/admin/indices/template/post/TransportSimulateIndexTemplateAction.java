@@ -31,6 +31,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -61,6 +62,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     private final IndicesService indicesService;
     private final AliasValidator aliasValidator;
     private final SystemIndices systemIndices;
+    private final Set<IndexSettingProvider> indexSettingProviders;
 
     @Inject
     public TransportSimulateIndexTemplateAction(
@@ -72,7 +74,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        MetadataCreateIndexService metadataCreateIndexService
     ) {
         super(
             SimulateIndexTemplateAction.NAME,
@@ -90,6 +93,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         this.indicesService = indicesService;
         this.aliasValidator = new AliasValidator();
         this.systemIndices = systemIndices;
+        this.indexSettingProviders = metadataCreateIndexService.getIndexSettingProviders();
     }
 
     @Override
@@ -136,7 +140,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             xContentRegistry,
             indicesService,
             aliasValidator,
-            systemIndices
+            systemIndices,
+            indexSettingProviders
         );
 
         final Map<String, List<String>> overlapping = new HashMap<>();
@@ -188,7 +193,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         final NamedXContentRegistry xContentRegistry,
         final IndicesService indicesService,
         final AliasValidator aliasValidator,
-        final SystemIndices systemIndices
+        final SystemIndices systemIndices,
+        Set<IndexSettingProvider> indexSettingProviders
     ) throws Exception {
         Settings settings = resolveSettings(simulatedState.metadata(), matchingTemplate);
 
@@ -197,14 +203,29 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             matchingTemplate
         );
 
+        ComposableIndexTemplate template = simulatedState.metadata().templatesV2().get(matchingTemplate);
         // create the index with dummy settings in the cluster state so we can parse and validate the aliases
-        Settings dummySettings = Settings.builder()
+        Settings.Builder dummySettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(settings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .build();
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+
+        // First apply settings sourced from index settings providers
+        for (var provider : indexSettingProviders) {
+            dummySettings.put(
+                provider.getAdditionalIndexSettings(
+                    indexName,
+                    template.getDataStreamTemplate() != null ? indexName : null,
+                    true,
+                    System.currentTimeMillis(),
+                    settings
+                )
+            );
+        }
+        // Then apply settings resolved from templates:
+        dummySettings.put(settings);
+
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(dummySettings).build();
 
         final ClusterState tempClusterState = ClusterState.builder(simulatedState)

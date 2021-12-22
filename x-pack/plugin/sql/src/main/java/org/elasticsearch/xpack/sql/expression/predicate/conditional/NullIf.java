@@ -67,12 +67,12 @@ public class NullIf extends ConditionalFunction {
 
     @Override
     public ScriptTemplate asScript() {
-        ScriptTemplate left = asScript(children().get(0));
-        ScriptTemplate right = asScript(children().get(1));
-        String template = "{sql}.nullif(" + left.template() + "," + right.template() + ")";
+        ScriptTemplate leftScript = asScript(children().get(0));
+        ScriptTemplate rightScript = asScript(children().get(1));
+        String template = "{sql}.nullif(" + leftScript.template() + "," + rightScript.template() + ")";
         ParamsBuilder params = paramsBuilder();
-        params.script(left.params());
-        params.script(right.params());
+        params.script(leftScript.params());
+        params.script(rightScript.params());
 
         return new ScriptTemplate(formatTemplate(template), params.build(), dataType);
     }

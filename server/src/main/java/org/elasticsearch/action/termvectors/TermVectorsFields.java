@@ -408,7 +408,6 @@ public final class TermVectorsFields extends Fields {
         private BytesRefBuilder[] payloads;
         private int[] endOffsets;
 
-        @SuppressWarnings("HiddenField")
         private PostingsEnum reset(int[] positions, int[] startOffsets, int[] endOffsets, BytesRefBuilder[] payloads, int freq) {
             curPos = -1;
             doc = -1;

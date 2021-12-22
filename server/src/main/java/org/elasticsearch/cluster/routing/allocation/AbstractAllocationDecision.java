@@ -126,13 +126,13 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
      * Generates X-Content for the node-level decisions, creating the outer "node_decisions" object
      * in which they are serialized.
      */
-    public XContentBuilder nodeDecisionsToXContent(List<NodeAllocationResult> decisions, XContentBuilder builder, Params params)
+    public XContentBuilder nodeDecisionsToXContent(List<NodeAllocationResult> nodeDecisions, XContentBuilder builder, Params params)
         throws IOException {
 
-        if (decisions != null && decisions.isEmpty() == false) {
+        if (nodeDecisions != null && nodeDecisions.isEmpty() == false) {
             builder.startArray("node_allocation_decisions");
             {
-                for (NodeAllocationResult explanation : decisions) {
+                for (NodeAllocationResult explanation : nodeDecisions) {
                     explanation.toXContent(builder, params);
                 }
             }

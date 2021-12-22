@@ -177,7 +177,7 @@ public class RealmSettings {
                 if (realmToMultipleDomains) {
                     realmToMultipleDomainsErrorMessageBuilder.append(" and");
                 }
-                realmToMultipleDomainsErrorMessageBuilder.append(" [")
+                realmToMultipleDomainsErrorMessageBuilder.append(" realm [")
                     .append(realmToDomains.getKey())
                     .append("] is associated to domains ")
                     .append(realmToDomains.getValue());

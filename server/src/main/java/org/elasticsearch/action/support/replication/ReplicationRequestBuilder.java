@@ -12,8 +12,8 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.internal.client.ElasticsearchClient;
 
 public abstract class ReplicationRequestBuilder<
     Request extends ReplicationRequest<Request>,

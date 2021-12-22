@@ -7,8 +7,8 @@
 
 package org.elasticsearch.license;
 
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.internal.client.node.NodeClient;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;

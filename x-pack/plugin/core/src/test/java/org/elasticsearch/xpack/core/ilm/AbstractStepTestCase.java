@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.internal.client.AdminClient;
-import org.elasticsearch.internal.client.Client;
-import org.elasticsearch.internal.client.IndicesAdminClient;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;

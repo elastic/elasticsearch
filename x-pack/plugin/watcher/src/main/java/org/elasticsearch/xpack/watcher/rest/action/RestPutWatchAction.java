@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.internal.client.node.NodeClient;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.rest.BaseRestHandler;

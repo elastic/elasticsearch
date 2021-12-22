@@ -9,8 +9,8 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
-import org.elasticsearch.internal.client.ElasticsearchClient;
 
 /**
  * Builder for a cluster reroute request

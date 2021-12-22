@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.internal.client.node.NodeClient;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.rest.BaseRestHandler;

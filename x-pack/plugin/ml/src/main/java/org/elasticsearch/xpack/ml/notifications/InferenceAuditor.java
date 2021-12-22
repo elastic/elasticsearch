@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.notifications;
 
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.internal.client.Client;
 import org.elasticsearch.xpack.core.ml.notifications.InferenceAuditMessage;
 
 public class InferenceAuditor extends AbstractMlAuditor<InferenceAuditMessage> {

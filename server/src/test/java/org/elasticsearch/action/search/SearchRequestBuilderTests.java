@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.internal.client.ElasticsearchClient;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;

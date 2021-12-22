@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.watcher.transport.action;
 
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.internal.client.Client;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ContextParser;

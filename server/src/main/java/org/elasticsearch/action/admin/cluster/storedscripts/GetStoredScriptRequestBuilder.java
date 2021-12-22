@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.internal.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class GetStoredScriptRequestBuilder extends MasterNodeReadOperationRequestBuilder<
     GetStoredScriptRequest,

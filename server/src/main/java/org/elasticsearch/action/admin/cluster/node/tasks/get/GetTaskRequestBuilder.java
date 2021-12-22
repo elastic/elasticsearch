@@ -9,8 +9,8 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.get;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.internal.client.ElasticsearchClient;
 import org.elasticsearch.tasks.TaskId;
 
 /**

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.internal.client.OriginSettingClient;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;

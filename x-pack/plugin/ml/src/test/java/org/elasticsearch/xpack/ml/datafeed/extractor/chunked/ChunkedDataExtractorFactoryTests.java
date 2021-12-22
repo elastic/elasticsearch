@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.internal.client.Client;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;

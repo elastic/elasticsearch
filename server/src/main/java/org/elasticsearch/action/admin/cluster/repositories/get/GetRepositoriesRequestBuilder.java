@@ -9,8 +9,8 @@
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.internal.client.ElasticsearchClient;
 
 /**
  * Get repository request builder

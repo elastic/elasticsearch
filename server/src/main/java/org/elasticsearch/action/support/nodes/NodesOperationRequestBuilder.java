@@ -10,8 +10,8 @@ package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.internal.client.ElasticsearchClient;
 
 public abstract class NodesOperationRequestBuilder<
     Request extends BaseNodesRequest<Request>,

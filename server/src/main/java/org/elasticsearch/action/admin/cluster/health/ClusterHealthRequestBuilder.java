@@ -11,10 +11,10 @@ package org.elasticsearch.action.admin.cluster.health;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.internal.client.ElasticsearchClient;
 
 public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestBuilder<
     ClusterHealthRequest,

@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.internal.client.Client;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.threadpool.ThreadPool;
 

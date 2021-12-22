@@ -11,8 +11,8 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.internal.client.OriginSettingClient;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 

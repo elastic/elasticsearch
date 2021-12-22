@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.ml.test;
 
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.internal.client.Client;
-import org.elasticsearch.internal.client.OriginSettingClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.Mockito;
 

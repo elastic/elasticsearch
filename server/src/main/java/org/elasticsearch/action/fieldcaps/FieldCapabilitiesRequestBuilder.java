@@ -9,8 +9,8 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.internal.client.ElasticsearchClient;
 
 import java.util.Map;
 

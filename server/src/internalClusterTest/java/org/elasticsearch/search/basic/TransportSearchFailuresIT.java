@@ -13,20 +13,20 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.internal.client.Client;
-import org.elasticsearch.internal.client.Requests;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.internal.client.Requests.clusterHealthRequest;
-import static org.elasticsearch.internal.client.Requests.refreshRequest;
-import static org.elasticsearch.internal.client.Requests.searchRequest;
+import static org.elasticsearch.client.internal.Requests.clusterHealthRequest;
+import static org.elasticsearch.client.internal.Requests.refreshRequest;
+import static org.elasticsearch.client.internal.Requests.searchRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;

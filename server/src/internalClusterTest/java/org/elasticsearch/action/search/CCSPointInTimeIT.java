@@ -8,9 +8,9 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.internal.client.Client;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 

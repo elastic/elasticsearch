@@ -11,8 +11,8 @@ package org.elasticsearch.action.admin.indices.shards;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.internal.client.ElasticsearchClient;
 
 /**
  * Request builder for {@link IndicesShardStoresRequest}

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -27,7 +28,6 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.internal.client.node.NodeClient;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.script.ScriptContext;

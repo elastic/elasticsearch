@@ -9,8 +9,8 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.internal.client.ElasticsearchClient;
 
 /**
  * Snapshots status request builder

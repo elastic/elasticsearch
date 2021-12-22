@@ -19,10 +19,10 @@ import org.elasticsearch.action.admin.indices.dangling.find.NodeFindDanglingInde
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
-import org.elasticsearch.internal.client.node.NodeClient;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 

@@ -84,10 +84,10 @@ public class ProfileService {
     }
 
     public void getProfile(String uid, @Nullable Set<String> dataKeys, ActionListener<Profile> listener) {
-        getVersionedDocument(uid, ActionListener.wrap(versionedDocument -> {
+        getVersionedDocument(uid, listener.map(versionedDocument -> {
             // TODO: replace null with actual domain lookup
-            listener.onResponse(versionedDocument.toProfile(null, dataKeys));
-        }, listener::onFailure));
+            return versionedDocument != null ? versionedDocument.toProfile(null, dataKeys) : null;
+        }));
     }
 
     // TODO: with request

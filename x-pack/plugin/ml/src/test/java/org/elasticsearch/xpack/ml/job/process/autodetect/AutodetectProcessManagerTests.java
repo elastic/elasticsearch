@@ -696,17 +696,17 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(jobTask.getJobId()).thenReturn("foo");
         manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> {});
         InputStream inputStream = createInputStream("");
-        DataCounts[] dataCountsArr = new DataCounts[1];
+        DataCounts[] dataCounts = new DataCounts[1];
         manager.processData(
             jobTask,
             analysisRegistry,
             inputStream,
             randomFrom(XContentType.values()),
             mock(DataLoadParams.class),
-            (dataCounts1, e) -> dataCountsArr[0] = dataCounts1
+            (dataCounts1, e) -> dataCounts[0] = dataCounts1
         );
 
-        assertThat(dataCountsArr[0], equalTo(new DataCounts("foo")));
+        assertThat(dataCounts[0], equalTo(new DataCounts("foo")));
     }
 
     public void testCreate_notEnoughThreads() throws IOException {
@@ -849,7 +849,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             createInputStream(""),
             randomFrom(XContentType.values()),
             mock(DataLoadParams.class),
-            (dataCounts1, e) -> {}
+            (dataCounts, e) -> {}
         );
         return manager;
     }

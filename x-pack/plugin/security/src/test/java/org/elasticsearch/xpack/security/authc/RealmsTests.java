@@ -244,48 +244,32 @@ public class RealmsTests extends ESTestCase {
         }
         final boolean fileRealmDisabled = randomBoolean();
         if (fileRealmDisabled) {
-            builder.put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".disabled_file.enabled", false);
+            builder.put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".default_file.enabled", false);
         }
         final String fileRealmDomain = randomFrom(domains);
         final boolean nativeRealmDisabled = randomBoolean();
         if (nativeRealmDisabled) {
-            builder.put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".disabled_native.enabled", false);
+            builder.put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".default_native.enabled", false);
         }
         final String nativeRealmDomain = randomFrom(domains);
 
         for (String domain : domains) {
             if (domain != null) {
-                StringBuilder realmsForDomain = new StringBuilder();
+                List<String> realmsForDomain = new ArrayList<>();
                 for (Map.Entry<Integer, String> indexAndDomain : indexToDomain.entrySet()) {
                     if (domain.equals(indexAndDomain.getValue())) {
-                        if (false == realmsForDomain.isEmpty()) {
-                            realmsForDomain.append(", ");
-                        }
-                        realmsForDomain.append("realm_").append(indexAndDomain.getKey());
+                        realmsForDomain.add("realm_" + indexAndDomain.getKey());
                     }
                 }
                 if (domain.equals(fileRealmDomain)) {
-                    if (false == realmsForDomain.isEmpty()) {
-                        realmsForDomain.append(", ");
-                    }
-                    if (fileRealmDisabled) {
-                        realmsForDomain.append("disabled_file");
-                    } else {
-                        realmsForDomain.append("default_file");
-                    }
+                    realmsForDomain.add("default_file");
                 }
                 if (domain.equals(nativeRealmDomain)) {
-                    if (false == realmsForDomain.isEmpty()) {
-                        realmsForDomain.append(", ");
-                    }
-                    if (nativeRealmDisabled) {
-                        realmsForDomain.append("disabled_native");
-                    } else {
-                        realmsForDomain.append("default_native");
-                    }
+                    realmsForDomain.add("default_native");
                 }
                 if (false == realmsForDomain.isEmpty() || randomBoolean()) {
-                    builder.put("xpack.security.authc.domains." + domain + ".realms", realmsForDomain.toString());
+                    builder.put("xpack.security.authc.domains." + domain + ".realms",
+                        realmsForDomain.stream().collect(Collectors.joining(", ")));
                 }
             }
         }

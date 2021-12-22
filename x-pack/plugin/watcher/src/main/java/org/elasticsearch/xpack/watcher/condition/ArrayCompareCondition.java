@@ -317,10 +317,10 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
     public enum Quantifier {
         ALL() {
             @Override
-            public boolean eval(List<Object> values, Object configuredValue, Op operation) {
-                for (Object eachValue : values) {
-                    Integer compare = LenientCompare.compare(eachValue, configuredValue);
-                    boolean comparison = compare != null && operation.comparison(compare);
+            public boolean eval(List<Object> values, Object configuredValue, Op op) {
+                for (Object value : values) {
+                    Integer compare = LenientCompare.compare(value, configuredValue);
+                    boolean comparison = compare != null && op.comparison(compare);
                     if (comparison == false) {
                         return false;
                     }
@@ -330,10 +330,10 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
         },
         SOME() {
             @Override
-            public boolean eval(List<Object> values, Object configuredValue, Op operation) {
-                for (Object eachValue : values) {
-                    Integer compare = LenientCompare.compare(eachValue, configuredValue);
-                    boolean comparison = compare != null && operation.comparison(compare);
+            public boolean eval(List<Object> values, Object configuredValue, Op op) {
+                for (Object value : values) {
+                    Integer compare = LenientCompare.compare(value, configuredValue);
+                    boolean comparison = compare != null && op.comparison(compare);
                     if (comparison) {
                         return true;
                     }
@@ -342,7 +342,7 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
             }
         };
 
-        public abstract boolean eval(List<Object> values, Object configuredValue, Op operation);
+        public abstract boolean eval(List<Object> values, Object configuredValue, Op op);
 
         public static Quantifier resolve(String id) {
             return Quantifier.valueOf(id.toUpperCase(Locale.ROOT));

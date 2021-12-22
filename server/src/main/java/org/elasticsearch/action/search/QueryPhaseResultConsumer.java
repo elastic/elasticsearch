@@ -544,9 +544,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
 
         public synchronized void cancel() {
-            QuerySearchResult[] results = consumeBuffer();
-            if (results != null) {
-                for (QuerySearchResult result : results) {
+            QuerySearchResult[] buffer = consumeBuffer();
+            if (buffer != null) {
+                for (QuerySearchResult result : buffer) {
                     result.releaseAggs();
                 }
             }

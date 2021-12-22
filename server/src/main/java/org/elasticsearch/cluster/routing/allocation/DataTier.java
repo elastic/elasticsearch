@@ -199,7 +199,13 @@ public class DataTier {
         private static final Logger logger = LogManager.getLogger(DefaultHotAllocationSettingProvider.class);
 
         @Override
-        public Settings getAdditionalIndexSettings(String indexName, boolean isDataStreamIndex, Settings indexSettings) {
+        public Settings getAdditionalIndexSettings(
+            String indexName,
+            String dataStreamName,
+            boolean newDataStream,
+            long resolvedAt,
+            Settings indexSettings
+        ) {
             Set<String> settings = indexSettings.keySet();
             if (settings.contains(TIER_PREFERENCE)) {
                 // just a marker -- this null value will be removed or overridden by the template/request settings
@@ -214,7 +220,7 @@ public class DataTier {
                     // Otherwise, put the setting in place by default, the "hot"
                     // tier if the index is part of a data stream, the "content"
                     // tier if it is not.
-                    if (isDataStreamIndex) {
+                    if (dataStreamName != null) {
                         return DATA_HOT_TIER_PREFERENCE_SETTINGS;
                     } else {
                         return DATA_CONTENT_TIER_PREFERENCE_SETTINGS;

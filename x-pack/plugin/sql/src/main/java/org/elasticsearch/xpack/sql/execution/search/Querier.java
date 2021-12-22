@@ -16,10 +16,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -91,24 +89,19 @@ import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.INTROD
 public class Querier {
     private static final Logger log = LogManager.getLogger(Querier.class);
 
-    private final PlanExecutor planExecutor;
     private final SqlConfiguration cfg;
-    private final int size;
     private final Client client;
-    @Nullable
-    private final QueryBuilder filter;
+    private final PlanExecutor planExecutor;
 
-    public Querier(SqlSession sqlSession) {
-        this.planExecutor = sqlSession.planExecutor();
-        this.client = sqlSession.client();
-        this.cfg = sqlSession.configuration();
-        this.filter = cfg.filter();
-        this.size = cfg.pageSize();
+    public Querier(SqlSession session) {
+        this.client = session.client();
+        this.planExecutor = session.planExecutor();
+        this.cfg = session.configuration();
     }
 
     public void query(List<Attribute> output, QueryContainer query, String index, ActionListener<Page> listener) {
         // prepare the request
-        SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, filter, size);
+        SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, cfg.filter(), cfg.pageSize());
 
         if (this.cfg.runtimeMappings() != null) {
             sourceBuilder.runtimeMappings(this.cfg.runtimeMappings());
@@ -245,7 +238,7 @@ public class Querier {
             // 1a. trigger a next call if there's still data
             if (cursor != Cursor.EMPTY) {
                 // trigger a next call
-                planExecutor.nextPage(cfg, cursor, this);
+                planExecutor.nextPageInternal(cfg, cursor, this);
                 // make sure to bail out afterwards as we'll get called by a different thread
                 return;
             }
@@ -474,23 +467,19 @@ public class Querier {
         }
 
         private BucketExtractor createExtractor(FieldExtraction ref, BucketExtractor totalCount) {
-            if (ref instanceof GroupByRef) {
-                GroupByRef r = (GroupByRef) ref;
+            if (ref instanceof GroupByRef r) {
                 return new CompositeKeyExtractor(r.key(), r.property(), cfg.zoneId(), r.isDateTimeBased());
             }
 
-            if (ref instanceof MetricAggRef) {
-                MetricAggRef r = (MetricAggRef) ref;
+            if (ref instanceof MetricAggRef r) {
                 return new MetricAggExtractor(r.name(), r.property(), r.innerKey(), cfg.zoneId(), r.dataType());
             }
 
-            if (ref instanceof TopHitsAggRef) {
-                TopHitsAggRef r = (TopHitsAggRef) ref;
+            if (ref instanceof TopHitsAggRef r) {
                 return new TopHitsAggExtractor(r.name(), r.fieldDataType(), cfg.zoneId());
             }
 
-            if (ref instanceof PivotColumnRef) {
-                PivotColumnRef r = (PivotColumnRef) ref;
+            if (ref instanceof PivotColumnRef r) {
                 return new PivotExtractor(createExtractor(r.pivot(), totalCount), createExtractor(r.agg(), totalCount), r.value());
             }
 
@@ -555,13 +544,11 @@ public class Querier {
         }
 
         private HitExtractor createExtractor(FieldExtraction ref) {
-            if (ref instanceof SearchHitFieldRef) {
-                SearchHitFieldRef f = (SearchHitFieldRef) ref;
+            if (ref instanceof SearchHitFieldRef f) {
                 return new FieldHitExtractor(f.name(), f.getDataType(), cfg.zoneId(), f.hitName(), multiValueFieldLeniency);
             }
 
-            if (ref instanceof ScriptFieldRef) {
-                ScriptFieldRef f = (ScriptFieldRef) ref;
+            if (ref instanceof ScriptFieldRef f) {
                 return new FieldHitExtractor(f.name(), null, cfg.zoneId(), multiValueFieldLeniency);
             }
 

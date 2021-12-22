@@ -40,17 +40,12 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
         } else {
             value = testQuery.value();
         }
-        String contentString = "{\n"
-            + "    \""
-            + testQuery.getName()
-            + "\" : {\n"
-            + "        \""
-            + testQuery.fieldName()
-            + "\" : "
-            + value
-            + "\n"
-            + "    }\n"
-            + "}";
+        String contentString = """
+            {
+                "%s" : {
+                    "%s" : %s
+                }
+            }""".formatted(testQuery.getName(), testQuery.fieldName(), value);
         alternateVersions.put(contentString, testQuery);
         return alternateVersions;
     }

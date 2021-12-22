@@ -31,7 +31,6 @@ dependencies {
   api 'org.objenesis:objenesis:3.2'
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
-  api "io.github.nik9000:mapmatcher:0.0.3"
 
   // json schema validation dependencies
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"

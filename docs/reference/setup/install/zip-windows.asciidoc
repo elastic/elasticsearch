@@ -5,10 +5,6 @@
 comes with a `elasticsearch-service.bat` command which will setup {es} to run as a
 service.
 
-TIP: {es} has historically been installed on Windows using the `.zip` archive.
-An <<windows, MSI installer package>> is available that provides the easiest getting started
-experience for Windows. You can continue using the `.zip` approach if you prefer.
-
 include::license.asciidoc[]
 
 NOTE: On Windows the {es} {ml} feature requires the Microsoft Universal
@@ -255,6 +251,8 @@ Using the Manager GUI::
 It is also possible to configure the service after it's been installed using the manager GUI (`elasticsearch-service-mgr.exe`), which offers insight into the installed service, including its status, startup type, JVM, start and stop settings amongst other things. Invoke `elasticsearch-service.bat manager` from the command-line to open the manager window.
 
 Most changes (like JVM settings) made through the manager GUI will require a restart of the service to take affect.
+
+include::connect-clients.asciidoc[]
 
 [[windows-layout]]
 ==== Directory layout of `.zip` archive

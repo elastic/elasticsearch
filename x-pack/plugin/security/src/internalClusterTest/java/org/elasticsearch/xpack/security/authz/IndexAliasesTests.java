@@ -76,44 +76,42 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return super.configRoles() + "\n" +
         // role that has create index only privileges
-            "create_only:\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ create_index ]\n"
-            + "all_on_test:\n"
-            + "  indices:\n"
-            + "    - names: 'test_*'\n"
-            + "      privileges: [ all ]\n"
-            +
-            // role that has create index and manage_aliases on test_*, not enough to manage_aliases aliases outside of test_* namespace
-            "create_test_aliases_test:\n"
-            + "  indices:\n"
-            + "    - names: 'test_*'\n"
-            + "      privileges: [ create_index, 'indices:admin/aliases*' ]\n"
-            +
-            // role that has create index on test_* and manage_aliases on alias_*, can't create aliases pointing to test_* though
-            "create_test_aliases_alias:\n"
-            + "  indices:\n"
-            + "    - names: 'test_*'\n"
-            + "      privileges: [ create_index ]\n"
-            + "    - names: 'alias_*'\n"
-            + "      privileges: [ 'indices:admin/aliases*' ]\n"
-            +
-            // role that has create index on test_* and manage_aliases on both alias_* and test_*
-            "create_test_aliases_test_alias:\n"
-            + "  indices:\n"
-            + "    - names: 'test_*'\n"
-            + "      privileges: [ create_index ]\n"
-            + "    - names: [ 'alias_*', 'test_*' ]\n"
-            + "      privileges: [ 'indices:admin/aliases*' ]\n"
-            +
-            // role that has manage_aliases only on both test_* and alias_*
-            "aliases_only:\n"
-            + "  indices:\n"
-            + "    - names: [ 'alias_*', 'test_*']\n"
-            + "      privileges: [ 'indices:admin/aliases*' ]\n";
+        // role that has create index and manage_aliases on test_*, not enough to manage_aliases aliases outside of test_* namespace
+        // role that has create index on test_* and manage_aliases on alias_*, can't create aliases pointing to test_* though
+        // role that has create index on test_* and manage_aliases on both alias_* and test_*
+        // role that has manage_aliases only on both test_* and alias_*
+        return super.configRoles() + """
+
+            create_only:
+              indices:
+                - names: '*'
+                  privileges: [ create_index ]
+            all_on_test:
+              indices:
+                - names: 'test_*'
+                  privileges: [ all ]
+            create_test_aliases_test:
+              indices:
+                - names: 'test_*'
+                  privileges: [ create_index, 'indices:admin/aliases*' ]
+            create_test_aliases_alias:
+              indices:
+                - names: 'test_*'
+                  privileges: [ create_index ]
+                - names: 'alias_*'
+                  privileges: [ 'indices:admin/aliases*' ]
+            create_test_aliases_test_alias:
+              indices:
+                - names: 'test_*'
+                  privileges: [ create_index ]
+                - names: [ 'alias_*', 'test_*' ]
+                  privileges: [ 'indices:admin/aliases*' ]
+            aliases_only:
+              indices:
+                - names: [ 'alias_*', 'test_*']
+                  privileges: [ 'indices:admin/aliases*' ]
+            """;
     }
 
     @Before

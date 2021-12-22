@@ -175,15 +175,11 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     static CharSequence buildExpirationMessage(long expirationMillis, boolean expired) {
         String expiredMsg = expired ? "expired" : "will expire";
-        String general = LoggerMessageFormat.format(
-            null,
-            "License [{}] on [{}].\n"
-                + "# If you have a new license, please update it. Otherwise, please reach out to\n"
-                + "# your support contact.\n"
-                + "# ",
-            expiredMsg,
-            DATE_FORMATTER.formatMillis(expirationMillis)
-        );
+        String general = LoggerMessageFormat.format(null, """
+            License [{}] on [{}].
+            # If you have a new license, please update it. Otherwise, please reach out to
+            # your support contact.
+            #\s""", expiredMsg, DATE_FORMATTER.formatMillis(expirationMillis));
         if (expired) {
             general = general.toUpperCase(Locale.ROOT);
         }

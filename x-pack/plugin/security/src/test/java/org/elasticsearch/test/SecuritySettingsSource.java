@@ -98,13 +98,14 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         + TEST_SUPERUSER
         + "\n";
 
-    public static final String CONFIG_ROLE_ALLOW_ALL = TEST_ROLE
-        + ":\n"
-        + "  cluster: [ ALL ]\n"
-        + "  indices:\n"
-        + "    - names: '*'\n"
-        + "      allow_restricted_indices: true\n"
-        + "      privileges: [ ALL ]\n";
+    public static final String CONFIG_ROLE_ALLOW_ALL = """
+        %s:
+          cluster: [ ALL ]
+          indices:
+            - names: '*'
+              allow_restricted_indices: true
+              privileges: [ ALL ]
+        """.formatted(TEST_ROLE);
 
     private final Path parentFolder;
     private final String subfolderPrefix;

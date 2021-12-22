@@ -257,12 +257,13 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploads")) {
                 // initiate multipart upload request
                 if (countDownInitiate.countDown()) {
-                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                        + "<InitiateMultipartUploadResult>\n"
-                        + "  <Bucket>bucket</Bucket>\n"
-                        + "  <Key>write_large_blob</Key>\n"
-                        + "  <UploadId>TEST</UploadId>\n"
-                        + "</InitiateMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                    byte[] response = ("""
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <InitiateMultipartUploadResult>
+                          <Bucket>bucket</Bucket>
+                          <Key>write_large_blob</Key>
+                          <UploadId>TEST</UploadId>
+                        </InitiateMultipartUploadResult>""").getBytes(StandardCharsets.UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/xml");
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
                     exchange.getResponseBody().write(response);
@@ -289,11 +290,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     // complete multipart upload request
                     if (countDownComplete.countDown()) {
                         Streams.readFully(exchange.getRequestBody());
-                        byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                            + "<CompleteMultipartUploadResult>\n"
-                            + "  <Bucket>bucket</Bucket>\n"
-                            + "  <Key>write_large_blob</Key>\n"
-                            + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                        byte[] response = ("""
+                            <?xml version="1.0" encoding="UTF-8"?>
+                            <CompleteMultipartUploadResult>
+                              <Bucket>bucket</Bucket>
+                              <Key>write_large_blob</Key>
+                            </CompleteMultipartUploadResult>""").getBytes(StandardCharsets.UTF_8);
                         exchange.getResponseHeaders().add("Content-Type", "application/xml");
                         exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
                         exchange.getResponseBody().write(response);
@@ -351,12 +353,13 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploads")) {
                 // initiate multipart upload request
                 if (countDownInitiate.countDown()) {
-                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                        + "<InitiateMultipartUploadResult>\n"
-                        + "  <Bucket>bucket</Bucket>\n"
-                        + "  <Key>write_large_blob_streaming</Key>\n"
-                        + "  <UploadId>TEST</UploadId>\n"
-                        + "</InitiateMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                    byte[] response = ("""
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <InitiateMultipartUploadResult>
+                          <Bucket>bucket</Bucket>
+                          <Key>write_large_blob_streaming</Key>
+                          <UploadId>TEST</UploadId>
+                        </InitiateMultipartUploadResult>""").getBytes(StandardCharsets.UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/xml");
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
                     exchange.getResponseBody().write(response);
@@ -382,11 +385,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     // complete multipart upload request
                     if (countDownComplete.countDown()) {
                         Streams.readFully(exchange.getRequestBody());
-                        byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                            + "<CompleteMultipartUploadResult>\n"
-                            + "  <Bucket>bucket</Bucket>\n"
-                            + "  <Key>write_large_blob_streaming</Key>\n"
-                            + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                        byte[] response = ("""
+                            <?xml version="1.0" encoding="UTF-8"?>
+                            <CompleteMultipartUploadResult>
+                              <Bucket>bucket</Bucket>
+                              <Key>write_large_blob_streaming</Key>
+                            </CompleteMultipartUploadResult>""").getBytes(StandardCharsets.UTF_8);
                         exchange.getResponseHeaders().add("Content-Type", "application/xml");
                         exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
                         exchange.getResponseBody().write(response);

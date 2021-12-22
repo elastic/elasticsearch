@@ -20,6 +20,7 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.elasticsearch.packaging.util.docker.DockerRun;
+import org.elasticsearch.packaging.util.docker.DockerShell;
 import org.elasticsearch.packaging.util.docker.MockServer;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -376,9 +377,11 @@ public class DockerTests extends PackagingTestCase {
         final String path = sh.run("realpath jdk/lib/security/cacerts").stdout;
 
         if (distribution.packaging == Packaging.DOCKER_UBI || distribution.packaging == Packaging.DOCKER_IRON_BANK) {
+            // In these images, the `cacerts` file ought to be a symlink here
             assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
         } else {
-            assertThat(path, equalTo("/etc/ssl/certs/java/cacerts"));
+            // Whereas on other images, it's a real file so the real path is the same
+            assertThat(path, equalTo("/usr/share/elasticsearch/jdk/lib/security/cacerts"));
         }
     }
 
@@ -386,12 +389,8 @@ public class DockerTests extends PackagingTestCase {
      * Checks that there are Amazon trusted certificates in the cacaerts keystore.
      */
     public void test041AmazonCaCertsAreInTheKeystore() {
-        final String caName = distribution.packaging == Packaging.DOCKER_UBI || distribution.packaging == Packaging.DOCKER_IRON_BANK
-            ? "amazonrootca"
-            : "amazon_root_ca";
-
         final boolean matches = sh.run("jdk/bin/keytool -cacerts -storepass changeit -list | grep trustedCertEntry").stdout.lines()
-            .anyMatch(line -> line.contains(caName));
+            .anyMatch(line -> line.contains("amazonrootca"));
 
         assertTrue("Expected Amazon trusted cert in cacerts", matches);
     }
@@ -1160,6 +1159,19 @@ public class DockerTests extends PackagingTestCase {
             assertThat(imageHealthcheck, contains("CMD-SHELL", "curl -I -f --max-time 5 http://localhost:9200 || exit 1"));
         } else {
             assertThat(imageHealthcheck, nullValue());
+        }
+    }
+
+    /**
+     * Ensure that the default shell in the image is {@code bash}, since some alternatives e.g. {@code dash}
+     * are stricter about environment variable names.
+     */
+    public void test170DefaultShellIsBash() {
+        final Result result = DockerShell.executeCommand("/bin/sh", "-c", "echo $SHELL");
+        if (result.isSuccess()) {
+            assertThat(result.stdout, equalTo("/bin/bash"));
+        } else {
+            throw new RuntimeException("Command failed: " + result.stderr);
         }
     }
 

@@ -154,8 +154,9 @@ public class AzureHttpHandler implements HttpHandler {
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
 
                 final StringBuilder list = new StringBuilder();
-                list.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-                list.append("<EnumerationResults>");
+                list.append("""
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <EnumerationResults>""");
                 final String prefix = params.get("prefix");
                 final Set<String> blobPrefixes = new HashSet<>();
                 final String delimiter = params.get("delimiter");
@@ -176,17 +177,22 @@ public class AzureHttpHandler implements HttpHandler {
                             continue;
                         }
                     }
-                    list.append("<Blob><Name>").append(blobPath).append("</Name>");
-                    list.append("<Properties><Content-Length>").append(blob.getValue().length()).append("</Content-Length>");
-                    list.append("<BlobType>BlockBlob</BlobType></Properties></Blob>");
+                    list.append("""
+                        <Blob>
+                           <Name>%s</Name>
+                           <Properties>
+                             <Content-Length>%s</Content-Length>
+                             <BlobType>BlockBlob</BlobType>
+                           </Properties>
+                        </Blob>""".formatted(blobPath, blob.getValue().length()));
                 }
                 if (blobPrefixes.isEmpty() == false) {
                     blobPrefixes.forEach(p -> list.append("<BlobPrefix><Name>").append(p).append("</Name></BlobPrefix>"));
-
                 }
-                list.append("</Blobs>");
-                list.append("<NextMarker />");
-                list.append("</EnumerationResults>");
+                list.append("""
+                    </Blobs>
+                    <NextMarker/>
+                    </EnumerationResults>""");
 
                 byte[] response = list.toString().getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/xml");
@@ -223,11 +229,12 @@ public class AzureHttpHandler implements HttpHandler {
         if ("HEAD".equals(exchange.getRequestMethod())) {
             exchange.sendResponseHeaders(status.getStatus(), -1L);
         } else {
-            final byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error><Code>"
-                + errorCode
-                + "</Code><Message>"
-                + status
-                + "</Message></Error>").getBytes(StandardCharsets.UTF_8);
+            final byte[] response = ("""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <Error>
+                    <Code>%s</Code>
+                    <Message>%s</Message>
+                </Error>""".formatted(errorCode, status)).getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(status.getStatus(), response.length);
             exchange.getResponseBody().write(response);
         }

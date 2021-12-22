@@ -352,6 +352,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
+        @SuppressWarnings("HiddenField")
         public void updateShardState(
             ShardRouting shardRouting,
             long newPrimaryTerm,

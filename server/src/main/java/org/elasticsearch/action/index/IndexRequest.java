@@ -358,22 +358,22 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Index the Map as the provided content type.
      *
-     * @param source The map to index
+     * @param sourceMap The map to index
      */
-    public IndexRequest source(Map<String, ?> source, XContentType contentType) throws ElasticsearchGenerationException {
+    public IndexRequest source(Map<String, ?> sourceMap, XContentType xContentType) throws ElasticsearchGenerationException {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            builder.map(source);
+            XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+            builder.map(sourceMap);
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + sourceMap + "]", e);
         }
     }
 
     /**
      * Sets the document source to index.
      *
-     * Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}
+     * Note, its preferable to either set it using {@link #source(XContentBuilder)}
      * or using the {@link #source(byte[], XContentType)}.
      */
     public IndexRequest source(String source, XContentType xContentType) {
@@ -407,11 +407,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * valid String representation.</b>
      * </p>
      */
-    public IndexRequest source(XContentType xContentType, Object... source) {
-        if (source.length % 2 != 0) {
-            throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
+    public IndexRequest source(XContentType xContentType, Object... sources) {
+        if (sources.length % 2 != 0) {
+            throw new IllegalArgumentException("The number of object passed must be even but was [" + sources.length + "]");
         }
-        if (source.length == 2 && source[0] instanceof BytesReference && source[1] instanceof Boolean) {
+        if (sources.length == 2 && sources[0] instanceof BytesReference && sources[1] instanceof Boolean) {
             throw new IllegalArgumentException(
                 "you are using the removed method for source with bytes and unsafe flag, the unsafe flag"
                     + " was removed, please just use source(BytesReference)"
@@ -420,8 +420,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
             builder.startObject();
-            for (int i = 0; i < source.length; i++) {
-                builder.field(source[i++].toString(), source[i]);
+            for (int i = 0; i < sources.length; i++) {
+                builder.field(sources[i++].toString(), sources[i]);
             }
             builder.endObject();
             return source(builder);

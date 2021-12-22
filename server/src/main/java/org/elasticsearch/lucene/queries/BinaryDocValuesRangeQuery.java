@@ -144,6 +144,7 @@ public final class BinaryDocValuesRangeQuery extends Query {
         return Objects.hash(classHash(), fieldName, queryType, lengthType, from, to);
     }
 
+    @SuppressWarnings("HiddenField")
     public enum QueryType {
         INTERSECTS {
             @Override

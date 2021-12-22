@@ -125,6 +125,7 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',
           'org.apache.log.Logger',
+          'javax.jms.Message',
           'javax.xml.bind.DatatypeConverter',
           'javax.xml.bind.JAXBContext'
   )

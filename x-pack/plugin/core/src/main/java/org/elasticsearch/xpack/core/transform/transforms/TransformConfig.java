@@ -402,7 +402,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             deprecations.add(
                 new DeprecationIssue(
                     Level.CRITICAL,
-                    "Transform [" + id + "] is too old",
+                    "Transform [" + id + "] uses an obsolete configuration format",
                     TransformDeprecations.UPGRADE_TRANSFORM_URL,
                     TransformDeprecations.ACTION_UPGRADE_TRANSFORMS_API,
                     false,

@@ -113,72 +113,68 @@ public class RestActionsTests extends ESTestCase {
         builder.startObject();
         RestActions.buildBroadcastShardsHeader(builder, ToXContent.EMPTY_PARAMS, 12, 3, 0, 9, failures);
         builder.endObject();
-        assertThat(
-            Strings.toString(builder),
-            equalTo(
-                "{\n"
-                    + "  \"_shards\" : {\n"
-                    + "    \"total\" : 12,\n"
-                    + "    \"successful\" : 3,\n"
-                    + "    \"skipped\" : 0,\n"
-                    + "    \"failed\" : 9,\n"
-                    + "    \"failures\" : [\n"
-                    + "      {\n"
-                    + "        \"shard\" : 0,\n"
-                    + "        \"index\" : \"index\",\n"
-                    + "        \"node\" : \"node0\",\n"
-                    + "        \"reason\" : {\n"
-                    + "          \"type\" : \"parsing_exception\",\n"
-                    + "          \"reason\" : \"error\",\n"
-                    + "          \"index_uuid\" : \"_na_\",\n"
-                    + "          \"index\" : \"index\",\n"
-                    + "          \"line\" : 0,\n"
-                    + "          \"col\" : 0,\n"
-                    + "          \"caused_by\" : {\n"
-                    + "            \"type\" : \"illegal_argument_exception\",\n"
-                    + "            \"reason\" : \"some bad argument\"\n"
-                    + "          }\n"
-                    + "        }\n"
-                    + "      },\n"
-                    + "      {\n"
-                    + "        \"shard\" : 0,\n"
-                    + "        \"index\" : \"cluster1:index\",\n"
-                    + "        \"node\" : \"node0\",\n"
-                    + "        \"reason\" : {\n"
-                    + "          \"type\" : \"parsing_exception\",\n"
-                    + "          \"reason\" : \"error\",\n"
-                    + "          \"index_uuid\" : \"_na_\",\n"
-                    + "          \"index\" : \"index\",\n"
-                    + "          \"line\" : 0,\n"
-                    + "          \"col\" : 0,\n"
-                    + "          \"caused_by\" : {\n"
-                    + "            \"type\" : \"illegal_argument_exception\",\n"
-                    + "            \"reason\" : \"some bad argument\"\n"
-                    + "          }\n"
-                    + "        }\n"
-                    + "      },\n"
-                    + "      {\n"
-                    + "        \"shard\" : 0,\n"
-                    + "        \"index\" : \"cluster2:index\",\n"
-                    + "        \"node\" : \"node0\",\n"
-                    + "        \"reason\" : {\n"
-                    + "          \"type\" : \"parsing_exception\",\n"
-                    + "          \"reason\" : \"error\",\n"
-                    + "          \"index_uuid\" : \"_na_\",\n"
-                    + "          \"index\" : \"index\",\n"
-                    + "          \"line\" : 0,\n"
-                    + "          \"col\" : 0,\n"
-                    + "          \"caused_by\" : {\n"
-                    + "            \"type\" : \"illegal_argument_exception\",\n"
-                    + "            \"reason\" : \"some bad argument\"\n"
-                    + "          }\n"
-                    + "        }\n"
-                    + "      }\n"
-                    + "    ]\n"
-                    + "  }\n"
-                    + "}"
-            )
-        );
+        assertThat(Strings.toString(builder), equalTo("""
+            {
+              "_shards" : {
+                "total" : 12,
+                "successful" : 3,
+                "skipped" : 0,
+                "failed" : 9,
+                "failures" : [
+                  {
+                    "shard" : 0,
+                    "index" : "index",
+                    "node" : "node0",
+                    "reason" : {
+                      "type" : "parsing_exception",
+                      "reason" : "error",
+                      "index_uuid" : "_na_",
+                      "index" : "index",
+                      "line" : 0,
+                      "col" : 0,
+                      "caused_by" : {
+                        "type" : "illegal_argument_exception",
+                        "reason" : "some bad argument"
+                      }
+                    }
+                  },
+                  {
+                    "shard" : 0,
+                    "index" : "cluster1:index",
+                    "node" : "node0",
+                    "reason" : {
+                      "type" : "parsing_exception",
+                      "reason" : "error",
+                      "index_uuid" : "_na_",
+                      "index" : "index",
+                      "line" : 0,
+                      "col" : 0,
+                      "caused_by" : {
+                        "type" : "illegal_argument_exception",
+                        "reason" : "some bad argument"
+                      }
+                    }
+                  },
+                  {
+                    "shard" : 0,
+                    "index" : "cluster2:index",
+                    "node" : "node0",
+                    "reason" : {
+                      "type" : "parsing_exception",
+                      "reason" : "error",
+                      "index_uuid" : "_na_",
+                      "index" : "index",
+                      "line" : 0,
+                      "col" : 0,
+                      "caused_by" : {
+                        "type" : "illegal_argument_exception",
+                        "reason" : "some bad argument"
+                      }
+                    }
+                  }
+                ]
+              }
+            }"""));
     }
 
     private static ShardSearchFailure createShardFailureParsingException(String nodeId, int shardId, String clusterAlias) {

@@ -8,12 +8,12 @@
 
 package org.elasticsearch.index.search;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.SearchModule;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -94,7 +94,7 @@ public final class QueryParserHelper {
                 resolvedFields.put(field.getKey(), boost);
             }
         }
-        checkForTooManyFields(resolvedFields.size(), context, null);
+        checkForTooManyFields(resolvedFields.size(), null);
         return resolvedFields;
     }
 
@@ -151,8 +151,8 @@ public final class QueryParserHelper {
         return fields;
     }
 
-    static void checkForTooManyFields(int numberOfFields, SearchExecutionContext context, @Nullable String inputPattern) {
-        Integer limit = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.getIndexSettings().getSettings());
+    static void checkForTooManyFields(int numberOfFields, @Nullable String inputPattern) {
+        int limit = IndexSearcher.getMaxClauseCount();
         if (numberOfFields > limit) {
             StringBuilder errorMsg = new StringBuilder("field expansion ");
             if (inputPattern != null) {

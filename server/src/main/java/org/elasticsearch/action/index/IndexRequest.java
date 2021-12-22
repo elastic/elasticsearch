@@ -134,7 +134,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             ReleasableBytesReference reference = in.readReleasableBytesReference();
             toRelease.add(reference);
-            reference.decRef();
             this.source = reference;
         }
         opType = OpType.fromId(in.readByte());

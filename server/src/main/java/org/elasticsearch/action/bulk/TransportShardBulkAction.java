@@ -161,10 +161,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected Releasable copyMemoryFromRequest(BulkShardRequest request, Releasable limitsReleasable) {
-        if (request.getRequestMemory().needToReleaseNetworkMemory()) {
+        if (request.bytesFromNetwork()) {
             RecyclerBytesStreamOutput bytesStream = bytesRecycler.get();
             ReleasableBytesReference bytesReference = RequestMemory.copyBytesToNewReference(bytesStream, request);
-            request.getRequestMemory().releaseNetworkMemory();
             return () -> Releasables.close(bytesReference, limitsReleasable);
         } else {
             return limitsReleasable;
@@ -539,10 +538,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected Releasable copyMemoryFromReplicaRequest(BulkShardRequest request, Releasable limitsReleasable) {
-        if (request.getRequestMemory().needToReleaseNetworkMemory()) {
+        if (request.bytesFromNetwork()) {
             RecyclerBytesStreamOutput bytesStream = bytesRecycler.get();
             ReleasableBytesReference bytesReference = RequestMemory.copyBytesToNewReference(bytesStream, request);
-            request.getRequestMemory().releaseNetworkMemory();
             return () -> Releasables.close(bytesReference, limitsReleasable);
         } else {
             return limitsReleasable;

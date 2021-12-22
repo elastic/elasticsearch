@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -30,9 +31,9 @@ public class BulkItemRequest implements Writeable, Accountable {
     private final DocWriteRequest<?> request;
     private volatile BulkItemResponse primaryResponse;
 
-    BulkItemRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+    BulkItemRequest(@Nullable ShardId shardId, StreamInput in, ArrayList<Releasable> toRelease) throws IOException {
         id = in.readVInt();
-        request = DocWriteRequest.readDocumentRequest(shardId, in, true, new ArrayList<>());
+        request = DocWriteRequest.readDocumentRequest(shardId, in, true, toRelease);
         if (in.readBoolean()) {
             if (shardId == null) {
                 primaryResponse = new BulkItemResponse(in);

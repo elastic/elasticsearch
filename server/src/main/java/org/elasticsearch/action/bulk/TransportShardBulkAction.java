@@ -650,7 +650,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return result;
     }
 
-    private static final ThreadLocal<byte[]> indexingBuffer = ThreadLocal.withInitial(() -> new byte[256 * 1024 * 1024]);
+    private static final ThreadLocal<byte[]> indexingBuffer = ThreadLocal.withInitial(() -> new byte[256 * 1024]);
 
     private static BytesReference getSource(IndexRequest request) {
         BytesReference source = request.source();

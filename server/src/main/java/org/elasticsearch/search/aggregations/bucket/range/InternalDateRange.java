@@ -28,15 +28,15 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
         public Bucket(
             String key,
             double from,
-            double originalFrom,
+            Double originalFrom,
             double to,
-            double originalTo,
+            Double originalTo,
             long docCount,
             List<InternalAggregation> aggregations,
             boolean keyed,
             DocValueFormat formatter
         ) {
-            super(key, from, from, to, to, docCount, InternalAggregations.from(aggregations), keyed, formatter);
+            super(key, from, originalFrom, to, originalTo, docCount, InternalAggregations.from(aggregations), keyed, formatter);
         }
 
         public Bucket(
@@ -124,9 +124,9 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
         public Bucket createBucket(
             String key,
             double from,
-            double originalFrom,
+            Double originalFrom,
             double to,
-            double originalTo,
+            Double originalTo,
             long docCount,
             InternalAggregations aggregations,
             boolean keyed,

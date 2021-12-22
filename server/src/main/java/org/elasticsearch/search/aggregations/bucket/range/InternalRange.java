@@ -37,9 +37,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         protected final transient boolean keyed;
         protected final transient DocValueFormat format;
         protected final double from;
-        protected final double originalFrom;
+        protected final Double originalFrom;
         protected final double to;
-        protected final double originalTo;
+        protected final Double originalTo;
         private final long docCount;
         private final InternalAggregations aggregations;
         private final String key;
@@ -47,9 +47,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         public Bucket(
             String key,
             double from,
-            double originalFrom,
+            Double originalFrom,
             double to,
-            double originalTo,
+            Double originalTo,
             long docCount,
             InternalAggregations aggregations,
             boolean keyed,
@@ -81,7 +81,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return from;
         }
 
-        public double getOriginalFrom() {
+        public Double getOriginalFrom() {
             return originalFrom;
         }
 
@@ -90,7 +90,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return to;
         }
 
-        public double getOriginalTo() {
+        public Double getOriginalTo() {
             return originalTo;
         }
 
@@ -219,9 +219,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         public B createBucket(
             String key,
             double from,
-            double originalFrom,
+            Double originalFrom,
             double to,
-            double originalTo,
+            Double originalTo,
             long docCount,
             InternalAggregations aggregations,
             boolean keyed,
@@ -274,9 +274,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         for (int i = 0; i < size; i++) {
             String key = in.readString();
             double from = in.readDouble();
-            double originalFrom = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readDouble() : from;
+            Double originalFrom = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalDouble() : Double.valueOf(from);
             double to = in.readDouble();
-            double originalTo = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readDouble() : to;
+            Double originalTo = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalDouble() : Double.valueOf(to);
             long docCount = in.readVLong();
             ranges.add(
                 getFactory().createBucket(

@@ -52,7 +52,12 @@ public class RestUpdateActionTests extends RestActionTestCase {
         } else {
             params.put("version_type", randomFrom(VersionType.values()).name());
         }
-        String content = "{\n" + "    \"doc\" : {\n" + "        \"name\" : \"new_name\"\n" + "    }\n" + "}";
+        String content = """
+            {
+                "doc" : {
+                    "name" : "new_name"
+                }
+            }""";
         FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("test/_update/1")
             .withParams(params)

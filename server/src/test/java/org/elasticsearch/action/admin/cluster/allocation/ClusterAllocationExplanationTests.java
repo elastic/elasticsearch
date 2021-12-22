@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -82,15 +83,24 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         ClusterAllocationExplanation cae = randomClusterAllocationExplanation(true, true);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals(
-            "{\"index\":\"idx\",\"shard\":0,\"primary\":true,\"current_state\":\"started\",\"current_node\":"
-                + "{\"id\":\"node-0\",\"name\":\"\",\"transport_address\":\""
-                + cae.getCurrentNode().getAddress()
-                + "\",\"weight_ranking\":3},\"can_remain_on_current_node\":\"yes\",\"can_rebalance_cluster\":\"yes\","
-                + "\"can_rebalance_to_other_node\":\"no\",\"rebalance_explanation\":\"cannot rebalance as no target node exists "
-                + "that can both allocate this shard and improve the cluster balance\"}",
-            Strings.toString(builder)
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "index": "idx",
+              "shard": 0,
+              "primary": true,
+              "current_state": "started",
+              "current_node": {
+                "id": "node-0",
+                "name": "",
+                "transport_address": "%s",
+                "weight_ranking": 3
+              },
+              "can_remain_on_current_node": "yes",
+              "can_rebalance_cluster": "yes",
+              "can_rebalance_to_other_node": "no",
+              "rebalance_explanation": "cannot rebalance as no target node exists that can both allocate this shard \
+            and improve the cluster balance"
+            }""".formatted(cae.getCurrentNode().getAddress())), Strings.toString(builder));
     }
 
     public void testRandomShardExplanationToXContent() throws Exception {
@@ -98,24 +108,34 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
         final String actual = Strings.toString(builder);
+        assertThat(actual, equalTo(XContentHelper.stripWhitespace("""
+            {
+              "note": "%s",
+              "index": "idx",
+              "shard": 0,
+              "primary": true,
+              "current_state": "started",
+              "current_node": {
+                "id": "node-0",
+                "name": "",
+                "transport_address": "%s",
+                "weight_ranking": 3
+              },
+              "can_remain_on_current_node": "yes",
+              "can_rebalance_cluster": "yes",
+              "can_rebalance_to_other_node": "no",
+              "rebalance_explanation": "cannot rebalance as no target node exists that can both allocate this shard \
+            and improve the cluster balance"
+            }""".formatted(ClusterAllocationExplanation.NO_SHARD_SPECIFIED_MESSAGE, cae.getCurrentNode().getAddress()))));
         assertThat(
             actual,
             allOf(
-                equalTo(
-                    "{\"note\":\""
-                        + ClusterAllocationExplanation.NO_SHARD_SPECIFIED_MESSAGE
-                        + "\",\"index\":\"idx\",\"shard\":0,\"primary\":true,\"current_state\":\"started\",\"current_node\":"
-                        + "{\"id\":\"node-0\",\"name\":\"\",\"transport_address\":\""
-                        + cae.getCurrentNode().getAddress()
-                        + "\",\"weight_ranking\":3},\"can_remain_on_current_node\":\"yes\",\"can_rebalance_cluster\":\"yes\","
-                        + "\"can_rebalance_to_other_node\":\"no\",\"rebalance_explanation\":\"cannot rebalance as no target node exists "
-                        + "that can both allocate this shard and improve the cluster balance\"}"
-                ),
                 // no point in asserting the precise wording of the message into this test, but we care that the note contains these bits:
                 containsString("No shard was specified in the explain API request"),
                 containsString("specify the target shard in the request")
             )
         );
+
     }
 
     private static ClusterAllocationExplanation randomClusterAllocationExplanation(boolean assignedShard, boolean specificShard) {

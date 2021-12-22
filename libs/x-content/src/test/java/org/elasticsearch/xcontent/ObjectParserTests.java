@@ -188,10 +188,8 @@ public class ObjectParserTests extends ESTestCase {
                 }
             }
         }
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{\"url\" : { \"host\": \"http://foobar\", \"port\" : 80}, \"name\" : \"foobarbaz\"}"
-        );
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {"url" : { "host": "http://foobar", "port" : 80}, "name" : "foobarbaz"}""");
         ObjectParser<Foo, CustomParseContext> objectParser = new ObjectParser<>("foo");
         objectParser.declareString(Foo::setName, new ParseField("name"));
         objectParser.declareObjectOrDefault(Foo::setUri, (p, s) -> s.parseURI(p), () -> null, new ParseField("url"));
@@ -533,7 +531,15 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObject() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": { \"a\": {\"foo\" : 11} }, \"bar\": \"baz\"}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {
+              "named": {
+                "a": {
+                  "foo": 11
+                }
+              },
+              "bar": "baz"
+            }""");
         NamedObjectHolder h = NamedObjectHolder.PARSER.apply(parser, null);
         assertEquals("a", h.named.name);
         assertEquals(11, h.named.foo);
@@ -541,7 +547,8 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectUnexpectedArray() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": [ \"a\": {\"foo\" : 11} }]");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {"named": [ "a": {"foo" : 11} }]""");
         XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
         assertThat(e.getMessage(), containsString("[named_object_holder] named doesn't support values of type: START_ARRAY"));
     }
@@ -563,7 +570,8 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectsTwoFieldsInArray() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": [ {\"a\": {}, \"b\": {}}]}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {"named": [ {"a": {}, "b": {}}]}""");
         XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectsHolder.PARSER.apply(parser, null));
         assertThat(e.getMessage(), containsString("[named_objects_holder] failed to parse field [named]"));
         assertThat(
@@ -755,13 +763,14 @@ public class ObjectParserTests extends ESTestCase {
         assertEquals("i", parser.parse(createParser(JsonXContent.jsonXContent, "{\"body\": \"i\"}"), null).get());
         Exception garbageException = expectThrows(
             IllegalStateException.class,
-            () -> parser.parse(createParser(JsonXContent.jsonXContent, "{\"noop\": {\"garbage\": \"shouldn't\"}}"), null)
+            () -> parser.parse(createParser(JsonXContent.jsonXContent, """
+                {"noop": {"garbage": "shouldn't"}}
+                """), null)
         );
         assertEquals("parser for [noop] did not end on END_OBJECT", garbageException.getMessage());
-        Exception sneakyException = expectThrows(
-            IllegalStateException.class,
-            () -> parser.parse(createParser(JsonXContent.jsonXContent, "{\"noop\": {\"body\": \"shouldn't\"}}"), null)
-        );
+        Exception sneakyException = expectThrows(IllegalStateException.class, () -> parser.parse(createParser(JsonXContent.jsonXContent, """
+            {"noop": {"body": "shouldn't"}}
+            """), null));
         assertEquals("parser for [noop] did not end on END_OBJECT", sneakyException.getMessage());
     }
 
@@ -785,12 +794,16 @@ public class ObjectParserTests extends ESTestCase {
 
         XContentParseException garbageError = expectThrows(
             XContentParseException.class,
-            () -> parser.parse(createParser(JsonXContent.jsonXContent, "{\"noop\": [{\"garbage\": \"shouldn't\"}}]"), null)
+            () -> parser.parse(createParser(JsonXContent.jsonXContent, """
+                {"noop": [{"garbage": "shouldn't"}}]
+                """), null)
         );
         assertEquals("expected value but got [FIELD_NAME]", garbageError.getCause().getMessage());
         XContentParseException sneakyError = expectThrows(
             XContentParseException.class,
-            () -> parser.parse(createParser(JsonXContent.jsonXContent, "{\"noop\": [{\"body\": \"shouldn't\"}}]"), null)
+            () -> parser.parse(createParser(JsonXContent.jsonXContent, """
+                {"noop": [{"body": "shouldn't"}}]
+                """), null)
         );
         assertEquals("expected value but got [FIELD_NAME]", sneakyError.getCause().getMessage());
     }
@@ -879,18 +892,16 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testConsumeUnknownFields() throws IOException {
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{\n"
-                + "  \"test\" : \"foo\",\n"
-                + "  \"test_number\" : 2,\n"
-                + "  \"name\" : \"geoff\",\n"
-                + "  \"test_boolean\" : true,\n"
-                + "  \"test_null\" : null,\n"
-                + "  \"test_array\":  [1,2,3,4],\n"
-                + "  \"test_nested\": { \"field\" : \"value\", \"field2\" : [ \"list1\", \"list2\" ] }\n"
-                + "}"
-        );
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {
+              "test" : "foo",
+              "test_number" : 2,
+              "name" : "geoff",
+              "test_boolean" : true,
+              "test_null" : null,
+              "test_array":  [1,2,3,4],
+              "test_nested": { "field" : "value", "field2" : [ "list1", "list2" ] }
+            }""");
         ObjectParser<ObjectWithArbitraryFields, Void> op = new ObjectParser<>(
             "unknown",
             ObjectWithArbitraryFields::setField,
@@ -943,7 +954,8 @@ public class ObjectParserTests extends ESTestCase {
         assertThat(obj.a, nullValue());
         assertThat(obj.b, equalTo(123L));
 
-        parser = createParser(JsonXContent.jsonXContent, "{\"a\": \"123\", \"b\": \"456\"}");
+        parser = createParser(JsonXContent.jsonXContent, """
+            {"a": "123", "b": "456"}""");
         objectParser = new ObjectParser<>("foo", true, TestStruct::new);
         objectParser.declareLong(TestStruct::setA, new ParseField("a"));
         objectParser.declareLong(TestStruct::setB, new ParseField("b"));

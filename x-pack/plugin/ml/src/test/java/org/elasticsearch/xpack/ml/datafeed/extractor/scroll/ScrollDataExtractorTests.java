@@ -21,6 +21,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -223,7 +224,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         Optional<InputStream> stream = extractor.next();
         assertThat(stream.isPresent(), is(true));
-        String expectedStream = "{\"time\":1000,\"field_1\":\"a1\"} {\"time\":2000,\"field_1\":\"a2\"}";
+        String expectedStream = """
+            {"time":1000,"field_1":"a1"} {"time":2000,"field_1":"a2"}""";
         assertThat(asString(stream.get()), equalTo(expectedStream));
 
         SearchResponse response2 = createSearchResponse(Arrays.asList(3000L, 4000L), Arrays.asList("a3", "a4"), Arrays.asList("b3", "b4"));
@@ -232,7 +234,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         stream = extractor.next();
         assertThat(stream.isPresent(), is(true));
-        expectedStream = "{\"time\":3000,\"field_1\":\"a3\"} {\"time\":4000,\"field_1\":\"a4\"}";
+        expectedStream = """
+            {"time":3000,"field_1":"a3"} {"time":4000,"field_1":"a4"}""";
         assertThat(asString(stream.get()), equalTo(expectedStream));
 
         SearchResponse response3 = createEmptySearchResponse();
@@ -272,7 +275,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         Optional<InputStream> stream = extractor.next();
         assertThat(stream.isPresent(), is(true));
-        String expectedStream = "{\"time\":1000,\"field_1\":\"a1\"} {\"time\":2000,\"field_1\":\"a2\"}";
+        String expectedStream = """
+            {"time":1000,"field_1":"a1"} {"time":2000,"field_1":"a2"}""";
         assertThat(asString(stream.get()), equalTo(expectedStream));
 
         extractor.cancel();
@@ -288,7 +292,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         stream = extractor.next();
         assertThat(stream.isPresent(), is(true));
-        expectedStream = "{\"time\":2000,\"field_1\":\"a3\"} {\"time\":2000,\"field_1\":\"a4\"}";
+        expectedStream = """
+            {"time":2000,"field_1":"a3"} {"time":2000,"field_1":"a4"}""";
         assertThat(asString(stream.get()), equalTo(expectedStream));
         assertThat(extractor.hasNext(), is(false));
 
@@ -461,7 +466,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         Optional<InputStream> stream = extractor.next();
         assertThat(stream.isPresent(), is(true));
-        String expectedStream = "{\"time\":1100,\"field_1\":\"a1\"} {\"time\":1200,\"field_1\":\"a2\"}";
+        String expectedStream = """
+            {"time":1100,"field_1":"a1"} {"time":1200,"field_1":"a2"}""";
         assertThat(asString(stream.get()), equalTo(expectedStream));
 
         SearchResponse response2 = createEmptySearchResponse();
@@ -471,7 +477,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(false));
         assertThat(capturedSearchRequests.size(), equalTo(1));
 
-        String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
+        String searchRequest = XContentHelper.stripWhitespace(capturedSearchRequests.get(0).toString());
         assertThat(searchRequest, containsString("\"size\":1000"));
         assertThat(
             searchRequest,
@@ -485,10 +491,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(searchRequest, containsString("\"stored_fields\":\"_none_\""));
 
         // Check for the scripts
-        assertThat(
-            searchRequest,
-            containsString("{\"script\":{\"source\":\"return 1 + 1;\",\"lang\":\"mockscript\"}".replaceAll("\\s", ""))
-        );
+        assertThat(searchRequest, containsString("""
+            {"script":{"source":"return 1+1;","lang":"mockscript"}"""));
 
         assertThat(capturedContinueScrollIds.size(), equalTo(1));
         assertThat(capturedContinueScrollIds.get(0), equalTo(response1.getScrollId()));

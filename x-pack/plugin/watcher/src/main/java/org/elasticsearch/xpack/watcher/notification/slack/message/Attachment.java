@@ -229,6 +229,7 @@ public class Attachment implements MessageElement {
             this.actions = actions;
         }
 
+        @SuppressWarnings("HiddenField")
         public Attachment render(TextTemplateEngine engine, Map<String, Object> model, SlackMessageDefaults.AttachmentDefaults defaults) {
             String fallback = this.fallback != null ? engine.render(this.fallback, model) : defaults.fallback;
             String color = this.color != null ? engine.render(this.color, model) : defaults.color;

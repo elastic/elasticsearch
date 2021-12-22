@@ -27,13 +27,32 @@ public class CreateApiKeyRequestBuilderTests extends ESTestCase {
 
     public void testParserAndCreateApiRequestBuilder() throws IOException {
         boolean withExpiration = randomBoolean();
-        final String json = "{ \"name\" : \"my-api-key\", "
-            + ((withExpiration) ? " \"expiration\": \"1d\", " : "")
-            + " \"role_descriptors\": { \"role-a\": {\"cluster\":[\"a-1\", \"a-2\"],"
-            + " \"index\": [{\"names\": [\"indx-a\"], \"privileges\": [\"read\"] }] }, "
-            + " \"role-b\": {\"cluster\":[\"b\"],"
-            + " \"index\": [{\"names\": [\"indx-b\"], \"privileges\": [\"read\"] }] } "
-            + "} }";
+        final String json = """
+            {
+              "name": "my-api-key",
+              %s
+              "role_descriptors": {
+                "role-a": {
+                  "cluster": [ "a-1", "a-2" ],
+                  "index": [
+                    {
+                      "names": [ "indx-a" ],
+                      "privileges": [ "read" ]
+                    }
+                  ]
+                },
+                "role-b": {
+                  "cluster": [ "b" ],
+                  "index": [
+                    {
+                      "names": [ "indx-b" ],
+                      "privileges": [ "read" ]
+                    }
+                  ]
+                }
+              }
+            }""".formatted(withExpiration ? """
+            "expiration": "1d",""" : "");
         final BytesArray source = new BytesArray(json);
         final NodeClient mockClient = mock(NodeClient.class);
         final CreateApiKeyRequest request = new CreateApiKeyRequestBuilder(mockClient).source(source, XContentType.JSON).request();

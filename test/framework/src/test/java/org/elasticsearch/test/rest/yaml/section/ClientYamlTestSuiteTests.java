@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.yaml.YamlXContent;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -36,48 +37,50 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         final boolean includeTeardown = randomBoolean();
         StringBuilder testSpecBuilder = new StringBuilder();
         if (includeSetup) {
-            testSpecBuilder.append("---\n")
-                .append("setup:\n")
-                .append("  - do:\n")
-                .append("        indices.create:\n")
-                .append("          index: test_index\n")
-                .append("\n");
+            testSpecBuilder.append("""
+                ---
+                setup:
+                  - do:
+                        indices.create:
+                          index: test_index
+
+                """);
         }
         if (includeTeardown) {
-            testSpecBuilder.append("---\n")
-                .append("teardown:\n")
-                .append("  - do:\n")
-                .append("      indices.delete:\n")
-                .append("        index: test_index\n")
-                .append("\n");
+            testSpecBuilder.append("""
+                ---
+                teardown:
+                  - do:
+                      indices.delete:
+                        index: test_index
+
+                """);
         }
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            testSpecBuilder.toString()
-                + "---\n"
-                + "\"Get index mapping\":\n"
-                + "  - do:\n"
-                + "      indices.get_mapping:\n"
-                + "        index: test_index\n"
-                + "\n"
-                + "  - match: {test_index.test_type.properties.text.type:     string}\n"
-                + "  - match: {test_index.test_type.properties.text.analyzer: whitespace}\n"
-                + "\n"
-                + "---\n"
-                + "\"Get type mapping - pre 6.0\":\n"
-                + "\n"
-                + "  - skip:\n"
-                + "      version:     \"6.0.0 - \"\n"
-                + "      reason:      \"for newer versions the index name is always returned\"\n"
-                + "\n"
-                + "  - do:\n"
-                + "      indices.get_mapping:\n"
-                + "        index: test_index\n"
-                + "        type: test_type\n"
-                + "\n"
-                + "  - match: {test_type.properties.text.type:     string}\n"
-                + "  - match: {test_type.properties.text.analyzer: whitespace}\n"
-        );
+        parser = createParser(YamlXContent.yamlXContent, testSpecBuilder + """
+            ---
+            "Get index mapping":
+              - do:
+                  indices.get_mapping:
+                    index: test_index
+
+              - match: {test_index.test_type.properties.text.type:     string}
+              - match: {test_index.test_type.properties.text.analyzer: whitespace}
+
+            ---
+            "Get type mapping - pre 6.0":
+
+              - skip:
+                  version:     "6.0.0 - "
+                  reason:      "for newer versions the index name is always returned"
+
+              - do:
+                  indices.get_mapping:
+                    index: test_index
+                    type: test_type
+
+              - match: {test_type.properties.text.type:     string}
+              - match: {test_type.properties.text.analyzer: whitespace}
+            """);
 
         ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
 
@@ -164,36 +167,34 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
     }
 
     public void testParseTestSingleTestSection() throws Exception {
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "---\n"
-                + "\"Index with ID\":\n"
-                + "\n"
-                + " - do:\n"
-                + "      index:\n"
-                + "          index:  test-weird-index-中文\n"
-                + "          type:   weird.type\n"
-                + "          id:     1\n"
-                + "          body:   { foo: bar }\n"
-                + "\n"
-                + " - is_true:   ok\n"
-                + " - match:   { _index:   test-weird-index-中文 }\n"
-                + " - match:   { _type:    weird.type }\n"
-                + " - match:   { _id:      \"1\"}\n"
-                + " - match:   { _version: 1}\n"
-                + "\n"
-                + " - do:\n"
-                + "      get:\n"
-                + "          index:  test-weird-index-中文\n"
-                + "          type:   weird.type\n"
-                + "          id:     1\n"
-                + "\n"
-                + " - match:   { _index:   test-weird-index-中文 }\n"
-                + " - match:   { _type:    weird.type }\n"
-                + " - match:   { _id:      \"1\"}\n"
-                + " - match:   { _version: 1}\n"
-                + " - match:   { _source: { foo: bar }}"
-        );
+        parser = createParser(YamlXContent.yamlXContent, """
+            ---
+            "Index with ID":
+
+             - do:
+                  index:
+                      index:  test-weird-index-中文
+                      type:   weird.type
+                      id:     1
+                      body:   { foo: bar }
+
+             - is_true:   ok
+             - match:   { _index:   test-weird-index-中文 }
+             - match:   { _type:    weird.type }
+             - match:   { _id:      "1"}
+             - match:   { _version: 1}
+
+             - do:
+                  get:
+                      index:  test-weird-index-中文
+                      type:   weird.type
+                      id:     1
+
+             - match:   { _index:   test-weird-index-中文 }
+             - match:   { _type:    weird.type }
+             - match:   { _id:      "1"}
+             - match:   { _version: 1}
+             - match:   { _source: { foo: bar }}""");
 
         ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
 
@@ -262,51 +263,50 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
     }
 
     public void testParseTestMultipleTestSections() throws Exception {
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "---\n"
-                + "\"Missing document (partial doc)\":\n"
-                + "\n"
-                + "  - do:\n"
-                + "      catch:      missing\n"
-                + "      update:\n"
-                + "          index:  test_1\n"
-                + "          type:   test\n"
-                + "          id:     1\n"
-                + "          body:   { doc: { foo: bar } }\n"
-                + "\n"
-                + "  - do:\n"
-                + "      update:\n"
-                + "          index: test_1\n"
-                + "          type:  test\n"
-                + "          id:    1\n"
-                + "          body:  { doc: { foo: bar } }\n"
-                + "          ignore: 404\n"
-                + "\n"
-                + "---\n"
-                + "\"Missing document (script)\":\n"
-                + "\n"
-                + "\n"
-                + "  - do:\n"
-                + "      catch:      missing\n"
-                + "      update:\n"
-                + "          index:  test_1\n"
-                + "          type:   test\n"
-                + "          id:     1\n"
-                + "          body:\n"
-                + "            script: \"ctx._source.foo = bar\"\n"
-                + "            params: { bar: 'xxx' }\n"
-                + "\n"
-                + "  - do:\n"
-                + "      update:\n"
-                + "          index:  test_1\n"
-                + "          type:   test\n"
-                + "          id:     1\n"
-                + "          ignore: 404\n"
-                + "          body:\n"
-                + "            script:       \"ctx._source.foo = bar\"\n"
-                + "            params:       { bar: 'xxx' }\n"
-        );
+        parser = createParser(YamlXContent.yamlXContent, """
+            ---
+            "Missing document (partial doc)":
+
+              - do:
+                  catch:      missing
+                  update:
+                      index:  test_1
+                      type:   test
+                      id:     1
+                      body:   { doc: { foo: bar } }
+
+              - do:
+                  update:
+                      index: test_1
+                      type:  test
+                      id:    1
+                      body:  { doc: { foo: bar } }
+                      ignore: 404
+
+            ---
+            "Missing document (script)":
+
+
+              - do:
+                  catch:      missing
+                  update:
+                      index:  test_1
+                      type:   test
+                      id:     1
+                      body:
+                        script: "ctx._source.foo = bar"
+                        params: { bar: 'xxx' }
+
+              - do:
+                  update:
+                      index:  test_1
+                      type:   test
+                      id:     1
+                      ignore: 404
+                      body:
+                        script:       "ctx._source.foo = bar"
+                        params:       { bar: 'xxx' }
+            """);
 
         ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
 
@@ -353,34 +353,33 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
     }
 
     public void testParseTestDuplicateTestSections() throws Exception {
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "---\n"
-                + "\"Missing document (script)\":\n"
-                + "\n"
-                + "  - do:\n"
-                + "      catch:      missing\n"
-                + "      update:\n"
-                + "          index:  test_1\n"
-                + "          type:   test\n"
-                + "          id:     1\n"
-                + "          body:   { doc: { foo: bar } }\n"
-                + "\n"
-                + "---\n"
-                + "\"Missing document (script)\":\n"
-                + "\n"
-                + "\n"
-                + "  - do:\n"
-                + "      catch:      missing\n"
-                + "      update:\n"
-                + "          index:  test_1\n"
-                + "          type:   test\n"
-                + "          id:     1\n"
-                + "          body:\n"
-                + "            script: \"ctx._source.foo = bar\"\n"
-                + "            params: { bar: 'xxx' }\n"
-                + "\n"
-        );
+        parser = createParser(YamlXContent.yamlXContent, """
+            ---
+            "Missing document (script)":
+
+              - do:
+                  catch:      missing
+                  update:
+                      index:  test_1
+                      type:   test
+                      id:     1
+                      body:   { doc: { foo: bar } }
+
+            ---
+            "Missing document (script)":
+
+
+              - do:
+                  catch:      missing
+                  update:
+                      index:  test_1
+                      type:   test
+                      id:     1
+                      body:
+                        script: "ctx._source.foo = bar"
+                        params: { bar: 'xxx' }
+
+            """);
 
         Exception e = expectThrows(
             ParsingException.class,
@@ -390,23 +389,22 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
     }
 
     public void testParseSkipOs() throws Exception {
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "\"Broken on some os\":\n"
-                + "\n"
-                + "  - skip:\n"
-                + "      features:     skip_os\n"
-                + "      os:           [\"windows95\", \"debian-5\"]\n"
-                + "      reason:      \"not supported\"\n"
-                + "\n"
-                + "  - do:\n"
-                + "      indices.get_mapping:\n"
-                + "        index: test_index\n"
-                + "        type: test_type\n"
-                + "\n"
-                + "  - match: {test_type.properties.text.type:     string}\n"
-                + "  - match: {test_type.properties.text.analyzer: whitespace}\n"
-        );
+        parser = createParser(YamlXContent.yamlXContent, """
+            "Broken on some os":
+
+              - skip:
+                  features:     skip_os
+                  os:           ["windows95", "debian-5"]
+                  reason:      "not supported"
+
+              - do:
+                  indices.get_mapping:
+                    index: test_index
+                    type: test_type
+
+              - match: {test_type.properties.text.type:     string}
+              - match: {test_type.properties.text.analyzer: whitespace}
+            """);
 
         ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
 
@@ -451,16 +449,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(new ApiCallSection("test"));
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "api/name:\nattempted to add a [do] with a [warnings] section without a corresponding "
-                    + "[\"skip\": \"features\": \"warnings\"] so runners that do not support the [warnings] section can skip the test "
-                    + "at line ["
-                    + lineNumber
-                    + "]"
-            )
-        );
+        assertThat(e.getMessage(), containsString(String.format(Locale.ROOT, """
+            api/name:
+            attempted to add a [do] with a [warnings] section without a corresponding ["skip": "features": "warnings"] \
+            so runners that do not support the [warnings] section can skip the test at line [%d]\
+            """, lineNumber)));
     }
 
     public void testAddingDoWithWarningRegexWithoutSkipWarnings() {
@@ -470,16 +463,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(new ApiCallSection("test"));
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "api/name:\nattempted to add a [do] with a [warnings_regex] section without a corresponding "
-                    + "[\"skip\": \"features\": \"warnings_regex\"] so runners that do not support the [warnings_regex] section can "
-                    + "skip the test at line ["
-                    + lineNumber
-                    + "]"
-            )
-        );
+        assertThat(e.getMessage(), containsString(String.format(Locale.ROOT, """
+            api/name:
+            attempted to add a [do] with a [warnings_regex] section without a corresponding ["skip": "features": "warnings_regex"] \
+            so runners that do not support the [warnings_regex] section can skip the test at line [%d]\
+            """, lineNumber)));
     }
 
     public void testAddingDoWithAllowedWarningWithoutSkipAllowedWarnings() {
@@ -489,16 +477,12 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(new ApiCallSection("test"));
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "api/name:\nattempted to add a [do] with a [allowed_warnings] "
-                    + "section without a corresponding [\"skip\": \"features\": \"allowed_warnings\"] so runners that do not "
-                    + "support the [allowed_warnings] section can skip the test at line ["
-                    + lineNumber
-                    + "]"
-            )
-        );
+        assertThat(e.getMessage(), containsString(String.format(Locale.ROOT, """
+            api/name:
+            attempted to add a [do] with a [allowed_warnings] section without a corresponding ["skip": "features": \
+            "allowed_warnings"] so runners that do not support the [allowed_warnings] section can skip the test at \
+            line [%d]\
+            """, lineNumber)));
     }
 
     public void testAddingDoWithAllowedWarningRegexWithoutSkipAllowedWarnings() {
@@ -508,16 +492,12 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(new ApiCallSection("test"));
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "api/name:\nattempted to add a [do] with a [allowed_warnings_regex] "
-                    + "section without a corresponding [\"skip\": \"features\": \"allowed_warnings_regex\"] so runners that do not "
-                    + "support the [allowed_warnings_regex] section can skip the test at line ["
-                    + lineNumber
-                    + "]"
-            )
-        );
+        assertThat(e.getMessage(), containsString(String.format(Locale.ROOT, """
+            api/name:
+            attempted to add a [do] with a [allowed_warnings_regex] section without a corresponding ["skip": "features": \
+            "allowed_warnings_regex"] so runners that do not support the [allowed_warnings_regex] section can skip the test \
+            at line [%d]\
+            """, lineNumber)));
     }
 
     public void testAddingDoWithHeaderWithoutSkipHeaders() {
@@ -528,16 +508,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(apiCallSection);
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "api/name:\nattempted to add a [do] with a [headers] section without a corresponding "
-                    + "[\"skip\": \"features\": \"headers\"] so runners that do not support the [headers] section can skip the "
-                    + "test at line ["
-                    + lineNumber
-                    + "]"
-            )
-        );
+        assertThat(e.getMessage(), containsString(String.format(Locale.ROOT, """
+            api/name:
+            attempted to add a [do] with a [headers] section without a corresponding ["skip": "features": "headers"] \
+            so runners that do not support the [headers] section can skip the test at line [%d]\
+            """, lineNumber)));
     }
 
     public void testAddingDoWithNodeSelectorWithoutSkipNodeSelector() {
@@ -548,16 +523,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(apiCall);
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "api/name:\nattempted to add a [do] with a [node_selector] section without a "
-                    + "corresponding [\"skip\": \"features\": \"node_selector\"] so runners that do not support the [node_selector] "
-                    + "section can skip the test at line ["
-                    + lineNumber
-                    + "]"
-            )
-        );
+        assertThat(e.getMessage(), containsString(String.format(Locale.ROOT, """
+            api/name:
+            attempted to add a [do] with a [node_selector] section without a corresponding ["skip": "features": "node_selector"] \
+            so runners that do not support the [node_selector] section can skip the test at line [%d]\
+            """, lineNumber)));
     }
 
     public void testAddingContainsWithoutSkipContains() {
@@ -569,16 +539,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         );
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, containsAssertion);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "api/name:\nattempted to add a [contains] assertion without a corresponding "
-                    + "[\"skip\": \"features\": \"contains\"] so runners that do not support the [contains] assertion "
-                    + "can skip the test at line ["
-                    + lineNumber
-                    + "]"
-            )
-        );
+        assertThat(e.getMessage(), containsString(String.format(Locale.ROOT, """
+            api/name:
+            attempted to add a [contains] assertion without a corresponding ["skip": "features": "contains"] \
+            so runners that do not support the [contains] assertion can skip the test at line [%d]\
+            """, lineNumber)));
     }
 
     public void testMultipleValidationErrors() {
@@ -619,23 +584,16 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
         ClientYamlTestSuite testSuite = new ClientYamlTestSuite("api", "name", SetupSection.EMPTY, TeardownSection.EMPTY, sections);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertEquals(
-            "api/name:\n"
-                + "attempted to add a [contains] assertion without a corresponding [\"skip\": \"features\": \"contains\"] so runners "
-                + "that do not support the [contains] assertion can skip the test at line ["
-                + firstLineNumber
-                + "],\n"
-                + "attempted to add a [do] with a [warnings] section without a corresponding [\"skip\": \"features\": \"warnings\"] so "
-                + "runners that do not support the [warnings] section can skip the test at line ["
-                + secondLineNumber
-                + "],\n"
-                + "attempted to add a [do] with a [node_selector] section without a corresponding "
-                + "[\"skip\": \"features\": \"node_selector\"] "
-                + "so runners that do not support the [node_selector] section can skip the test at line ["
-                + thirdLineNumber
-                + "]",
-            e.getMessage()
-        );
+        assertEquals(String.format(Locale.ROOT, """
+            api/name:
+            attempted to add a [contains] assertion without a corresponding ["skip": "features": "contains"] so runners that \
+            do not support the [contains] assertion can skip the test at line [%d],
+            attempted to add a [do] with a [warnings] section without a corresponding ["skip": "features": "warnings"] so runners \
+            that do not support the [warnings] section can skip the test at line [%d],
+            attempted to add a [do] with a [node_selector] section without a corresponding ["skip": "features": "node_selector"] so \
+            runners that do not support the [node_selector] section can skip the test \
+            at line [%d]\
+            """, firstLineNumber, secondLineNumber, thirdLineNumber), e.getMessage());
     }
 
     public void testAddingDoWithWarningWithSkip() {

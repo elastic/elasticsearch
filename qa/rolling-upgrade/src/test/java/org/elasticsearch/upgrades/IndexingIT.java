@@ -135,12 +135,13 @@ public class IndexingIT extends AbstractRollingTestCase {
 
     public void testAutoIdWithOpTypeCreate() throws IOException {
         final String indexName = "auto_id_and_op_type_create_index";
-        StringBuilder b = new StringBuilder();
-        b.append("{\"create\": {\"_index\": \"").append(indexName).append("\"}}\n");
-        b.append("{\"f1\": \"v\"}\n");
+        String b = """
+            {"create": {"_index": "%s"}}
+            {"f1": "v"}
+            """.formatted(indexName);
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
-        bulk.setJsonEntity(b.toString());
+        bulk.setJsonEntity(b);
 
         switch (CLUSTER_TYPE) {
             case OLD:
@@ -333,10 +334,10 @@ public class IndexingIT extends AbstractRollingTestCase {
         long delta = TimeUnit.SECONDS.toMillis(20);
         double value = (timeStart - TSDB_TIMES[0]) / TimeUnit.SECONDS.toMillis(20) * rate;
         for (long t = timeStart; t < timeEnd; t += delta) {
-            bulk.append("{\"index\": {\"_index\": \"tsdb\"}}\n");
-            bulk.append("{\"@timestamp\": ").append(t);
-            bulk.append(", \"dim\": \"").append(dim).append("\"");
-            bulk.append(", \"value\": ").append(value).append("}\n");
+            bulk.append("""
+                {"index": {"_index": "tsdb"}}
+                {"@timestamp": %s, "dim": "%s", "value": %s}
+                """.formatted(t, dim, value));
             value += rate;
         }
     }

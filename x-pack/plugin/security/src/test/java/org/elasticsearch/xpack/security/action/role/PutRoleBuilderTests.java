@@ -31,13 +31,9 @@ public class PutRoleBuilderTests extends ESTestCase {
                 ElasticsearchParseException.class,
                 () -> new PutRoleRequestBuilder(client).source("role1", new BytesArray(roleString), XContentType.JSON)
             );
-            assertThat(
-                e.getDetailedMessage(),
-                containsString(
-                    "\"fields\": [...]] format has changed for field permissions in role "
-                        + "[role1], use [\"field_security\": {\"grant\":[...],\"except\":[...]}] instead"
-                )
-            );
+            assertThat(e.getDetailedMessage(), containsString("""
+                "fields": [...]] format has changed for field permissions in role [role1], \
+                use ["field_security": {"grant":[...],"except":[...]}] instead"""));
         }
     }
 }

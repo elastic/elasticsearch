@@ -230,8 +230,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
                 );
             }
 
-            if (inferenceConfig instanceof ClassificationConfigUpdate) {
-                ClassificationConfigUpdate classUpdate = (ClassificationConfigUpdate) inferenceConfig;
+            if (inferenceConfig instanceof ClassificationConfigUpdate classUpdate) {
 
                 // error if the top classes result field is set and not equal to the only acceptable value
                 String topClassesField = classUpdate.getTopClassesResultsField();

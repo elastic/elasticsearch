@@ -159,6 +159,8 @@ NOTE: Distributions that use `systemd` require that system resource limits be
 configured via `systemd` rather than via the `/etc/sysconfig/elasticsearch`
 file. See <<systemd>> for more information.
 
+include::connect-clients.asciidoc[]
+
 [[rpm-layout]]
 ==== Directory layout of RPM
 

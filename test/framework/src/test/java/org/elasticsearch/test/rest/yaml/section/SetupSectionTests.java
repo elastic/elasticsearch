@@ -20,21 +20,20 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class SetupSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseSetupSection() throws Exception {
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "  - do:\n"
-                + "      index1:\n"
-                + "        index:  test_1\n"
-                + "        type:   test\n"
-                + "        id:     1\n"
-                + "        body:   { \"include\": { \"field1\": \"v1\", \"field2\": \"v2\" }, \"count\": 1 }\n"
-                + "  - do:\n"
-                + "      index2:\n"
-                + "        index:  test_1\n"
-                + "        type:   test\n"
-                + "        id:     2\n"
-                + "        body:   { \"include\": { \"field1\": \"v1\", \"field2\": \"v2\" }, \"count\": 1 }\n"
-        );
+        parser = createParser(YamlXContent.yamlXContent, """
+              - do:
+                  index1:
+                    index:  test_1
+                    type:   test
+                    id:     1
+                    body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }
+              - do:
+                  index2:
+                    index:  test_1
+                    type:   test
+                    id:     2
+                    body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }
+            """);
 
         SetupSection setupSection = SetupSection.parse(parser);
 
@@ -48,17 +47,16 @@ public class SetupSectionTests extends AbstractClientYamlTestFragmentParserTestC
     }
 
     public void testParseSetSectionInSetupSection() throws IOException {
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "- do:\n"
-                + "    cluster.state: {}\n"
-                + "- set: { master_node: master }\n"
-                + "- do:\n"
-                + "    nodes.info:\n"
-                + "      metric: [ http, transport ]\n"
-                + "- set: {nodes.$master.http.publish_address: host}\n"
-                + "- set: {nodes.$master.transport.publish_address: transport_host}\n"
-        );
+        parser = createParser(YamlXContent.yamlXContent, """
+            - do:
+                cluster.state: {}
+            - set: { master_node: master }
+            - do:
+                nodes.info:
+                  metric: [ http, transport ]
+            - set: {nodes.$master.http.publish_address: host}
+            - set: {nodes.$master.transport.publish_address: transport_host}
+            """);
 
         final SetupSection setupSection = SetupSection.parse(parser);
 
@@ -87,24 +85,23 @@ public class SetupSectionTests extends AbstractClientYamlTestFragmentParserTestC
     }
 
     public void testParseSetupAndSkipSectionNoSkip() throws Exception {
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "  - skip:\n"
-                + "      version:  \"6.0.0 - 6.3.0\"\n"
-                + "      reason:   \"Update doesn't return metadata fields, waiting for #3259\"\n"
-                + "  - do:\n"
-                + "      index1:\n"
-                + "        index:  test_1\n"
-                + "        type:   test\n"
-                + "        id:     1\n"
-                + "        body:   { \"include\": { \"field1\": \"v1\", \"field2\": \"v2\" }, \"count\": 1 }\n"
-                + "  - do:\n"
-                + "      index2:\n"
-                + "        index:  test_1\n"
-                + "        type:   test\n"
-                + "        id:     2\n"
-                + "        body:   { \"include\": { \"field1\": \"v1\", \"field2\": \"v2\" }, \"count\": 1 }\n"
-        );
+        parser = createParser(YamlXContent.yamlXContent, """
+              - skip:
+                  version:  "6.0.0 - 6.3.0"
+                  reason:   "Update doesn't return metadata fields, waiting for #3259"
+              - do:
+                  index1:
+                    index:  test_1
+                    type:   test
+                    id:     1
+                    body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }
+              - do:
+                  index2:
+                    index:  test_1
+                    type:   test
+                    id:     2
+                    body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }
+            """);
 
         SetupSection setupSection = SetupSection.parse(parser);
 

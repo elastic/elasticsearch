@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
-import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -86,7 +87,7 @@ public class FillMaskProcessor implements NlpTask.Processor {
         String resultsField
     ) {
         if (tokenization.getTokenizations().isEmpty() || tokenization.getTokenizations().get(0).getTokenIds().length == 0) {
-            return new WarningInferenceResults("No valid tokens for inference");
+            throw new ElasticsearchStatusException("tokenization is empty", RestStatus.INTERNAL_SERVER_ERROR);
         }
 
         if (tokenizer.getMaskTokenId().isEmpty()) {
@@ -105,8 +106,9 @@ public class FillMaskProcessor implements NlpTask.Processor {
             }
         }
         if (maskTokenIndex == -1) {
-            return new WarningInferenceResults(
+            throw new ElasticsearchStatusException(
                 "mask token id [{}] not found in the tokenization {}",
+                RestStatus.INTERNAL_SERVER_ERROR,
                 maskTokenId,
                 List.of(tokenization.getTokenizations().get(0).getTokenIds())
             );

@@ -52,7 +52,8 @@ public class ClusterStatsNodesTests extends ESTestCase {
         );
         stats = new ClusterStatsNodes.NetworkTypes(nodeInfos);
         assertEquals(
-            "{" + "\"transport_types\":{\"custom\":1}," + "\"http_types\":{\"custom\":2}" + "}",
+            """
+                {"transport_types":{"custom":1},"http_types":{"custom":2}}""",
             toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString()
         );
     }
@@ -82,7 +83,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
 
         ClusterStatsNodes.IngestStats stats = new ClusterStatsNodes.IngestStats(Collections.singletonList(nodeStats));
         assertThat(stats.pipelineCount, equalTo(nodeStats.getIngestStats().getProcessorStats().size()));
-        String processorStatsString = "{";
+        StringBuilder processorStatsString = new StringBuilder("{");
         Iterator<Map.Entry<String, long[]>> iter = processorStats.entrySet().iterator();
         while (iter.hasNext()) {
             Map.Entry<String, long[]> entry = iter.next();
@@ -91,34 +92,17 @@ public class ClusterStatsNodesTests extends ESTestCase {
             long failedCount = statValues[1];
             long current = statValues[2];
             long timeInMillis = statValues[3];
-            processorStatsString += "\""
-                + entry.getKey()
-                + "\":{\"count\":"
-                + count
-                + ",\"failed\":"
-                + failedCount
-                + ",\"current\":"
-                + current
-                + ",\"time_in_millis\":"
-                + timeInMillis
-                + "}";
+            processorStatsString.append("""
+                "%s":{"count":%s,"failed":%s,"current":%s,"time_in_millis":%s}\
+                """.formatted(entry.getKey(), count, failedCount, current, timeInMillis));
             if (iter.hasNext()) {
-                processorStatsString += ",";
+                processorStatsString.append(",");
             }
         }
-        processorStatsString += "}";
-        assertThat(
-            toXContent(stats, XContentType.JSON, false).utf8ToString(),
-            equalTo(
-                "{\"ingest\":{"
-                    + "\"number_of_pipelines\":"
-                    + stats.pipelineCount
-                    + ","
-                    + "\"processor_stats\":"
-                    + processorStatsString
-                    + "}}"
-            )
-        );
+        processorStatsString.append("}");
+        assertThat(toXContent(stats, XContentType.JSON, false).utf8ToString(), equalTo("""
+            {"ingest":{"number_of_pipelines":%s,"processor_stats":%s}}\
+            """.formatted(stats.pipelineCount, processorStatsString)));
     }
 
     public void testIndexPressureStats() throws Exception {

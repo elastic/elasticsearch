@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
@@ -121,9 +122,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected static void putAutoFollowPattern(String patternName, String remoteCluster, String indexPattern) throws IOException {
         Request putPatternRequest = new Request("PUT", "/_ccr/auto_follow/" + patternName);
-        putPatternRequest.setJsonEntity(
-            "{\"leader_index_patterns\": [\"" + indexPattern + "\"], \"remote_cluster\": \"" + remoteCluster + "\"}"
-        );
+        putPatternRequest.setJsonEntity(String.format(Locale.ROOT, """
+            {"leader_index_patterns": ["%s"], "remote_cluster": "%s"}
+            """, indexPattern, remoteCluster));
         assertOK(client().performRequest(putPatternRequest));
     }
 
@@ -175,7 +176,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected static void verifyCcrMonitoring(final String expectedLeaderIndex, final String expectedFollowerIndex) throws IOException {
         Request request = new Request("GET", "/.monitoring-*/_search");
-        request.setJsonEntity("{\"query\": {\"term\": {\"ccr_stats.leader_index\": \"" + expectedLeaderIndex + "\"}}}");
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {"query": {"term": {"ccr_stats.leader_index": "%s"}}}
+            """, expectedLeaderIndex));
         Map<String, ?> response;
         try {
             response = toMap(adminClient().performRequest(request));
@@ -217,7 +220,8 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected static void verifyAutoFollowMonitoring() throws IOException {
         Request request = new Request("GET", "/.monitoring-*/_search");
-        request.setJsonEntity("{\"query\": {\"term\": {\"type\": \"ccr_auto_follow_stats\"}}}");
+        request.setJsonEntity("""
+            {"query": {"term": {"type": "ccr_auto_follow_stats"}}}""");
         Map<String, ?> response;
         try {
             response = toMap(adminClient().performRequest(request));

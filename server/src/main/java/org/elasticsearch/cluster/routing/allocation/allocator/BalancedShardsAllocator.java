@@ -801,10 +801,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * process. In short, this method recreates the status-quo in the cluster.
          */
         private Map<String, ModelNode> buildModelFromAssigned() {
-            Map<String, ModelNode> nodes = new HashMap<>();
+            Map<String, ModelNode> nodesByNodeId = new HashMap<>();
             for (RoutingNode rn : routingNodes) {
                 ModelNode node = new ModelNode(rn);
-                nodes.put(rn.nodeId(), node);
+                nodesByNodeId.put(rn.nodeId(), node);
                 for (ShardRouting shard : rn) {
                     assert rn.nodeId().equals(shard.currentNodeId());
                     /* we skip relocating shards here since we expect an initializing shard with the same id coming in */
@@ -816,7 +816,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     }
                 }
             }
-            return nodes;
+            return nodesByNodeId;
         }
 
         /**

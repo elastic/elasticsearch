@@ -866,7 +866,7 @@ public class MetadataCreateIndexService {
         final Settings.Builder indexSettingsBuilder = Settings.builder();
         if (sourceMetadata == null) {
             final Settings.Builder additionalIndexSettings = Settings.builder();
-            final Settings templateAndRequestSettings = Settings.builder().put(combinedTemplateSettings).put(request.settings()).build();
+            final Settings templateAndRequestSettings = combinedTemplateSettings.merge(request.settings());
             final boolean newDataStream = isDataStreamIndex
                 && currentState.getMetadata().dataStreams().containsKey(request.dataStreamName()) == false;
 

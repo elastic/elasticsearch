@@ -332,7 +332,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         settings = Objects.isNull(settings) ? Settings.EMPTY : settings;
 
         if (settings.hasValue(IndexMetadata.SETTING_INDEX_HIDDEN) == false) {
-            settings = Settings.builder().put(settings).put(DEFAULT_SETTINGS).build();
+            settings = settings.merge(DEFAULT_SETTINGS);
         }
 
         if (settings.getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {

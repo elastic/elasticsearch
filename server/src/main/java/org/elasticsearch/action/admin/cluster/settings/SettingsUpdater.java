@@ -94,8 +94,8 @@ final class SettingsUpdater {
             clusterSettings.validate(persistentFinalSettings, true);
 
             Metadata.Builder metadata = Metadata.builder(currentState.metadata())
-                .transientSettings(Settings.builder().put(transientFinalSettings).put(unknownOrInvalidTransientSettings).build())
-                .persistentSettings(Settings.builder().put(persistentFinalSettings).put(unknownOrInvalidPersistentSettings).build());
+                .transientSettings(transientFinalSettings.merge(unknownOrInvalidTransientSettings))
+                .persistentSettings(persistentFinalSettings.merge(unknownOrInvalidPersistentSettings));
 
             ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
             boolean updatedReadOnly = Metadata.SETTING_READ_ONLY_SETTING.get(metadata.persistentSettings())
@@ -150,10 +150,8 @@ final class SettingsUpdater {
             (e, ex) -> logInvalidSetting(settingsType, e, ex, logger)
         );
         return Tuple.tuple(
-            Settings.builder()
-                .put(settingsWithUnknownOrInvalidArchived.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX) == false))
-                .put(existingArchivedSettings)
-                .build(),
+            settingsWithUnknownOrInvalidArchived.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX) == false)
+                .merge(existingArchivedSettings),
             settingsWithUnknownOrInvalidArchived.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX))
         );
     }

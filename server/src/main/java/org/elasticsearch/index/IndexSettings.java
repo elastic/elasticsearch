@@ -699,7 +699,7 @@ public final class IndexSettings {
     public IndexSettings(final IndexMetadata indexMetadata, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
         scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetadata);
         this.nodeSettings = nodeSettings;
-        this.settings = Settings.builder().put(nodeSettings).put(indexMetadata.getSettings()).build();
+        this.settings = nodeSettings.merge(indexMetadata.getSettings());
         this.index = indexMetadata.getIndex();
         version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
         logger = Loggers.getLogger(getClass(), index);
@@ -953,7 +953,7 @@ public final class IndexSettings {
             throw new IllegalArgumentException("uuid mismatch on settings update expected: " + restoreUUID + " but was: " + newRestoreUUID);
         }
         this.indexMetadata = indexMetadata;
-        final Settings newIndexSettings = Settings.builder().put(nodeSettings).put(newSettings).build();
+        final Settings newIndexSettings = nodeSettings.merge(newSettings);
         if (same(this.settings, newIndexSettings)) {
             // nothing to update, same settings
             return false;

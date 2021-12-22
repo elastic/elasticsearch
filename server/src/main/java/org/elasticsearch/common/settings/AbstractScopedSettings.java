@@ -143,8 +143,8 @@ public abstract class AbstractScopedSettings {
      * method will not change any settings but will fail if any of the settings can't be applied.
      */
     public synchronized Settings validateUpdate(Settings settingsToValidate) {
-        final Settings current = Settings.builder().put(this.settings).put(settingsToValidate).build();
-        final Settings previous = Settings.builder().put(this.settings).put(this.lastSettingsApplied).build();
+        final Settings current = this.settings.merge(settingsToValidate);
+        final Settings previous = this.settings.merge(this.lastSettingsApplied);
         List<RuntimeException> exceptions = new ArrayList<>();
         for (SettingUpdater<?> settingUpdater : settingUpdaters) {
             try {
@@ -173,8 +173,8 @@ public abstract class AbstractScopedSettings {
             // nothing changed in the settings, ignore
             return newSettings;
         }
-        final Settings current = Settings.builder().put(this.settings).put(newSettings).build();
-        final Settings previous = Settings.builder().put(this.settings).put(this.lastSettingsApplied).build();
+        final Settings current = this.settings.merge(newSettings);
+        final Settings previous = this.settings.merge(this.lastSettingsApplied);
         try {
             List<Runnable> applyRunnables = new ArrayList<>();
             for (SettingUpdater<?> settingUpdater : settingUpdaters) {

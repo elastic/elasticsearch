@@ -2163,8 +2163,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public String startMasterOnlyNode(Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put(masterOnlyNode(settings)).build();
-        return startNode(settings1);
+        return startNode(settings.merge(masterOnlyNode(settings)));
     }
 
     public String startDataOnlyNode() {
@@ -2172,8 +2171,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public String startDataOnlyNode(Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put(dataOnlyNode(settings)).build();
-        return startNode(settings1);
+        return startNode(settings.merge(dataOnlyNode(settings)));
     }
 
     private synchronized void publishNode(NodeAndClient nodeAndClient) {

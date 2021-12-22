@@ -74,12 +74,15 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
  */
 public final class Settings implements ToXContentFragment {
 
-    public static final Settings EMPTY = new Settings(Map.of(), null);
+    public static final Settings EMPTY = new Settings(Collections.emptyNavigableMap(), null);
 
     /** The raw settings from the full key to raw string value. */
     private final NavigableMap<String, Object> settings;
 
-    /** The secure settings storage associated with these settings. */
+    /**
+     * The secure settings storage associated with these settings.
+     */
+    @Nullable
     private final SecureSettings secureSettings;
 
     /** The first level of setting names. This is constructed lazily in {@link #names()}. */
@@ -91,14 +94,10 @@ public final class Settings implements ToXContentFragment {
      */
     private Set<String> keys;
 
-    private static Settings of(Map<String, Object> settings, SecureSettings secureSettings) {
+    private static Settings of(Map<String, Object> settings, @Nullable SecureSettings secureSettings) {
         if (secureSettings == null && settings.isEmpty()) {
             return EMPTY;
         }
-        return new Settings(settings, secureSettings);
-    }
-
-    private Settings(Map<String, Object> settings, SecureSettings secureSettings) {
         // we use a sorted map for consistent serialization when using getAsMap()
         final TreeMap<String, Object> tree = new TreeMap<>();
         for (Map.Entry<String, Object> settingEntry : settings.entrySet()) {
@@ -120,8 +119,35 @@ public final class Settings implements ToXContentFragment {
             }
             tree.put(internKeyOrValue(settingEntry.getKey()), internedValue);
         }
-        this.settings = Collections.unmodifiableNavigableMap(tree);
+        return new Settings(Collections.unmodifiableNavigableMap(tree), secureSettings);
+    }
+
+    private Settings(NavigableMap<String, Object> settings, @Nullable SecureSettings secureSettings) {
+        this.settings = settings;
         this.secureSettings = secureSettings;
+    }
+
+    /**
+     * Create a merged instance that contains all settings from this instance and the given settings, with the given {@code other} settings
+     * taking precedence. This method is functionally equivalent to using {@link Builder#put(Settings)} twice to merge two settings
+     * instances but much faster.
+     *
+     * @param other settings to merge with this instance's settings.
+     * @return merge settings
+     */
+    public Settings merge(Settings other) {
+        if (other.secureSettings != null) {
+            throw new IllegalArgumentException("can not merge settings that contain secure settings");
+        }
+        if (isEmpty()) {
+            return other;
+        }
+        if (other.isEmpty()) {
+            return this;
+        }
+        final NavigableMap<String, Object> merged = new TreeMap<>(this.settings);
+        merged.putAll(other.settings);
+        return new Settings(Collections.unmodifiableNavigableMap(merged), secureSettings);
     }
 
     /**
@@ -1269,7 +1295,7 @@ public final class Settings implements ToXContentFragment {
                 return EMPTY;
             }
             processLegacyLists(map);
-            return new Settings(map, secSettings);
+            return Settings.of(map, secSettings);
         }
     }
 

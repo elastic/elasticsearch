@@ -358,13 +358,10 @@ public class MetadataRolloverService {
         CreateIndexRequest createIndexRequest,
         Settings settings
     ) {
-        Settings.Builder b = Settings.builder().put(createIndexRequest.settings());
-        if (settings != null) {
-            b.put(settings);
-        }
+        final Settings s = settings == null ? createIndexRequest.settings() : createIndexRequest.settings().merge(settings);
         return new CreateIndexClusterStateUpdateRequest(cause, targetIndexName, providedIndexName).ackTimeout(createIndexRequest.timeout())
             .masterNodeTimeout(createIndexRequest.masterNodeTimeout())
-            .settings(b.build())
+            .settings(s)
             .aliases(createIndexRequest.aliases())
             .waitForActiveShards(ActiveShardCount.NONE) // not waiting for shards here, will wait on the alias switch operation
             .mappings(createIndexRequest.mappings())

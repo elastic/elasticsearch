@@ -146,7 +146,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
             return this.indicesStatus;
         }
 
-        Map<String, SnapshotIndexStatus> indicesStatus = new HashMap<>();
+        Map<String, SnapshotIndexStatus> indexStatusMap = new HashMap<>();
 
         Set<String> indices = new HashSet<>();
         for (SnapshotIndexShardStatus shard : shards) {
@@ -154,15 +154,15 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         }
 
         for (String index : indices) {
-            List<SnapshotIndexShardStatus> shards = new ArrayList<>();
+            List<SnapshotIndexShardStatus> shardStatuses = new ArrayList<>();
             for (SnapshotIndexShardStatus shard : this.shards) {
                 if (shard.getIndex().equals(index)) {
-                    shards.add(shard);
+                    shardStatuses.add(shard);
                 }
             }
-            indicesStatus.put(index, new SnapshotIndexStatus(index, shards));
+            indexStatusMap.put(index, new SnapshotIndexStatus(index, shardStatuses));
         }
-        this.indicesStatus = unmodifiableMap(indicesStatus);
+        this.indicesStatus = unmodifiableMap(indexStatusMap);
         return this.indicesStatus;
 
     }

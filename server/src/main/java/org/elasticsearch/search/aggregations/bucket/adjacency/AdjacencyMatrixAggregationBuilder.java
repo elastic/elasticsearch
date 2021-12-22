@@ -137,10 +137,10 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         }
     }
 
-    private void setFiltersAsMap(Map<String, QueryBuilder> filters) {
+    private void setFiltersAsMap(Map<String, QueryBuilder> filterByName) {
         // Convert uniquely named objects into internal KeyedFilters
-        this.filters = new ArrayList<>(filters.size());
-        for (Entry<String, QueryBuilder> kv : filters.entrySet()) {
+        this.filters = new ArrayList<>(filterByName.size());
+        for (Entry<String, QueryBuilder> kv : filterByName.entrySet()) {
             this.filters.add(new KeyedFilter(kv.getKey(), kv.getValue()));
         }
         // internally we want to have a fixed order of filters, regardless of

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.client;
+package org.elasticsearch.client.internal;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -187,7 +187,7 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request The bulk request
      * @return The result future
-     * @see org.elasticsearch.client.Requests#bulkRequest()
+     * @see org.elasticsearch.client.internal.Requests#bulkRequest()
      */
     ActionFuture<BulkResponse> bulk(BulkRequest request);
 
@@ -196,7 +196,7 @@ public interface Client extends ElasticsearchClient, Releasable {
      *
      * @param request  The bulk request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#bulkRequest()
+     * @see org.elasticsearch.client.internal.Requests#bulkRequest()
      */
     void bulk(BulkRequest request, ActionListener<BulkResponse> listener);
 

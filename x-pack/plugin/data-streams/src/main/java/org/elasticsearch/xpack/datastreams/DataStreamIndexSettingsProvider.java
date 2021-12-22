@@ -52,7 +52,9 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     IndexMetadata currentLatestBackingIndex = metadata.index(dataStream.getWriteIndex());
                     if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
                         throw new IllegalStateException(
-                            "backing index [%s] in tsdb mode doesn't have the [%s] index setting".formatted(
+                            String.format(
+                                Locale.ROOT,
+                                "backing index [%s] in tsdb mode doesn't have the [%s] index setting",
                                 currentLatestBackingIndex.getIndex().getName(),
                                 IndexSettings.TIME_SERIES_START_TIME.getKey()
                             )

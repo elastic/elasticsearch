@@ -95,7 +95,7 @@ setup:
 "Float range":
   - skip:
       version: " - 8.0.99"
-      reason: Bug fixed in 7.16.0
+      reason: Bug fixed in 8.1.0
   - do:
       search:
         body:
@@ -133,7 +133,7 @@ setup:
 "Double range":
   - skip:
       version: " - 8.0.99"
-      reason: Bug fixed in 7.16.0
+      reason: Bug fixed in 8.1.0
   - do:
       search:
         body:

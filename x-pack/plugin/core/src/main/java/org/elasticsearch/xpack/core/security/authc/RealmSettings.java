@@ -140,10 +140,8 @@ public class RealmSettings {
         // file and native realms can be referred to by their default names too
         for (String domainName : DOMAIN_TO_REALM_ASSOC_SETTING.getNamespaces(globalSettings)) {
             Setting<List<String>> realmsByDomainSetting = DOMAIN_TO_REALM_ASSOC_SETTING.getConcreteSettingForNamespace(domainName);
-            for (String realmName : realmsByDomainSetting.get(globalSettings)) {
-                if (realmName.equals(realmIdentifier.getName())) {
-                    return domainName;
-                }
+            if (realmsByDomainSetting.get(globalSettings).contains(realmIdentifier.getName())) {
+                return domainName;
             }
         }
         return null;

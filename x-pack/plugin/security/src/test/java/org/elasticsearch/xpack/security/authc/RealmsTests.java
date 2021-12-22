@@ -354,7 +354,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "Realms can be associated to at most one domain, but [realm_" + realm + "] is associated to domains [domain2, domain1]"
+                "Realms can be associated to at most one domain, but [realm_" + realm + "] is associated to domains [domain1, domain2]"
             )
         );
     }

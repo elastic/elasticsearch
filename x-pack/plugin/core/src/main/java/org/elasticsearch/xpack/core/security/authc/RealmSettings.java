@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -164,7 +165,7 @@ public class RealmSettings {
             }
             Setting<List<String>> realmsByDomainSetting = DOMAIN_TO_REALM_ASSOC_SETTING.getConcreteSettingForNamespace(domainName);
             for (String realmName : realmsByDomainSetting.get(globalSettings)) {
-                realmToDomainsMap.computeIfAbsent(realmName, k -> new HashSet<>()).add(domainName);
+                realmToDomainsMap.computeIfAbsent(realmName, k -> new TreeSet<>()).add(domainName);
             }
         }
         final StringBuilder realmToMultipleDomainsErrorMessageBuilder = new StringBuilder(

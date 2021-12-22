@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -52,8 +53,12 @@ public class TrainedModelSizeStats implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(MODEL_SIZE_BYTES.getPreferredName(), modelSizeBytes);
-        builder.field(REQUIRED_NATIVE_MEMORY_BYTES.getPreferredName(), requiredNativeMemoryBytes);
+        builder.humanReadableField(MODEL_SIZE_BYTES.getPreferredName(), "model_size", ByteSizeValue.ofBytes(modelSizeBytes));
+        builder.humanReadableField(
+            REQUIRED_NATIVE_MEMORY_BYTES.getPreferredName(),
+            "required_native_memory",
+            ByteSizeValue.ofBytes(requiredNativeMemoryBytes)
+        );
         builder.endObject();
         return builder;
     }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
@@ -93,9 +94,9 @@ public class IndicesStatsResponse extends BroadcastResponse {
                 ClusterHealthStatus health = null;
                 IndexMetadata.State state = null;
                 if (clusterState != null) {
-                    health = ClusterHealthStatus.fromClusterState(clusterState, index);
                     IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
                     if (indexMetadata != null) {
+                        health = new ClusterIndexHealth(indexMetadata, clusterState.routingTable().index(index)).getStatus();
                         state = indexMetadata.getState();
                     }
                 }

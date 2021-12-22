@@ -30,7 +30,6 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -210,48 +209,42 @@ public class ProfileService {
                         .must(QueryBuilders.termQuery("user.realm.name", authentication.getSourceRealm().getName()))
                 )
                 .request();
-            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
-                profileIndex.checkIndexVersionThenExecute(
-                    listener::onFailure,
-                    () -> executeAsyncWithOrigin(
-                        client,
-                        SECURITY_ORIGIN,
-                        SearchAction.INSTANCE,
-                        searchRequest,
-                        ActionListener.wrap(searchResponse -> {
-                            final SearchHits searchHits = searchResponse.getHits();
-                            final SearchHit[] hits = searchHits.getHits();
-                            if (hits.length < 1) {
-                                logger.debug(
-                                    "profile does not exist for username [{}] and realm name [{}]",
-                                    authentication.getUser().principal(),
-                                    authentication.getSourceRealm().getName()
-                                );
-                                listener.onResponse(null);
-                            } else if (hits.length == 1) {
-                                final SearchHit hit = hits[0];
-                                listener.onResponse(
-                                    new VersionedDocument(buildProfileDocument(hit.getSourceRef()), hit.getPrimaryTerm(), hit.getSeqNo())
-                                );
-                            } else {
-                                final ParameterizedMessage errorMessage = new ParameterizedMessage(
-                                    "multiple [{}] profiles [{}] found for user [{}]",
-                                    hits.length,
-                                    Arrays.stream(hits)
-                                        .map(SearchHit::getId)
-                                        .map(this::docIdToUid)
-                                        .sorted()
-                                        .collect(Collectors.joining(",")),
-                                    // TODO: include domain information
-                                    authentication.getUser().principal()
-                                );
-                                logger.error(errorMessage);
-                                listener.onFailure(new ElasticsearchException(errorMessage.getFormattedMessage()));
-                            }
-                        }, listener::onFailure)
-                    )
-                );
-            }
+            frozenProfileIndex.checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_ORIGIN,
+                    SearchAction.INSTANCE,
+                    searchRequest,
+                    ActionListener.wrap(searchResponse -> {
+                        final SearchHits searchHits = searchResponse.getHits();
+                        final SearchHit[] hits = searchHits.getHits();
+                        if (hits.length < 1) {
+                            logger.debug(
+                                "profile does not exist for username [{}] and realm name [{}]",
+                                authentication.getUser().principal(),
+                                authentication.getSourceRealm().getName()
+                            );
+                            listener.onResponse(null);
+                        } else if (hits.length == 1) {
+                            final SearchHit hit = hits[0];
+                            listener.onResponse(
+                                new VersionedDocument(buildProfileDocument(hit.getSourceRef()), hit.getPrimaryTerm(), hit.getSeqNo())
+                            );
+                        } else {
+                            final ParameterizedMessage errorMessage = new ParameterizedMessage(
+                                "multiple [{}] profiles [{}] found for user [{}]",
+                                hits.length,
+                                Arrays.stream(hits).map(SearchHit::getId).map(this::docIdToUid).sorted().collect(Collectors.joining(",")),
+                                // TODO: include domain information
+                                authentication.getUser().principal()
+                            );
+                            logger.error(errorMessage);
+                            listener.onFailure(new ElasticsearchException(errorMessage.getFormattedMessage()));
+                        }
+                    }, listener::onFailure)
+                )
+            );
         });
     }
 

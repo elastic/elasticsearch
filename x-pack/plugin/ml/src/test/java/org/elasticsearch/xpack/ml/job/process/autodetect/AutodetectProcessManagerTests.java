@@ -161,8 +161,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocationOnMock -> {
-            if (invocationOnMock.getArguments()[0] instanceof ActionType<?>) {
-                ActionType<?> v = (ActionType<?>) invocationOnMock.getArguments()[0];
+            if (invocationOnMock.getArguments()[0]instanceof ActionType<?> v) {
                 ActionListener<?> l = (ActionListener<?>) invocationOnMock.getArguments()[2];
                 ParameterizedType parameterizedType = (ParameterizedType) v.getClass().getGenericSuperclass();
                 Type t = parameterizedType.getActualTypeArguments()[0];

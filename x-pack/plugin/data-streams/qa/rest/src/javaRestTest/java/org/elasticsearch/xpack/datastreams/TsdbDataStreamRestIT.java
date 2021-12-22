@@ -122,17 +122,38 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(1));
         assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.template"), equalTo("1"));
         assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(1));
-        String backingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.0.index_name");
-        assertThat(backingIndex, backingIndexEqualTo("k8s", 1));
+        String firstBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.0.index_name");
+        assertThat(firstBackingIndex, backingIndexEqualTo("k8s", 1));
 
-        var getIndexRequest = new Request("GET", "/" + backingIndex + "?human");
+        var getIndexRequest = new Request("GET", "/" + firstBackingIndex + "?human");
         response = client().performRequest(getIndexRequest);
         assertOK(response);
         var indices = entityAsMap(response);
-        var escapedBackingIndex = backingIndex.replace(".", "\\.");
+        var escapedBackingIndex = firstBackingIndex.replace(".", "\\.");
         assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo("k8s"));
         assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.mode"), equalTo("time_series"));
         assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time"), notNullValue());
+        String endTime = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time");
+        assertThat(endTime, notNullValue());
+
+        var rolloverRequest = new Request("POST", "/k8s/_rollover");
+        assertOK(client().performRequest(rolloverRequest));
+
+        response = client().performRequest(getDataStreamsRequest);
+        assertOK(response);
+        dataStreams = entityAsMap(response);
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo("k8s"));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(2));
+        String secondBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.1.index_name");
+        assertThat(secondBackingIndex, backingIndexEqualTo("k8s", 2));
+
+        getIndexRequest = new Request("GET", "/" + secondBackingIndex + "?human");
+        response = client().performRequest(getIndexRequest);
+        assertOK(response);
+        indices = entityAsMap(response);
+        escapedBackingIndex = secondBackingIndex.replace(".", "\\.");
+        assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo("k8s"));
+        assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time"), equalTo(endTime));
         assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time"), notNullValue());
     }
 

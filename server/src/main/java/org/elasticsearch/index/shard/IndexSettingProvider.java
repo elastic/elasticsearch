@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -22,7 +23,7 @@ public interface IndexSettingProvider {
     default Settings getAdditionalIndexSettings(
         String indexName,
         String dataStreamName,
-        boolean newDataStream,
+        Metadata metadata,
         long resolvedAt,
         Settings templateAndRequestSettings
     ) {

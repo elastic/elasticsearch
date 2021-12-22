@@ -15,6 +15,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Description;
@@ -206,13 +207,25 @@ public final class DataStreamTestHelper {
         List<String> indexNames,
         int replicas
     ) {
+        return getClusterStateWithDataStreams(dataStreams, indexNames, System.currentTimeMillis(), Settings.EMPTY, replicas);
+    }
+
+    public static ClusterState getClusterStateWithDataStreams(
+        List<Tuple<String, Integer>> dataStreams,
+        List<String> indexNames,
+        long currentTime,
+        Settings settings,
+        int replicas
+    ) {
         Metadata.Builder builder = Metadata.builder();
 
         List<IndexMetadata> allIndices = new ArrayList<>();
         for (Tuple<String, Integer> dsTuple : dataStreams) {
             List<IndexMetadata> backingIndices = new ArrayList<>();
             for (int backingIndexNumber = 1; backingIndexNumber <= dsTuple.v2(); backingIndexNumber++) {
-                backingIndices.add(createIndexMetadata(getDefaultBackingIndexName(dsTuple.v1(), backingIndexNumber), true, replicas));
+                backingIndices.add(
+                    createIndexMetadata(getDefaultBackingIndexName(dsTuple.v1(), backingIndexNumber, currentTime), true, settings, replicas)
+                );
             }
             allIndices.addAll(backingIndices);
 
@@ -227,7 +240,7 @@ public final class DataStreamTestHelper {
         }
 
         for (String indexName : indexNames) {
-            allIndices.add(createIndexMetadata(indexName, false, replicas));
+            allIndices.add(createIndexMetadata(indexName, false, settings, replicas));
         }
 
         for (IndexMetadata index : allIndices) {
@@ -237,8 +250,11 @@ public final class DataStreamTestHelper {
         return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
     }
 
-    private static IndexMetadata createIndexMetadata(String name, boolean hidden, int replicas) {
-        Settings.Builder b = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).put("index.hidden", hidden);
+    private static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas) {
+        Settings.Builder b = Settings.builder()
+            .put(settings)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("index.hidden", hidden);
 
         return IndexMetadata.builder(name).settings(b).numberOfShards(1).numberOfReplicas(replicas).build();
     }

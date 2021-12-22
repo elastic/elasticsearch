@@ -340,6 +340,7 @@ public class MetadataRolloverService {
         Settings settings = descriptor != null ? Settings.EMPTY : HIDDEN_INDEX_SETTINGS;
         return prepareCreateIndexRequest(targetIndexName, targetIndexName, "rollover_data_stream", createIndexRequest, settings)
             .dataStreamName(dataStreamName)
+            .nameResolvedInstant(System.currentTimeMillis())
             .systemDataStreamDescriptor(descriptor);
     }
 

@@ -221,8 +221,6 @@ public class AllocationStats implements ToXContentObject, Writeable {
     private AllocationStatus allocationStatus;
     private String reason;
     @Nullable
-    private final ByteSizeValue modelSize;
-    @Nullable
     private final Integer inferenceThreads;
     @Nullable
     private final Integer modelThreads;
@@ -233,7 +231,6 @@ public class AllocationStats implements ToXContentObject, Writeable {
 
     public AllocationStats(
         String modelId,
-        @Nullable ByteSizeValue modelSize,
         @Nullable Integer inferenceThreads,
         @Nullable Integer modelThreads,
         @Nullable Integer queueCapacity,
@@ -241,7 +238,6 @@ public class AllocationStats implements ToXContentObject, Writeable {
         List<AllocationStats.NodeStats> nodeStats
     ) {
         this.modelId = modelId;
-        this.modelSize = modelSize;
         this.inferenceThreads = inferenceThreads;
         this.modelThreads = modelThreads;
         this.queueCapacity = queueCapacity;
@@ -253,7 +249,9 @@ public class AllocationStats implements ToXContentObject, Writeable {
 
     public AllocationStats(StreamInput in) throws IOException {
         modelId = in.readString();
-        modelSize = in.readOptionalWriteable(ByteSizeValue::new);
+        if (in.getVersion().before(Version.V_8_1_0)) {
+            in.readOptionalWriteable(ByteSizeValue::new);
+        }
         inferenceThreads = in.readOptionalVInt();
         modelThreads = in.readOptionalVInt();
         queueCapacity = in.readOptionalVInt();
@@ -266,10 +264,6 @@ public class AllocationStats implements ToXContentObject, Writeable {
 
     public String getModelId() {
         return modelId;
-    }
-
-    public ByteSizeValue getModelSize() {
-        return modelSize;
     }
 
     @Nullable
@@ -322,9 +316,6 @@ public class AllocationStats implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("model_id", modelId);
-        if (modelSize != null) {
-            builder.humanReadableField("model_size_bytes", "model_size", modelSize);
-        }
         if (inferenceThreads != null) {
             builder.field(StartTrainedModelDeploymentAction.TaskParams.INFERENCE_THREADS.getPreferredName(), inferenceThreads);
         }
@@ -356,7 +347,9 @@ public class AllocationStats implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
-        out.writeOptionalWriteable(modelSize);
+        if (out.getVersion().before(Version.V_8_1_0)) {
+            out.writeOptionalWriteable(null);
+        }
         out.writeOptionalVInt(inferenceThreads);
         out.writeOptionalVInt(modelThreads);
         out.writeOptionalVInt(queueCapacity);
@@ -373,7 +366,6 @@ public class AllocationStats implements ToXContentObject, Writeable {
         if (o == null || getClass() != o.getClass()) return false;
         AllocationStats that = (AllocationStats) o;
         return Objects.equals(modelId, that.modelId)
-            && Objects.equals(modelSize, that.modelSize)
             && Objects.equals(inferenceThreads, that.inferenceThreads)
             && Objects.equals(modelThreads, that.modelThreads)
             && Objects.equals(queueCapacity, that.queueCapacity)
@@ -386,17 +378,6 @@ public class AllocationStats implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            modelId,
-            modelSize,
-            inferenceThreads,
-            modelThreads,
-            queueCapacity,
-            startTime,
-            nodeStats,
-            state,
-            reason,
-            allocationStatus
-        );
+        return Objects.hash(modelId, inferenceThreads, modelThreads, queueCapacity, startTime, nodeStats, state, reason, allocationStatus);
     }
 }

@@ -170,6 +170,10 @@ public class MetadataCreateIndexService {
         this.indexSettingProviders.add(provider);
     }
 
+    public Set<IndexSettingProvider> getIndexSettingProviders() {
+        return indexSettingProviders;
+    }
+
     /**
      * Validate the name for an index against some static rules and a cluster state.
      */
@@ -863,12 +867,20 @@ public class MetadataCreateIndexService {
         if (sourceMetadata == null) {
             final Settings.Builder additionalIndexSettings = Settings.builder();
             final Settings templateAndRequestSettings = Settings.builder().put(combinedTemplateSettings).put(request.settings()).build();
+            final boolean newDataStream = isDataStreamIndex
+                && currentState.getMetadata().dataStreams().containsKey(request.dataStreamName()) == false;
 
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
             for (IndexSettingProvider provider : indexSettingProviders) {
                 additionalIndexSettings.put(
-                    provider.getAdditionalIndexSettings(request.index(), isDataStreamIndex, templateAndRequestSettings)
+                    provider.getAdditionalIndexSettings(
+                        request.index(),
+                        request.dataStreamName(),
+                        newDataStream,
+                        request.getNameResolvedAt(),
+                        templateAndRequestSettings
+                    )
                 );
             }
 

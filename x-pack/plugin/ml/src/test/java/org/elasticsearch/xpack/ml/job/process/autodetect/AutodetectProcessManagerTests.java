@@ -161,8 +161,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocationOnMock -> {
-            if (invocationOnMock.getArguments()[0] instanceof ActionType<?>) {
-                ActionType<?> v = (ActionType<?>) invocationOnMock.getArguments()[0];
+            if (invocationOnMock.getArguments()[0]instanceof ActionType<?> v) {
                 ActionListener<?> l = (ActionListener<?>) invocationOnMock.getArguments()[2];
                 ParameterizedType parameterizedType = (ParameterizedType) v.getClass().getGenericSuperclass();
                 Type t = parameterizedType.getActualTypeArguments()[0];
@@ -697,17 +696,17 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(jobTask.getJobId()).thenReturn("foo");
         manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> {});
         InputStream inputStream = createInputStream("");
-        DataCounts[] dataCounts = new DataCounts[1];
+        DataCounts[] dataCountsArr = new DataCounts[1];
         manager.processData(
             jobTask,
             analysisRegistry,
             inputStream,
             randomFrom(XContentType.values()),
             mock(DataLoadParams.class),
-            (dataCounts1, e) -> dataCounts[0] = dataCounts1
+            (dataCounts1, e) -> dataCountsArr[0] = dataCounts1
         );
 
-        assertThat(dataCounts[0], equalTo(new DataCounts("foo")));
+        assertThat(dataCountsArr[0], equalTo(new DataCounts("foo")));
     }
 
     public void testCreate_notEnoughThreads() throws IOException {
@@ -850,7 +849,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             createInputStream(""),
             randomFrom(XContentType.values()),
             mock(DataLoadParams.class),
-            (dataCounts, e) -> {}
+            (dataCounts1, e) -> {}
         );
         return manager;
     }

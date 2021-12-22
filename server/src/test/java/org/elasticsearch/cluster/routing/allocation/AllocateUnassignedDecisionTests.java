@@ -162,15 +162,15 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode discoveryNode1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode discoveryNode2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         Decision.Type finalDecision = randomFrom(Decision.Type.values());
-        DiscoveryNode assignedNode = finalDecision == Decision.Type.YES ? node1 : null;
+        DiscoveryNode assignedNode = finalDecision == Decision.Type.YES ? discoveryNode1 : null;
         List<NodeAllocationResult> nodeDecisions = new ArrayList<>();
-        nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 2));
+        nodeDecisions.add(new NodeAllocationResult(discoveryNode1, Decision.NO, 2));
         nodeDecisions.add(
             new NodeAllocationResult(
-                node2,
+                discoveryNode2,
                 finalDecision == Decision.Type.YES ? Decision.YES : randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES),
                 1
             )

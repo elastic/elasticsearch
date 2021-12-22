@@ -215,6 +215,7 @@ public final class AnalysisRegistry implements Closeable {
      *
      * Callers are responsible for closing the returned Analyzer
      */
+    @SuppressWarnings("HiddenField")
     public NamedAnalyzer buildCustomAnalyzer(
         IndexSettings indexSettings,
         boolean normalizer,
@@ -587,6 +588,7 @@ public final class AnalysisRegistry implements Closeable {
         }
     }
 
+    @SuppressWarnings("HiddenField")
     public IndexAnalyzers build(
         IndexSettings indexSettings,
         Map<String, AnalyzerProvider<?>> analyzerProviders,
@@ -713,6 +715,7 @@ public final class AnalysisRegistry implements Closeable {
         return analyzer;
     }
 
+    @SuppressWarnings("HiddenField")
     private void processNormalizerFactory(
         String name,
         AnalyzerProvider<?> normalizerFactory,

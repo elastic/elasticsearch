@@ -559,7 +559,7 @@ public class AuthorizationService {
     private void runRequestInterceptors(
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
-        AuthorizationEngine authEngine,
+        AuthorizationEngine authorizationEngine,
         ActionListener<Void> listener
     ) {
         if (requestInterceptors.isEmpty()) {
@@ -567,11 +567,11 @@ public class AuthorizationService {
         } else {
             final Iterator<RequestInterceptor> requestInterceptorIterator = requestInterceptors.iterator();
             requestInterceptorIterator.next()
-                .intercept(requestInfo, authEngine, authorizationInfo, new ActionListener.Delegating<>(listener) {
+                .intercept(requestInfo, authorizationEngine, authorizationInfo, new ActionListener.Delegating<>(listener) {
                     @Override
                     public void onResponse(Void unused) {
                         if (requestInterceptorIterator.hasNext()) {
-                            requestInterceptorIterator.next().intercept(requestInfo, authEngine, authorizationInfo, this);
+                            requestInterceptorIterator.next().intercept(requestInfo, authorizationEngine, authorizationInfo, this);
                         } else {
                             listener.onResponse(null);
                         }

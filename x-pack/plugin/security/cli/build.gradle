@@ -29,6 +29,11 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.jks'
 }
 
+tasks.named("test").configure {
+  environment 'HOSTNAME', 'dummy.test.hostname' // some tests rely on this being set, which it always is for the code running in main
+  systemProperty 'tests.security.manager', 'false' // the main code under test runs without the SecurityManager
+}
+
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     // Used in org.bouncycastle.pqc.crypto.qtesla.QTeslaKeyEncodingTests

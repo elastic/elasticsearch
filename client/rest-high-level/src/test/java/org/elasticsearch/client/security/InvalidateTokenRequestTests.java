@@ -60,7 +60,8 @@ public class InvalidateTokenRequestTests extends ESTestCase {
         assertThat(request.getRefreshToken(), nullValue());
         assertThat(request.getRealmName(), equalTo(realmName));
         assertThat(request.getUsername(), equalTo(username));
-        assertThat(Strings.toString(request), equalTo("{\"realm_name\":\"native\",\"username\":\"user\"}"));
+        assertThat(Strings.toString(request), equalTo("""
+            {"realm_name":"native","username":"user"}"""));
     }
 
     public void testEqualsAndHashCode() {

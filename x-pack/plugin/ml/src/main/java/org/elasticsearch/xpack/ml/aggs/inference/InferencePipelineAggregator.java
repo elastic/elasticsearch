@@ -73,21 +73,20 @@ public class InferencePipelineAggregator extends PipelineAggregator {
                     String bucketPath = entry.getValue();
                     Object propertyValue = resolveBucketValue(originalAgg, bucket, bucketPath);
 
-                    if (propertyValue instanceof Number) {
-                        double doubleVal = ((Number) propertyValue).doubleValue();
+                    if (propertyValue instanceof Number numberValue) {
+                        double doubleVal = numberValue.doubleValue();
                         // NaN or infinite values indicate a missing value or a
                         // valid result of an invalid calculation. Either way only
                         // a valid number will do
                         if (Double.isFinite(doubleVal)) {
                             inputFields.put(aggName, doubleVal);
                         }
-                    } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
-                        double doubleVal = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
+                    } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue singleValue) {
+                        double doubleVal = singleValue.value();
                         if (Double.isFinite(doubleVal)) {
                             inputFields.put(aggName, doubleVal);
                         }
-                    } else if (propertyValue instanceof StringTerms.Bucket) {
-                        StringTerms.Bucket b = (StringTerms.Bucket) propertyValue;
+                    } else if (propertyValue instanceof StringTerms.Bucket b) {
                         inputFields.put(aggName, b.getKeyAsString());
                     } else if (propertyValue instanceof String) {
                         inputFields.put(aggName, propertyValue);

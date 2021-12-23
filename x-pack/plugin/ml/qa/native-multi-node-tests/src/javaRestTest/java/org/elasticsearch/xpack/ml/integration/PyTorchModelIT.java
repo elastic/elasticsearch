@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
@@ -118,16 +119,12 @@ public class PyTorchModelIT extends ESRestTestCase {
     @Before
     public void setLogging() throws IOException {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity(
-            ""
-                + "{"
-                + "\"persistent\" : {\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" : \"TRACE\",\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : \"TRACE\",\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : \"TRACE\"\n"
-                + "    }"
-                + "}"
-        );
+        loggingSettings.setJsonEntity("""
+            {"persistent" : {
+                    "logger.org.elasticsearch.xpack.ml.inference.allocation" : "TRACE",
+                    "logger.org.elasticsearch.xpack.ml.inference.deployment" : "TRACE",
+                    "logger.org.elasticsearch.xpack.ml.process.logging" : "TRACE"
+                }}""");
         client().performRequest(loggingSettings);
     }
 
@@ -136,16 +133,12 @@ public class PyTorchModelIT extends ESRestTestCase {
         terminate(executorService);
 
         Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity(
-            ""
-                + "{"
-                + "\"persistent\" : {\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\": null,\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null,\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : null\n"
-                + "    }"
-                + "}"
-        );
+        loggingSettings.setJsonEntity("""
+            {"persistent" : {
+                    "logger.org.elasticsearch.xpack.ml.inference.allocation": null,
+                    "logger.org.elasticsearch.xpack.ml.inference.deployment" : null,
+                    "logger.org.elasticsearch.xpack.ml.process.logging" : null
+                }}""");
         client().performRequest(loggingSettings);
 
         new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
@@ -249,24 +242,38 @@ public class PyTorchModelIT extends ESRestTestCase {
             assertThat(responseMap.toString(), statusState, is(not(nullValue())));
             assertThat(AllocationStatus.State.fromString(statusState), greaterThanOrEqualTo(state));
 
-            // starting models do not know their model size yet
-            if (state.isAnyOf(AllocationStatus.State.STARTED, AllocationStatus.State.FULLY_ALLOCATED)) {
-                Integer byteSize = (Integer) XContentMapValues.extractValue("deployment_stats.model_size_bytes", stats.get(0));
-                assertThat(responseMap.toString(), byteSize, is(not(nullValue())));
-                assertThat(byteSize, equalTo((int) RAW_MODEL_SIZE));
+            Integer byteSize = (Integer) XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0));
+            assertThat(responseMap.toString(), byteSize, is(not(nullValue())));
+            assertThat(byteSize, equalTo((int) RAW_MODEL_SIZE));
 
-                Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
-                var humanResponseMap = entityAsMap(humanResponse);
-                stats = (List<Map<String, Object>>) humanResponseMap.get("trained_model_stats");
-                assertThat(stats, hasSize(1));
-                String stringBytes = (String) XContentMapValues.extractValue("deployment_stats.model_size", stats.get(0));
-                assertThat(
-                    "stats response: " + responseMap + " human stats response" + humanResponseMap,
-                    stringBytes,
-                    is(not(nullValue()))
-                );
-                assertThat(stringBytes, equalTo("1.5kb"));
-            }
+            Integer requiredNativeMemory = (Integer) XContentMapValues.extractValue(
+                "model_size_stats.required_native_memory_bytes",
+                stats.get(0)
+            );
+            assertThat(responseMap.toString(), requiredNativeMemory, is(not(nullValue())));
+            assertThat(requiredNativeMemory, equalTo((int) (ByteSizeValue.ofMb(270).getBytes() + 2 * RAW_MODEL_SIZE)));
+
+            Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
+            var humanResponseMap = entityAsMap(humanResponse);
+            stats = (List<Map<String, Object>>) humanResponseMap.get("trained_model_stats");
+            assertThat(stats, hasSize(1));
+            String stringModelSizeBytes = (String) XContentMapValues.extractValue("model_size_stats.model_size", stats.get(0));
+            assertThat(
+                "stats response: " + responseMap + " human stats response" + humanResponseMap,
+                stringModelSizeBytes,
+                is(not(nullValue()))
+            );
+            assertThat(stringModelSizeBytes, equalTo("1.5kb"));
+            String stringRequiredNativeMemory = (String) XContentMapValues.extractValue(
+                "model_size_stats.required_native_memory",
+                stats.get(0)
+            );
+            assertThat(
+                "stats response: " + responseMap + " human stats response" + humanResponseMap,
+                stringRequiredNativeMemory,
+                is(not(nullValue()))
+            );
+            assertThat(stringRequiredNativeMemory, equalTo("270mb"));
             stopDeployment(modelId);
         };
 
@@ -289,7 +296,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(response).get("trained_model_stats");
         assertThat(stats, hasSize(1));
         assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelA));
-        assertThat(XContentMapValues.extractValue("deployment_stats.model_size_bytes", stats.get(0)), equalTo((int) RAW_MODEL_SIZE));
+        assertThat(XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0)), equalTo((int) RAW_MODEL_SIZE));
         List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
             "deployment_stats.nodes",
             stats.get(0)
@@ -418,18 +425,8 @@ public class PyTorchModelIT extends ESRestTestCase {
         createTrainedModel(model);
         putVocabulary(List.of("once", "twice"), model);
         Request request = new Request("PUT", "_ml/trained_models/" + model + "/definition/0");
-        request.setJsonEntity(
-            "{  "
-                + "\"total_definition_length\":"
-                + RAW_MODEL_SIZE
-                + 2L
-                + ","
-                + "\"definition\": \""
-                + BASE_64_ENCODED_MODEL
-                + "\","
-                + "\"total_parts\": 1"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {"total_definition_length":%s2,"definition": "%s","total_parts": 1}""".formatted(RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
         client().performRequest(request);
         Exception ex = expectThrows(Exception.class, () -> startDeployment(model));
         assertThat(
@@ -444,24 +441,25 @@ public class PyTorchModelIT extends ESRestTestCase {
         putVocabulary(List.of("once", "twice"), model);
         putModelDefinition(model);
 
-        String source = "{\n"
-            + "  \"pipeline\": {\n"
-            + "    \"processors\": [\n"
-            + "      {\n"
-            + "        \"inference\": {\n"
-            + "          \"model_id\": \"not-deployed\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    ]\n"
-            + "  },\n"
-            + "  \"docs\": [\n"
-            + "    {\n"
-            + "      \"_source\": {\n"
-            + "        \"input\": \"my words\"\n"
-            + "      }\n"
-            + "    }\n"
-            + "  ]\n"
-            + "}";
+        String source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "not-deployed"
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {
+                  "_source": {
+                    "input": "my words"
+                  }
+                }
+              ]
+            }""";
 
         String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
         assertThat(
@@ -473,23 +471,22 @@ public class PyTorchModelIT extends ESRestTestCase {
             )
         );
 
-        client().performRequest(
-            putPipeline(
-                "my_pipeline",
-                "{"
-                    + "\"processors\": [\n"
-                    + "      {\n"
-                    + "        \"inference\": {\n"
-                    + "          \"model_id\": \"not-deployed\"\n"
-                    + "        }\n"
-                    + "      }\n"
-                    + "    ]\n"
-                    + "}"
-            )
-        );
+        client().performRequest(putPipeline("my_pipeline", """
+            {"processors": [
+                  {
+                    "inference": {
+                      "model_id": "not-deployed"
+                    }
+                  }
+                ]
+            }"""));
 
         Request request = new Request("PUT", "undeployed_model_index/_doc/1?pipeline=my_pipeline&refresh=true");
-        request.setJsonEntity("{\n" + "        \"input\": \"my words\"\n" + "      }\n");
+        request.setJsonEntity("""
+            {
+                    "input": "my words"
+                  }
+            """);
         Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
         assertThat(
             ex.getMessage(),
@@ -501,23 +498,22 @@ public class PyTorchModelIT extends ESRestTestCase {
         String modelId = "no-truncation";
 
         Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
-        request.setJsonEntity(
-            "{  "
-                + "    \"description\": \"simple model for testing\",\n"
-                + "    \"model_type\": \"pytorch\",\n"
-                + "    \"inference_config\": {\n"
-                + "        \"pass_through\": {\n"
-                + "            \"tokenization\": {"
-                + "              \"bert\": {"
-                + "                \"with_special_tokens\": false,"
-                + "                \"truncate\": \"none\","
-                + "                \"max_sequence_length\": 2"
-                + "              }\n"
-                + "            }\n"
-                + "        }\n"
-                + "    }\n"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+                "description": "simple model for testing",
+                "model_type": "pytorch",
+                "inference_config": {
+                    "pass_through": {
+                        "tokenization": {
+                            "bert": {
+                                "with_special_tokens": false,
+                                "truncate": "none",
+                                "max_sequence_length": 2
+                            }
+                        }
+                    }
+                }
+            }""");
         client().performRequest(request);
 
         putVocabulary(List.of("once", "twice", "thrice"), modelId);
@@ -525,24 +521,30 @@ public class PyTorchModelIT extends ESRestTestCase {
         startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
 
         String input = "once twice thrice";
+        var e = expectThrows(ResponseException.class, () -> EntityUtils.toString(infer("once twice thrice", modelId).getEntity()));
         assertThat(
-            EntityUtils.toString(infer("once twice thrice", modelId).getEntity()),
+            e.getMessage(),
             containsString("Input too large. The tokenized input length [3] exceeds the maximum sequence length [2]")
         );
 
         request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity(
-            "{"
-                + "\"docs\": [{\"input\":\""
-                + input
-                + "\"}],"
-                + "\"inference_config\": { "
-                + "  \"pass_through\": {"
-                + "    \"tokenization\": {\"bert\": {\"truncate\": \"first\"}}"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "docs": [
+                {
+                  "input": "%s"
+                }
+              ],
+              "inference_config": {
+                "pass_through": {
+                  "tokenization": {
+                    "bert": {
+                      "truncate": "first"
+                    }
+                  }
+                }
+              }
+            }""".formatted(input));
         client().performRequest(request);
     }
 
@@ -553,22 +555,16 @@ public class PyTorchModelIT extends ESRestTestCase {
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
 
-        client().performRequest(
-            putPipeline(
-                "my_pipeline",
-                "{"
-                    + "\"processors\": [\n"
-                    + "      {\n"
-                    + "        \"inference\": {\n"
-                    + "          \"model_id\": \""
-                    + modelId
-                    + "\"\n"
-                    + "        }\n"
-                    + "      }\n"
-                    + "    ]\n"
-                    + "}"
-            )
-        );
+        client().performRequest(putPipeline("my_pipeline", """
+            {
+              "processors": [
+                {
+                  "inference": {
+                    "model_id": "%s"
+                  }
+                }
+              ]
+            }""".formatted(modelId)));
         ResponseException ex = expectThrows(ResponseException.class, () -> stopDeployment(modelId));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
         assertThat(
@@ -635,7 +631,8 @@ public class PyTorchModelIT extends ESRestTestCase {
             """;
 
         response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
-        assertThat(response, containsString("warning"));
+        assertThat(response, containsString("no value could be found for input field [input]"));
+        assertThat(response, containsString("status_exception"));
     }
 
     public void testDeleteModelWithDeploymentUsedByIngestProcessor() throws IOException {
@@ -670,17 +667,8 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     private void putModelDefinition(String modelId) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
-        request.setJsonEntity(
-            "{  "
-                + "\"total_definition_length\":"
-                + RAW_MODEL_SIZE
-                + ","
-                + "\"definition\": \""
-                + BASE_64_ENCODED_MODEL
-                + "\","
-                + "\"total_parts\": 1"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
         client().performRequest(request);
     }
 
@@ -692,25 +680,28 @@ public class PyTorchModelIT extends ESRestTestCase {
         String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary");
-        request.setJsonEntity("{  " + "\"vocabulary\": [" + quotedWords + "]\n" + "}");
+        request.setJsonEntity("""
+            { "vocabulary": [%s] }
+            """.formatted(quotedWords));
         client().performRequest(request);
     }
 
     private void createTrainedModel(String modelId) throws IOException {
         Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
-        request.setJsonEntity(
-            "{  "
-                + "    \"description\": \"simple model for testing\",\n"
-                + "    \"model_type\": \"pytorch\",\n"
-                + "    \"inference_config\": {\n"
-                + "        \"pass_through\": {\n"
-                + "            \"tokenization\": {"
-                + "              \"bert\": {\"with_special_tokens\": false}\n"
-                + "            }\n"
-                + "        }\n"
-                + "    }\n"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+               "description": "simple model for testing",
+               "model_type": "pytorch",
+               "inference_config": {
+                 "pass_through": {
+                   "tokenization": {
+                     "bert": {
+                       "with_special_tokens": false
+                     }
+                   }
+                 }
+               }
+             }""");
         client().performRequest(request);
     }
 
@@ -750,28 +741,31 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     private Response infer(String input, String modelId, TimeValue timeout) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer?timeout=" + timeout.toString());
-        request.setJsonEntity("{  " + "\"docs\": [{\"input\":\"" + input + "\"}]\n" + "}");
+        request.setJsonEntity("""
+            {  "docs": [{"input":"%s"}] }
+            """.formatted(input));
         return client().performRequest(request);
     }
 
     private Response infer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity("{  " + "\"docs\": [{\"input\":\"" + input + "\"}]\n" + "}");
+        request.setJsonEntity("""
+            {  "docs": [{"input":"%s"}] }
+            """.formatted(input));
         return client().performRequest(request);
     }
 
     private Response infer(String input, String modelId, String resultsField) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity(
-            "{  "
-                + "\"docs\": [{\"input\":\""
-                + input
-                + "\"}],\n"
-                + "\"inference_config\": {\"pass_through\":{\"results_field\": \""
-                + resultsField
-                + "\"}}\n"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "docs": [ { "input": "%s" } ],
+              "inference_config": {
+                "pass_through": {
+                  "results_field": "%s"
+                }
+              }
+            }""".formatted(input, resultsField));
         return client().performRequest(request);
     }
 

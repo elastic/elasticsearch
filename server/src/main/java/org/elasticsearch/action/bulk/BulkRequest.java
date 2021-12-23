@@ -47,7 +47,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * and allows to executes it in a single batch.
  *
  * Note that we only support refresh on the bulk request not per item.
- * @see org.elasticsearch.client.Client#bulk(BulkRequest)
+ * @see org.elasticsearch.client.internal.Client#bulk(BulkRequest)
  */
 public class BulkRequest extends ActionRequest
     implements

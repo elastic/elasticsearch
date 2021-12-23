@@ -394,18 +394,12 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         } else {
             assertThat("Parameter 'storage' was introduced in 7.12.0 with " + Storage.SHARED_CACHE, storage, equalTo(Storage.FULL_COPY));
         }
-        request.setJsonEntity(
-            "{"
-                + "  \"index\": \""
-                + indexName
-                + "\","
-                + "  \"renamed_index\": \""
-                + renamedIndex
-                + "\","
-                + "  \"index_settings\": "
-                + Strings.toString(indexSettings)
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "index": "%s",
+              "renamed_index": "%s",
+              "index_settings": %s
+            }""".formatted(indexName, renamedIndex, Strings.toString(indexSettings)));
         final Response response = client().performRequest(request);
         assertThat(
             "Failed to mount snapshot [" + snapshotName + "] from repository [" + repositoryName + "]: " + response,

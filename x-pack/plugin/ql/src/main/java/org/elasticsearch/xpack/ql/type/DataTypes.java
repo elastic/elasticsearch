@@ -21,7 +21,7 @@ import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public final class DataTypes {
 
-    // @formatter:off
+    // tag::noformat
     public static final DataType UNSUPPORTED      = new DataType("UNSUPPORTED", null, 0,                 false, false, false);
 
     public static final DataType NULL             = new DataType("null",              0,                 false, false, false);
@@ -50,7 +50,7 @@ public final class DataTypes {
     // complex types
     public static final DataType OBJECT           = new DataType("object",            0,                 false, false, false);
     public static final DataType NESTED           = new DataType("nested",            0,                 false, false, false);
-    //@formatter:on
+    //end::noformat
 
     private static final Collection<DataType> TYPES = Arrays.asList(
         UNSUPPORTED,

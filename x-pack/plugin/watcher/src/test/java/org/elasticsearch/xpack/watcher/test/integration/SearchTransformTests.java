@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.MockScriptEngine;

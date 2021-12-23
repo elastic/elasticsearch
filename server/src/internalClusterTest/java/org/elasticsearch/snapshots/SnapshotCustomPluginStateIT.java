@@ -158,7 +158,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> try restoring cluster state from snapshot without global state");
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-no-global-state")
             .setWaitForCompletion(true)
-            .setRestoreGlobalState(true)
+            .setRestoreGlobalState(false)
             .execute()
             .actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
@@ -227,7 +227,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> try restoring index and cluster state from snapshot without global state");
         restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-no-global-state-with-index")
             .setWaitForCompletion(true)
-            .setRestoreGlobalState(true)
+            .setRestoreGlobalState(false)
             .execute()
             .actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));

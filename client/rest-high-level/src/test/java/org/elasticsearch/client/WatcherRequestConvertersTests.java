@@ -247,11 +247,12 @@ public class WatcherRequestConvertersTests extends ESTestCase {
 
     }
 
-    private static final String WATCH_JSON = "{ \n"
-        + "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n"
-        + "  \"input\": { \"none\": {} },\n"
-        + "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n"
-        + "}";
+    private static final String WATCH_JSON = """
+        {
+          "trigger": { "schedule": { "interval": "10h" } },
+          "input": { "none": {} },
+          "actions": { "logme": { "logging": { "text": "{{ctx.payload}}" } } }
+        }""";
 
     public void testExecuteInlineWatchRequest() throws IOException {
         boolean ignoreCondition = randomBoolean();

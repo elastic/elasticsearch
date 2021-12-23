@@ -27,7 +27,10 @@ public class MlStatsIndex {
     private MlStatsIndex() {}
 
     public static String wrappedMapping() {
-        return "{\n\"_doc\" : " + mapping() + "\n}";
+        return """
+            {
+            "_doc" : %s
+            }""".formatted(mapping());
     }
 
     public static String mapping() {

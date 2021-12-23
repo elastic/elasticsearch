@@ -85,8 +85,8 @@ public class Verifier {
 
             Set<Failure> localFailures = new LinkedHashSet<>();
 
-            if (p instanceof Unresolvable) {
-                localFailures.add(fail(p, ((Unresolvable) p).unresolvedMessage()));
+            if (p instanceof Unresolvable unresolvable) {
+                localFailures.add(fail(p, unresolvable.unresolvedMessage()));
             } else {
                 p.forEachExpression(e -> {
                     // everything is fine, skip expression

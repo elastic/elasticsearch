@@ -871,7 +871,7 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "drop": {
-        "description": "If 'url.scheme' is 'http', set 'url.insecure' to true",
+        "description": "Drop documents that don't contain 'prod' tag",
         "if": { "id": "my-stored-script" }
       }
     }

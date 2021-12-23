@@ -110,35 +110,27 @@ public class WatcherTemplateTests extends ESTestCase {
 
     public void testSimpleParameterReplace() {
         {
-            String template = "__json__::GET _search {\"query\": "
-                + "{\"boosting\": {"
-                + "\"positive\": {\"match\": {\"body\": \"gift\"}},"
-                + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}"
-                + "}}, \"negative_boost\": {{boost_val}} } }}";
+            String template = """
+                __json__::GET _search {"query": {"boosting": {"positive": {"match": {"body": "gift"}},"negative": \
+                {"term": {"body": {"value": "solr"}}}, "negative_boost": {{boost_val}} } }}""";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             String result = textTemplateEngine.render(new TextTemplate(template), vars);
-            assertEquals(
-                "GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
-                    + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
-                result
-            );
+            assertEquals("""
+                GET _search {"query": {"boosting": {"positive": {"match": {"body": "gift"}},"negative": \
+                {"term": {"body": {"value": "solr"}}}, "negative_boost": 0.3 } }}""", result);
         }
         {
-            String template = "__json__::GET _search {\"query\": "
-                + "{\"boosting\": {"
-                + "\"positive\": {\"match\": {\"body\": \"gift\"}},"
-                + "\"negative\": {\"term\": {\"body\": {\"value\": \"{{body_val}}\"}"
-                + "}}, \"negative_boost\": {{boost_val}} } }}";
+            String template = """
+                __json__::GET _search {"query": {"boosting": {"positive": {"match": {"body": "gift"}},"negative": \
+                {"term": {"body": {"value": "{{body_val}}"}}}, "negative_boost": {{boost_val}} } }}""";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             vars.put("body_val", "\"quick brown\"");
             String result = textTemplateEngine.render(new TextTemplate(template), vars);
-            assertEquals(
-                "GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
-                    + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
-                result
-            );
+            assertEquals("""
+                GET _search {"query": {"boosting": {"positive": {"match": {"body": "gift"}},"negative": \
+                {"term": {"body": {"value": "\\"quick brown\\""}}}, "negative_boost": 0.3 } }}""", result);
         }
     }
 

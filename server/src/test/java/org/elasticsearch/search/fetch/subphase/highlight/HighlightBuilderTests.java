@@ -149,24 +149,24 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testUnknownArrayNameExpection() throws IOException {
         {
-            XContentParseException e = expectParseThrows(
-                XContentParseException.class,
-                "{\n" + "    \"bad_fieldname\" : [ \"field1\" 1 \"field2\" ]\n" + "}\n"
-            );
+            XContentParseException e = expectParseThrows(XContentParseException.class, """
+                {
+                    "bad_fieldname" : [ "field1" 1 "field2" ]
+                }
+                """);
             assertEquals("[2:5] [highlight] unknown field [bad_fieldname]", e.getMessage());
         }
 
         {
-            XContentParseException e = expectParseThrows(
-                XContentParseException.class,
-                "{\n"
-                    + "  \"fields\" : {\n"
-                    + "     \"body\" : {\n"
-                    + "        \"bad_fieldname\" : [ \"field1\" , \"field2\" ]\n"
-                    + "     }\n"
-                    + "   }\n"
-                    + "}\n"
-            );
+            XContentParseException e = expectParseThrows(XContentParseException.class, """
+                {
+                  "fields" : {
+                     "body" : {
+                        "bad_fieldname" : [ "field1" , "field2" ]
+                     }
+                   }
+                }
+                """);
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
             assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname]", e.getCause().getCause().getMessage());
@@ -184,24 +184,24 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testUnknownFieldnameExpection() throws IOException {
         {
-            XContentParseException e = expectParseThrows(
-                XContentParseException.class,
-                "{\n" + "    \"bad_fieldname\" : \"value\"\n" + "}\n"
-            );
+            XContentParseException e = expectParseThrows(XContentParseException.class, """
+                {
+                    "bad_fieldname" : "value"
+                }
+                """);
             assertEquals("[2:5] [highlight] unknown field [bad_fieldname]", e.getMessage());
         }
 
         {
-            XContentParseException e = expectParseThrows(
-                XContentParseException.class,
-                "{\n"
-                    + "  \"fields\" : {\n"
-                    + "     \"body\" : {\n"
-                    + "        \"bad_fieldname\" : \"value\"\n"
-                    + "     }\n"
-                    + "   }\n"
-                    + "}\n"
-            );
+            XContentParseException e = expectParseThrows(XContentParseException.class, """
+                {
+                  "fields" : {
+                     "body" : {
+                        "bad_fieldname" : "value"
+                     }
+                   }
+                }
+                """);
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
             assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname]", e.getCause().getCause().getMessage());
@@ -213,24 +213,24 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testUnknownObjectFieldnameExpection() throws IOException {
         {
-            XContentParseException e = expectParseThrows(
-                XContentParseException.class,
-                "{\n" + "    \"bad_fieldname\" :  { \"field\" : \"value\" }\n \n" + "}\n"
-            );
+            XContentParseException e = expectParseThrows(XContentParseException.class, """
+                {
+                    "bad_fieldname" :  { "field" : "value" }
+                }
+                """);
             assertEquals("[2:5] [highlight] unknown field [bad_fieldname]", e.getMessage());
         }
 
         {
-            XContentParseException e = expectParseThrows(
-                XContentParseException.class,
-                "{\n"
-                    + "  \"fields\" : {\n"
-                    + "     \"body\" : {\n"
-                    + "        \"bad_fieldname\" : { \"field\" : \"value\" }\n"
-                    + "     }\n"
-                    + "   }\n"
-                    + "}\n"
-            );
+            XContentParseException e = expectParseThrows(XContentParseException.class, """
+                {
+                  "fields" : {
+                     "body" : {
+                        "bad_fieldname" : { "field" : "value" }
+                     }
+                   }
+                }
+                """);
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
             assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname]", e.getCause().getCause().getMessage());
@@ -250,7 +250,11 @@ public class HighlightBuilderTests extends ESTestCase {
     }
 
     public void testNoFieldsInObjectInFieldsArray() throws IOException {
-        XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" + "  \"fields\" : [ {\n" + "   }] \n" + "}\n");
+        XContentParseException e = expectParseThrows(XContentParseException.class, """
+            {
+              "fields" : [ { } ]
+            }
+            """);
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
         assertThat(
             e.getCause().getMessage(),
@@ -262,10 +266,14 @@ public class HighlightBuilderTests extends ESTestCase {
     }
 
     public void testTwoFieldsInObjectInFieldsArray() throws IOException {
-        XContentParseException e = expectParseThrows(
-            XContentParseException.class,
-            "{\n" + "  \"fields\" : [ {\n" + "     \"body\" : {},\n" + "     \"nope\" : {}\n" + "   }] \n" + "}\n"
-        );
+        XContentParseException e = expectParseThrows(XContentParseException.class, """
+            {
+              "fields" : [ {
+                 "body" : {},
+                 "nope" : {}
+               }]\s
+            }
+            """);
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
         assertThat(
             e.getCause().getMessage(),
@@ -425,7 +433,11 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testParsingTagsSchema() throws IOException {
 
-        String highlightElement = "{\n" + "    \"tags_schema\" : \"styled\"\n" + "}\n";
+        String highlightElement = """
+            {
+                "tags_schema" : "styled"
+            }
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
 
             HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
@@ -440,7 +452,11 @@ public class HighlightBuilderTests extends ESTestCase {
                 highlightBuilder.postTags()
             );
 
-            highlightElement = "{\n" + "    \"tags_schema\" : \"default\"\n" + "}\n";
+            highlightElement = """
+                {
+                    "tags_schema" : "default"
+                }
+                """;
         }
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
 
@@ -456,10 +472,11 @@ public class HighlightBuilderTests extends ESTestCase {
                 highlightBuilder.postTags()
             );
 
-            XContentParseException e = expectParseThrows(
-                XContentParseException.class,
-                "{\n" + "    \"tags_schema\" : \"somthing_else\"\n" + "}\n"
-            );
+            XContentParseException e = expectParseThrows(XContentParseException.class, """
+                {
+                    "tags_schema" : "somthing_else"
+                }
+                """);
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [tags_schema]"));
             assertEquals("Unknown tag schema [somthing_else]", e.getCause().getMessage());
         }
@@ -489,13 +506,22 @@ public class HighlightBuilderTests extends ESTestCase {
     }
 
     public void testPreTagsWithoutPostTags() throws IOException {
-        ParsingException err = expectParseThrows(ParsingException.class, "{\n" + "    \"pre_tags\" : [\"<a>\"]\n" + "}\n");
+        ParsingException err = expectParseThrows(ParsingException.class, """
+            {
+                "pre_tags" : ["<a>"]
+            }
+            """);
         assertEquals("pre_tags are set but post_tags are not set", err.getMessage());
 
-        XContentParseException e = expectParseThrows(
-            XContentParseException.class,
-            "{\n" + "  \"fields\" : {\n" + "     \"body\" : {\n" + "        \"pre_tags\" : [\"<a>\"]\n" + "     }\n" + "   }\n" + "}\n"
-        );
+        XContentParseException e = expectParseThrows(XContentParseException.class, """
+            {
+              "fields" : {
+                 "body" : {
+                    "pre_tags" : ["<a>"]
+                 }
+               }
+            }
+            """);
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
         assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
         assertEquals("pre_tags are set but post_tags are not set", e.getCause().getCause().getMessage());

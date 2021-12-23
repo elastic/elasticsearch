@@ -1250,57 +1250,59 @@ public class FieldSubsetReaderTests extends ESTestCase {
         IOUtils.close(ir, iw, dir);
     }
 
-    private static final String DOC_TEST_ITEM = "{\n"
-        + "  \"field_text\" : \"text\",\n"
-        + "  \"object\" : {\n"
-        + "    \"inner1\" : \"text\",\n"
-        + "    \"inner2\" : \"keyword\"\n"
-        + "  },\n"
-        + "  \"nested\" : [\n"
-        + "    {\n"
-        + "      \"inner1\" : 1,\n"
-        + "      \"inner2\" : \"2017/12/12\"\n"
-        + "    },\n"
-        + "    {\n"
-        + "      \"inner1\" : 2,\n"
-        + "      \"inner2\" : \"2017/11/11\"\n"
-        + "    }\n"
-        + "  ]\n"
-        + "}";
+    private static final String DOC_TEST_ITEM = """
+        {
+          "field_text" : "text",
+          "object" : {
+            "inner1" : "text",
+            "inner2" : "keyword"
+          },
+          "nested" : [
+            {
+              "inner1" : 1,
+              "inner2" : "2017/12/12"
+            },
+            {
+              "inner1" : 2,
+              "inner2" : "2017/11/11"
+            }
+          ]
+        }""";
 
-    private static final String MAPPING_TEST_ITEM = "{\n"
-        + "  \"_doc\": {\n"
-        + "    \"properties\" : {\n"
-        + "      \"field_text\" : {\n"
-        + "        \"type\":\"text\"\n"
-        + "      },\n"
-        + "      \"object\" : {\n"
-        + "        \"properties\" : {\n"
-        + "          \"inner1\" : {\n"
-        + "            \"type\": \"text\",\n"
-        + "            \"fields\" : {\n"
-        + "              \"keyword\" : {\n"
-        + "                \"type\" : \"keyword\"\n"
-        + "              }\n"
-        + "            }\n"
-        + "          },\n"
-        + "          \"inner2\" : {\n"
-        + "            \"type\": \"keyword\"\n"
-        + "          }\n"
-        + "        }\n"
-        + "      },\n"
-        + "      \"nested\" : {\n"
-        + "        \"type\":\"nested\",\n"
-        + "        \"properties\" : {\n"
-        + "          \"inner1\" : {\n"
-        + "            \"type\": \"integer\"\n"
-        + "          },\n"
-        + "          \"inner2\" : {\n"
-        + "            \"type\": \"date\"\n"
-        + "          }\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  }\n"
-        + "}";
+    private static final String MAPPING_TEST_ITEM = """
+        {
+          "_doc": {
+            "properties" : {
+              "field_text" : {
+                "type":"text"
+              },
+              "object" : {
+                "properties" : {
+                  "inner1" : {
+                    "type": "text",
+                    "fields" : {
+                      "keyword" : {
+                        "type" : "keyword"
+                      }
+                    }
+                  },
+                  "inner2" : {
+                    "type": "keyword"
+                  }
+                }
+              },
+              "nested" : {
+                "type":"nested",
+                "properties" : {
+                  "inner1" : {
+                    "type": "integer"
+                  },
+                  "inner2" : {
+                    "type": "date"
+                  }
+                }
+              }
+            }
+          }
+        }""";
 }

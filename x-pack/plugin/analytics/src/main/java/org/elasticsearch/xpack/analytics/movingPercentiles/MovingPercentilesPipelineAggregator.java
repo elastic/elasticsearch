@@ -181,8 +181,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
             throw buildResolveError(agg, aggPathsList, propertyValue, "percentiles");
         }
 
-        if (propertyValue instanceof InternalTDigestPercentiles) {
-            InternalTDigestPercentiles internalTDigestPercentiles = ((InternalTDigestPercentiles) propertyValue);
+        if (propertyValue instanceof InternalTDigestPercentiles internalTDigestPercentiles) {
             return new PercentileConfig(
                 PercentilesMethod.TDIGEST,
                 internalTDigestPercentiles.getKeys(),
@@ -190,8 +189,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
                 internalTDigestPercentiles.formatter()
             );
         }
-        if (propertyValue instanceof InternalHDRPercentiles) {
-            InternalHDRPercentiles internalHDRPercentiles = ((InternalHDRPercentiles) propertyValue);
+        if (propertyValue instanceof InternalHDRPercentiles internalHDRPercentiles) {
             return new PercentileConfig(
                 PercentilesMethod.HDR,
                 internalHDRPercentiles.getKeys(),

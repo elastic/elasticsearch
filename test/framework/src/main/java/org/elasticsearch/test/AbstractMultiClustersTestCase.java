@@ -221,7 +221,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         final Settings.Builder builder = Settings.builder();
         builder.putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()); // empty list disables a port scan for other nodes
         builder.putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
-        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
+        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME);
         builder.put(nodeSettings);
 
         return new NodeConfigurationSource() {

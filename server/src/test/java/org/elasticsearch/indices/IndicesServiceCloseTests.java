@@ -60,7 +60,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
-            .put("transport.type", getTestTransportType())
+            .put("transport.type", MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME)
             .put(dataNode())
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
             // default the watermarks low values to prevent tests from failing on nodes without enough disk space

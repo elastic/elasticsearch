@@ -35,6 +35,10 @@ dependencies {
   api "io.netty:netty-handler:${versions.netty}"
   api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
+
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'transport-netty4'
+  }
 }
 
 restResources {
@@ -199,3 +203,5 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
   )
 }
+
+tasks.named("jarHell").configure { enabled = false }

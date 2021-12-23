@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
@@ -37,20 +37,25 @@ public class FillMaskProcessor implements NlpTask.Processor {
 
     @Override
     public void validateInputs(List<String> inputs) {
+        ValidationException ve = new ValidationException();
         if (inputs.isEmpty()) {
-            throw ExceptionsHelper.badRequestException("input request is empty");
+            ve.addValidationError("input request is empty");
         }
 
         for (String input : inputs) {
             int maskIndex = input.indexOf(BertTokenizer.MASK_TOKEN);
             if (maskIndex < 0) {
-                throw ExceptionsHelper.badRequestException("no {} token could be found", BertTokenizer.MASK_TOKEN);
+                ve.addValidationError("no " + BertTokenizer.MASK_TOKEN + " token could be found in the input");
             }
 
             maskIndex = input.indexOf(BertTokenizer.MASK_TOKEN, maskIndex + BertTokenizer.MASK_TOKEN.length());
             if (maskIndex > 0) {
-                throw ExceptionsHelper.badRequestException("only one {} token should exist in the input", BertTokenizer.MASK_TOKEN);
+                throw ve.addValidationError("only one " + BertTokenizer.MASK_TOKEN + " token should exist in the input");
             }
+        }
+
+        if (ve.validationErrors().isEmpty() == false) {
+            throw ve;
         }
     }
 

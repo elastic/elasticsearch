@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseService;
@@ -146,7 +147,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class,
             // Deprecation warnings go to a data stream, if we ever cause a deprecation warning the data streams plugin is required
-            DataStreamsPlugin.class
+            DataStreamsPlugin.class,
+            // To remove errors from parsing build in templates that contain scaled_float
+            MapperExtrasPlugin.class
         );
     }
 

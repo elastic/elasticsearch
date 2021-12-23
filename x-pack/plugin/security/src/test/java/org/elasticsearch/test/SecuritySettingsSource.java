@@ -72,7 +72,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
 
     public static final String TEST_UNRESTRICTED_USER = "test_root_user";
     public static final String UNRESTRICTED_ROLE = "_root";
-    private static final String UNRESTRICTED_ROLE_YML = """
+    public static final String UNRESTRICTED_ROLE_YML = """
         _root:
           cluster: [ ALL ]
           indices:

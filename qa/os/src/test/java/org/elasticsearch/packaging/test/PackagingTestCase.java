@@ -659,6 +659,8 @@ public abstract class PackagingTestCase extends Assert {
             Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
                 .forEach(file -> assertThat(es.config(autoConfigDirName.get()).resolve(file), FileMatcher.file(File, owner, owner, p660)));
             configLines = Files.readAllLines(es.config("elasticsearch.yml"));
+            assertThat(configLines, hasItem("#----------------------- BEGIN SECURITY AUTO CONFIGURATION -----------------------"));
+            assertThat(configLines, hasItem("#----------------------- END SECURITY AUTO CONFIGURATION -------------------------"));
         } else if (es.distribution.isDocker()) {
             assertThat(es.config(autoConfigDirName.get()), DockerFileMatcher.file(Directory, "elasticsearch", "root", p750));
             Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
@@ -671,6 +673,8 @@ public abstract class PackagingTestCase extends Assert {
             Path localTempDir = createTempDir("docker-config");
             copyFromContainer(es.config("elasticsearch.yml"), localTempDir.resolve("docker_elasticsearch.yml"));
             configLines = Files.readAllLines(localTempDir.resolve("docker_elasticsearch.yml"));
+            assertThat(configLines, hasItem("#----------------------- BEGIN SECURITY AUTO CONFIGURATION -----------------------"));
+            assertThat(configLines, hasItem("#----------------------- END SECURITY AUTO CONFIGURATION -------------------------"));
             rm(localTempDir.resolve("docker_elasticsearch.yml"));
             rm(localTempDir);
         } else {
@@ -686,8 +690,6 @@ public abstract class PackagingTestCase extends Assert {
             assertThat(sh.run(es.executables().keystoreTool + " list").stdout, Matchers.containsString("autoconfiguration.password_hash"));
             configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         }
-        assertThat(configLines, hasItem("#----------------------- BEGIN SECURITY AUTO CONFIGURATION -----------------------"));
-        assertThat(configLines, hasItem("#----------------------- END SECURITY AUTO CONFIGURATION -------------------------"));
         assertThat(configLines, hasItem("xpack.security.enabled: true"));
         assertThat(configLines, hasItem("# Enable encryption for HTTP API client connections, such as Kibana, Logstash, and Agents"));
         assertThat(configLines, hasItem("# Enable encryption and mutual authentication between cluster nodes"));

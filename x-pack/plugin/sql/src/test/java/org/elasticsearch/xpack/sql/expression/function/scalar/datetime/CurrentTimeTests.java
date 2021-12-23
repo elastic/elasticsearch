@@ -94,12 +94,7 @@ public class CurrentTimeTests extends AbstractNodeTestCase<CurrentTime, Expressi
             new EsIndex("test", SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json"))
         );
 
-        Analyzer analyzer = new Analyzer(
-            SqlTestUtils.TEST_CFG,
-            new SqlFunctionRegistry(),
-            indexResolution,
-            new Verifier(new Metrics(), SqlTestUtils.TEST_CFG.version())
-        );
+        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), indexResolution, new Verifier(new Metrics()));
         ParsingException e = expectThrows(
             ParsingException.class,
             () -> analyzer.analyze(parser.createStatement("SELECT CURRENT_TIME(100000000000000)"), true)

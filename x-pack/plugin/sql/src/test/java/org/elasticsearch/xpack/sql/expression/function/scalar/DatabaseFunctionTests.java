@@ -48,12 +48,7 @@ public class DatabaseFunctionTests extends ESTestCase {
             null,
             null
         );
-        Analyzer analyzer = new Analyzer(
-            sqlConfig,
-            new SqlFunctionRegistry(),
-            IndexResolution.valid(test),
-            new Verifier(new Metrics(), sqlConfig.version())
-        );
+        Analyzer analyzer = new Analyzer(sqlConfig, new SqlFunctionRegistry(), IndexResolution.valid(test), new Verifier(new Metrics()));
 
         Project result = (Project) analyzer.analyze(parser.createStatement("SELECT DATABASE()"), true);
         NamedExpression ne = result.projections().get(0);

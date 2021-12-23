@@ -271,6 +271,10 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         assertEquals(bi.doubleValue(), value(jps));
         assertEquals(HALF_FLOAT, jdbcType(jps));
 
+        jps.setObject(1, bi, Types.REAL);
+        assertEquals(bi.floatValue(), value(jps));
+        assertEquals(FLOAT, jdbcType(jps));
+
         jps.setObject(1, BigInteger.ZERO, Types.BOOLEAN);
         assertEquals(false, value(jps));
         assertEquals(BOOLEAN, jdbcType(jps));

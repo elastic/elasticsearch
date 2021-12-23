@@ -334,13 +334,18 @@ public final class StringUtils {
         } catch (NumberFormatException ex) {
             throw new QlIllegalArgumentException("Cannot parse number [{}]", string);
         }
-        if (bi.signum() < 0 || bi.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) <= 0) {
+        if (bi.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
+            if (isUnsignedLong(bi) == false) {
+                throw new QlIllegalArgumentException("Number [{}] is too large", string);
+            }
+            return bi;
+        }
+        // try to downsize to int if possible (since that's the most common type)
+        if (bi.intValue() == bi.longValue()) { // ternary operator would always promote to Long
+            return bi.intValueExact();
+        } else {
             return bi.longValueExact();
         }
-        if (isUnsignedLong(bi) == false) {
-            throw new QlIllegalArgumentException("Number [{}] is too large", string);
-        }
-        return bi;
     }
 
     public static String ordinal(int i) {

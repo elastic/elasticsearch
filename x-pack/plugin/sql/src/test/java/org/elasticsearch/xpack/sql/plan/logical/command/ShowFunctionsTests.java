@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
@@ -18,9 +17,7 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 
 import java.sql.JDBCType;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
@@ -36,7 +33,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
-import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumnsTests.UNSIGNED_LONG_TEST_VERSIONS;
 import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
@@ -104,16 +101,7 @@ public class ShowFunctionsTests extends ESTestCase {
     }
 
     public void testUnsignedLongFiltering() {
-        Set<SqlVersion> versions = new HashSet<>(
-            List.of(
-                SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER),
-                INTRODUCING_UNSIGNED_LONG,
-                SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER),
-                SqlVersion.fromId(Version.CURRENT.id)
-            )
-        );
-
-        for (SqlVersion version : versions) {
+        for (SqlVersion version : UNSIGNED_LONG_TEST_VERSIONS) {
             List<List<?>> rows = new ArrayList<>();
             ShowColumns.fillInRows(loadMapping("mapping-multi-field-variation.json", true), null, version, rows);
             List<String> typeNames = rows.stream().map(row -> (String) row.get(2)).collect(toList());

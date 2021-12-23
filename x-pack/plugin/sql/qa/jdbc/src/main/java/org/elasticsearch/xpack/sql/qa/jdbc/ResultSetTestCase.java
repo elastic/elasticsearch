@@ -2449,7 +2449,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    protected static void indexTestFieldsDoc(String docId, Object... values) throws IOException {
+    private static void indexTestFieldsDoc(String docId, Object... values) throws IOException {
         index("test", docId, builder -> {
             for (Object value : values) {
                 String classSimpleName = value.getClass().getSimpleName().toLowerCase(Locale.ROOT);

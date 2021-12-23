@@ -42,6 +42,7 @@ public class PlanExecutor {
 
     private final IndexResolver indexResolver;
     private final PreAnalyzer preAnalyzer;
+    private final Verifier verifier;
     private final Optimizer optimizer;
     private final Planner planner;
 
@@ -57,22 +58,13 @@ public class PlanExecutor {
         this.metrics = new Metrics();
 
         this.preAnalyzer = new PreAnalyzer();
+        this.verifier = new Verifier(metrics);
         this.optimizer = new Optimizer();
         this.planner = new Planner();
     }
 
     private SqlSession newSession(SqlConfiguration cfg) {
-        return new SqlSession(
-            cfg,
-            client,
-            functionRegistry,
-            indexResolver,
-            preAnalyzer,
-            new Verifier(metrics, cfg.version()),
-            optimizer,
-            planner,
-            this
-        );
+        return new SqlSession(cfg, client, functionRegistry, indexResolver, preAnalyzer, verifier, optimizer, planner, this);
     }
 
     public void searchSource(

@@ -60,12 +60,7 @@ public class QueryFolderTests extends ESTestCase {
         Map<String, EsField> mapping = SqlTypesTests.loadMapping("mapping-multi-field-variation.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(
-            SqlTestUtils.TEST_CFG,
-            new SqlFunctionRegistry(),
-            getIndexResult,
-            new Verifier(new Metrics(), SqlTestUtils.TEST_CFG.version())
-        );
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
         optimizer = new Optimizer();
         planner = new Planner();
     }

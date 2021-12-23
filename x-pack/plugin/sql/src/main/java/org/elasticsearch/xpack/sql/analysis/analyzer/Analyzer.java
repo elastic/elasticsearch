@@ -150,7 +150,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     }
 
     public LogicalPlan verify(LogicalPlan plan) {
-        Collection<Failure> failures = verifier.verify(plan);
+        Collection<Failure> failures = verifier.verify(plan, configuration.version());
         if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }

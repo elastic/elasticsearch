@@ -163,7 +163,7 @@ public final class CsvTestUtils {
             case "sh":
                 return "short";
             case "ul":
-                return "bigdecimal"; // CSV
+                return "bigdecimal"; // CSV JDBC driver lacks biginteger support
             default:
                 return type;
         }

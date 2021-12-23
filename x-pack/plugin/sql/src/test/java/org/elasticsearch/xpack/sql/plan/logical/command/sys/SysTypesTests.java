@@ -36,7 +36,7 @@ import java.util.Set;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumnsTests.UNSIGNED_LONG_TEST_VERSIONS;
 import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.mockito.Mockito.mock;
 
@@ -140,14 +140,7 @@ public class SysTypesTests extends ESTestCase {
     }
 
     public void testUnsignedLongFiltering() {
-        Set<SqlVersion> versions = new HashSet<>(
-            List.of(
-                SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER),
-                INTRODUCING_UNSIGNED_LONG,
-                SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER),
-                SqlVersion.fromId(Version.CURRENT.id)
-            )
-        );
+        Set<SqlVersion> versions = new HashSet<>(UNSIGNED_LONG_TEST_VERSIONS);
         versions.add(null);
         for (SqlVersion version : versions) {
             for (Mode mode : Mode.values()) {

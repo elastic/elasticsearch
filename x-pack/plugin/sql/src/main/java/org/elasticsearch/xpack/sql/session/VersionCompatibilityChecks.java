@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.sql.session;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
@@ -34,5 +35,13 @@ public final class VersionCompatibilityChecks {
      */
     public static boolean supportsUnsignedLong(SqlVersion version) {
         return INTRODUCING_UNSIGNED_LONG.compareTo(version) <= 0;
+    }
+
+    public static @Nullable SqlVersion versionIntroducingType(DataType dataType) {
+        if (dataType == UNSIGNED_LONG) {
+            return INTRODUCING_UNSIGNED_LONG;
+        }
+
+        return null;
     }
 }

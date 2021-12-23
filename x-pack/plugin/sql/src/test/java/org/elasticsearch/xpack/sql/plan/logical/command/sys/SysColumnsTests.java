@@ -57,6 +57,13 @@ import static org.mockito.Mockito.when;
 
 public class SysColumnsTests extends ESTestCase {
 
+    public static List<SqlVersion> UNSIGNED_LONG_TEST_VERSIONS = List.of(
+        SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER),
+        INTRODUCING_UNSIGNED_LONG,
+        SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER),
+        SqlVersion.fromId(Version.CURRENT.id)
+    );
+
     private static final String CLUSTER_NAME = "cluster";
     private static final Map<String, EsField> MAPPING1 = loadMapping("mapping-multi-field-with-nested.json", true);
     private static final Map<String, EsField> MAPPING2 = loadMapping("mapping-multi-field-variation.json", true);
@@ -139,14 +146,8 @@ public class SysColumnsTests extends ESTestCase {
     }
 
     public void testUnsignedLongFiltering() {
-        List<SqlVersion> versions = List.of(
-            SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER),
-            INTRODUCING_UNSIGNED_LONG,
-            SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER),
-            SqlVersion.fromId(Version.CURRENT.id)
-        );
         for (Mode mode : List.of(Mode.JDBC, Mode.ODBC)) {
-            for (SqlVersion version : versions) {
+            for (SqlVersion version : UNSIGNED_LONG_TEST_VERSIONS) {
                 List<List<?>> rows = new ArrayList<>();
                 SysColumns.fillInRows(
                     "test",
@@ -354,12 +355,7 @@ public class SysColumnsTests extends ESTestCase {
         Map<String, EsField> mapping
     ) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(
-            config,
-            new FunctionRegistry(),
-            IndexResolution.valid(test),
-            new Verifier(new Metrics(), config.version())
-        );
+        Analyzer analyzer = new Analyzer(config, new FunctionRegistry(), IndexResolution.valid(test), new Verifier(new Metrics()));
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params, UTC), true);
 
         IndexResolver resolver = mock(IndexResolver.class);

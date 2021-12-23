@@ -27,12 +27,7 @@ public class VerifierTests extends ESTestCase {
     private final IndexResolution indexResolution = IndexResolution.valid(
         new EsIndex("test", loadMapping("mapping-multi-field-with-nested.json"))
     );
-    private final Analyzer analyzer = new Analyzer(
-        TEST_CFG,
-        new SqlFunctionRegistry(),
-        indexResolution,
-        new Verifier(new Metrics(), TEST_CFG.version())
-    );
+    private final Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), indexResolution, new Verifier(new Metrics()));
     private final Planner planner = new Planner();
 
     private PhysicalPlan verify(String sql) {

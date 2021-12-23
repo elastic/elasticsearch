@@ -42,7 +42,7 @@ final class JdbcTestUtils {
     static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
 
     static final String UNSIGNED_LONG_TYPE_NAME = "UNSIGNED_LONG";
-    public static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
+    static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
 
     /*
      * The version of the driver that the QA (bwc-)tests run against.

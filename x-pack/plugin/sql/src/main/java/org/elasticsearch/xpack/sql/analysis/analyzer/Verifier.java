@@ -79,8 +79,8 @@ import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
-import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
+import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.versionIntroducingType;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.HAVING;
@@ -97,19 +97,17 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
  */
 public final class Verifier {
     private final Metrics metrics;
-    private final SqlVersion version;
 
-    public Verifier(Metrics metrics, SqlVersion version) {
+    public Verifier(Metrics metrics) {
         this.metrics = metrics;
-        this.version = version;
     }
 
-    public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
-        Collection<Failure> failures = verify(plan);
+    public Map<Node<?>, String> verifyFailures(LogicalPlan plan, SqlVersion version) {
+        Collection<Failure> failures = verify(plan, version);
         return failures.stream().collect(toMap(Failure::node, Failure::message));
     }
 
-    Collection<Failure> verify(LogicalPlan plan) {
+    Collection<Failure> verify(LogicalPlan plan, SqlVersion version) {
         Set<Failure> failures = new LinkedHashSet<>();
 
         // start bottom-up
@@ -1017,7 +1015,7 @@ public final class Verifier {
                             + "] unsupported in version ["
                             + version
                             + "], upgrade required (to version ["
-                            + INTRODUCING_UNSIGNED_LONG
+                            + versionIntroducingType(e.dataType())
                             + "] or higher)"
                     )
                 );

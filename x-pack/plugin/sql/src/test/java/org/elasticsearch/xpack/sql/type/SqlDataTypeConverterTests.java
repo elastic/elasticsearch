@@ -535,7 +535,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         }
     }
 
-    public void testConversiontoUnsignedLong() {
+    public void testConversionToUnsignedLong() {
         DataType to = UNSIGNED_LONG;
         {
             Converter conversion = converterFor(DATE, to);

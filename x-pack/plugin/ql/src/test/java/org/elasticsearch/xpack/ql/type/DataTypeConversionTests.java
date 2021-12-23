@@ -339,7 +339,7 @@ public class DataTypeConversionTests extends ESTestCase {
         }
     }
 
-    public void testConversiontoUnsignedLong() {
+    public void testConversionToUnsignedLong() {
         DataType to = UNSIGNED_LONG;
         {
             Converter conversion = converterFor(DOUBLE, to);

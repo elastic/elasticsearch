@@ -371,7 +371,7 @@ public class SysTablesTests extends ESTestCase {
             SqlTestUtils.TEST_CFG,
             new FunctionRegistry(),
             IndexResolution.valid(test),
-            new Verifier(new Metrics(), SqlTestUtils.TEST_CFG.version())
+            new Verifier(new Metrics())
         );
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params, cfg.zoneId()), true);
 

@@ -16,10 +16,10 @@ module org.elasticsearch.server {
     requires java.security.jgss;
     requires java.sql;
     requires jdk.unsupported;
-    requires lucene.backward.codecs;
-    requires lucene.memory;
-    requires lucene.misc;
-    requires lucene.sandbox;
+    requires org.apache.lucene.backward_codecs;
+    requires org.apache.lucene.memory;
+    requires org.apache.lucene.misc;
+    requires org.apache.lucene.sandbox;
     requires org.elasticsearch.secure_sm;
 
     requires transitive HdrHistogram;
@@ -30,14 +30,14 @@ module org.elasticsearch.server {
     requires transitive java.management;
     requires transitive jopt.simple;
     requires transitive log4j2.ecs.layout;
-    requires transitive lucene.analysis.common;
-    requires transitive lucene.core;
-    requires transitive lucene.grouping;
-    requires transitive lucene.highlighter;
-    requires transitive lucene.join;
-    requires transitive lucene.queries;
-    requires transitive lucene.queryparser;
-    requires transitive lucene.suggest;
+    requires transitive org.apache.lucene.analysis.common;
+    requires transitive org.apache.lucene.core;
+    requires transitive org.apache.lucene.grouping;
+    requires transitive org.apache.lucene.highlighter;
+    requires transitive org.apache.lucene.join;
+    requires transitive org.apache.lucene.queries;
+    requires transitive org.apache.lucene.queryparser;
+    requires transitive org.apache.lucene.suggest;
     requires transitive org.apache.logging.log4j;
     requires transitive org.apache.logging.log4j.core;
     requires transitive org.elasticsearch.core;

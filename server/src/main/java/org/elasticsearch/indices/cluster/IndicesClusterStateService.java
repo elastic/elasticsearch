@@ -74,7 +74,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiConsumer;
@@ -522,11 +521,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexMetadata newIndexMetadata = state.metadata().index(index);
             assert newIndexMetadata != null : "index " + index + " should have been removed by deleteIndices";
             if (ClusterChangedEvent.indexMetadataChanged(currentIndexMetadata, newIndexMetadata)) {
-                assert Objects.equals(event.previousState().nodes().getMasterNode(), state.getNodes().getMasterNode()) == false
-                    || newIndexMetadata.equals(currentIndexMetadata) == false
-                    : "index metadata instance must not change if unchanged unless there was a master failover but saw change for ["
-                        + index
-                        + "]";
                 String reason = null;
                 try {
                     reason = "metadata update failed";

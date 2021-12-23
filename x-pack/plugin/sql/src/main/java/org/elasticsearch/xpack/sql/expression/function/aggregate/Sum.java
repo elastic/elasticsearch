@@ -40,7 +40,7 @@ public class Sum extends NumericAggregate implements EnclosedAgg {
     @Override
     public DataType dataType() {
         DataType dt = field().dataType();
-        return dt.isInteger() ? (dt == UNSIGNED_LONG ? UNSIGNED_LONG : LONG) : DOUBLE;
+        return dt.isInteger() == false || dt == UNSIGNED_LONG ? DOUBLE : LONG;
     }
 
     @Override

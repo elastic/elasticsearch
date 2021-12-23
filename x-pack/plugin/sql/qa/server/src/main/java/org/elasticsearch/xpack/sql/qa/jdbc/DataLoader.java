@@ -67,6 +67,7 @@ public class DataLoader {
         loadEmpDatasetWithExtraIntoEs(client, "test_emp_copy", "employees");
         loadLogsDatasetIntoEs(client, "logs", "logs");
         loadLogNanosDatasetIntoEs(client, "logs_nanos", "logs_nanos");
+        loadLogUnsignedLongIntoEs(client, "logs_unsigned_long", "logs_unsigned_long");
         makeAlias(client, "test_alias", "test_emp", "test_emp_copy");
         makeAlias(client, "test_alias_emp", "test_emp", "test_emp_copy");
         // frozen index
@@ -269,14 +270,7 @@ public class DataLoader {
     }
 
     protected static void loadLogsDatasetIntoEs(RestClient client, String index, String filename) throws Exception {
-        Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
-        createIndex.startObject("settings");
-        {
-            createIndex.field("number_of_shards", 1);
-            createIndex.field("number_of_replicas", 1);
-        }
-        createIndex.endObject();
         createIndex.startObject("mappings");
         {
             createIndex.startObject("properties");
@@ -292,39 +286,13 @@ public class DataLoader {
             }
             createIndex.endObject();
         }
-        createIndex.endObject().endObject();
-        request.setJsonEntity(Strings.toString(createIndex));
-        client.performRequest(request);
+        createIndex.endObject();
 
-        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
-        request.addParameter("refresh", "true");
-        StringBuilder bulk = new StringBuilder();
-        csvToLines(filename, (titles, fields) -> {
-            bulk.append("{\"index\":{\"_id\":\"" + fields.get(0) + "\"}}\n");
-            bulk.append("{");
-            for (int f = 0; f < titles.size(); f++) {
-                if (Strings.hasText(fields.get(f))) {
-                    if (f > 0) {
-                        bulk.append(",");
-                    }
-                    bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
-                }
-            }
-            bulk.append("}\n");
-        });
-        request.setJsonEntity(bulk.toString());
-        client.performRequest(request);
+        loadDatasetIntoEs(client, index, filename, createIndex);
     }
 
     protected static void loadLogNanosDatasetIntoEs(RestClient client, String index, String filename) throws Exception {
-        Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
-        createIndex.startObject("settings");
-        {
-            createIndex.field("number_of_shards", 1);
-            createIndex.field("number_of_replicas", 1);
-        }
-        createIndex.endObject();
         createIndex.startObject("mappings");
         {
             createIndex.startObject("properties");
@@ -335,39 +303,32 @@ public class DataLoader {
             }
             createIndex.endObject();
         }
-        createIndex.endObject().endObject();
-        request.setJsonEntity(Strings.toString(createIndex));
-        client.performRequest(request);
+        createIndex.endObject();
 
-        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
-        request.addParameter("refresh", "true");
-        StringBuilder bulk = new StringBuilder();
-        csvToLines(filename, (titles, fields) -> {
-            bulk.append("{\"index\":{\"_id\":\"" + fields.get(0) + "\"}}\n");
-            bulk.append("{");
-            for (int f = 0; f < titles.size(); f++) {
-                if (Strings.hasText(fields.get(f))) {
-                    if (f > 0) {
-                        bulk.append(",");
-                    }
-                    bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
-                }
+        loadDatasetIntoEs(client, index, filename, createIndex);
+    }
+
+    protected static void loadLogUnsignedLongIntoEs(RestClient client, String index, String filename) throws Exception {
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("properties");
+            {
+                createIndex.startObject("id").field("type", "integer").endObject();
+                createIndex.startObject("@timestamp").field("type", "date_nanos").endObject();
+                createIndex.startObject("bytes_in").field("type", "unsigned_long").endObject();
+                createIndex.startObject("bytes_out").field("type", "unsigned_long").endObject();
+                createIndex.startObject("status").field("type", "keyword").endObject();
             }
-            bulk.append("}\n");
-        });
-        request.setJsonEntity(bulk.toString());
-        client.performRequest(request);
+            createIndex.endObject();
+        }
+        createIndex.endObject();
+
+        loadDatasetIntoEs(client, index, filename, createIndex);
     }
 
     protected static void loadLibDatasetIntoEs(RestClient client, String index) throws Exception {
-        Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
-        createIndex.startObject("settings");
-        {
-            createIndex.field("number_of_shards", 1);
-            createIndex.field("number_of_replicas", 1);
-        }
-        createIndex.endObject();
         createIndex.startObject("mappings");
         {
             createIndex.startObject("properties");
@@ -379,21 +340,39 @@ public class DataLoader {
             }
             createIndex.endObject();
         }
-        createIndex.endObject().endObject();
+        createIndex.endObject();
+
+        loadDatasetIntoEs(client, index, "library", createIndex);
+    }
+
+    // createIndex must be startObject()'d, but not endObject()'d: the index settings are added at the end
+    protected static void loadDatasetIntoEs(RestClient client, String index, String filename, XContentBuilder createIndex)
+        throws Exception {
+        createIndex.startObject("settings");
+        {
+            createIndex.field("number_of_shards", 1);
+            createIndex.field("number_of_replicas", 1);
+        }
+        createIndex.endObject();
+        createIndex.endObject();
+
+        Request request = new Request("PUT", "/" + index);
         request.setJsonEntity(Strings.toString(createIndex));
         client.performRequest(request);
 
         request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
-        csvToLines("library", (titles, fields) -> {
+        csvToLines(filename, (titles, fields) -> {
             bulk.append("{\"index\":{\"_id\":\"" + fields.get(0) + "\"}}\n");
             bulk.append("{");
             for (int f = 0; f < titles.size(); f++) {
-                if (f > 0) {
-                    bulk.append(",");
+                if (fields.size() > f && Strings.hasText(fields.get(f))) {
+                    if (f > 0) {
+                        bulk.append(",");
+                    }
+                    bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
                 }
-                bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
             }
             bulk.append("}\n");
         });

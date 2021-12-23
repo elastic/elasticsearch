@@ -37,6 +37,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.inUnsignedLongRange;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.isUnsignedLong;
 
@@ -411,6 +412,13 @@ public final class DataTypeConverter {
             throw new QlIllegalArgumentException("[" + x + "] out of [unsigned_long] range");
         }
         return bi;
+    }
+
+    // "unsafe" value conversion to unsigned long (vs. "safe", type-only conversion of safeToUnsignedLong());
+    // -1L -> 18446744073709551615 (=UNSIGNED_LONG_MAX)
+    public static BigInteger toUnsignedLong(Number number) {
+        BigInteger bi = BigInteger.valueOf(number.longValue());
+        return bi.signum() < 0 ? bi.and(UNSIGNED_LONG_MAX) : bi;
     }
 
     public static Number toInteger(double x, DataType dataType) {

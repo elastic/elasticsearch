@@ -77,6 +77,7 @@ import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
@@ -470,8 +471,9 @@ public final class Verifier {
             unsupported.add(e);
             return true;
         } else if (e instanceof Min || e instanceof Max) {
-            if (DataTypes.isString(((AggregateFunction) e).field().dataType())) {
-                // Min & Max on a Keyword field will be translated to First & Last respectively
+            DataType aggType = ((AggregateFunction) e).field().dataType();
+            if (DataTypes.isString(aggType) || aggType == UNSIGNED_LONG) {
+                // Min & Max on a Keyword or unsigned_long field will be translated to First & Last respectively
                 unsupported.add(e);
                 return true;
             }

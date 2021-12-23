@@ -231,14 +231,15 @@ integTest      |local
 showTables
 SHOW TABLES;
 
-catalog    |       name    |  type |  kind
-integTest  |empty_mapping  |TABLE  |INDEX
-integTest  |logs           |TABLE  |INDEX
-integTest  |logs_nanos     |TABLE  |INDEX
-integTest  |test_alias     |VIEW   |ALIAS
-integTest  |test_alias_emp |VIEW   |ALIAS
-integTest  |test_emp       |TABLE  |INDEX
-integTest  |test_emp_copy  |TABLE  |INDEX
+catalog    |       name        |  type |  kind
+integTest  |empty_mapping      |TABLE  |INDEX
+integTest  |logs               |TABLE  |INDEX
+integTest  |logs_nanos         |TABLE  |INDEX
+integTest  |logs_unsigned_long |TABLE  |INDEX
+integTest  |test_alias         |VIEW   |ALIAS
+integTest  |test_alias_emp     |VIEW   |ALIAS
+integTest  |test_emp           |TABLE  |INDEX
+integTest  |test_emp_copy      |TABLE  |INDEX
 ;
 
 showTablesSimpleLike
@@ -281,14 +282,15 @@ integTest  |test_alias_emp |VIEW    |ALIAS
 showTablesLocalCatalog
 SHOW TABLES CATALOG 'integTest';
 
-catalog    |       name    |  type |  kind
-integTest  |empty_mapping  |TABLE  |INDEX
-integTest  |logs           |TABLE  |INDEX
-integTest  |logs_nanos     |TABLE  |INDEX
-integTest  |test_alias     |VIEW   |ALIAS
-integTest  |test_alias_emp |VIEW   |ALIAS
-integTest  |test_emp       |TABLE  |INDEX
-integTest  |test_emp_copy  |TABLE  |INDEX
+catalog    |       name        |  type |  kind
+integTest  |empty_mapping      |TABLE  |INDEX
+integTest  |logs               |TABLE  |INDEX
+integTest  |logs_nanos         |TABLE  |INDEX
+integTest  |logs_unsigned_long |TABLE  |INDEX
+integTest  |test_alias         |VIEW   |ALIAS
+integTest  |test_alias_emp     |VIEW   |ALIAS
+integTest  |test_emp           |TABLE  |INDEX
+integTest  |test_emp_copy      |TABLE  |INDEX
 ;
 
 // DESCRIBE

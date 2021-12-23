@@ -34,6 +34,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
@@ -204,6 +205,19 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
                 new SearchHit(1, null, null, singletonMap(fieldName, new DocumentField(fieldName, singletonList(map2))), null)
             )
         );
+    }
+
+    public void testUnsignedLongExtraction() {
+        BigInteger bi = randomBigInteger();
+        Number number = bi.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) <= 0 ? bi.longValue() : bi;
+        Object value = randomBoolean() ? number.toString() : number;
+
+        String fieldName = randomAlphaOfLength(10);
+        DocumentField field = new DocumentField(fieldName, singletonList(value));
+        SearchHit hit = new SearchHit(1, null, singletonMap(fieldName, field), null);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, UNSIGNED_LONG, randomZone(), randomBoolean());
+
+        assertEquals(bi, fe.extract(hit));
     }
 
     private FieldHitExtractor getFieldHitExtractor(String fieldName) {

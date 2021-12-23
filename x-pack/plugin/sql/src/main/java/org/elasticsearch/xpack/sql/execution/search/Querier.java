@@ -468,7 +468,7 @@ public class Querier {
 
         private BucketExtractor createExtractor(FieldExtraction ref, BucketExtractor totalCount) {
             if (ref instanceof GroupByRef r) {
-                return new CompositeKeyExtractor(r.key(), r.property(), cfg.zoneId(), r.isDateTimeBased());
+                return new CompositeKeyExtractor(r.key(), r.property(), cfg.zoneId(), r.dataType());
             }
 
             if (ref instanceof MetricAggRef r) {

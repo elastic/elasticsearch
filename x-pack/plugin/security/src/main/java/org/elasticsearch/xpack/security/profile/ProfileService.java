@@ -188,7 +188,8 @@ public class ProfileService {
 
         Profile toProfile(@Nullable String realmDomain, @Nullable Set<String> dataKeys) {
             final Map<String, Object> applicationData;
-            if (dataKeys != null && dataKeys.isEmpty()) {
+            // NOTE null is the same as empty which means not retrieving any application data
+            if (dataKeys == null || dataKeys.isEmpty()) {
                 applicationData = Map.of();
             } else {
                 applicationData = XContentHelper.convertToMap(doc.applicationData(), false, XContentType.JSON, dataKeys, null).v2();

@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -249,9 +248,6 @@ public class AllocationStats implements ToXContentObject, Writeable {
 
     public AllocationStats(StreamInput in) throws IOException {
         modelId = in.readString();
-        if (in.getVersion().before(Version.V_8_1_0)) {
-            in.readOptionalWriteable(ByteSizeValue::new);
-        }
         inferenceThreads = in.readOptionalVInt();
         modelThreads = in.readOptionalVInt();
         queueCapacity = in.readOptionalVInt();
@@ -347,9 +343,6 @@ public class AllocationStats implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
-        if (out.getVersion().before(Version.V_8_1_0)) {
-            out.writeOptionalWriteable(null);
-        }
         out.writeOptionalVInt(inferenceThreads);
         out.writeOptionalVInt(modelThreads);
         out.writeOptionalVInt(queueCapacity);

@@ -604,7 +604,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertThat(
             response,
             allOf(
-                containsString("Task is configured with [pass_through] but received update of type [ner]"),
+                containsString("Trained model [deployed] is configured for task [pass_through] but called with task [ner]"),
                 containsString("error"),
                 not(containsString("warning"))
             )
@@ -628,7 +628,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             """;
 
         response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
-        assertThat(response, containsString("no value could be found for input field [input]"));
+        assertThat(response, containsString("Input field [input] does not exist in the source document"));
         assertThat(response, containsString("status_exception"));
     }
 

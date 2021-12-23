@@ -61,8 +61,8 @@ public class InternalDistributionModuleCheckTaskProvider {
     }
 
     private static final String ES_JAR_PREFIX = "elasticsearch-";
-    // ES jars in the lib directory that are not modularized. For now, launchers is the only one
-    private static final List<String> ES_JAR_EXCLUDES = List.of("elasticsearch-launchers");
+    // ES jars in the lib directory that are not modularized. For now, launchers and es-log4j are the only ones
+    private static final List<String> ES_JAR_EXCLUDES = List.of("elasticsearch-launchers", "elasticsearch-log4j");
 
     private static Predicate<Path> isESJar = path -> path.getFileName().toString().startsWith(ES_JAR_PREFIX);
     private static Predicate<Path> isNotExcluded = path -> ES_JAR_EXCLUDES.stream()

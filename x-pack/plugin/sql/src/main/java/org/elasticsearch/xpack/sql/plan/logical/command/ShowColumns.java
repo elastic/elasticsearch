@@ -31,7 +31,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
-import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
 
 public class ShowColumns extends Command {
 
@@ -95,7 +94,7 @@ public class ShowColumns extends Command {
             EsField field = e.getValue();
             DataType dt = field.getDataType();
             String name = e.getKey();
-            if (dt != null && isTypeSupportedInVersion(dt, version)) {
+            if (dt != null) {
                 // show only fields that exist in ES
                 rows.add(asList(prefix != null ? prefix + "." + name : name, SqlDataTypes.sqlType(dt).getName(), dt.typeName()));
                 if (field.getProperties().isEmpty() == false) {

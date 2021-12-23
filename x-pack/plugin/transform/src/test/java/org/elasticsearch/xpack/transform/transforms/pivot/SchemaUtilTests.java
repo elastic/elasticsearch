@@ -202,8 +202,7 @@ public class SchemaUtilTests extends ESTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
-            if (request instanceof FieldCapabilitiesRequest) {
-                FieldCapabilitiesRequest fieldCapsRequest = (FieldCapabilitiesRequest) request;
+            if (request instanceof FieldCapabilitiesRequest fieldCapsRequest) {
                 Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
                 for (String field : fieldCapsRequest.fields()) {
                     responseMap.put(field, singletonMap(field, createFieldCapabilities(field, "long")));

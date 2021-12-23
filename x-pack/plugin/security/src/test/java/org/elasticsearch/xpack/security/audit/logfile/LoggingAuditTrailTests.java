@@ -14,7 +14,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -129,8 +129,6 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -249,12 +247,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(properties.getProperty("appender.audit_rolling.layout.type"), is("PatternLayout"));
         final String patternLayoutFormat = properties.getProperty("appender.audit_rolling.layout.pattern");
         assertThat(patternLayoutFormat, is(notNullValue()));
-        patternLayout = AccessController.doPrivileged(
-            (PrivilegedAction<PatternLayout>) () -> PatternLayout.newBuilder()
-                .withPattern(patternLayoutFormat)
-                .withCharset(StandardCharsets.UTF_8)
-                .build()
-        );
+        patternLayout = PatternLayout.newBuilder().withPattern(patternLayoutFormat).withCharset(StandardCharsets.UTF_8).build();
         customAnonymousUsername = randomAlphaOfLength(8);
         reservedRealmEnabled = randomBoolean();
     }

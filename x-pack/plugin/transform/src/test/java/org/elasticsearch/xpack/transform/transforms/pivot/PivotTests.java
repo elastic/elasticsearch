@@ -17,7 +17,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -231,8 +231,7 @@ public class PivotTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
 
-            if (request instanceof SearchRequest) {
-                SearchRequest searchRequest = (SearchRequest) request;
+            if (request instanceof SearchRequest searchRequest) {
                 List<ShardSearchFailure> searchFailures = new ArrayList<>();
 
                 for (String index : searchRequest.indices()) {

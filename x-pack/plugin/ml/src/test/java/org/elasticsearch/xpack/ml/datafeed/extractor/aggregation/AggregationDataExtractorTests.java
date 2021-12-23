@@ -11,7 +11,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -204,8 +204,8 @@ public class AggregationDataExtractorTests extends ESTestCase {
         Histogram histogram2 = mock(Histogram.class);
         when(histogram2.getName()).thenReturn("hist_2");
 
-        Aggregations aggregations = AggregationTestUtils.createAggs(Arrays.asList(histogram1, histogram2));
-        SearchResponse response = createSearchResponse(aggregations);
+        Aggregations aggs = AggregationTestUtils.createAggs(Arrays.asList(histogram1, histogram2));
+        SearchResponse response = createSearchResponse(aggs);
         extractor.setNextResponse(response);
 
         assertThat(extractor.hasNext(), is(true));

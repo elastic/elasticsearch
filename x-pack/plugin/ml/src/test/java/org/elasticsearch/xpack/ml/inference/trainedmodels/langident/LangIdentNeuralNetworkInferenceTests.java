@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.inference.trainedmodels.langident;
 
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;

@@ -41,6 +41,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -70,6 +71,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -588,7 +590,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 testThreadPool,
                 null,
                 EmptySystemIndices.INSTANCE,
-                false
+                false,
+                new IndexSettingProviders(Set.of())
             );
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
                 clusterService,
@@ -714,7 +717,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 testThreadPool,
                 null,
                 EmptySystemIndices.INSTANCE,
-                false
+                false,
+                new IndexSettingProviders(Set.of())
             );
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
                 clusterService,
@@ -889,7 +893,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             testThreadPool,
             null,
             EmptySystemIndices.INSTANCE,
-            false
+            false,
+            new IndexSettingProviders(Set.of())
         );
         MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
             clusterService,

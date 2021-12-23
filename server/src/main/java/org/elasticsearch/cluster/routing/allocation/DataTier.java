@@ -19,7 +19,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.shard.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
 import java.util.Collection;
@@ -205,9 +205,9 @@ public class DataTier {
             String dataStreamName,
             Metadata metadata,
             long resolvedAt,
-            Settings indexSettings
+            Settings allSettings
         ) {
-            Set<String> settings = indexSettings.keySet();
+            Set<String> settings = allSettings.keySet();
             if (settings.contains(TIER_PREFERENCE)) {
                 // just a marker -- this null value will be removed or overridden by the template/request settings
                 return NULL_TIER_PREFERENCE_SETTINGS;

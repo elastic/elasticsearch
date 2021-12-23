@@ -29,9 +29,10 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -75,7 +76,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
         SystemIndices systemIndices,
-        MetadataCreateIndexService metadataCreateIndexService
+        IndexSettingProviders indexSettingProviders
     ) {
         super(
             SimulateIndexTemplateAction.NAME,
@@ -93,7 +94,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         this.indicesService = indicesService;
         this.aliasValidator = new AliasValidator();
         this.systemIndices = systemIndices;
-        this.indexSettingProviders = metadataCreateIndexService.getIndexSettingProviders();
+        this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
     }
 
     @Override

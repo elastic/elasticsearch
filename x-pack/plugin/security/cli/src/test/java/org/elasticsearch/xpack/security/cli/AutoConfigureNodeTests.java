@@ -231,14 +231,8 @@ public class AutoConfigureNodeTests extends ESTestCase {
 
         SecureString httpKeystorePassword = nodeKeystore.getString("xpack.security.http.ssl.keystore.secure_password");
 
-        List<String> generatedConfigLines = Files.readAllLines(env.configFile().resolve("elasticsearch.yml"), StandardCharsets.UTF_8);
-        String httpKeystorePath = null;
-        for (String generatedConfigLine : generatedConfigLines) {
-            if (generatedConfigLine.startsWith("xpack.security.http.ssl.keystore.path")) {
-                httpKeystorePath = generatedConfigLine.substring(39);
-                break;
-            }
-        }
+        final Settings newSettings = Settings.builder().loadFromPath(env.configFile().resolve("elasticsearch.yml")).build();
+        final String httpKeystorePath = newSettings.get("xpack.security.http.ssl.keystore.path");
 
         KeyStore httpKeystore = KeyStoreUtil.readKeyStore(PathUtils.get(httpKeystorePath), "PKCS12", httpKeystorePassword.getChars());
         return (X509Certificate) httpKeystore.getCertificate("http_local_node_key");

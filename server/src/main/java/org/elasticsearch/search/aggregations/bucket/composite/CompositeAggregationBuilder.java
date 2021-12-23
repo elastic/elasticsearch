@@ -240,7 +240,6 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
                     values[i] = c;
                 } else if (obj instanceof Map<?, ?> && configs[i].fieldType().getClass() == TimeSeriesIdFieldType.class) {
                     // If input is a _tsid map, encode the map to the _tsid BytesRef
-                    // TODO: Must add validations
                     values[i] = configs[i].format().parseBytesRef(obj);
                 } else {
                     throw new IllegalArgumentException(

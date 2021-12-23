@@ -423,7 +423,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             shardStats.size(),
             0,
             emptyList(),
-            null
+            ClusterState.EMPTY_STATE
         );
     }
 }

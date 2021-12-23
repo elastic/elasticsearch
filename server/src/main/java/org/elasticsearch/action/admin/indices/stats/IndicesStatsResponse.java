@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
@@ -64,22 +65,23 @@ public class IndicesStatsResponse extends BroadcastResponse {
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
-        if (clusterState != null) {
-            indexHealthMap = new HashMap<>();
-            indexStateMap = new HashMap<>();
-            for (ShardStats shard : shards) {
-                Index index = shard.getShardRouting().index();
-                IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
-                indexStateMap.computeIfAbsent(index.getName(), ignored -> indexMetadata.getState());
-                indexHealthMap.computeIfAbsent(
+        Objects.requireNonNull(clusterState);
+        Objects.requireNonNull(shards);
+        Map<String, ClusterHealthStatus> indexHealthModifiableMap = new HashMap<>();
+        Map<String, IndexMetadata.State> indexStateModifiableMap = new HashMap<>();
+        for (ShardStats shard : shards) {
+            Index index = shard.getShardRouting().index();
+            IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+            if (indexMetadata != null) {
+                indexHealthModifiableMap.computeIfAbsent(
                     index.getName(),
                     ignored -> new ClusterIndexHealth(indexMetadata, clusterState.routingTable().index(index)).getStatus()
                 );
+                indexStateModifiableMap.computeIfAbsent(index.getName(), ignored -> indexMetadata.getState());
             }
-        } else {
-            indexHealthMap = Map.of();
-            indexStateMap = Map.of();
         }
+        indexHealthMap = unmodifiableMap(indexHealthModifiableMap);
+        indexStateMap = unmodifiableMap(indexStateModifiableMap);
     }
 
     public Map<ShardRouting, ShardStats> asMap() {

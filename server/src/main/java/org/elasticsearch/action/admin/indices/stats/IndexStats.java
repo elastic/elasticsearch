@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -29,7 +30,13 @@ public class IndexStats implements Iterable<IndexShardStats> {
 
     private final ShardStats shards[];
 
-    public IndexStats(String index, String uuid, ClusterHealthStatus health, IndexMetadata.State state, ShardStats[] shards) {
+    public IndexStats(
+        String index,
+        String uuid,
+        @Nullable ClusterHealthStatus health,
+        @Nullable IndexMetadata.State state,
+        ShardStats[] shards
+    ) {
         this.index = index;
         this.uuid = uuid;
         this.health = health;
@@ -65,11 +72,7 @@ public class IndexStats implements Iterable<IndexShardStats> {
         }
         Map<Integer, List<ShardStats>> tmpIndexShards = new HashMap<>();
         for (ShardStats shard : shards) {
-            List<ShardStats> lst = tmpIndexShards.get(shard.getShardRouting().id());
-            if (lst == null) {
-                lst = new ArrayList<>();
-                tmpIndexShards.put(shard.getShardRouting().id(), lst);
-            }
+            List<ShardStats> lst = tmpIndexShards.computeIfAbsent(shard.getShardRouting().id(), ignored -> new ArrayList<>());
             lst.add(shard);
         }
         indexShards = new HashMap<>();
@@ -127,7 +130,7 @@ public class IndexStats implements Iterable<IndexShardStats> {
         private final IndexMetadata.State state;
         private final List<ShardStats> shards = new ArrayList<>();
 
-        public IndexStatsBuilder(String indexName, String uuid, ClusterHealthStatus health, IndexMetadata.State state) {
+        public IndexStatsBuilder(String indexName, String uuid, @Nullable ClusterHealthStatus health, @Nullable IndexMetadata.State state) {
             this.indexName = indexName;
             this.uuid = uuid;
             this.health = health;

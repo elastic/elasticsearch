@@ -257,8 +257,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
      * Serializes the provided value in SQL-compatible way based on the client mode
      */
     public static XContentBuilder value(XContentBuilder builder, Mode mode, SqlVersion sqlVersion, Object value) throws IOException {
-        if (value instanceof ZonedDateTime) {
-            ZonedDateTime zdt = (ZonedDateTime) value;
+        if (value instanceof ZonedDateTime zdt) {
             // use the ISO format
             if (mode == JDBC && isClientCompatible(SqlVersion.fromId(CURRENT.id), sqlVersion)) {
                 builder.value(StringUtils.toString(zdt, sqlVersion));

@@ -23,6 +23,11 @@ configure(subprojects - project('elasticsearch-log4j')) {
   plugins.withType(JavaPlugin) {
     // Configure the version attribute.
     tasks.withType(JavaCompile).configureEach {
+      it.options.compilerArgumentProviders.add(
+        (CommandLineArgumentProvider) { ->
+          return ["--module-version", project.version.toString()]
+        }
+      )
       it.options.javaModuleVersion.set(
         provider {
           return project.version.toString()

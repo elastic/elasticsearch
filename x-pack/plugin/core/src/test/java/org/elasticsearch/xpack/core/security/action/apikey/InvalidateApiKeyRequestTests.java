@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.security.action;
+package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

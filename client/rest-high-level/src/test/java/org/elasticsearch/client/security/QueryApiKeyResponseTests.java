@@ -74,9 +74,9 @@ public class QueryApiKeyResponseTests extends AbstractResponseTestCase<
         assertThat(serverItem.getSortValues(), equalTo(clientApiKeyInfo.getSortValues()));
     }
 
-    private org.elasticsearch.xpack.core.security.action.ApiKey randomApiKeyInfo() {
+    private org.elasticsearch.xpack.core.security.action.apikey.ApiKey randomApiKeyInfo() {
         final Instant creation = Instant.now();
-        return new org.elasticsearch.xpack.core.security.action.ApiKey(
+        return new org.elasticsearch.xpack.core.security.action.apikey.ApiKey(
             randomAlphaOfLengthBetween(3, 8),
             randomAlphaOfLength(20),
             creation,

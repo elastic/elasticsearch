@@ -42,9 +42,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.FilterClient;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -117,11 +117,12 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AsyncBulkByScrollActionTests extends ESTestCase {
     private MyMockClient client;
     private DummyAbstractBulkByScrollRequest testRequest;
-    private SearchRequest firstSearchRequest;
     private PlainActionFuture<BulkByScrollResponse> listener;
     private String scrollId;
     private ThreadPool threadPool;
@@ -140,8 +141,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         threadPool = new TestThreadPool(getTestName());
         setupClient(threadPool);
-        firstSearchRequest = new SearchRequest();
-        testRequest = new DummyAbstractBulkByScrollRequest(firstSearchRequest);
+        testRequest = new DummyAbstractBulkByScrollRequest(new SearchRequest());
         listener = new PlainActionFuture<>();
         scrollId = null;
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
@@ -282,11 +282,16 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     public void testBulkResponseSetsLotsOfStatus() throws Exception {
         testRequest.setAbortOnVersionConflict(false);
+
         int maxBatches = randomIntBetween(0, 100);
         long versionConflicts = 0;
         long created = 0;
         long updated = 0;
         long deleted = 0;
+
+        var action = new DummyAsyncBulkByScrollAction();
+        action.setScroll(scrollId());
+
         for (int batches = 0; batches < maxBatches; batches++) {
             BulkItemResponse[] responses = new BulkItemResponse[randomIntBetween(0, 100)];
             for (int i = 0; i < responses.length; i++) {
@@ -326,13 +331,60 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 final IndexResponse response = new IndexResponse(shardId, "id" + i, seqNo, primaryTerm, randomInt(), createdResponse);
                 responses[i] = BulkItemResponse.success(i, opType, response);
             }
-            assertExactlyOnce(onSuccess -> new DummyAsyncBulkByScrollAction().onBulkResponse(new BulkResponse(responses, 0), onSuccess));
+            assertExactlyOnce(onSuccess -> action.onBulkResponse(new BulkResponse(responses, 0), onSuccess));
             assertEquals(versionConflicts, testTask.getStatus().getVersionConflicts());
             assertEquals(updated, testTask.getStatus().getUpdated());
             assertEquals(created, testTask.getStatus().getCreated());
             assertEquals(deleted, testTask.getStatus().getDeleted());
             assertEquals(versionConflicts, testTask.getStatus().getVersionConflicts());
         }
+    }
+
+    public void testHandlesBulkWithNoScroll() {
+        // given a request that should not open scroll
+        var maxDocs = between(1, 100);
+        testRequest.setMaxDocs(maxDocs);
+        testRequest.getSearchRequest().source().size(100);
+
+        // when receiving bulk response
+        var responses = randomArray(0, maxDocs, BulkItemResponse[]::new, AsyncBulkByScrollActionTests::createBulkResponse);
+        new DummyAsyncBulkByScrollAction().onBulkResponse(new BulkResponse(responses, 0), () -> fail("should not be called"));
+
+        // then should refresh and finish
+        assertThat(listener.isDone(), equalTo(true));
+        var status = listener.actionGet().getStatus();
+        assertThat(status.getCreated() + status.getUpdated() + status.getDeleted(), equalTo((long) responses.length));
+    }
+
+    public void testHandlesBulkWhenMaxDocsIsReached() {
+        // given a request with max docs
+        var size = between(1, 10);
+        testRequest.setMaxDocs(size);
+        testRequest.getSearchRequest().source().size(100);
+
+        // when receiving bulk response with max docs
+        var responses = randomArray(size, size, BulkItemResponse[]::new, AsyncBulkByScrollActionTests::createBulkResponse);
+        new DummyAsyncBulkByScrollAction().onBulkResponse(new BulkResponse(responses, 0), () -> fail("should not be called"));
+
+        // then should refresh and finish
+        assertThat(listener.isDone(), equalTo(true));
+        var status = listener.actionGet().getStatus();
+        assertThat(status.getCreated() + status.getUpdated() + status.getDeleted(), equalTo((long) responses.length));
+    }
+
+    private static BulkItemResponse createBulkResponse() {
+        return BulkItemResponse.success(
+            0,
+            randomFrom(DocWriteRequest.OpType.values()),
+            new IndexResponse(
+                new ShardId(new Index("name", "uid"), 0),
+                "id",
+                randomInt(20),
+                randomIntBetween(1, 16),
+                randomIntBetween(0, Integer.MAX_VALUE),
+                true
+            )
+        );
     }
 
     /**
@@ -498,6 +550,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             }
         });
 
+        // Set the base for the scroll to wait - this is added to the figure we calculate below
+        testRequest.getSearchRequest().scroll(timeValueSeconds(10));
+
         DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
             @Override
             protected RequestWrapper<?> buildRequest(Hit doc) {
@@ -505,9 +560,6 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             }
         };
         action.setScroll(scrollId());
-
-        // Set the base for the scroll to wait - this is added to the figure we calculate below
-        firstSearchRequest.scroll(timeValueSeconds(10));
 
         // Set throttle to 1 request per second to make the math simpler
         worker.rethrottle(1f);
@@ -568,6 +620,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         client.bulksToReject = client.bulksAttempts.get() + totalFailures;
         DummyAsyncBulkByScrollAction action = new DummyActionWithoutBackoff();
+        action.setScroll(scrollId());
         BulkRequest request = new BulkRequest();
         for (int i = 0; i < size + 1; i++) {
             request.add(new IndexRequest("index").id("id" + i));
@@ -826,6 +879,39 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> response.consumeHits(1));
     }
 
+    public void testEnableScrollByDefault() {
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
+        assertThat(preparedSearchRequest.scroll(), notNullValue());
+    }
+
+    public void testEnableScrollWhenMaxDocsIsGreaterThenScrollSize() {
+        testRequest.setMaxDocs(between(101, 1000));
+        testRequest.getSearchRequest().source().size(100);
+
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
+
+        assertThat(preparedSearchRequest.scroll(), notNullValue());
+    }
+
+    public void testDisableScrollWhenMaxDocsIsLessThenScrollSize() {
+        testRequest.setMaxDocs(between(1, 100));
+        testRequest.getSearchRequest().source().size(100);
+
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
+
+        assertThat(preparedSearchRequest.scroll(), nullValue());
+    }
+
+    public void testEnableScrollWhenProceedOnVersionConflict() {
+        testRequest.setMaxDocs(between(1, 110));
+        testRequest.getSearchRequest().source().size(100);
+        testRequest.setAbortOnVersionConflict(false);
+
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
+
+        assertThat(preparedSearchRequest.scroll(), notNullValue());
+    }
+
     /**
      * Simulate a scroll response by setting the scroll id and firing the onScrollResponse method.
      */
@@ -907,6 +993,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     private static class DummyAbstractBulkByScrollRequest extends AbstractBulkByScrollRequest<DummyAbstractBulkByScrollRequest> {
+
         DummyAbstractBulkByScrollRequest(SearchRequest searchRequest) {
             super(searchRequest, true);
         }

@@ -15,8 +15,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
-import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 
 import java.io.IOException;
 import java.time.Instant;

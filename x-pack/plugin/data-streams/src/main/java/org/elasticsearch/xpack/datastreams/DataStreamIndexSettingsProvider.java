@@ -11,9 +11,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.shard.IndexSettingProvider;
 
 import java.time.Instant;
 import java.util.Locale;
@@ -29,15 +29,15 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         String dataStreamName,
         boolean newDataStream,
         long resolvedAt,
-        Settings templateAndRequestSettings
+        Settings allSettings
     ) {
         if (dataStreamName != null && newDataStream) {
-            IndexMode indexMode = Optional.ofNullable(templateAndRequestSettings.get(IndexSettings.MODE.getKey()))
+            IndexMode indexMode = Optional.ofNullable(allSettings.get(IndexSettings.MODE.getKey()))
                 .map(value -> IndexMode.valueOf(value.toUpperCase(Locale.ROOT)))
                 .orElse(IndexMode.STANDARD);
-            TimeValue lookAheadTime = templateAndRequestSettings.getAsTime(
+            TimeValue lookAheadTime = allSettings.getAsTime(
                 IndexSettings.LOOK_AHEAD_TIME.getKey(),
-                IndexSettings.LOOK_AHEAD_TIME.getDefault(templateAndRequestSettings)
+                IndexSettings.LOOK_AHEAD_TIME.getDefault(allSettings)
             );
             if (indexMode == IndexMode.TIME_SERIES) {
                 Instant start = Instant.ofEpochMilli(resolvedAt).minusMillis(lookAheadTime.getMillis());

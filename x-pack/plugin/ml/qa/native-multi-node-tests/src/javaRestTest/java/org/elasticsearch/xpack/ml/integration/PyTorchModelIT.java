@@ -488,10 +488,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                   }
             """);
         Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
-        assertThat(
-            ex.getMessage(),
-            containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API.")
-        );
+        assertThat(ex.getMessage(), containsString("Trained model [not-deployed] is not deployed."));
     }
 
     public void testTruncation() throws IOException {
@@ -607,7 +604,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertThat(
             response,
             allOf(
-                containsString("inference not possible. Task is configured with [pass_through] but received update of type [ner]"),
+                containsString("Task is configured with [pass_through] but received update of type [ner]"),
                 containsString("error"),
                 not(containsString("warning"))
             )

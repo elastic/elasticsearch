@@ -39,7 +39,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_source";
     private final CheckedBiFunction<BytesReference, XContentType, BytesReference, IOException> filter;
-    private final XContentParserConfiguration parserConfig;
 
     private static final SourceFieldMapper DEFAULT = new SourceFieldMapper(Defaults.ENABLED, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
 
@@ -144,7 +143,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.excludes = excludes;
         final boolean filtered = CollectionUtils.isEmpty(includes) == false || CollectionUtils.isEmpty(excludes) == false;
         if (enabled && filtered) {
-            this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.of(includes), Set.of(excludes));
+            final XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.of(includes), Set.of(excludes));
             this.filter = (sourceBytes, contentType) -> {
                 BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, sourceBytes.length()));
                 XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput);
@@ -153,8 +152,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 return BytesReference.bytes(builder);
             };
         } else {
-            this.parserConfig = null;
-            this.filter = null;
+            this.filter = (sourceBytes, contentType) -> sourceBytes;
         }
         this.complete = enabled && CollectionUtils.isEmpty(includes) && CollectionUtils.isEmpty(excludes);
     }
@@ -190,11 +188,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public BytesReference applyFilters(@Nullable BytesReference originalSource, @Nullable XContentType contentType) throws IOException {
         if (enabled && originalSource != null) {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
-            if (filter != null) {
-                return filter.apply(originalSource,contentType);
-            } else {
-                return originalSource;
-            }
+            return filter.apply(originalSource, contentType);
         } else {
             return null;
         }

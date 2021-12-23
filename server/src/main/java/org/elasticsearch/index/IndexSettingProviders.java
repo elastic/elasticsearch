@@ -11,6 +11,10 @@ package org.elasticsearch.index;
 import java.util.Collections;
 import java.util.Set;
 
+/**
+ * Keeps track of the {@link IndexSettingProvider} instances defined by plugins and
+ * this class can be used by other components to get access to {@link IndexSettingProvider} instances.
+ */
 public final class IndexSettingProviders {
 
     private final Set<IndexSettingProvider> indexSettingProviders;

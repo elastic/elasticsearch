@@ -115,7 +115,7 @@ public class DeploymentManager {
     }
 
     private void doStartDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
-        logger.debug("[{}] Starting model deployment", task.getModelId());
+        logger.info("[{}] Starting model deployment", task.getModelId());
 
         ProcessContext processContext = new ProcessContext(task, executorServiceForProcess);
 
@@ -216,10 +216,10 @@ public class DeploymentManager {
             processContext = processContextByAllocation.get(task.getId());
         }
         if (processContext != null) {
-            logger.debug("[{}] Stopping deployment", task.getModelId());
+            logger.info("[{}] Stopping deployment", task.getModelId());
             processContext.stopProcess();
         } else {
-            logger.debug("[{}] No process context to stop", task.getModelId());
+            logger.warn("[{}] No process context to stop", task.getModelId());
         }
     }
 

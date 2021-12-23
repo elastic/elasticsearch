@@ -111,10 +111,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
 
     public void infer(Map<String, Object> doc, InferenceConfigUpdate update, TimeValue timeout, ActionListener<InferenceResults> listener) {
         if (inferenceConfigHolder.get() == null) {
-            listener.onFailure(
-                // inference not possible against uninitialized model"
-                ExceptionsHelper.conflictStatusException("Trained model [{}] is not initialized", params.getModelId())
-            );
+            listener.onFailure(ExceptionsHelper.conflictStatusException("Trained model [{}] is not initialized", params.getModelId()));
             return;
         }
         if (update.isSupported(inferenceConfigHolder.get()) == false) {

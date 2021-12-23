@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-// @formatter:off
 @SuppressWarnings({"requires-automatic","module"})
 module org.elasticsearch.core {
     requires static /*transitive*/ jsr305; // ####: does this need to be transitive
@@ -27,4 +26,3 @@ module org.elasticsearch.core {
     // org.elasticsearch.core.internal.net to unnamed module
     exports org.elasticsearch.core.internal.net; // to org.elasticsearch.xcontent;
 }
-// @formatter:on

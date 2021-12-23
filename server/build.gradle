@@ -30,6 +30,12 @@ sourceSets {
   ]
 }
 
+spotless {
+  java {
+    targetExclude 'src/main/module/module-info.java'
+  }
+}
+
 allprojects {
   plugins.withType(JavaPlugin) {
     // Configure the version attribute.

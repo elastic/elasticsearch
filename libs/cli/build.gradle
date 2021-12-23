@@ -21,3 +21,9 @@ tasks.named("jarHell").configure { enabled = false }
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
+
+spotless {
+  java {
+    targetExclude 'src/main/module/module-info.java'
+  }
+}

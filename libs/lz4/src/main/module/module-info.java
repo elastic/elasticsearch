@@ -5,11 +5,10 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-// @formatter:off
+
 @SuppressWarnings({"requires-automatic","requires-transitive-automatic","module"})
 module org.elasticsearch.lz4 {
     requires transitive org.lz4.java;
 
     exports org.elasticsearch.lz4;
 }
-// @formatter:on

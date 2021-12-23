@@ -31,3 +31,9 @@ tasks.named("thirdPartyAudit").configure {
     'net.jpountz.util.UnsafeUtils'
   )
 }
+
+spotless {
+  java {
+    targetExclude 'src/main/module/module-info.java'
+  }
+}

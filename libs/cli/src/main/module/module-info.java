@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-// @formatter:off
+/** Elasticsearch Command Line Interface. */
 @SuppressWarnings({ "requires-automatic", "requires-transitive-automatic" })
 module org.elasticsearch.cli {
     requires transitive jopt.simple;
@@ -14,4 +14,3 @@ module org.elasticsearch.cli {
 
     exports org.elasticsearch.cli;
 }
-// @formatter:on

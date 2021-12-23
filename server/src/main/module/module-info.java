@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-// @formatter:off
 @SuppressWarnings({"requires-automatic","requires-transitive-automatic"})
 module org.elasticsearch.server {
     requires com.fasterxml.jackson.core;
@@ -350,4 +349,3 @@ module org.elasticsearch.server {
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
     provides org.elasticsearch.xcontent.XContentBuilderExtension with org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 }
-// @formatter:on

@@ -42,3 +42,9 @@ tasks.named("thirdPartyAudit").configure {
           'org/osgi/framework/wiring/BundleWiring'
   )
 }
+
+spotless {
+  java {
+    targetExclude 'src/main/module/module-info.java'
+  }
+}

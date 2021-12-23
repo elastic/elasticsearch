@@ -146,19 +146,11 @@ public class SysColumnsTests extends ESTestCase {
     }
 
     public void testUnsignedLongFiltering() {
+        Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
         for (Mode mode : List.of(Mode.JDBC, Mode.ODBC)) {
             for (SqlVersion version : UNSIGNED_LONG_TEST_VERSIONS) {
                 List<List<?>> rows = new ArrayList<>();
-                SysColumns.fillInRows(
-                    "test",
-                    "index",
-                    loadMapping("mapping-multi-field-variation.json", true),
-                    null,
-                    rows,
-                    null,
-                    mode,
-                    version
-                );
+                SysColumns.fillInRows("test", "index", mapping, null, rows, null, mode, version);
                 List<String> types = rows.stream().map(row -> name(row).toString()).collect(Collectors.toList());
                 assertEquals(
                     isTypeSupportedInVersion(UNSIGNED_LONG, version),

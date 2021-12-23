@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.Version.CURRENT;
@@ -80,9 +82,10 @@ public class ShowColumnsTests extends ESTestCase {
     }
 
     public void testUnsignedLongFiltering() {
+        Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
         for (SqlVersion version : UNSIGNED_LONG_TEST_VERSIONS) {
             List<List<?>> rows = new ArrayList<>();
-            ShowColumns.fillInRows(loadMapping("mapping-multi-field-variation.json", true), null, version, rows);
+            ShowColumns.fillInRows(mapping, null, version, rows);
             List<String> typeNames = rows.stream().map(row -> (String) row.get(2)).toList();
             assertTrue(typeNames.contains(UNSIGNED_LONG.typeName()));
         }

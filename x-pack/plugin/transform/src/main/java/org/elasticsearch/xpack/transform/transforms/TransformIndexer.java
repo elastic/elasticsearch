@@ -937,8 +937,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         // irrecoverable error without special handling
-        if (unwrappedException instanceof ElasticsearchException) {
-            ElasticsearchException elasticsearchException = (ElasticsearchException) unwrappedException;
+        if (unwrappedException instanceof ElasticsearchException elasticsearchException) {
             if (ExceptionRootCauseFinder.IRRECOVERABLE_REST_STATUSES.contains(elasticsearchException.status())) {
                 failIndexer("task encountered irrecoverable failure: " + elasticsearchException.getDetailedMessage());
                 return;

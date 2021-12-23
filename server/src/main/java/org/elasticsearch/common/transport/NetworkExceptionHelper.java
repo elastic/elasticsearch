@@ -8,49 +8,79 @@
 
 package org.elasticsearch.common.transport;
 
+import org.apache.logging.log4j.Level;
+
 import java.net.ConnectException;
 import java.nio.channels.ClosedChannelException;
 
 public class NetworkExceptionHelper {
 
     public static boolean isConnectException(Throwable e) {
-        if (e instanceof ConnectException) {
-            return true;
-        }
-        return false;
+        return e instanceof ConnectException;
     }
 
-    public static boolean isCloseConnectionException(Throwable e) {
+    /**
+     * @return a log level indicating an approximate severity of the exception, or {@link Level#OFF} if the exception doesn't look to be
+     *         network-related.
+     */
+    public static Level getCloseConnectionExceptionLevel(Throwable e) {
         if (e instanceof ClosedChannelException) {
-            return true;
+            // The channel is already closed for some reason, no need to shout about it.
+            return Level.DEBUG;
         }
-        if (e.getMessage() != null) {
-            // UGLY!, this exception messages seems to represent closed connection
-            if (e.getMessage().contains("Connection reset")) {
-                return true;
+
+        // There's no great (portable) way to work out what exactly happened. However we can do some ugly but effective heuristics based on
+        // the message contents if we assume we're in the root locale.
+        final String message = e.getMessage();
+        if (message != null) {
+
+            // Messages from libc
+
+            if (message.contains("Connection timed out")) {
+                // Either we were sending some data and retransmitted it `net.ipv4.tcp_retries2` times without ever receiving an ACK, or
+                // else the connection is idle and we sent `net.ipv4.tcp_keepalive_probes` consecutive keepalives without receiving any ACK.
+                // This is often because some broken middleware (a firewall device or similar) starts dropping packets on established
+                // connections due to an ill-considered timeout. However sometimes when Docker containers shut down they just totally
+                // vanish from the network leading to this message too. Since it could be benign, we report it at INFO level.
+                return Level.INFO;
             }
-            if (e.getMessage().contains("connection was aborted")) {
-                return true;
+            if (message.contains("Connection reset")) {
+                // We received a packet with the RST flag set. This is often caused by some broken middleware (a firewall device or similar)
+                // which injects a RST into an established connection due to an ill-considered timeout. However it can also happen with
+                // older TLS versions even if the connection is closed cleanly. Since it could be benign, we report it at INFO level.
+                return Level.INFO;
             }
-            if (e.getMessage().contains("forcibly closed")) {
-                return true;
+            if (message.contains("Broken pipe")) {
+                // The channel was previously closed and then we tried to send some more data. Believed to be similar to "Connection reset"
+                // so we keep it at INFO level.
+                return Level.INFO;
             }
-            if (e.getMessage().contains("Broken pipe")) {
-                return true;
+
+            // Messages from Windows
+
+            if (message.contains("connection was aborted") || message.contains("forcibly closed")) {
+                // These are how connection resets are reported on Windows. We haven't verified whether they're benign or not so we err
+                // on the safe side.
+                return Level.INFO;
             }
-            if (e.getMessage().contains("Connection timed out")) {
-                return true;
+
+            // Messages from the JDK
+
+            if (message.equals("Socket is closed") || message.equals("Socket closed")) {
+                // The JDK saw us trying to interact with a socket that had already been closed. Kept at DEBUG since we haven't verified
+                // whether it is benign or not and we prefer to avoid introducing noise.
+                return Level.DEBUG;
             }
-            if (e.getMessage().equals("Socket is closed")) {
-                return true;
-            }
-            if (e.getMessage().equals("Socket closed")) {
-                return true;
-            }
-            if (e.getMessage().equals("SSLEngine closed already")) {
-                return true;
+
+            // Messages from Netty
+
+            if (message.equals("SSLEngine closed already")) {
+                // Netty's SSLHandler discovered that the underlying channel closed without encountering a more specific exception that
+                // indicates why. Kept at DEBUG since we haven't verified whether it is benign or not and we prefer to avoid introducing
+                // noise.
+                return Level.DEBUG;
             }
         }
-        return false;
+        return Level.OFF;
     }
 }

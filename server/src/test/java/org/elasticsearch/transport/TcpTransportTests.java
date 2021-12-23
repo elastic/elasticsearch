@@ -416,8 +416,48 @@ public class TcpTransportTests extends ESTestCase {
         }
     }
 
+    @TestLogging(reason = "testing logging", value = "org.elasticsearch.transport.TcpTransport:INFO")
+    public void testInfoExceptionHandling() throws IllegalAccessException {
+        testExceptionHandling(
+            false,
+            new ElasticsearchException("simulated"),
+            true,
+            new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.ERROR, "*"),
+            new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.WARN, "*"),
+            new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.INFO, "*"),
+            new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.DEBUG, "*")
+        );
+
+        testExceptionHandling(
+            new ElasticsearchException("simulated"),
+            new MockLogAppender.SeenEventExpectation(
+                "message",
+                "org.elasticsearch.transport.TcpTransport",
+                Level.WARN,
+                "exception caught on transport layer [*], closing connection"
+            )
+        );
+
+        for (final String message : new String[] {
+            "Connection timed out",
+            "Connection reset",
+            "Broken pipe",
+            "An established connection was aborted by the software in your host machine",
+            "An existing connection was forcibly closed by remote host" }) {
+            testExceptionHandling(
+                new ElasticsearchException(message),
+                new MockLogAppender.SeenEventExpectation(
+                    message,
+                    "org.elasticsearch.transport.TcpTransport",
+                    Level.INFO,
+                    "close connection exception caught on transport layer [*], disconnecting from relevant node: " + message
+                )
+            );
+        }
+    }
+
     @TestLogging(reason = "testing logging", value = "org.elasticsearch.transport.TcpTransport:DEBUG")
-    public void testExceptionHandling() throws IllegalAccessException {
+    public void testDebugExceptionHandling() throws IllegalAccessException {
         testExceptionHandling(
             false,
             new ElasticsearchException("simulated"),
@@ -445,15 +485,38 @@ public class TcpTransportTests extends ESTestCase {
                 "close connection exception caught on transport layer [*], disconnecting from relevant node"
             )
         );
-        testExceptionHandling(
-            new ElasticsearchException("Connection reset"),
-            new MockLogAppender.SeenEventExpectation(
-                "message",
-                "org.elasticsearch.transport.TcpTransport",
-                Level.DEBUG,
-                "close connection exception caught on transport layer [*], disconnecting from relevant node"
-            )
-        );
+
+        // INFO leve
+        for (final String message : new String[] {
+            "Connection timed out",
+            "Connection reset",
+            "Broken pipe",
+            "An established connection was aborted by the software in your host machine",
+            "An existing connection was forcibly closed by remote host" }) {
+            testExceptionHandling(
+                new ElasticsearchException(message),
+                new MockLogAppender.SeenEventExpectation(
+                    message,
+                    "org.elasticsearch.transport.TcpTransport",
+                    Level.INFO,
+                    "close connection exception caught on transport layer [*], disconnecting from relevant node"
+                )
+            );
+        }
+
+        // DEBUG level
+        for (final String message : new String[] { "Socket is closed", "Socket closed", "SSLEngine closed already" }) {
+            testExceptionHandling(
+                new ElasticsearchException(message),
+                new MockLogAppender.SeenEventExpectation(
+                    message,
+                    "org.elasticsearch.transport.TcpTransport",
+                    Level.DEBUG,
+                    "close connection exception caught on transport layer [*], disconnecting from relevant node"
+                )
+            );
+        }
+
         testExceptionHandling(
             new BindException(),
             new MockLogAppender.SeenEventExpectation(

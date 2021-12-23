@@ -885,27 +885,25 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testTimezone() throws Exception {
-        String queryAsString = "{\n"
-            + "    \"query_string\":{\n"
-            + "        \"time_zone\":\"Europe/Paris\",\n"
-            + "        \"query\":\""
-            + DATE_FIELD_NAME
-            + ":[2012 TO 2014]\"\n"
-            + "    }\n"
-            + "}";
+        String queryAsString = """
+            {
+                "query_string":{
+                    "time_zone":"Europe/Paris",
+                    "query":"%s:[2012 TO 2014]"
+                }
+            }""".formatted(DATE_FIELD_NAME);
         QueryBuilder queryBuilder = parseQuery(queryAsString);
         assertThat(queryBuilder, instanceOf(QueryStringQueryBuilder.class));
         QueryStringQueryBuilder queryStringQueryBuilder = (QueryStringQueryBuilder) queryBuilder;
         assertThat(queryStringQueryBuilder.timeZone(), equalTo(ZoneId.of("Europe/Paris")));
 
-        String invalidQueryAsString = "{\n"
-            + "    \"query_string\":{\n"
-            + "        \"time_zone\":\"This timezone does not exist\",\n"
-            + "        \"query\":\""
-            + DATE_FIELD_NAME
-            + ":[2012 TO 2014]\"\n"
-            + "    }\n"
-            + "}";
+        String invalidQueryAsString = """
+            {
+                "query_string":{
+                    "time_zone":"This timezone does not exist",
+                    "query":"%s:[2012 TO 2014]"
+                }
+            }""".formatted(DATE_FIELD_NAME);
         expectThrows(DateTimeException.class, () -> parseQuery(invalidQueryAsString));
     }
 
@@ -1086,26 +1084,27 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"query_string\" : {\n"
-            + "    \"query\" : \"this AND that OR thus\",\n"
-            + "    \"default_field\" : \"content\",\n"
-            + "    \"fields\" : [ ],\n"
-            + "    \"type\" : \"best_fields\",\n"
-            + "    \"tie_breaker\" : 0.0,\n"
-            + "    \"default_operator\" : \"or\",\n"
-            + "    \"max_determinized_states\" : 10000,\n"
-            + "    \"enable_position_increments\" : true,\n"
-            + "    \"fuzziness\" : \"AUTO\",\n"
-            + "    \"fuzzy_prefix_length\" : 0,\n"
-            + "    \"fuzzy_max_expansions\" : 50,\n"
-            + "    \"phrase_slop\" : 0,\n"
-            + "    \"escape\" : false,\n"
-            + "    \"auto_generate_synonyms_phrase_query\" : true,\n"
-            + "    \"fuzzy_transpositions\" : false,\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "query_string" : {
+                "query" : "this AND that OR thus",
+                "default_field" : "content",
+                "fields" : [ ],
+                "type" : "best_fields",
+                "tie_breaker" : 0.0,
+                "default_operator" : "or",
+                "max_determinized_states" : 10000,
+                "enable_position_increments" : true,
+                "fuzziness" : "AUTO",
+                "fuzzy_prefix_length" : 0,
+                "fuzzy_max_expansions" : 50,
+                "phrase_slop" : 0,
+                "escape" : false,
+                "auto_generate_synonyms_phrase_query" : true,
+                "fuzzy_transpositions" : false,
+                "boost" : 1.0
+              }
+            }""";
 
         QueryStringQueryBuilder parsed = (QueryStringQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

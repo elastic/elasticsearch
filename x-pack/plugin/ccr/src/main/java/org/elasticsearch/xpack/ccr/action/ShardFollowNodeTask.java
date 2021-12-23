@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -358,8 +359,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 fetchExceptions.put(from, Tuple.tuple(retryCounter, ExceptionsHelper.convertToElastic(e)));
             }
             Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (cause instanceof ResourceNotFoundException) {
-                ResourceNotFoundException resourceNotFoundException = (ResourceNotFoundException) cause;
+            if (cause instanceof ResourceNotFoundException resourceNotFoundException) {
                 if (resourceNotFoundException.getMetadataKeys().contains(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY)) {
                     handleFallenBehindLeaderShard(e, from, maxOperationCount, maxRequiredSeqNo, retryCounter);
                     return;
@@ -620,9 +620,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     static boolean shouldRetry(final Exception e) {
-        if (NetworkExceptionHelper.isConnectException(e)) {
-            return true;
-        } else if (NetworkExceptionHelper.isCloseConnectionException(e)) {
+        if (NetworkExceptionHelper.isConnectException(e) || NetworkExceptionHelper.getCloseConnectionExceptionLevel(e) != Level.OFF) {
             return true;
         }
 

@@ -282,13 +282,9 @@ public class QueryTranslatorTests extends ESTestCase {
         EsQueryExec eqe = (EsQueryExec) p;
         assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
         assertEquals(1, eqe.output().size());
-        assertThat(
-            eqe.queryContainer().toString().replaceAll("\\s+", ""),
-            containsString(
-                "\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0))\","
-                    + "\"lang\":\"painless\",\"params\":{\"v0\":0}}"
-            )
-        );
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString("""
+            "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0))",\
+            "lang":"painless","params":{"v0":0}}"""));
     }
 
     public void testScriptsInsideAggregateFunctions() {
@@ -301,25 +297,34 @@ public class QueryTranslatorTests extends ESTestCase {
                 aggFunction += ")";
                 PhysicalPlan p = optimizeAndPlan("SELECT " + aggFunction + " FROM test");
                 if (fd.clazz() == Count.class) {
-                    assertESQuery(
-                        p,
-                        containsString(
-                            ":{\"script\":{\"source\":\"InternalQlScriptUtils.isNotNull(InternalSqlScriptUtils.add("
-                                + "InternalSqlScriptUtils.abs(InternalSqlScriptUtils.div(InternalSqlScriptUtils.mul("
-                                + "InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2)),params.v3))\","
-                                + "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":10,\"v2\":3,\"v3\":1}}"
-                        )
-                    );
+                    assertESQuery(p, containsString("""
+                        :{
+                          "script": {
+                            "source": "InternalQlScriptUtils.isNotNull(InternalSqlScriptUtils.add(\
+                            InternalSqlScriptUtils.abs(InternalSqlScriptUtils.div(\
+                            InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2)),params.v3))",
+                            "lang": "painless",
+                            "params": {
+                              "v0": "int",
+                              "v1": 10,
+                              "v2": 3,
+                              "v3": 1
+                            }
+                          }""".replaceAll("\\s", "")));
                 } else {
-                    assertESQuery(
-                        p,
-                        containsString(
-                            ":{\"script\":{\"source\":\"InternalSqlScriptUtils.add(InternalSqlScriptUtils.abs("
-                                + "InternalSqlScriptUtils.div(InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue("
-                                + "doc,params.v0),params.v1),params.v2)),params.v3)\",\"lang\":\"painless\",\"params\":{"
-                                + "\"v0\":\"int\",\"v1\":10,\"v2\":3,\"v3\":1}}"
-                        )
-                    );
+                    assertESQuery(p, containsString("""
+                        :{
+                          "script": {
+                            "source": "InternalSqlScriptUtils.add(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.div(\
+                            InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2)),params.v3)",
+                            "lang": "painless",
+                            "params": {
+                              "v0": "int",
+                              "v1": 10,
+                              "v2": 3,
+                              "v3": 1
+                            }
+                          }""".replaceAll("\\s", "")));
                 }
             }
         }
@@ -765,19 +770,28 @@ public class QueryTranslatorTests extends ESTestCase {
                 + randomFunction.name()
                 + "(date + INTERVAL 1 YEAR)"
         );
-        assertESQuery(
-            p,
-            containsString(
-                "{\"terms\":{\"script\":{\"source\":\"InternalSqlScriptUtils.dateTimeExtract("
-                    + "InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),"
-                    + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3,params.v4)\","
-                    + "\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"P1Y\",\"v2\":\"INTERVAL_YEAR\","
-                    + "\"v3\":\"Z\",\"v4\":\""
-                    + randomFunction.name()
-                    + "\"}},\"missing_bucket\":true,"
-                    + "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}}"
-            )
-        );
+        assertESQuery(p, containsString("""
+            {
+              "terms": {
+                "script": {
+                  "source": "InternalSqlScriptUtils.dateTimeExtract(InternalSqlScriptUtils.add(\
+                  InternalQlScriptUtils.docValue(doc,params.v0),\
+                  InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3,params.v4)",
+                  "lang": "painless",
+                  "params": {
+                    "v0": "date",
+                    "v1": "P1Y",
+                    "v2": "INTERVAL_YEAR",
+                    "v3": "Z",
+                    "v4": "%s"
+                  }
+                },
+                "missing_bucket": true,
+                "value_type": "long",
+                "order": "asc"
+              }
+            }}]}}}}
+            """.formatted(randomFunction.name()).replaceAll("\\s", "")));
     }
 
     public void testDateTimeFunctionsWithMathIntervalAndGroupBy() {
@@ -789,16 +803,22 @@ public class QueryTranslatorTests extends ESTestCase {
         );
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
-        assertThat(
-            eqe.queryContainer().toString().replaceAll("\\s+", ""),
-            containsString(
-                "{\"terms\":{\"script\":{\"source\":\"InternalSqlScriptUtils."
-                    + scriptMethods[pos]
-                    + "(InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),"
-                    + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3)\",\"lang\":\"painless\","
-                    + "\"params\":{\"v0\":\"date\",\"v1\":\"P1Y\",\"v2\":\"INTERVAL_YEAR\",\"v3\":\"Z\"}},\"missing_bucket\":true,"
-            )
-        );
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString("""
+            {
+              "terms": {
+                "script": {
+                  "source": "InternalSqlScriptUtils.%s(InternalSqlScriptUtils.add(\
+                  InternalQlScriptUtils.docValue(doc,params.v0),\
+                  InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3)",
+                  "lang": "painless",
+                  "params": {
+                    "v0": "date",
+                    "v1": "P1Y",
+                    "v2": "INTERVAL_YEAR",
+                    "v3": "Z"
+                  }
+                },
+                "missing_bucket": true,""".formatted(scriptMethods[pos]).replaceAll("\\s", "")));
     }
 
     // Like/RLike/StartsWith
@@ -950,7 +970,8 @@ public class QueryTranslatorTests extends ESTestCase {
                     + trimFunctionName.toLowerCase(Locale.ROOT)
                     + "(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))"
             ),
-            containsString("\"params\":{\"v0\":\"keyword\",\"v1\":\"foo\"}")
+            containsString("""
+                "params":{"v0":"keyword","v1":"foo"}""")
         );
     }
 
@@ -980,7 +1001,8 @@ public class QueryTranslatorTests extends ESTestCase {
             containsString(
                 "InternalSqlScriptUtils." + trimFunctionName.toLowerCase(Locale.ROOT) + "(InternalQlScriptUtils.docValue(doc,params.v0))"
             ),
-            containsString("\"params\":{\"v0\"=\"keyword\"}")
+            containsString("""
+                "params":{"v0"="keyword"}""")
         );
     }
 
@@ -1109,37 +1131,47 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             endsWith(
-                "{\"buckets_path\":{"
-                    + "\"a0\":\""
-                    + cardinalityKeyword.getName()
-                    + "\","
-                    + "\"a1\":\""
-                    + existsKeyword.getName()
-                    + "._count\","
-                    + "\"a2\":\""
-                    + cardinalityDottedField.getName()
-                    + "\","
-                    + "\"a3\":\""
-                    + existsDottedField.getName()
-                    + "._count\","
-                    + "\"a4\":\"_count\","
-                    + "\"a5\":\""
-                    + avgInt.getName()
-                    + "\"},"
-                    + "\"script\":{\"source\":\""
-                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
-                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
-                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
-                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
-                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
-                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0)),"
-                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a1,params.v1)))),"
-                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a2,params.v2)))),"
-                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a3,params.v3)))),"
-                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a4,params.v4)))),"
-                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a5,params.v5))))\","
-                    + "\"lang\":\"painless\",\"params\":{\"v0\":3,\"v1\":32,\"v2\":1,\"v3\":2,\"v4\":5,\"v5\":50000}},"
-                    + "\"gap_policy\":\"skip\"}}}}}"
+                """
+                    {
+                      "buckets_path": {
+                        "a0": "%s",
+                        "a1": "%s._count",
+                        "a2": "%s",
+                        "a3": "%s._count",
+                        "a4": "_count",
+                        "a5": "%s"
+                      },
+                      "script": {
+                        "source": "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
+                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
+                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
+                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
+                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
+                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0)),\
+                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a1,params.v1)))),\
+                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a2,params.v2)))),\
+                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a3,params.v3)))),\
+                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a4,params.v4)))),\
+                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a5,params.v5))))",
+                        "lang": "painless",
+                        "params": {
+                          "v0": 3,
+                          "v1": 32,
+                          "v2": 1,
+                          "v3": 2,
+                          "v4": 5,
+                          "v5": 50000
+                        }
+                      },
+                      "gap_policy": "skip"
+                    }}}}}
+                    """.formatted(
+                    cardinalityKeyword.getName(),
+                    existsKeyword.getName(),
+                    cardinalityDottedField.getName(),
+                    existsDottedField.getName(),
+                    avgInt.getName()
+                ).replaceAll("\\s", "")
             )
         );
     }
@@ -1171,7 +1203,9 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(((MetricAggRef) fe).property(), metricToAgg.get(funcName));
 
             String aggName = eqe.queryContainer().aggs().asAggBuilder().getSubAggregations().iterator().next().getName();
-            assertESQuery(p, endsWith("\"aggregations\":{\"" + aggName + "\":{\"extended_stats\":{\"field\":\"int\",\"sigma\":2.0}}}}}}"));
+            assertESQuery(p, endsWith("""
+                "aggregations":{"%s":{"extended_stats":{"field":"int","sigma":2.0}}}}}}\
+                """.formatted(aggName)));
         }
 
     }
@@ -1181,15 +1215,10 @@ public class QueryTranslatorTests extends ESTestCase {
             if (ExtendedStatsEnclosed.class.isAssignableFrom(fd.clazz())) {
                 String aggFunction = fd.name() + "(ABS((int * 10) / 3) + 1)";
                 PhysicalPlan p = optimizeAndPlan("SELECT " + aggFunction + " FROM test");
-                assertESQuery(
-                    p,
-                    containsString(
-                        "{\"extended_stats\":{\"script\":{\"source\":\"InternalSqlScriptUtils.add(InternalSqlScriptUtils.abs("
-                            + "InternalSqlScriptUtils.div(InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue("
-                            + "doc,params.v0),params.v1),params.v2)),params.v3)\",\"lang\":\"painless\",\"params\":{"
-                            + "\"v0\":\"int\",\"v1\":10,\"v2\":3,\"v3\":1}}"
-                    )
-                );
+                assertESQuery(p, containsString("""
+                    {"extended_stats":{"script":{"source":"InternalSqlScriptUtils.add(InternalSqlScriptUtils.abs(\
+                    InternalSqlScriptUtils.div(InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\
+                    ,params.v2)),params.v3)","lang":"painless","params":{"v0":"int","v1":10,"v2":3,"v3":1}}"""));
             }
         }
     }
@@ -1366,19 +1395,18 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testMultiLevelSubqueryWithoutRelation2() {
-        PhysicalPlan p = optimizeAndPlan(
-            "SELECT i, string FROM ("
-                + "  SELECT * FROM ("
-                + "    SELECT int as i, str AS string FROM ("
-                + "      SELECT * FROM ("
-                + "        SELECT int, s AS str FROM ("
-                + "          SELECT 1 AS int, 'foo' AS s"
-                + "        ) AS subq1"
-                + "      )"
-                + "    ) AS subq2"
-                + "  ) AS subq3"
-                + ")"
-        );
+        PhysicalPlan p = optimizeAndPlan("""
+            SELECT i, string FROM (
+              SELECT * FROM (
+                SELECT int as i, str AS string FROM (
+                  SELECT * FROM (
+                    SELECT int, s AS str FROM (
+                      SELECT 1 AS int, 'foo' AS s
+                    ) AS subq1
+                  )
+                ) AS subq2
+              ) AS subq3
+            )""");
         assertThat(p, instanceOf(LocalExec.class));
         LocalExec le = (LocalExec) p;
         assertThat(le.executable(), instanceOf(SingletonExecutable.class));

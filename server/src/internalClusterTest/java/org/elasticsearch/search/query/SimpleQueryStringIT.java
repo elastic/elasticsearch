@@ -11,6 +11,7 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -29,13 +30,11 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -68,21 +67,6 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests for the {@code simple_query_string} query
  */
 public class SimpleQueryStringIT extends ESIntegTestCase {
-
-    private static int CLUSTER_MAX_CLAUSE_COUNT;
-
-    @BeforeClass
-    public static void createRandomClusterSetting() {
-        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(60, 100);
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT)
-            .build();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -578,11 +562,14 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
     }
 
     public void testLimitOnExpandedFields() throws Exception {
+
+        final int maxClauseCount = randomIntBetween(50, 100);
+
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         builder.startObject("_doc");
         builder.startObject("properties");
-        for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT + 1; i++) {
+        for (int i = 0; i < maxClauseCount + 1; i++) {
             builder.startObject("field" + i).field("type", "text").endObject();
         }
         builder.endObject(); // properties
@@ -591,15 +578,21 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         assertAcked(
             prepareCreate("toomanyfields").setSettings(
-                Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT + 100)
+                Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), maxClauseCount + 100)
             ).setMapping(builder)
         );
 
         client().prepareIndex("toomanyfields").setId("1").setSource("field1", "foo bar baz").get();
         refresh();
 
-        doAssertLimitExceededException("*", CLUSTER_MAX_CLAUSE_COUNT + 1);
-        doAssertLimitExceededException("field*", CLUSTER_MAX_CLAUSE_COUNT + 1);
+        int originalMaxClauses = IndexSearcher.getMaxClauseCount();
+        try {
+            IndexSearcher.setMaxClauseCount(maxClauseCount);
+            doAssertLimitExceededException("*", maxClauseCount + 1);
+            doAssertLimitExceededException("field*", maxClauseCount + 1);
+        } finally {
+            IndexSearcher.setMaxClauseCount(originalMaxClauses);
+        }
     }
 
     private void doAssertLimitExceededException(String field, int exceedingFieldCount) {
@@ -610,7 +603,9 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         });
         assertThat(
             ExceptionsHelper.unwrap(e, IllegalArgumentException.class).getMessage(),
-            containsString("field expansion matches too many fields, limit: " + CLUSTER_MAX_CLAUSE_COUNT + ", got: " + exceedingFieldCount)
+            containsString(
+                "field expansion matches too many fields, limit: " + IndexSearcher.getMaxClauseCount() + ", got: " + exceedingFieldCount
+            )
         );
     }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -196,11 +197,10 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                 }
                 b.endArray();
             }));
-            assertWarnings(
-                "dynamic template [test] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{\"badparam\":false}}], "
-                    + "attempted to validate it with the following match_mapping_type: [string], last error: "
-                    + "[unknown parameter [badparam] on mapper [__dynamic__test] of type [null]]"
-            );
+            assertWarnings("""
+                dynamic template [test] has invalid content [{"match_mapping_type":"string","mapping":{"badparam":false}}], \
+                attempted to validate it with the following match_mapping_type: [string], last error: \
+                [unknown parameter [badparam] on mapper [__dynamic__test] of type [null]]""");
 
             mapper.parse(source(b -> b.field("field", "foo")));
             assertWarnings(
@@ -499,12 +499,10 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         mapping.endObject();
 
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals(
-            "Failed to parse mapping: dynamic template [my_template] has invalid content ["
-                + "{\"match_mapping_type\":\"string\",\"runtime\":{\"foo\":\"bar\",\"type\":\"keyword\"}}], "
-                + "attempted to validate it with the following match_mapping_type: [string]",
-            e.getMessage()
-        );
+        assertEquals("""
+            Failed to parse mapping: dynamic template [my_template] has invalid content \
+            [{"match_mapping_type":"string","runtime":{"foo":"bar","type":"keyword"}}], \
+            attempted to validate it with the following match_mapping_type: [string]""", e.getMessage());
         assertEquals("unknown parameter [foo] on runtime field [__dynamic__my_template] of type [keyword]", e.getRootCause().getMessage());
     }
 
@@ -656,11 +654,10 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         Version createdVersion = randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_7_0);
         MapperService mapperService = createMapperService(createdVersion, mapping);
         assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"type\":\"string\""));
-        assertWarnings(
-            "dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{\"type\":"
-                + "\"string\"}}], attempted to validate it with the following match_mapping_type: [string], "
-                + "last error: [No mapper found for type [string]]"
-        );
+        assertWarnings("""
+            dynamic template [my_template] has invalid content \
+            [{"match_mapping_type":"string","mapping":{"type":"string"}}], attempted to validate it \
+            with the following match_mapping_type: [string], last error: [No mapper found for type [string]]""");
     }
 
     public void testTemplateWithoutMatchPredicates() throws Exception {
@@ -685,16 +682,11 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         }
         mapping.endObject();
         MapperService mapperService = createMapperService(mapping);
+        final String json = """
+            {"foo": "41.12,-71.34", "bar": "41.12,-71.34"}
+            """;
         ParsedDocument doc = mapperService.documentMapper()
-            .parse(
-                new SourceToParse(
-                    "1",
-                    new BytesArray("{\"foo\": \"41.12,-71.34\", \"bar\": \"41.12,-71.34\"}"),
-                    XContentType.JSON,
-                    null,
-                    Map.of("foo", "geo_point")
-                )
-            );
+            .parse(new SourceToParse("1", new BytesArray(json), XContentType.JSON, null, Map.of("foo", "geo_point")));
         assertThat(doc.rootDoc().getFields("foo"), arrayWithSize(2));
         assertThat(doc.rootDoc().getFields("bar"), arrayWithSize(1));
     }
@@ -845,7 +837,8 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.field("l", 1);
         }));
         assertEquals(
-            "{\"_doc\":{\"runtime\":{\"s\":{\"type\":\"long\"}},\"properties\":{\"l\":{\"type\":\"long\"}}}}",
+            """
+                {"_doc":{"runtime":{"s":{"type":"long"}},"properties":{"l":{"type":"long"}}}}""",
             Strings.toString(parsedDoc.dynamicMappingsUpdate())
         );
     }
@@ -884,19 +877,53 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.endObject();
             b.endArray();
         }));
-        assertEquals(
-            "{\"_doc\":{\"runtime\":{"
-                + "\"field_array.field_double\":{\"type\":\"double\"},"
-                + "\"field_boolean\":{\"type\":\"boolean\"},"
-                + "\"field_long\":{\"type\":\"long\"},"
-                + "\"field_object.field_date\":{\"type\":\"date\"},"
-                + "\"field_string\":{\"type\":\"keyword\"}},"
-                + "\"properties\":"
-                + "{\"concrete_string\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}},"
-                + "\"field_array\":{\"properties\":{\"concrete_double\":{\"type\":\"float\"}}},"
-                + "\"field_object\":{\"properties\":{\"concrete_date\":{\"type\":\"date\"}}}}}}",
-            Strings.toString(parsedDoc.dynamicMappingsUpdate())
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "_doc": {
+                "runtime": {
+                  "field_array.field_double": {
+                    "type": "double"
+                  },
+                  "field_boolean": {
+                    "type": "boolean"
+                  },
+                  "field_long": {
+                    "type": "long"
+                  },
+                  "field_object.field_date": {
+                    "type": "date"
+                  },
+                  "field_string": {
+                    "type": "keyword"
+                  }
+                },
+                "properties": {
+                  "concrete_string": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                      }
+                    }
+                  },
+                  "field_array": {
+                    "properties": {
+                      "concrete_double": {
+                        "type": "float"
+                      }
+                    }
+                  },
+                  "field_object": {
+                    "properties": {
+                      "concrete_date": {
+                        "type": "date"
+                      }
+                    }
+                  }
+                }
+              }
+            }"""), Strings.toString(parsedDoc.dynamicMappingsUpdate()));
     }
 
     public void testDynamicTemplateRuntimePathMatch() throws Exception {
@@ -929,18 +956,45 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.endObject();
             b.startObject("concrete").field("boolean", true).endObject();
         }));
-        assertEquals(
-            "{\"_doc\":{\"runtime\":{"
-                + "\"object.date\":{\"type\":\"date\"},"
-                + "\"object.long\":{\"type\":\"long\"},"
-                + "\"object.object.string\":{\"type\":\"keyword\"}},"
-                + "\"properties\":"
-                + "{"
-                + "\"concrete\":{\"properties\":{\"boolean\":{\"type\":\"boolean\"}}},"
-                + "\"double\":{\"type\":\"float\"},"
-                + "\"object\":{\"properties\":{\"object\":{\"properties\":{\"concrete\":{\"type\":\"boolean\"}}}}}}}}",
-            Strings.toString(parsedDoc.dynamicMappingsUpdate())
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "_doc": {
+                "runtime": {
+                  "object.date": {
+                    "type": "date"
+                  },
+                  "object.long": {
+                    "type": "long"
+                  },
+                  "object.object.string": {
+                    "type": "keyword"
+                  }
+                },
+                "properties": {
+                  "concrete": {
+                    "properties": {
+                      "boolean": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "double": {
+                    "type": "float"
+                  },
+                  "object": {
+                    "properties": {
+                      "object": {
+                        "properties": {
+                          "concrete": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }"""), Strings.toString(parsedDoc.dynamicMappingsUpdate()));
     }
 
     public void testDynamicRuntimeWithDynamicTemplate() throws IOException {
@@ -966,13 +1020,22 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.field("double", 1.23);
             b.field("concrete_double", 1.23);
         }));
-        assertEquals(
-            "{\"_doc\":{\"dynamic\":\"runtime\","
-                + "\"runtime\":{"
-                + "\"double\":{\"type\":\"double\"}},"
-                + "\"properties\":{\"concrete_double\":{\"type\":\"float\"}}}}",
-            Strings.toString(parsedDoc.dynamicMappingsUpdate())
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "_doc": {
+                "dynamic": "runtime",
+                "runtime": {
+                  "double": {
+                    "type": "double"
+                  }
+                },
+                "properties": {
+                  "concrete_double": {
+                    "type": "float"
+                  }
+                }
+              }
+            }"""), Strings.toString(parsedDoc.dynamicMappingsUpdate()));
 
         DocumentMapper documentMapper = createDocumentMapper(topMapping(b -> {
             b.field("dynamic", ObjectMapper.Dynamic.RUNTIME);
@@ -995,11 +1058,21 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.field("s", "hello");
             b.field("l", 1);
         }));
-        assertEquals(
-            "{\"_doc\":{\"dynamic\":\"runtime\","
-                + "\"runtime\":{\"l\":{\"type\":\"long\"}},"
-                + "\"properties\":{\"s\":{\"type\":\"keyword\"}}}}",
-            Strings.toString(parsedDoc2.dynamicMappingsUpdate())
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "_doc": {
+                "dynamic": "runtime",
+                "runtime": {
+                  "l": {
+                    "type": "long"
+                  }
+                },
+                "properties": {
+                  "s": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }"""), Strings.toString(parsedDoc2.dynamicMappingsUpdate()));
     }
 }

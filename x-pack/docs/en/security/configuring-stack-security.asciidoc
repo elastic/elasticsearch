@@ -94,6 +94,9 @@ when you started {es}.
 include::enroll-nodes.asciidoc[]
 
 [discrete]
+include::{es-ref-dir}/setup/install/connect-clients.asciidoc[leveloffset=-1]
+
+[discrete]
 === What's next?
 Congratulations! You've successfully started the {stack} with security enabled.
 {es} and {kib} are secured with TLS on the HTTP layer, and internode

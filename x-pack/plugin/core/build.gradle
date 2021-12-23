@@ -38,7 +38,7 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
 
   // security deps
-  api 'com.unboundid:unboundid-ldapsdk:6.0.2'
+  api 'com.unboundid:unboundid-ldapsdk:6.0.3'
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
   testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"

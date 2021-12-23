@@ -160,69 +160,11 @@ public class MetadataUpdateSettingsService {
                     }
 
                     if (openIndices.isEmpty() == false) {
-                        for (Index index : openIndices) {
-                            IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
-                            Settings.Builder updates = Settings.builder();
-                            Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
-                            if (indexScopedSettings.updateDynamicSettings(openSettings, indexSettings, updates, index.getName())) {
-                                if (preserveExisting) {
-                                    indexSettings.put(indexMetadata.getSettings());
-                                }
-                                /*
-                                 * The setting index.number_of_replicas is special; we require that this setting has a value
-                                 * in the index. When creating the index, we ensure this by explicitly providing a value for
-                                 * the setting to the default (one) if there is a not value provided on the source of the
-                                 * index creation. A user can update this setting though, including updating it to null,
-                                 * indicating that they want to use the default value. In this case, we again have to
-                                 * provide an explicit value for the setting to the default (one).
-                                 */
-                                if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettings) == false) {
-                                    indexSettings.put(
-                                        IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
-                                        IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(Settings.EMPTY)
-                                    );
-                                }
-                                Settings finalSettings = indexSettings.build();
-                                indexScopedSettings.validate(
-                                    finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false),
-                                    true
-                                );
-                                metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(finalSettings));
-                            }
-                        }
+                        updateIndexSettings(openIndices, metadataBuilder, true, openSettings);
                     }
 
                     if (closeIndices.isEmpty() == false) {
-                        for (Index index : closeIndices) {
-                            IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
-                            Settings.Builder updates = Settings.builder();
-                            Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
-                            if (indexScopedSettings.updateSettings(closedSettings, indexSettings, updates, index.getName())) {
-                                if (preserveExisting) {
-                                    indexSettings.put(indexMetadata.getSettings());
-                                }
-                                /*
-                                 * The setting index.number_of_replicas is special; we require that this setting has a value
-                                 * in the index. When creating the index, we ensure this by explicitly providing a value for
-                                 * the setting to the default (one) if there is a not value provided on the source of the
-                                 * index creation. A user can update this setting though, including updating it to null,
-                                 * indicating that they want to use the default value. In this case, we again have to
-                                 * provide an explicit value for the setting to the default (one).
-                                 */
-                                if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettings) == false) {
-                                    indexSettings.put(
-                                        IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
-                                        IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(Settings.EMPTY)
-                                    );
-                                }
-                                Settings finalSettings = indexSettings.build();
-                                indexScopedSettings.validate(
-                                    finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false),
-                                    true
-                                );
-                                metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(finalSettings));
-                            }
-                        }
+                        updateIndexSettings(closeIndices, metadataBuilder, false, closedSettings);
                     }
 
                     if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(normalizedSettings)
@@ -282,6 +224,45 @@ public class MetadataUpdateSettingsService {
                         throw ExceptionsHelper.convertToElastic(ex);
                     }
                     return updatedState;
+                }
+
+                private void updateIndexSettings(Set<Index> indices, Metadata.Builder metadataBuilder, boolean dynamic, Settings settings) {
+                    for (Index index : indices) {
+                        IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
+                        Settings.Builder updates = Settings.builder();
+                        Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
+                        boolean updated = false;
+                        if (dynamic) {
+                            updated = indexScopedSettings.updateDynamicSettings(settings, indexSettings, updates, index.getName());
+                        } else {
+                            updated = indexScopedSettings.updateSettings(settings, indexSettings, updates, index.getName());
+                        }
+                        if (updated) {
+                            if (preserveExisting) {
+                                indexSettings.put(indexMetadata.getSettings());
+                            }
+                            /*
+                             * The setting index.number_of_replicas is special; we require that this setting has a value
+                             * in the index. When creating the index, we ensure this by explicitly providing a value for
+                             * the setting to the default (one) if there is a not value provided on the source of the
+                             * index creation. A user can update this setting though, including updating it to null,
+                             * indicating that they want to use the default value. In this case, we again have to
+                             * provide an explicit value for the setting to the default (one).
+                             */
+                            if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettings) == false) {
+                                indexSettings.put(
+                                    IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+                                    IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(Settings.EMPTY)
+                                );
+                            }
+                            Settings finalSettings = indexSettings.build();
+                            indexScopedSettings.validate(
+                                finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false),
+                                true
+                            );
+                            metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(finalSettings));
+                        }
+                    }
                 }
             }
         );

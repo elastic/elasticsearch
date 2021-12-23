@@ -23,7 +23,6 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
-import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -61,8 +60,10 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         // Enable http so we can test JDBC licensing because only exists on the REST layer.
-        String httpPlugin = randomBoolean() ? Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME : NioTransportPlugin.NIO_TRANSPORT_NAME;
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put(NetworkModule.HTTP_TYPE_KEY, httpPlugin).build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME)
+            .build();
     }
 
     private static OperationMode randomValidSqlLicenseType() {

@@ -56,7 +56,7 @@ dependencies {
   }
 
   // Needed for usage API cancellation test. TODO: do this another way or at least isolate!
-  internalClusterTestImplementation project(path: ':plugins:transport-nio')
+  internalClusterTestImplementation project(path: ':modules:transport-netty4')
 
   yamlRestTestImplementation project(':x-pack:plugin:core')
 

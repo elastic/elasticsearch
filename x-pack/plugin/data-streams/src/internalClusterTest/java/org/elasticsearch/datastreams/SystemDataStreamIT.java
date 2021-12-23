@@ -37,12 +37,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
-import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.junit.After;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -59,21 +57,10 @@ import static org.hamcrest.Matchers.is;
 
 public class SystemDataStreamIT extends ESIntegTestCase {
 
-    private static String nodeHttpTypeKey;
-
-    @BeforeClass
-    public static void setUpTransport() {
-        if (randomBoolean()) {
-            nodeHttpTypeKey = NioTransportPlugin.NIO_HTTP_TRANSPORT_NAME;
-        } else {
-            nodeHttpTypeKey = Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME;
-        }
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(NioTransportPlugin.class);
+        plugins.add(Netty4Plugin.class);
         plugins.add(DataStreamsPlugin.class);
         plugins.add(TestSystemDataStreamPlugin.class);
         plugins.add(Netty4Plugin.class);
@@ -84,7 +71,7 @@ public class SystemDataStreamIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey)
+            .put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME)
             .build();
     }
 

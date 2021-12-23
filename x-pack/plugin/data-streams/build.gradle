@@ -12,7 +12,6 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: ':modules:transport-netty4') // for http in SystemDataStreamIT
-  testImplementation project(path: ':plugins:transport-nio') // for http in SystemDataStreamIT
 }
 
 addQaCheckDependencies()

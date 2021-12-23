@@ -155,8 +155,8 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         Settings.Builder builder = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), home)
             .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
-            .put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
-            .put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4)
+            .put(NetworkModule.HTTP_TYPE_KEY, SecurityField.NAME4)
             // TODO: for now isolate security tests from watcher (randomize this later)
             .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
             .put(XPackSettings.AUDIT_ENABLED.getKey(), randomBoolean())
@@ -176,12 +176,6 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     @Override
     public Path nodeConfigPath(int nodeOrdinal) {
         return nodePath(nodeOrdinal).resolve("config");
-    }
-
-    protected void addDefaultSecurityTransportType(Settings.Builder builder, Settings settings) {
-        if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings) == false) {
-            builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), SecurityField.NAME4);
-        }
     }
 
     @Override

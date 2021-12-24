@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -203,6 +204,59 @@ public class IndexNameExpressionResolver {
             .filter(ia -> ia.getType() == IndexAbstraction.Type.DATA_STREAM)
             .map(IndexAbstraction::getName)
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Returns {@link IndexAbstraction} instance for the provided write request. This instance isn't fully resolved,
+     * meaning that {@link IndexAbstraction#getWriteIndex()} should be invoked in order to get concrete write index.
+     *
+     * @param state The cluster state
+     * @param request The provided write request
+     * @return {@link IndexAbstraction} instance for the provided write request
+     */
+    public IndexAbstraction resolveWriteIndexAbstraction(ClusterState state, DocWriteRequest<?> request) {
+        boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE && request.includeDataStreams();
+        Context context = new Context(
+            state,
+            request.indicesOptions(),
+            false,
+            false,
+            includeDataStreams,
+            true,
+            getSystemIndexAccessLevel(),
+            getSystemIndexAccessPredicate(),
+            getNetNewSystemIndexPredicate()
+        );
+
+        List<String> expressions = List.of(request.index());
+        for (ExpressionResolver expressionResolver : expressionResolvers) {
+            expressions = expressionResolver.resolve(context, expressions);
+        }
+
+        if (expressions.size() == 1) {
+            IndexAbstraction ia = state.metadata().getIndicesLookup().get(expressions.get(0));
+            if (ia == null) {
+                throw new IndexNotFoundException(expressions.get(0));
+            }
+            if (ia.getType() == IndexAbstraction.Type.ALIAS) {
+                Index writeIndex = ia.getWriteIndex();
+                if (writeIndex == null) {
+                    throw new IllegalArgumentException(
+                        "no write index is defined for alias ["
+                            + ia.getName()
+                            + "]."
+                            + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
+                            + " indices without one being designated as a write index"
+                    );
+                }
+            }
+            checkSystemAccess(context, ia);
+            return ia;
+        } else {
+            throw new IllegalArgumentException(
+                "unable to return a single target as the provided expression and options got resolved to multiple targets"
+            );
+        }
     }
 
     /**
@@ -433,6 +487,50 @@ public class IndexNameExpressionResolver {
             } else {
                 resolvedSystemIndices.add(idxMetadata.getIndex().getName());
             }
+        }
+
+        if (resolvedSystemIndices.isEmpty() == false) {
+            Collections.sort(resolvedSystemIndices);
+            deprecationLogger.warn(
+                DeprecationCategory.API,
+                "open_system_index_access",
+                "this request accesses system indices: {}, but in a future major version, direct access to system "
+                    + "indices will be prevented by default",
+                resolvedSystemIndices
+            );
+        }
+        if (resolvedSystemDataStreams.isEmpty() == false) {
+            throw systemIndices.dataStreamAccessException(threadContext, resolvedSystemDataStreams);
+        }
+        if (resolvedNetNewSystemIndices.isEmpty() == false) {
+            throw systemIndices.netNewSystemIndexAccessException(threadContext, resolvedNetNewSystemIndices);
+        }
+    }
+
+    // TODO: re-think
+    private void checkSystemAccess(Context context, IndexAbstraction ia) {
+        final Metadata metadata = context.getState().metadata();
+        final Predicate<String> systemIndexAccessPredicate = context.getSystemIndexAccessPredicate().negate();
+        if (ia.isSystem() == false) {
+            return;
+        }
+        IndexMetadata systemIndexThatShouldBeAccessed = metadata.getIndexSafe(ia.getWriteIndex());
+        if (systemIndexAccessPredicate.test(systemIndexThatShouldBeAccessed.getIndex().getName()) == false) {
+            return;
+        }
+
+        final List<String> resolvedSystemIndices = new ArrayList<>();
+        final List<String> resolvedNetNewSystemIndices = new ArrayList<>();
+        final Set<String> resolvedSystemDataStreams = new HashSet<>();
+        final SortedMap<String, IndexAbstraction> indicesLookup = metadata.getIndicesLookup();
+
+        IndexAbstraction abstraction = indicesLookup.get(systemIndexThatShouldBeAccessed.getIndex().getName());
+        if (abstraction.getParentDataStream() != null) {
+            resolvedSystemDataStreams.add(abstraction.getParentDataStream().getName());
+        } else if (systemIndices.isNetNewSystemIndex(systemIndexThatShouldBeAccessed.getIndex().getName())) {
+            resolvedNetNewSystemIndices.add(systemIndexThatShouldBeAccessed.getIndex().getName());
+        } else {
+            resolvedSystemIndices.add(systemIndexThatShouldBeAccessed.getIndex().getName());
         }
 
         if (resolvedSystemIndices.isEmpty() == false) {

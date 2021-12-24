@@ -18,6 +18,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -28,20 +31,27 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -63,6 +73,11 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * @see org.elasticsearch.client.internal.Client#index(IndexRequest)
  */
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
+
+    public static final XContentParserConfiguration TS_EXTRACT_CONFIG = XContentParserConfiguration.EMPTY.withFiltering(
+        Set.of("@timestamp"),
+        null
+    );
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
 
@@ -716,6 +731,40 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public boolean isRequireAlias() {
         return requireAlias;
+    }
+
+    @Override
+    public Index getConcreteWriteIndex(IndexAbstraction ia, Metadata metadata) {
+        if (opType() != DocWriteRequest.OpType.CREATE) {
+            return ia.getWriteIndex();
+        }
+
+        if (ia.getType() != IndexAbstraction.Type.DATA_STREAM) {
+            return ia.getWriteIndex();
+        }
+
+        DataStream dataStream = metadata.dataStreams().get(ia.getName());
+        if (dataStream.isTimeSeries(metadata::index) == false) {
+            return ia.getWriteIndex();
+        }
+
+        try (XContentParser parser = contentType.xContent().createParser(TS_EXTRACT_CONFIG, source().streamInput())) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+            ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);
+            String timestampAsString = parser.text();
+            // TODO: deal with nanos too here.
+            // (the index hasn't been resolved yet, keep track of timestamp field metadata at data stream level, so we can use it here)
+            Instant timestamp = Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(timestampAsString));
+
+            Index result = dataStream.selectWriteIndex(timestamp, metadata);
+            if (result == null) {
+                throw new IllegalArgumentException("no index available for a document with an @timestamp of [" + timestampAsString + "]");
+            }
+            return result;
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Error extracting timestamp: " + e.getMessage(), e);
+        }
     }
 
     @Override

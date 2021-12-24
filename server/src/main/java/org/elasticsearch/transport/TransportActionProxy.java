@@ -133,6 +133,26 @@ public final class TransportActionProxy {
             targetNode.writeTo(out);
             wrapped.writeTo(out);
         }
+
+        @Override
+        public void incRef() {
+            wrapped.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return wrapped.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return wrapped.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return wrapped.hasReferences();
+        }
     }
 
     private static class CancellableProxyRequest<T extends TransportRequest> extends ProxyRequest<T> {

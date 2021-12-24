@@ -1427,6 +1427,26 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
+        public void incRef() {
+            request.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return request.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return request.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return request.hasReferences();
+        }
+
+        @Override
         public String toString() {
             return "request: " + request + ", target allocation id: " + targetAllocationID + ", primary term: " + primaryTerm;
         }

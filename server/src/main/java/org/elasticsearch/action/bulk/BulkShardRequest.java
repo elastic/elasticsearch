@@ -41,10 +41,18 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
-        items = in.readArray(
-            i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt, resources.toRelease)),
-            BulkItemRequest[]::new
-        );
+        boolean success = false;
+        try {
+            items = in.readArray(
+                i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt, resources.toRelease)),
+                BulkItemRequest[]::new
+            );
+            success = true;
+        } finally {
+            if (success == false) {
+                resources.release();
+            }
+        }
         bytesFromNetwork = true;
     }
 
@@ -161,6 +169,10 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
         return bytesFromNetwork;
     }
 
+    public void releaseNetworkBytes() {
+        resources.release();
+    }
+
     @Override
     public long ramBytesUsed() {
         return SHALLOW_SIZE + Stream.of(items).mapToLong(Accountable::ramBytesUsed).sum();
@@ -192,8 +204,15 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
         @Override
         protected void closeInternal() {
-            Releasables.close(toRelease);
-            toRelease.clear();
+            release();
+        }
+
+        private void release() {
+            try {
+                Releasables.close(toRelease);
+            } finally {
+                toRelease.clear();
+            }
         }
     }
 }

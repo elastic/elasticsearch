@@ -164,7 +164,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (request.bytesFromNetwork()) {
             RecyclerBytesStreamOutput bytesStream = bytesRecycler.get();
             ReleasableBytesReference bytesReference = RequestMemory.copyBytesToNewReference(bytesStream, request);
-            return () -> Releasables.close(bytesReference, limitsReleasable);
+            request.releaseNetworkBytes();
+            request.incRef();
+            return () -> Releasables.close(bytesReference, limitsReleasable, request::decRef);
         } else {
             return limitsReleasable;
         }
@@ -541,7 +543,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (request.bytesFromNetwork()) {
             RecyclerBytesStreamOutput bytesStream = bytesRecycler.get();
             ReleasableBytesReference bytesReference = RequestMemory.copyBytesToNewReference(bytesStream, request);
-            return () -> Releasables.close(bytesReference, limitsReleasable);
+            request.releaseNetworkBytes();
+            request.incRef();
+            return () -> Releasables.close(bytesReference, limitsReleasable, request::decRef);
         } else {
             return limitsReleasable;
         }

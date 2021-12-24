@@ -88,25 +88,26 @@ public class RequestMemory {
         int offset = 0;
         for (BulkItemRequest item : bulkShardRequest.items()) {
             DocWriteRequest<?> request = item.request();
-            int length = 0;
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
-                length = indexRequest.source().length();
+                int length = indexRequest.source().length();
                 indexRequest.source(bytesReference.slice(offset, length), indexRequest.getContentType());
+                offset += length;
             } else if (request instanceof UpdateRequest) {
                 UpdateRequest updateRequest = (UpdateRequest) request;
                 if (updateRequest.upsertRequest() != null) {
                     IndexRequest indexRequest = updateRequest.upsertRequest();
-                    length = indexRequest.source().length();
+                    int length = indexRequest.source().length();
                     indexRequest.source(bytesReference.slice(offset, length), indexRequest.getContentType());
+                    offset += length;
                 }
                 if (updateRequest.doc() != null) {
                     IndexRequest indexRequest = updateRequest.doc();
-                    length = indexRequest.source().length();
+                    int length = indexRequest.source().length();
                     indexRequest.source(bytesReference.slice(offset, length), indexRequest.getContentType());
+                    offset += length;
                 }
             }
-            offset += length;
         }
     }
 }

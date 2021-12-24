@@ -25,7 +25,6 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;

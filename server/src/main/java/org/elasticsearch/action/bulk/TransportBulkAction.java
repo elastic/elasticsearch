@@ -739,7 +739,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexAbstraction resolveIfAbsent(DocWriteRequest<?> request) {
             return indexAbstractions.computeIfAbsent(
                 request.index(),
-                key -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request));
+                key -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
+            );
         }
 
         IndexRouting routing(Index index) {

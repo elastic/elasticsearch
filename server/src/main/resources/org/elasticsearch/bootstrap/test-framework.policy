@@ -107,12 +107,12 @@ grant codeBase "${codebase.netty-common}" {
    permission java.io.FilePermission "/proc/sys/net/core/somaxconn", "read";
    // Netty sets custom classloader for some of its internal threads
    permission java.lang.RuntimePermission "setContextClassLoader";
+   permission java.net.SocketPermission "*", "accept,connect,resolve";
 };
 
 grant codeBase "${codebase.netty-transport}" {
    // Netty NioEventLoop wants to change this, because of https://bugs.openjdk.java.net/browse/JDK-6427854
    // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
    permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
-   permission java.net.SocketPermission "*", "accept,connect";
-
+   permission java.net.SocketPermission "*", "accept,connect,resolve";
 };

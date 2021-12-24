@@ -9,22 +9,50 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.RootObjectMapper;
+import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -37,6 +65,10 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomMap;
+import static org.mockito.AdditionalAnswers.returnsFirstArg;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public final class DataStreamTestHelper {
 
@@ -304,6 +336,114 @@ public final class DataStreamTestHelper {
                 return Integer.parseInt(backingIndexName.substring(indexOfLastDash + 1));
             }
         };
+    }
+
+    public static MetadataRolloverService getMetadataRolloverService(
+        DataStream dataStream,
+        ThreadPool testThreadPool,
+        Set<IndexSettingProvider> providers,
+        NamedXContentRegistry registry
+    ) throws Exception {
+        DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder(
+            "@timestamp",
+            DateFieldMapper.Resolution.MILLISECONDS,
+            null,
+            ScriptCompiler.NONE,
+            false,
+            Version.CURRENT
+        ).build(MapperBuilderContext.ROOT);
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
+        Environment env = mock(Environment.class);
+        when(env.sharedDataFile()).thenReturn(null);
+        AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
+        MappingLookup mappingLookup = null;
+        if (dataStream != null) {
+            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc");
+            root.add(
+                new DateFieldMapper.Builder(
+                    dataStream.getTimeStampField().getName(),
+                    DateFieldMapper.Resolution.MILLISECONDS,
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                    ScriptCompiler.NONE,
+                    true,
+                    Version.CURRENT
+                )
+            );
+            MetadataFieldMapper dtfm = getDataStreamTimestampFieldMapper();
+            Mapping mapping = new Mapping(
+                root.build(MapperBuilderContext.ROOT),
+                new MetadataFieldMapper[] { dtfm },
+                Collections.emptyMap()
+            );
+            mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of(), List.of());
+        }
+        IndicesService indicesService = mockIndicesServices(mappingLookup);
+        IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+        when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
+
+        ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
+        MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
+            Settings.EMPTY,
+            clusterService,
+            indicesService,
+            allocationService,
+            null,
+            shardLimitValidator,
+            env,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            testThreadPool,
+            null,
+            EmptySystemIndices.INSTANCE,
+            false,
+            new IndexSettingProviders(providers)
+        );
+        MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
+            clusterService,
+            indicesService,
+            new AliasValidator(),
+            null,
+            registry
+        );
+        return new MetadataRolloverService(
+            testThreadPool,
+            createIndexService,
+            indexAliasesService,
+            mockIndexNameExpressionResolver,
+            EmptySystemIndices.INSTANCE
+        );
+    }
+
+    private static MetadataFieldMapper getDataStreamTimestampFieldMapper() {
+        Map<String, Object> fieldsMapping = new HashMap<>();
+        fieldsMapping.put("type", DataStreamTimestampFieldMapper.NAME);
+        fieldsMapping.put("enabled", true);
+        MappingParserContext mockedParserContext = mock(MappingParserContext.class);
+        return DataStreamTimestampFieldMapper.PARSER.parse("field", fieldsMapping, mockedParserContext).build();
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public static IndicesService mockIndicesServices(MappingLookup mappingLookup) throws Exception {
+        /*
+         * Throws Exception because Eclipse uses the lower bound for
+         * CheckedFunction's exception type so it thinks the "when" call
+         * can throw Exception. javac seems to be ok inferring something
+         * else.
+         */
+        IndicesService indicesService = mock(IndicesService.class);
+        when(indicesService.withTempIndexService(any(IndexMetadata.class), any(CheckedFunction.class))).then(invocationOnMock -> {
+            IndexService indexService = mock(IndexService.class);
+            IndexMetadata indexMetadata = (IndexMetadata) invocationOnMock.getArguments()[0];
+            when(indexService.index()).thenReturn(indexMetadata.getIndex());
+            MapperService mapperService = mock(MapperService.class);
+            when(indexService.mapperService()).thenReturn(mapperService);
+            when(mapperService.mappingLookup()).thenReturn(mappingLookup);
+            when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {
+            });
+            when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
+            return ((CheckedFunction<IndexService, ?, ?>) invocationOnMock.getArguments()[1]).apply(indexService);
+        });
+        return indicesService;
     }
 
 }

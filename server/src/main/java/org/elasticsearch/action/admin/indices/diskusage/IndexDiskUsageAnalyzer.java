@@ -294,13 +294,13 @@ final class IndexDiskUsageAnalyzer {
     private BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
         if (term != null && termsEnum.seekExact(term)) {
             final TermState termState = termsEnum.termState();
-            if (termState instanceof final Lucene90PostingsFormat.IntBlockTermState blockTermState) {
+            if (termState instanceof Lucene90PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
-            if (termState instanceof final Lucene84PostingsFormat.IntBlockTermState blockTermState) {
+            if (termState instanceof Lucene84PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
-            if (termState instanceof final Lucene50PostingsFormat.IntBlockTermState blockTermState) {
+            if (termState instanceof Lucene50PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
         }

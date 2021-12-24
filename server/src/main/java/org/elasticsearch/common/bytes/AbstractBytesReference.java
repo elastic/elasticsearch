@@ -74,7 +74,7 @@ public abstract class AbstractBytesReference implements BytesReference {
         if (this == other) {
             return true;
         }
-        if (other instanceof final BytesReference otherRef) {
+        if (other instanceof BytesReference otherRef) {
             if (length() != otherRef.length()) {
                 return false;
             }

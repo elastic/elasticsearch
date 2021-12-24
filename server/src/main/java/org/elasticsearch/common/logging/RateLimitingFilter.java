@@ -66,11 +66,9 @@ public class RateLimitingFilter extends AbstractFilter {
     }
 
     public Result filter(Message message) {
-        if (message instanceof final ESLogMessage esLogMessage) {
-
+        if (message instanceof ESLogMessage esLogMessage) {
             final String key = getKey(esLogMessage);
             return lruKeyCache.add(key) ? Result.ACCEPT : Result.DENY;
-
         } else {
             return Result.NEUTRAL;
         }

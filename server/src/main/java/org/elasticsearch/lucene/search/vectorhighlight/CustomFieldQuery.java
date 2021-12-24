@@ -60,7 +60,7 @@ public class CustomFieldQuery extends FieldQuery {
             flatten(sourceQuery.rewrite(reader), reader, flatQueries, boost);
         } else if (sourceQuery instanceof MultiPhraseQuery q) {
             convertMultiPhraseQuery(0, new int[q.getTermArrays().length], q, q.getTermArrays(), q.getPositions(), reader, flatQueries);
-        } else if (sourceQuery instanceof final BlendedTermQuery blendedTermQuery) {
+        } else if (sourceQuery instanceof BlendedTermQuery blendedTermQuery) {
             flatten(blendedTermQuery.rewrite(reader), reader, flatQueries, boost);
         } else if (sourceQuery instanceof org.apache.lucene.queries.function.FunctionScoreQuery funcScoreQuery) {
             // flatten query with query boost

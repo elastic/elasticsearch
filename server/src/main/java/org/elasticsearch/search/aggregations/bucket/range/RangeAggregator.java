@@ -149,8 +149,10 @@ public abstract class RangeAggregator extends BucketsAggregator {
             out.writeOptionalString(toAsStr);
             out.writeDouble(from);
             out.writeDouble(to);
-            out.writeOptionalDouble(originalFrom);
-            out.writeOptionalDouble(originalTo);
+            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                out.writeOptionalDouble(originalFrom);
+                out.writeOptionalDouble(originalTo);
+            }
         }
 
         public double getFrom() {

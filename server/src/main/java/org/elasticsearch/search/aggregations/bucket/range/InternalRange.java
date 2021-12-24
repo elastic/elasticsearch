@@ -172,9 +172,13 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(key);
             out.writeDouble(from);
-            out.writeOptionalDouble(originalFrom);
+            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                out.writeOptionalDouble(originalFrom);
+            }
             out.writeDouble(to);
-            out.writeOptionalDouble(originalTo);
+            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                out.writeOptionalDouble(originalTo);
+            }
             out.writeVLong(docCount);
             aggregations.writeTo(out);
         }

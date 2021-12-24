@@ -42,6 +42,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -368,7 +369,15 @@ public class ServerUtils {
     }
 
     public static void disableGeoIpDownloader(Installation installation) throws IOException {
-        addSettingToExistingConfiguration(installation, "ingest.geoip.downloader.enabled", "false");
+        // We don't use addSettingToExistingConfiguration because it would overwrite comments in the settings file
+        // and we might want to check for them later on to test auto-configuration
+        Path yml = installation.config("elasticsearch.yml");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.filter(s -> s.startsWith("ingest.geoip.downloader.enabled") == false).collect(Collectors.toList());
+        }
+        lines.add("ingest.geoip.downloader.enabled: false");
+        Files.write(yml, lines, TRUNCATE_EXISTING);
     }
 
     public static void enableGeoIpDownloader(Installation installation) throws IOException {

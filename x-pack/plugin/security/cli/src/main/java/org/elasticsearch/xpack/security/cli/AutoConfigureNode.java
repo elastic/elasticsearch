@@ -745,8 +745,6 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             // This shouldn't happen, we would have failed earlier but we need to catch the exception
             throw new UserException(ExitCodes.IO_ERROR, "Aborting enrolling to cluster. Unable to read elasticsearch.yml.", e);
         }
-        terminal.println(Terminal.Verbosity.NORMAL, "Temporary debugging");
-        terminal.println(Terminal.Verbosity.NORMAL, String.join("\n", existingConfigLines));
         final List<String> existingConfigWithoutAutoconfiguration = removePreviousAutoconfiguration(existingConfigLines);
         if (existingConfigLines.equals(existingConfigWithoutAutoconfiguration) == false) {
             terminal.println("");

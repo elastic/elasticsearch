@@ -490,8 +490,7 @@ public abstract class MappedFieldType {
         while (termQuery instanceof BoostQuery) {
             termQuery = ((BoostQuery) termQuery).getQuery();
         }
-        if (termQuery instanceof TermInSetQuery) {
-            TermInSetQuery tisQuery = (TermInSetQuery) termQuery;
+        if (termQuery instanceof TermInSetQuery tisQuery) {
             PrefixCodedTerms terms = tisQuery.getTermData();
             if (terms.size() == 1) {
                 TermIterator it = terms.iterator();

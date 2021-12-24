@@ -184,12 +184,12 @@ public class RestoreServiceTests extends ESTestCase {
         finalAssertions.forEach(Runnable::run);
     }
 
-    public void testDisableRestoringGlobalStateIfSnapshotDoesNotHaveOne() {
+    public void testDisableRestoreGlobalStateIfSnapshotDoesNotHaveOne() {
         var request = spy(new RestoreSnapshotRequest().includeGlobalState(true));
         var snapshot = new Snapshot("repository", new SnapshotId("name", "uuid"));
         var snapshotInfo = createSnapshotInfo(snapshot, Boolean.FALSE);
 
-        RestoreService.validateGlobalStateRestorable(request, snapshot, snapshotInfo);
+        RestoreService.maybeFixRestoreGlobalStateFlag(request, snapshot, snapshotInfo);
 
         verify(request).includeGlobalState(false);
     }

@@ -182,21 +182,19 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         return bytes(false);
     }
 
-    private ReleasableBytesReference bytes(boolean retainAndTruncate) {
+    private BytesReference bytes(boolean retainAndTruncate) {
         int position = (int) internalPosition();
-        final ReleasableBytesReference result;
+        final BytesReference result;
+        final Releasable releasable;
         final int newFirstPageOffset;
         final int pagesToDrop;
         final boolean retainFirstPage;
         if (position == 0) {
-            ReleasableBytesReference empty = ReleasableBytesReference.empty();
-            if (retainAndTruncate == false) {
-                empty.decRef();
-            }
             newFirstPageOffset = 0;
             retainFirstPage = false;
             pagesToDrop = 0;
-            result = empty;
+            result = BytesArray.EMPTY;
+            releasable = Releasable.NO_OP;
         } else {
             final int adjustment;
             final int remainder = position % pageSize;
@@ -216,12 +214,8 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             if (pageCount == 1) {
                 Page page = pages.get(0);
                 BytesRef bytePage = page.bytes();
-                BytesArray bytesArray = new BytesArray(
-                    bytePage.bytes,
-                    bytePage.offset + firstPageOffset,
-                    internalBytesInLastPage - firstPageOffset
-                );
-                result = new ReleasableBytesReference(bytesArray, page);
+                result = new BytesArray(bytePage.bytes, bytePage.offset + firstPageOffset, internalBytesInLastPage - firstPageOffset);
+                releasable = page::decRef;
             } else {
                 ReleasableBytesReference[] references = new ReleasableBytesReference[pageCount];
                 for (int i = 0; i < pageCount - 1; ++i) {
@@ -244,7 +238,8 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
                     new BytesArray(last.bytes, last.offset, internalBytesInLastPage),
                     page
                 );
-                result = new ReleasableBytesReference(CompositeBytesReference.of(references), () -> Releasables.close(references));
+                result = CompositeBytesReference.of(references);
+                releasable = () -> Releasables.close(references);
             }
         }
         if (retainAndTruncate) {
@@ -264,12 +259,14 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
                 currentPageOffset = firstPageOffset;
                 pageIndex = 0;
             }
+            return new ReleasableBytesReference(result, releasable);
+        } else {
+            return result;
         }
-        return result;
     }
 
     public ReleasableBytesReference retainBytesAndTruncateStream() {
-        return bytes(true);
+        return (ReleasableBytesReference) bytes(true);
     }
 
     private void ensureCapacity(int bytesNeeded) {

@@ -994,7 +994,12 @@ public class RestoreService implements ClusterStateApplier {
     static void validateGlobalStateRestorable(RestoreSnapshotRequest request, Snapshot snapshot, SnapshotInfo snapshotInfo) {
         if (request.includeGlobalState() && snapshotInfo.includeGlobalState() != Boolean.TRUE) {
             request.includeGlobalState(false);
-            logger.warn("[{}] was created without global state but restore request [{}] asks for global state restore explicitly, skipping global state restore", snapshot, request);
+            logger.warn(
+                "[{}] was created without global state but restore request [{}] asks for global state restore explicitly, "
+                    + "skipping global state restore",
+                snapshot,
+                request
+            );
         }
     }
 

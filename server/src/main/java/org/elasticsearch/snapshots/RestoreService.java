@@ -301,6 +301,9 @@ public class RestoreService implements ClusterStateApplier {
         // Make sure that we can restore from this snapshot
         validateSnapshotRestorable(repository.getMetadata(), snapshotInfo);
 
+        // Make sure that we can restore cluster state from this snapshot
+        validateGlobalStateRestorable(request, snapshot, snapshotInfo);
+
         // Get the global state if necessary
         Metadata globalMetadata = null;
         final Metadata.Builder metadataBuilder;
@@ -985,6 +988,13 @@ public class RestoreService implements ClusterStateApplier {
                     + Version.CURRENT.minimumIndexCompatibilityVersion()
                     + "]"
             );
+        }
+    }
+
+    static void validateGlobalStateRestorable(RestoreSnapshotRequest request, Snapshot snapshot, SnapshotInfo snapshotInfo) {
+        if (request.includeGlobalState() && snapshotInfo.includeGlobalState() != Boolean.TRUE) {
+            request.includeGlobalState(false);
+            logger.warn("[{}] the snapshot was created without global state, skipping restoring global sate", snapshot);
         }
     }
 

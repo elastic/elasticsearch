@@ -8,6 +8,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -40,6 +41,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -181,4 +184,34 @@ public class RestoreServiceTests extends ESTestCase {
         finalAssertions.forEach(Runnable::run);
     }
 
+    public void testDisableRestoringGlobalStateIfSnapshotDoesNotHaveOne() {
+        var request = spy(new RestoreSnapshotRequest().includeGlobalState(true));
+        var snapshot = new Snapshot("repository", new SnapshotId("name", "uuid"));
+        var snapshotInfo = createSnapshotInfo(snapshot, Boolean.FALSE);
+
+        RestoreService.validateGlobalStateRestorable(request, snapshot, snapshotInfo);
+
+        verify(request).includeGlobalState(false);
+    }
+
+    private static SnapshotInfo createSnapshotInfo(Snapshot snapshot, Boolean includeGlobalState) {
+        var shards = randomIntBetween(0, 100);
+        return new SnapshotInfo(
+            snapshot,
+            List.of(),
+            List.of(),
+            List.of(),
+            randomAlphaOfLengthBetween(10, 100),
+            Version.CURRENT,
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            shards,
+            shards,
+            List.of(),
+            includeGlobalState,
+            Map.of(),
+            SnapshotState.SUCCESS,
+            Map.of()
+        );
+    }
 }

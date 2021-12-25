@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
@@ -16,6 +15,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 
 public interface AuditTrail {
 
@@ -106,7 +106,7 @@ public interface AuditTrail {
         String action,
         String indices,
         String requestName,
-        TransportAddress remoteAddress,
+        InetSocketAddress remoteAddress,
         AuthorizationInfo authorizationInfo
     );
 

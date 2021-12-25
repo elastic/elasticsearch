@@ -50,8 +50,8 @@ public class SslSettingsLoader extends SslConfigurationLoader {
         setDefaultClientAuth(SslClientAuthenticationMode.REQUIRED);
     }
 
-    private <T> Map<String, Setting<? extends T>> mapOf(List<Setting<? extends T>> settings) {
-        return settings.stream().collect(Collectors.toMap(s -> s.getKey(), Function.identity()));
+    private <T> Map<String, Setting<? extends T>> mapOf(List<Setting<? extends T>> settingList) {
+        return settingList.stream().collect(Collectors.toMap(Setting::getKey, Function.identity()));
     }
 
     @Override

@@ -3,8 +3,9 @@
 == {slm-cap} APIs
 
 You use the following APIs to set up policies to automatically take snapshots and 
-control how long they are retained. 
-For more information about {slm} ({slm-init}), see <<snapshot-lifecycle-management>>.
+control how long they are retained.
+
+For more information about {slm} ({slm-init}), see <<automate-snapshots-slm>>.
 
 [discrete]
 [[slm-api-policy-endpoint]]

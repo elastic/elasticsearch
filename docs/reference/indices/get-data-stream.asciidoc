@@ -207,6 +207,15 @@ use the <<indices-get-settings,get index settings API>>.
 (Boolean)
 If `true`, the data stream is created and managed by an Elastic stack component
 and cannot be modified through normal user interaction.
+
+`allow_custom_routing`::
+(Boolean)
+If `true`, the data stream this data stream allows custom routing on write request.
+
+`replicated`::
+(Boolean)
+If `true`, the data stream is created and managed by {ccr} and the local
+cluster can not write into this data stream or change its mappings.
 ====
 
 [[get-data-stream-api-example]]
@@ -247,7 +256,8 @@ The API returns the following response:
       "ilm_policy": "my-lifecycle-policy",
       "hidden": false,
       "system": false,
-      "allow_custom_routing": false
+      "allow_custom_routing": false,
+      "replicated": false
     },
     {
       "name": "my-data-stream-two",
@@ -269,7 +279,8 @@ The API returns the following response:
       "ilm_policy": "my-lifecycle-policy",
       "hidden": false,
       "system": false,
-      "allow_custom_routing": false
+      "allow_custom_routing": false,
+      "replicated": false
     }
   ]
 }

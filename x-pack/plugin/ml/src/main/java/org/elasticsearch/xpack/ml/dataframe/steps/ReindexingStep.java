@@ -21,8 +21,8 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -267,7 +267,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
         LOGGER.debug("[{}] Cancelling reindex task [{}]", config.getId(), reindexTaskId);
 
         CancelTasksRequest cancelReindex = new CancelTasksRequest();
-        cancelReindex.setTaskId(reindexTaskId);
+        cancelReindex.setTargetTaskId(reindexTaskId);
         cancelReindex.setReason(reason);
         cancelReindex.setTimeout(timeout);
 

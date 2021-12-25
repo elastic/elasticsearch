@@ -14,12 +14,12 @@ PUT _cluster/settings
 ----
 ////
 
-Transient cluster settings are deprecated. Previously, you could use transient
+We no longer recommend using transient cluster settings. You can use transient
 settings to make temporary configuration changes to a cluster. However, a
 cluster restart or cluster instability can unexpectedly clear these settings,
 leading to a potentially undesired cluster configuration.
 
-To avoid deprecation warnings, reset any transient settings you've configured on
+To avoid this risk, reset any transient settings you've configured on
 your cluster. Convert any transient setting you'd like to keep to a persistent
 setting, which persists across cluster restarts and cluster instability. You
 should also update any custom workflows and applications to use persistent
@@ -59,8 +59,6 @@ steps.
 . Copy any settings you'd like to convert into the `persistent` object of a
 <<cluster-update-settings,cluster update settings API>> request. In the same
 request, reset any transient settings by assigning them a `null` value.
-+
-NOTE: Resetting transient settings will emit a deprecation warning.
 +
 [source,console]
 ----

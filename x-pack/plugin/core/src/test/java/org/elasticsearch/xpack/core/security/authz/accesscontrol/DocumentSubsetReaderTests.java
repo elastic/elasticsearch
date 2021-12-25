@@ -164,9 +164,9 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
         iw.close();
-        DirectoryReader directoryReader = DocumentSubsetReader.wrap(DirectoryReader.open(dir), bitsetCache, new MatchAllDocsQuery());
+        DirectoryReader dirReader = DocumentSubsetReader.wrap(DirectoryReader.open(dir), bitsetCache, new MatchAllDocsQuery());
         try {
-            DocumentSubsetReader.wrap(directoryReader, bitsetCache, new MatchAllDocsQuery());
+            DocumentSubsetReader.wrap(dirReader, bitsetCache, new MatchAllDocsQuery());
             fail("shouldn't be able to wrap DocumentSubsetDirectoryReader twice");
         } catch (IllegalArgumentException e) {
             assertThat(
@@ -179,7 +179,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         }
 
         bitsetCache.close();
-        directoryReader.close();
+        dirReader.close();
         dir.close();
     }
 

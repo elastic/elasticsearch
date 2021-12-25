@@ -21,7 +21,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -248,8 +248,8 @@ public class BackgroundIndexer implements AutoCloseable {
 
     private volatile TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
 
-    public void setRequestTimeout(TimeValue timeout) {
-        this.timeout = timeout;
+    public void setRequestTimeout(TimeValue requestTimeout) {
+        this.timeout = requestTimeout;
     }
 
     private volatile boolean ignoreIndexingFailures;

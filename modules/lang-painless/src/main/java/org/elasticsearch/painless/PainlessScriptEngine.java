@@ -81,21 +81,21 @@ public final class PainlessScriptEngine implements ScriptEngine {
         defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
         defaultCompilerSettings.setRegexLimitFactor(CompilerSettings.REGEX_LIMIT_FACTOR.get(settings));
 
-        Map<ScriptContext<?>, Compiler> contextsToCompilers = new HashMap<>();
-        Map<ScriptContext<?>, PainlessLookup> contextsToLookups = new HashMap<>();
+        Map<ScriptContext<?>, Compiler> mutableContextsToCompilers = new HashMap<>();
+        Map<ScriptContext<?>, PainlessLookup> mutableContextsToLookups = new HashMap<>();
 
         for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : contexts.entrySet()) {
             ScriptContext<?> context = entry.getKey();
             PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(entry.getValue());
-            contextsToCompilers.put(
+            mutableContextsToCompilers.put(
                 context,
                 new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup)
             );
-            contextsToLookups.put(context, lookup);
+            mutableContextsToLookups.put(context, lookup);
         }
 
-        this.contextsToCompilers = Collections.unmodifiableMap(contextsToCompilers);
-        this.contextsToLookups = Collections.unmodifiableMap(contextsToLookups);
+        this.contextsToCompilers = Collections.unmodifiableMap(mutableContextsToCompilers);
+        this.contextsToLookups = Collections.unmodifiableMap(mutableContextsToLookups);
     }
 
     public Map<ScriptContext<?>, PainlessLookup> getContextsToLookups() {

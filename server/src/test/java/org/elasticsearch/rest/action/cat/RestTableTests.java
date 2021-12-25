@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.test.ESTestCase;
@@ -40,18 +41,30 @@ public class RestTableTests extends ESTestCase {
     private static final String ACCEPT = "Accept";
     private static final String TEXT_PLAIN = "text/plain; charset=UTF-8";
     private static final String TEXT_TABLE_BODY = "foo foo foo foo foo foo foo foo\n";
-    private static final String JSON_TABLE_BODY = "[{\"bulk.foo\":\"foo\",\"bulk.bar\":\"foo\",\"aliasedBulk\":\"foo\","
-        + "\"aliasedSecondBulk\":\"foo\",\"unmatched\":\"foo\","
-        + "\"invalidAliasesBulk\":\"foo\",\"timestamp\":\"foo\",\"epoch\":\"foo\"}]";
-    private static final String YAML_TABLE_BODY = "---\n"
-        + "- bulk.foo: \"foo\"\n"
-        + "  bulk.bar: \"foo\"\n"
-        + "  aliasedBulk: \"foo\"\n"
-        + "  aliasedSecondBulk: \"foo\"\n"
-        + "  unmatched: \"foo\"\n"
-        + "  invalidAliasesBulk: \"foo\"\n"
-        + "  timestamp: \"foo\"\n"
-        + "  epoch: \"foo\"\n";
+    private static final String JSON_TABLE_BODY = """
+        [
+          {
+            "bulk.foo": "foo",
+            "bulk.bar": "foo",
+            "aliasedBulk": "foo",
+            "aliasedSecondBulk": "foo",
+            "unmatched": "foo",
+            "invalidAliasesBulk": "foo",
+            "timestamp": "foo",
+            "epoch": "foo"
+          }
+        ]""";
+    private static final String YAML_TABLE_BODY = """
+        ---
+        - bulk.foo: "foo"
+          bulk.bar: "foo"
+          aliasedBulk: "foo"
+          aliasedSecondBulk: "foo"
+          unmatched: "foo"
+          invalidAliasesBulk: "foo"
+          timestamp: "foo"
+          epoch: "foo"
+        """;
     private Table table;
     private FakeRestRequest restRequest;
 
@@ -94,7 +107,11 @@ public class RestTableTests extends ESTestCase {
     }
 
     public void testThatWeUseTheAcceptHeaderJson() throws Exception {
-        assertResponse(Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON)), APPLICATION_JSON, JSON_TABLE_BODY);
+        assertResponse(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON)),
+            APPLICATION_JSON,
+            XContentHelper.stripWhitespace(JSON_TABLE_BODY)
+        );
     }
 
     public void testThatWeUseTheAcceptHeaderYaml() throws Exception {

@@ -21,8 +21,8 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsCluster
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -459,9 +459,16 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             migrationInfo.getNextIndexName()
         );
 
+        Settings.Builder settingsBuilder = Settings.builder();
+        if (Objects.nonNull(migrationInfo.getSettings())) {
+            settingsBuilder.put(migrationInfo.getSettings());
+            settingsBuilder.remove("index.blocks.write");
+            settingsBuilder.remove("index.blocks.read");
+            settingsBuilder.remove("index.blocks.metadata");
+        }
         createRequest.waitForActiveShards(ActiveShardCount.ALL)
             .mappings(migrationInfo.getMappings())
-            .settings(Objects.requireNonNullElse(migrationInfo.getSettings(), Settings.EMPTY));
+            .settings(Objects.requireNonNullElse(settingsBuilder.build(), Settings.EMPTY));
         metadataCreateIndexService.createIndex(createRequest, listener);
     }
 

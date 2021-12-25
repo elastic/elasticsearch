@@ -1899,6 +1899,54 @@ Size of TX packets sent by the node during internal cluster communication.
 (integer)
 Size, in bytes, of TX packets sent by the node during internal cluster
 communication.
+
+`inbound_handling_time_histogram`::
+(array)
+The distribution of the time spent handling each inbound message on a transport
+thread, represented as a histogram.
++
+.Properties of `inbound_handling_time_histogram`
+[%collapsible]
+=======
+`ge_millis`::
+(integer)
+The inclusive lower bound of the bucket in milliseconds. Omitted on the first
+bucket since this bucket has no lower bound.
+
+`lt_millis`::
+(integer)
+The exclusive upper bound of the bucket in milliseconds. Omitted on the last
+bucket since this bucket has no upper bound.
+
+`count`::
+(integer)
+The number of times a transport thread took a period of time within the bounds
+of this bucket to handle an inbound message.
+=======
+
+`outbound_handling_time_histogram`::
+(array)
+The distribution of the time spent sending each outbound transport message on a
+transport thread, represented as a histogram.
++
+.Properties of `outbound_handling_time_histogram`
+[%collapsible]
+=======
+`ge_millis`::
+(integer)
+The inclusive lower bound of the bucket in milliseconds. Omitted on the first
+bucket since this bucket has no lower bound.
+
+`lt_millis`::
+(integer)
+The exclusive upper bound of the bucket in milliseconds. Omitted on the last
+bucket since this bucket has no upper bound.
+
+`count`::
+(integer)
+The number of times a transport thread took a period of time within the bounds
+of this bucket to send a transport message.
+=======
 ======
 
 [[cluster-nodes-stats-api-response-body-http]]

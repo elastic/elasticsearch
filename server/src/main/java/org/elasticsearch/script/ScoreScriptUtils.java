@@ -57,7 +57,7 @@ public final class ScoreScriptUtils {
 
         public double randomScore() {
             try {
-                docValues.setNextDocId(scoreScript._getDocId());
+                docValues.getSupplier().setNextDocId(scoreScript._getDocId());
                 String seedValue = String.valueOf(docValues.get(0));
                 int hash = StringHelper.murmurhash3_x86_32(new BytesRef(seedValue), saltedSeed);
                 return (hash & 0x00FFFFFF) / (float) (1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0

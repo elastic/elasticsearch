@@ -55,23 +55,22 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \""
-            + NAME.getPreferredName()
-            + "\" : {\n"
-            + "    \"query\" : {\n"
-            + "      \"span_term\" : {\n"
-            + "        \"value\" : {\n"
-            + "          \"value\" : 0.5,\n"
-            + "          \"boost\" : 0.23\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"field\" : \"mapped_geo_shape\",\n"
-            + "    \"boost\" : 42.0,\n"
-            + "    \"_name\" : \"KPI\"\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "%s" : {
+                "query" : {
+                  "span_term" : {
+                    "value" : {
+                      "value" : 0.5,
+                      "boost" : 0.23
+                    }
+                  }
+                },
+                "field" : "mapped_geo_shape",
+                "boost" : 42.0,
+                "_name" : "KPI"
+              }
+            }""".formatted(NAME.getPreferredName());
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(
             exception.getMessage(),
@@ -80,41 +79,41 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     public void testJsonWithTopLevelBoost() throws IOException {
-        String json = "{\n"
-            + "  \""
-            + NAME.getPreferredName()
-            + "\" : {\n"
-            + "    \"query\" : {\n"
-            + "      \"span_term\" : {\n"
-            + "        \"value\" : {\n"
-            + "          \"value\" : \"foo\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"field\" : \"mapped_geo_shape\",\n"
-            + "    \"boost\" : 42.0,\n"
-            + "    \"_name\" : \"KPI\"\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "%s" : {
+                "query" : {
+                  "span_term" : {
+                    "value" : {
+                      "value" : "foo"
+                    }
+                  }
+                },
+                "field" : "mapped_geo_shape",
+                "boost" : 42.0,
+                "_name" : "KPI"
+              }
+            }""".formatted(NAME.getPreferredName());
         Query q = parseQuery(json).toQuery(createSearchExecutionContext());
         assertEquals(new BoostQuery(new FieldMaskingSpanQuery(new SpanTermQuery(new Term("value", "foo")), "mapped_geo_shape"), 42.0f), q);
     }
 
     public void testJsonWithDeprecatedName() throws IOException {
-        String json = "{\n"
-            + "  \"field_masking_span\" : {\n"
-            + "    \"query\" : {\n"
-            + "      \"span_term\" : {\n"
-            + "        \"value\" : {\n"
-            + "          \"value\" : \"foo\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"field\" : \"mapped_geo_shape\",\n"
-            + "    \"boost\" : 42.0,\n"
-            + "    \"_name\" : \"KPI\"\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "field_masking_span" : {
+                "query" : {
+                  "span_term" : {
+                    "value" : {
+                      "value" : "foo"
+                    }
+                  }
+                },
+                "field" : "mapped_geo_shape",
+                "boost" : 42.0,
+                "_name" : "KPI"
+              }
+            }""";
         Query q = parseQuery(json).toQuery(createSearchExecutionContext());
         assertWarnings("Deprecated field [field_masking_span] used, expected [" + NAME.getPreferredName() + "] instead");
     }

@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -66,7 +66,7 @@ class TransformClusterStateListener implements ClusterStateListener {
     private static void createAuditAliasForDataFrameBWC(ClusterState state, Client client, final ActionListener<Boolean> finalListener) {
 
         // check if old audit index exists, no need to create the alias if it does not
-        if (state.getMetadata().getIndicesLookup().containsKey(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED) == false) {
+        if (state.getMetadata().hasIndexAbstraction(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED) == false) {
             finalListener.onResponse(false);
             return;
         }

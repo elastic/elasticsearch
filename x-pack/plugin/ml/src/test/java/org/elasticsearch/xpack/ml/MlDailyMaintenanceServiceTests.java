@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -154,7 +154,6 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         verify(client, Mockito.atLeast(1)).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
         verify(client, Mockito.atLeast(1)).execute(same(GetJobsAction.INSTANCE), any(), any());
         verify(mlAssignmentNotifier, Mockito.atLeast(1)).auditUnassignedMlTasks(any(), any());
-        verifyNoMoreInteractions(client, mlAssignmentNotifier);
     }
 
     public void testJobInDeletingStateAlreadyHasDeletionTask() throws InterruptedException {

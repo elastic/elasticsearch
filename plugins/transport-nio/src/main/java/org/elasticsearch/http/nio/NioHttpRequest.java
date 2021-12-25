@@ -217,17 +217,13 @@ public class NioHttpRequest implements HttpRequest {
     }
 
     @Override
-    public NioHttpResponse createResponse(RestStatus status, BytesReference content) {
-        return new NioHttpResponse(request.headers(), request.protocolVersion(), status, content);
+    public NioHttpResponse createResponse(RestStatus status, BytesReference contentRef) {
+        return new NioHttpResponse(request.protocolVersion(), status, contentRef);
     }
 
     @Override
     public Exception getInboundException() {
         return inboundException;
-    }
-
-    public FullHttpRequest nettyRequest() {
-        return request;
     }
 
     /**

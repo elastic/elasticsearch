@@ -1,8 +1,6 @@
 [[breaking-changes]]
 = Migration guide
 
-[partintro]
---
 This section discusses the changes that you need to be aware of to migrate
 your application to {version}. For more information about what's new in this
 release, see the <<release-highlights>> and <<es-release-notes>>.
@@ -38,6 +36,5 @@ For information about how to upgrade your cluster, see <<setup-upgrade>>.
 * <<migrating-8.1,Migrating to 8.1>>
 * <<migrating-8.0,Migrating to 8.0>>
 
---
 include::migrate_8_1.asciidoc[]
 include::migrate_8_0.asciidoc[]

@@ -15,7 +15,7 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
@@ -93,7 +93,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         if (runningSubtasks > 0) {
             RethrottleRequest subRequest = new RethrottleRequest();
             subRequest.setRequestsPerSecond(newRequestsPerSecond / runningSubtasks);
-            subRequest.setParentTaskId(new TaskId(localNodeId, task.getId()));
+            subRequest.setTargetParentTaskId(new TaskId(localNodeId, task.getId()));
             logger.debug("rethrottling children of task [{}] to [{}] requests per second", task.getId(), subRequest.getRequestsPerSecond());
             client.execute(RethrottleAction.INSTANCE, subRequest, ActionListener.wrap(r -> {
                 r.rethrowFailures("Rethrottle");

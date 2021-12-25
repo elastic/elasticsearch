@@ -387,8 +387,8 @@ public class SSLConfigurationSettings {
             return Setting.affixKeySetting(groupPrefix, keyPrefix + name, template);
         }
 
-        public Setting<T> transportProfile(String name) {
-            return transportProfile().getConcreteSetting(name);
+        public Setting<T> transportProfile(String settingName) {
+            return transportProfile().getConcreteSetting(settingName);
         }
     }
 

@@ -387,7 +387,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             MapperParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", randomAlphaOfLengthBetween(1025, 2048))))
         );
-        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be more than [1024] bytes long."));
+        assertThat(e.getCause().getMessage(), containsString("Dimension fields must be less than [1024] bytes but was"));
     }
 
     public void testConfigureSimilarity() throws IOException {
@@ -604,6 +604,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), "time_series")
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                 .build()
         );
         mapper.documentMapper().validate(settings, false);  // Doesn't throw

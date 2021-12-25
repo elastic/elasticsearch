@@ -19,8 +19,8 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -114,7 +114,7 @@ public class AnnotationIndex {
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(LATEST_INDEX_NAME).alias(READ_ALIAS_NAME).isHidden(true))
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(LATEST_INDEX_NAME).alias(WRITE_ALIAS_NAME).isHidden(true));
             for (String oldIndexName : OLD_INDEX_NAMES) {
-                if (state.getMetadata().getIndicesLookup().containsKey(oldIndexName)) {
+                if (state.getMetadata().hasIndexAbstraction(oldIndexName)) {
                     requestBuilder.removeAlias(oldIndexName, WRITE_ALIAS_NAME);
                 }
             }

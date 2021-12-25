@@ -87,8 +87,9 @@ Once created, you cannot update
 or index documents to an enrich index.
 Instead, update your source indices
 and <<execute-enrich-policy-api,execute>> the enrich policy again.
-This creates a new enrich index from your updated source indices
-and deletes the previous enrich index.
+This creates a new enrich index from your updated source indices. 
+The previous enrich index will deleted with a delayed maintenance job. 
+By default this is done every 15 minutes. 
 // end::update-enrich-index[]
 
 Because this API request performs several operations,

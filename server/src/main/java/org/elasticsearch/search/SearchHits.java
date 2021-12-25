@@ -11,6 +11,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -170,7 +171,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
 
     @Override
     public Iterator<SearchHit> iterator() {
-        return Arrays.stream(getHits()).iterator();
+        return Iterators.forArray(getHits());
     }
 
     public static final class Fields {

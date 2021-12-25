@@ -108,7 +108,7 @@ public class RethrottleTests extends ReindexTestCase {
                     .getTask()
                     .getStatus();
                 long finishedSubTasks = parent.getSliceStatuses().stream().filter(Objects::nonNull).count();
-                ListTasksResponse list = client().admin().cluster().prepareListTasks().setParentTaskId(taskToRethrottle).get();
+                ListTasksResponse list = client().admin().cluster().prepareListTasks().setTargetParentTaskId(taskToRethrottle).get();
                 list.rethrowFailures("subtasks");
                 assertThat(finishedSubTasks + list.getTasks().size(), greaterThanOrEqualTo((long) numSlices));
                 assertThat(list.getTasks().size(), greaterThan(0));
@@ -192,7 +192,7 @@ public class RethrottleTests extends ReindexTestCase {
 
         assertBusy(() -> {
             try {
-                ListTasksResponse rethrottleResponse = rethrottle().setTaskId(taskToRethrottle)
+                ListTasksResponse rethrottleResponse = rethrottle().setTargetTaskId(taskToRethrottle)
                     .setRequestsPerSecond(newRequestsPerSecond)
                     .get();
                 rethrottleResponse.rethrowFailures("Rethrottle");

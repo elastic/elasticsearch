@@ -116,7 +116,7 @@ public class EnvironmentTests extends ESTestCase {
         Settings build = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         Environment environment = new Environment(build, null, createTempDir().resolve("this_does_not_exist"));
         FileNotFoundException e = expectThrows(FileNotFoundException.class, environment::validateTmpFile);
-        assertThat(e.getMessage(), startsWith("Temporary file directory ["));
+        assertThat(e.getMessage(), startsWith("Temporary directory ["));
         assertThat(e.getMessage(), endsWith("this_does_not_exist] does not exist or is not accessible"));
     }
 
@@ -124,7 +124,23 @@ public class EnvironmentTests extends ESTestCase {
         Settings build = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         Environment environment = new Environment(build, null, createTempFile("something", ".test"));
         IOException e = expectThrows(IOException.class, environment::validateTmpFile);
-        assertThat(e.getMessage(), startsWith("Configured temporary file directory ["));
+        assertThat(e.getMessage(), startsWith("Temporary directory ["));
+        assertThat(e.getMessage(), endsWith(".test] is not a directory"));
+    }
+
+    public void testNonExistentTempPathValidationForNatives() {
+        Settings build = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        Environment environment = new Environment(build, null, createTempDir().resolve("this_does_not_exist"));
+        FileNotFoundException e = expectThrows(FileNotFoundException.class, environment::validateNativesConfig);
+        assertThat(e.getMessage(), startsWith("Temporary directory ["));
+        assertThat(e.getMessage(), endsWith("this_does_not_exist] does not exist or is not accessible"));
+    }
+
+    public void testTempPathValidationWhenRegularFileForNatives() throws IOException {
+        Settings build = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        Environment environment = new Environment(build, null, createTempFile("something", ".test"));
+        IOException e = expectThrows(IOException.class, environment::validateNativesConfig);
+        assertThat(e.getMessage(), startsWith("Temporary directory ["));
         assertThat(e.getMessage(), endsWith(".test] is not a directory"));
     }
 

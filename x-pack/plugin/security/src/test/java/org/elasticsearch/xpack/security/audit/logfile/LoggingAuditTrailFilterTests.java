@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.audit.logfile;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -2872,7 +2872,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         MockIndicesRequest(ThreadContext threadContext, String... indices) throws IOException {
             super(IndicesOptions.strictExpandOpenAndForbidClosed(), indices);
             if (randomBoolean()) {
-                remoteAddress(buildNewFakeTransportAddress());
+                remoteAddress(buildNewFakeTransportAddress().address());
             }
             if (randomBoolean()) {
                 RemoteHostHeader.putRestRemoteAddress(threadContext, new InetSocketAddress(forge("localhost", "127.0.0.1"), 1234));

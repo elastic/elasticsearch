@@ -139,7 +139,7 @@ public class CancelTests extends ReindexTestCase {
 
         // Cancel the request while the action is blocked by the indexing operation listeners.
         // This will prevent further requests from being sent.
-        ListTasksResponse cancelTasksResponse = client().admin().cluster().prepareCancelTasks().setTaskId(mainTask.getTaskId()).get();
+        ListTasksResponse cancelTasksResponse = client().admin().cluster().prepareCancelTasks().setTargetTaskId(mainTask.getTaskId()).get();
         cancelTasksResponse.rethrowFailures("Cancel");
         assertThat(cancelTasksResponse.getTasks(), hasSize(1));
 
@@ -155,7 +155,7 @@ public class CancelTests extends ReindexTestCase {
             ListTasksResponse sliceList = client().admin()
                 .cluster()
                 .prepareListTasks()
-                .setParentTaskId(mainTask.getTaskId())
+                .setTargetParentTaskId(mainTask.getTaskId())
                 .setDetailed(true)
                 .get();
             sliceList.rethrowFailures("Fetch slice tasks");
@@ -193,7 +193,7 @@ public class CancelTests extends ReindexTestCase {
             String tasks = client().admin()
                 .cluster()
                 .prepareListTasks()
-                .setParentTaskId(mainTask.getTaskId())
+                .setTargetParentTaskId(mainTask.getTaskId())
                 .setDetailed(true)
                 .get()
                 .toString();
@@ -238,14 +238,13 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testUpdateByQueryCancel() throws Exception {
-        BytesReference pipeline = new BytesArray(
-            "{\n"
-                + "  \"description\" : \"sets processed to true\",\n"
-                + "  \"processors\" : [ {\n"
-                + "      \"test\" : {}\n"
-                + "  } ]\n"
-                + "}"
-        );
+        BytesReference pipeline = new BytesArray("""
+            {
+              "description" : "sets processed to true",
+              "processors" : [ {
+                  "test" : {}
+              } ]
+            }""");
         assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, XContentType.JSON).get());
 
         testCancel(UpdateByQueryAction.NAME, updateByQuery().setPipeline("set-processed").source(INDEX), (response, total, modified) -> {
@@ -282,14 +281,13 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testUpdateByQueryCancelWithWorkers() throws Exception {
-        BytesReference pipeline = new BytesArray(
-            "{\n"
-                + "  \"description\" : \"sets processed to true\",\n"
-                + "  \"processors\" : [ {\n"
-                + "      \"test\" : {}\n"
-                + "  } ]\n"
-                + "}"
-        );
+        BytesReference pipeline = new BytesArray("""
+            {
+              "description" : "sets processed to true",
+              "processors" : [ {
+                  "test" : {}
+              } ]
+            }""");
         assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, XContentType.JSON).get());
 
         testCancel(

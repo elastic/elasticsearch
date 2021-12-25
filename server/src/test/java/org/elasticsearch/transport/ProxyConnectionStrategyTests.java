@@ -34,6 +34,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+
 public class ProxyConnectionStrategyTests extends ESTestCase {
 
     private final String clusterAlias = "cluster-alias";
@@ -202,7 +205,10 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
-                    expectThrows(Exception.class, connectFuture::actionGet);
+                    assertThat(
+                        expectThrows(NoSeedNodeLeftException.class, connectFuture::actionGet).getMessage(),
+                        allOf(containsString("Unable to open any proxy connections"), containsString('[' + clusterAlias + ']'))
+                    );
 
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertEquals(0, connectionManager.size());
@@ -410,10 +416,10 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
             Setting<?> concreteSetting = restrictedSetting.v1().getConcreteSettingForNamespace(clusterName);
             Settings invalid = Settings.builder().put(settings).put(concreteSetting.getKey(), restrictedSetting.v2()).build();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> service.validate(invalid, true));
-            String expected = "Setting \""
-                + concreteSetting.getKey()
-                + "\" cannot be used with the configured "
-                + "\"cluster.remote.cluster_name.mode\" [required=PROXY, configured=SNIFF]";
+            String expected = """
+                Setting "%s" cannot be used with the configured "cluster.remote.cluster_name.mode" \
+                [required=PROXY, configured=SNIFF]\
+                """.formatted(concreteSetting.getKey());
             assertEquals(expected, iae.getMessage());
         }
     }

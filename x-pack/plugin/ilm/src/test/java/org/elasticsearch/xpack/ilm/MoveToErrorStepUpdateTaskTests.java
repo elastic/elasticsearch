@@ -102,10 +102,8 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         ElasticsearchException.generateThrowableXContent(causeXContentBuilder, ToXContent.EMPTY_PARAMS, cause);
         causeXContentBuilder.endObject();
         String expectedCauseValue = BytesReference.bytes(causeXContentBuilder).utf8ToString();
-        assertThat(
-            lifecycleState.getStepInfo(),
-            containsString("{\"type\":\"exception\",\"reason\":\"THIS IS AN EXPECTED CAUSE\",\"stack_trace\":\"")
-        );
+        assertThat(lifecycleState.getStepInfo(), containsString("""
+            {"type":"exception","reason":"THIS IS AN EXPECTED CAUSE","stack_trace":\""""));
     }
 
     public void testExecuteNoopDifferentStep() throws IOException {
@@ -146,11 +144,11 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         assertThat(newState, sameInstance(clusterState));
     }
 
-    private void setStatePolicy(String policy) {
+    private void setStatePolicy(String policyValue) {
         clusterState = ClusterState.builder(clusterState)
             .metadata(
                 Metadata.builder(clusterState.metadata())
-                    .updateSettings(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), index.getName())
+                    .updateSettings(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyValue).build(), index.getName())
             )
             .build();
     }

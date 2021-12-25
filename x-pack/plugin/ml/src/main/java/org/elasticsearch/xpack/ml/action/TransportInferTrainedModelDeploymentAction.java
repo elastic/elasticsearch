@@ -83,14 +83,14 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
                     );
                     return;
                 }
-                String message = "Cannot perform requested action because deployment [" + deploymentId + "] is not started";
+                String message = "Trained model [" + deploymentId + "] is not deployed";
                 listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             }, listener::onFailure));
             return;
         }
         String[] randomRunningNode = allocation.getStartedNodes();
         if (randomRunningNode.length == 0) {
-            String message = "Cannot perform requested action because deployment [" + deploymentId + "] is not yet running on any node";
+            String message = "Trained model [" + deploymentId + "] is not allocated to any nodes";
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }
@@ -98,7 +98,6 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         int nodeIndex = Randomness.get().nextInt(randomRunningNode.length);
         request.setNodes(randomRunningNode[nodeIndex]);
         super.doExecute(task, request, listener);
-
     }
 
     @Override

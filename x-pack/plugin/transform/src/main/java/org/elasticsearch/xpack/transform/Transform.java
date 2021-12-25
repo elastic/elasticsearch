@@ -18,9 +18,10 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -46,8 +47,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -109,7 +108,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.FAILED_TO_UNSET_RESET_MODE;
@@ -120,7 +121,6 @@ import static org.elasticsearch.xpack.core.transform.transforms.persistence.Tran
 public class Transform extends Plugin implements SystemIndexPlugin, PersistentTaskPlugin {
 
     public static final String NAME = "transform";
-    public static final String TASK_THREAD_POOL_NAME = "transform_indexing";
 
     private static final Logger logger = LogManager.getLogger(Transform.class);
 
@@ -151,7 +151,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public List<RestHandler> getRestHandlers(
-        final Settings settings,
+        final Settings unused,
         final RestController restController,
         final ClusterSettings clusterSettings,
         final IndexScopedSettings indexScopedSettings,
@@ -196,20 +196,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler<>(XPackUsageFeatureAction.TRANSFORM, TransformUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.TRANSFORM, TransformInfoTransportAction.class)
         );
-    }
-
-    @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        FixedExecutorBuilder indexing = new FixedExecutorBuilder(
-            settings,
-            TASK_THREAD_POOL_NAME,
-            4,
-            4,
-            "transform.task_thread_pool",
-            false
-        );
-
-        return Collections.singletonList(indexing);
     }
 
     @Override
@@ -285,6 +271,23 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public List<Entry> getNamedXContent() {
         return new TransformNamedXContentProvider().getNamedXContentParsers();
+    }
+
+    @Override
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
+        return templates -> {
+            // These are all legacy templates that were created in old versions. None are needed now.
+            // The "internal" indices became system indices and the "notifications" indices now use composable templates.
+            templates.remove(".data-frame-internal-1");
+            templates.remove(".data-frame-internal-2");
+            templates.remove(".transform-internal-003");
+            templates.remove(".transform-internal-004");
+            templates.remove(".transform-internal-005");
+            templates.remove(".data-frame-notifications-1");
+            templates.remove(".transform-notifications-000001");
+            templates.remove(".transform-notifications-000002");
+            return templates;
+        };
     }
 
     @Override

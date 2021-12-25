@@ -27,7 +27,7 @@ import java.util.Locale;
  * The available methods are similar to those of {@link Console}, with the ability
  * to read either normal text or a password, and the ability to print a line
  * of text. Printing is also gated by the {@link Verbosity} of the terminal,
- * which allows {@link #println(Verbosity,String)} calls which act like a logger,
+ * which allows {@link #println(Verbosity,CharSequence)} calls which act like a logger,
  * only actually printing if the verbosity level of the terminal is above
  * the verbosity of the message.
 */
@@ -113,7 +113,7 @@ public abstract class Terminal {
     }
 
     /** Prints message to the terminal at {@code verbosity} level, without a newline. */
-    private void print(Verbosity verbosity, String msg, boolean isError) {
+    protected void print(Verbosity verbosity, String msg, boolean isError) {
         if (isPrintable(verbosity)) {
             PrintWriter writer = isError ? getErrorWriter() : getWriter();
             writer.print(msg);
@@ -204,6 +204,16 @@ public abstract class Terminal {
     public void flush() {
         this.getWriter().flush();
         this.getErrorWriter().flush();
+    }
+
+    /**
+     * Indicates whether this terminal is for a headless system i.e. is not interactive. If an instances answers
+     * {@code false}, interactive operations can be attempted, but it is not guaranteed that they will succeed.
+     *
+     * @return if this terminal is headless.
+     */
+    public boolean isHeadless() {
+        return false;
     }
 
     private static class ConsoleTerminal extends Terminal {

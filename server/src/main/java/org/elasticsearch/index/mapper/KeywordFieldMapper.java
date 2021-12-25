@@ -29,12 +29,10 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -42,7 +40,6 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.StringFieldScript;
-import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -52,7 +49,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -73,8 +69,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }
-
-        public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
     public static class KeywordField extends Field {
@@ -108,7 +102,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             "ignore_above",
             true,
             m -> toType(m).ignoreAbove,
-            Defaults.IGNORE_ABOVE
+            Integer.MAX_VALUE
         );
 
         private final Parameter<String> indexOptions = Parameter.restrictedStringParam(
@@ -403,11 +397,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(
-                name(),
-                CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
-            );
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
@@ -422,7 +412,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();
-                    if (keywordValue.length() > ignoreAbove) {
+                    // changed character length verification to character array length verification.
+                    // consistent with Lucene
+                    if (keywordValue.getBytes().length > ignoreAbove) {
                         return null;
                     }
 
@@ -513,6 +505,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
+    /** The maximum keyword length allowed for a dimension field */
+    private static final int DIMENSION_MAX_BYTES = 1024;
+
     private final boolean indexed;
     private final boolean hasDocValues;
     private final String nullValue;
@@ -594,30 +589,40 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, String value) {
+
         if (value == null) {
             return;
         }
 
-        if (value.length() > ignoreAbove) {
+        // changed string length verification to byte array length verification.
+        // consistent with Lucene
+        if (value.getBytes().length > ignoreAbove) {
             context.addIgnoredField(name());
             return;
         }
 
         value = normalizeValue(fieldType().normalizer(), name(), value);
-        if (dimension) {
-            // Encode the tsid part of the dimension field. Although, it would seem reasonable
-            // to skip the encode part if we don't generate a _tsid field (as we do with number
-            // and ip fields), we keep this test because we must ensure that the value of this
-            // dimension field is not larger than TimeSeriesIdFieldMapper.DIMENSION_VALUE_LIMIT
-            BytesReference bytes = TimeSeriesIdFieldMapper.encodeTsidValue(value);
-            context.doc().addDimensionBytes(fieldType().name(), bytes);
-        }
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
+        if (dimension && binaryValue.length > DIMENSION_MAX_BYTES) {
+            throw new IllegalArgumentException(
+                "Dimension field [" + fieldType().name() + "] cannot be more than [" + DIMENSION_MAX_BYTES + "] bytes long."
+            );
+        }
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
-            context.doc().add(field);
+            if (dimension) {
+                // Check that a dimension field is single-valued and not an array
+                if (context.doc().getByKey(fieldType().name()) != null) {
+                    throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
+                }
+                // Add dimension field with key so that we ensure it is single-valued.
+                // Dimension fields are always indexed.
+                context.doc().addWithKey(fieldType().name(), field);
+            } else {
+                context.doc().add(field);
+            }
 
             if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
                 context.addToFieldNames(fieldType().name());
@@ -637,17 +642,25 @@ public final class KeywordFieldMapper extends FieldMapper {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             if (ts.incrementToken() == false) {
-                throw new IllegalStateException(String.format(Locale.ROOT, """
-                    The normalization token stream is expected to produce exactly 1 token, \
-                    but got 0 for analyzer %s and input "%s"
-                    """, normalizer, value));
+                throw new IllegalStateException(
+                    "The normalization token stream is "
+                        + "expected to produce exactly 1 token, but got 0 for analyzer "
+                        + normalizer
+                        + " and input \""
+                        + value
+                        + "\""
+                );
             }
             final String newValue = termAtt.toString();
             if (ts.incrementToken()) {
-                throw new IllegalStateException(String.format(Locale.ROOT, """
-                    The normalization token stream is expected to produce exactly 1 token, \
-                    but got 2+ for analyzer %s and input "%s"
-                    """, normalizer, value));
+                throw new IllegalStateException(
+                    "The normalization token stream is "
+                        + "expected to produce exactly 1 token, but got 2+ for analyzer "
+                        + normalizer
+                        + " and input \""
+                        + value
+                        + "\""
+                );
             }
             ts.end();
             return newValue;

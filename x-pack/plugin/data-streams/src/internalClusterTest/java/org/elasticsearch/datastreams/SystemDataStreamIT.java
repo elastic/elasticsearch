@@ -60,10 +60,8 @@ public class SystemDataStreamIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(Netty4Plugin.class);
         plugins.add(DataStreamsPlugin.class);
         plugins.add(TestSystemDataStreamPlugin.class);
-        plugins.add(Netty4Plugin.class);
         return plugins;
     }
 

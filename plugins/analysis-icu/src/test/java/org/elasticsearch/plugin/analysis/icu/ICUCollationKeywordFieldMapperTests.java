@@ -283,6 +283,24 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         assertEquals("field", fields[0].stringValue());
     }
 
+    public void testNewIgnoreAbove() throws IOException {
+        String test = "";
+        while (test.getBytes().length <= 32765) {
+            test = test + "￥";
+        }
+        //The string length is less than 32766, and the byte array length is greater than 32766.
+        assertNotEquals(test.length(), test.getBytes().length);
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("ignore_above", 32765)));
+        String finalTest = test;
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", finalTest)));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(0, fields.length);
+
+        fields = doc.rootDoc().getFields("_ignored");
+        assertEquals(1, fields.length);
+        assertEquals("field", fields[0].stringValue());
+    }
+
     public void testUpdateIgnoreAbove() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         merge(mapperService, fieldMapping(b -> b.field("type", FIELD_TYPE).field("ignore_above", 5)));

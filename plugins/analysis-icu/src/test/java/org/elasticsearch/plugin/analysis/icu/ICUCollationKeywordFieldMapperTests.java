@@ -285,7 +285,7 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
 
     public void testNewIgnoreAbove() throws IOException {
         String test = "";
-        while (test.getBytes().length <= 32765) {
+        while (test.getBytes().length <= 32766) {
             test = test + "￥";
         }
         //The string length is less than 32766, and the byte array length is greater than 32766.

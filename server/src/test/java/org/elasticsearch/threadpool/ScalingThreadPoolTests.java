@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionHandler;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
+import org.hamcrest.Matcher;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -24,7 +25,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -198,9 +199,9 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             new ThreadContext(Settings.EMPTY)
         );
         try {
-            final AtomicInteger executed = new AtomicInteger();
-            final AtomicInteger rejected = new AtomicInteger();
-            final AtomicInteger failed = new AtomicInteger();
+            final AtomicLong executed = new AtomicLong();
+            final AtomicLong rejected = new AtomicLong();
+            final AtomicLong failed = new AtomicLong();
 
             final CountDownLatch latch = new CountDownLatch(max);
             final CountDownLatch block = new CountDownLatch(1);
@@ -242,28 +243,45 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             assertBusy(() -> assertTrue(scalingExecutor.isTerminated()));
             assertThat(scalingExecutor.getActiveCount(), equalTo(0));
             assertThat(scalingExecutor.getQueue().size(), equalTo(0));
-            assertThat(
-                scalingExecutor.getCompletedTaskCount(),
-                rejectAfterShutdown ? equalTo((long) max + queued) : greaterThanOrEqualTo((long) max + queued)
-            );
-            assertThat(
-                ((EsRejectedExecutionHandler) scalingExecutor.getRejectedExecutionHandler()).rejected(),
-                rejectAfterShutdown ? equalTo((long) queuedAfterShutdown) : equalTo(0L)
-            );
+            assertThat(failed.get(), equalTo(0L));
+
+            final Matcher<Long> executionsMatcher = rejectAfterShutdown
+                ? equalTo((long) max + queued)
+                : greaterThanOrEqualTo((long) max + queued);
+            assertThat(scalingExecutor.getCompletedTaskCount(), executionsMatcher);
+            assertThat(executed.get(), executionsMatcher);
+
+            final EsRejectedExecutionHandler handler = (EsRejectedExecutionHandler) scalingExecutor.getRejectedExecutionHandler();
+            Matcher<Long> rejectionsMatcher = rejectAfterShutdown ? equalTo((long) queuedAfterShutdown) : equalTo(0L);
+            assertThat(handler.rejected(), rejectionsMatcher);
+            assertThat(rejected.get(), rejectionsMatcher);
+
+            final int queuedAfterTermination = randomIntBetween(1, 100);
+            for (int i = 0; i < queuedAfterTermination; i++) {
+                execute(scalingExecutor, () -> {}, executed, rejected, failed);
+            }
+
+            assertThat(scalingExecutor.getCompletedTaskCount(), executionsMatcher);
+            assertThat(executed.get(), executionsMatcher);
+
+            rejectionsMatcher = rejectAfterShutdown ? equalTo((long) queuedAfterShutdown + queuedAfterTermination) : equalTo(0L);
+            assertThat(handler.rejected(), rejectionsMatcher);
+            assertThat(rejected.get(), rejectionsMatcher);
+
+            assertThat(scalingExecutor.getQueue().size(), rejectAfterShutdown ? equalTo(0) : equalTo(queuedAfterTermination));
+            assertThat(failed.get(), equalTo(0L));
 
         } finally {
-            if (scalingExecutor.isShutdown() == false) {
-                ThreadPool.terminate(scalingExecutor, 10, TimeUnit.SECONDS);
-            }
+            ThreadPool.terminate(scalingExecutor, 10, TimeUnit.SECONDS);
         }
     }
 
     private static void execute(
         final Executor executor,
         final CheckedRunnable<Exception> runnable,
-        final AtomicInteger executed,
-        final AtomicInteger rejected,
-        final AtomicInteger failed
+        final AtomicLong executed,
+        final AtomicLong rejected,
+        final AtomicLong failed
     ) {
         if (randomBoolean()) {
             executor.execute(new AbstractRunnable() {

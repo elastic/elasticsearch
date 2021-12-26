@@ -121,7 +121,9 @@ class FlattenedFieldParser {
     }
 
     private void addField(ContentPath path, String currentName, String value, List<IndexableField> fields) {
-        if (value.length() > ignoreAbove) {
+        // changed character length verification to byte array length verification.
+        // consistent with Lucene
+        if (value.getBytes().length > ignoreAbove) {
             return;
         }
 

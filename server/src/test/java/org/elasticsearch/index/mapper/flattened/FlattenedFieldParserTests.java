@@ -322,6 +322,28 @@ public class FlattenedFieldParserTests extends ESTestCase {
         assertEquals(0, fields.size());
     }
 
+    public void testNewIgnoreAbove() throws IOException {
+        String test = "";
+        while (test.getBytes().length <= 32765) {
+            test = test + "￥";
+        }
+        //The string length is less than 32766, and the byte array length is greater than 32766.
+        assertNotEquals(test.length(), test.getBytes().length);
+        String input = "{ \"key\": \"" + test + "\" }";
+        XContentParser xContentParser = createXContentParser(input);
+        FlattenedFieldParser configuredParser = new FlattenedFieldParser(
+            "field",
+            "field._keyed",
+            new FakeFieldType("field"),
+            Integer.MAX_VALUE,
+            32765,
+            null
+        );
+
+        List<IndexableField> fields = configuredParser.parse(xContentParser);
+        assertEquals(0, fields.size());
+    }
+
     public void testNullValues() throws Exception {
         String input = "{ \"key\": null}";
         XContentParser xContentParser = createXContentParser(input);

@@ -10,8 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.DiversifiedTopDocsCollector;
-import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
+import org.apache.lucene.misc.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -27,6 +26,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
+
+import static org.apache.lucene.misc.search.DiversifiedTopDocsCollector.ScoreDocKey;
 
 /**
  * Alternative, faster implementation for converting String keys to longs but

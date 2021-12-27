@@ -9,8 +9,8 @@
 package org.elasticsearch.search.profile;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -27,10 +27,7 @@ public class SearchProfileResultsTests extends AbstractSerializingTestCase<Searc
         for (int i = 0; i < size; i++) {
             SearchProfileQueryPhaseResult searchResult = SearchProfileQueryPhaseResultTests.createTestItem();
             ProfileResult fetchResult = randomBoolean() ? null : ProfileResultTests.createTestItem(2);
-            shards.put(
-                randomAlphaOfLengthBetween(5, 10),
-                new SearchProfileShardResult(searchResult, fetchResult)
-            );
+            shards.put(randomAlphaOfLengthBetween(5, 10), new SearchProfileShardResult(searchResult, fetchResult));
         }
         return new SearchProfileResults(shards);
     }

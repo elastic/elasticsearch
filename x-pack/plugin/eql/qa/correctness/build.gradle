@@ -10,6 +10,7 @@ dependencies {
   javaRestTestImplementation project(':test:framework')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
+  javaRestTestImplementation project(":client:rest-high-level")
   javaRestTestImplementation 'io.ous:jtoml:2.0.0'
 }
 
@@ -26,10 +27,10 @@ Boolean preserveData = providers.systemProperty('eql.test.preserve.data')
 
 if (BuildParams.inFipsJvm){
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
-  tasks.named("javaRestTest").configure{enabled = false }
+  tasks.named("javaRestTest").configure{ enabled = false }
 }
-testClusters {
-  all {
+
+testClusters.configureEach {
     plugin ':plugins:repository-gcs'
     if (serviceAccountFile) {
       keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
@@ -42,10 +43,10 @@ testClusters {
     jvmArgs '-Xms4g', '-Xmx4g'
     setting 'xpack.security.enabled', 'true'
     user username: 'admin', password: 'admin-password', role: 'superuser'
-  }
-  runTask {
+}
+
+def runTaskCluster = testClusters.register('runTask') {
     jvmArgs '-Xms8g', '-Xmx8g'
-  }
 }
 
 tasks.named('javaRestTest').configure {
@@ -57,6 +58,6 @@ tasks.named('javaRestTest').configure {
 }
 
 tasks.register("runEqlCorrectnessNode", RunTask) {
-  useCluster testClusters.runTask
+  useCluster runTaskCluster
   description = 'Runs elasticsearch in the foreground with gcs plugin and keystore credentials'
 }

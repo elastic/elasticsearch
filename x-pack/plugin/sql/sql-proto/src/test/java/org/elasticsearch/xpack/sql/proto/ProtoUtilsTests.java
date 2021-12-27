@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
@@ -27,8 +27,11 @@ public class ProtoUtilsTests extends ESTestCase {
             return builder;
         });
 
-        XContentParser parser =
-            JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        XContentParser parser = JsonXContent.jsonXContent.createParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            json
+        );
 
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {

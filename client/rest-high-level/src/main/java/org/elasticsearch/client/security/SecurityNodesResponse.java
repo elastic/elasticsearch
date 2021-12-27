@@ -10,8 +10,8 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.NodesResponse;
 import org.elasticsearch.client.NodesResponseHeader;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.List;
 
@@ -35,9 +35,11 @@ public abstract class SecurityNodesResponse extends NodesResponse {
 
     public static class Node {
 
-        private static final ConstructingObjectParser<ClearRolesCacheResponse.Node, String> PARSER =
-            new ConstructingObjectParser<>("clear_roles_cache_response_node", false,
-                (args, id) -> new ClearRolesCacheResponse.Node(id, (String) args[0]));
+        private static final ConstructingObjectParser<ClearRolesCacheResponse.Node, String> PARSER = new ConstructingObjectParser<>(
+            "clear_roles_cache_response_node",
+            false,
+            (args, id) -> new ClearRolesCacheResponse.Node(id, (String) args[0])
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("name"));
@@ -61,8 +63,11 @@ public abstract class SecurityNodesResponse extends NodesResponse {
     }
 
     public static <T extends NodesResponse> void declareCommonNodesResponseParsing(ConstructingObjectParser<T, Void> parser) {
-        parser.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> Node.PARSER.apply(p, n),
-            new ParseField("nodes"));
+        parser.declareNamedObjects(
+            ConstructingObjectParser.constructorArg(),
+            (p, c, n) -> Node.PARSER.apply(p, n),
+            new ParseField("nodes")
+        );
         NodesResponse.declareCommonNodesResponseParsing(parser);
     }
 }

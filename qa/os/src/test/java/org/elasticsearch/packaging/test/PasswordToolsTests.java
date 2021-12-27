@@ -34,14 +34,12 @@ public class PasswordToolsTests extends PackagingTestCase {
 
     @Before
     public void filterDistros() {
-        assumeFalse("no docker", distribution.isDocker());
+        assumeFalse("only archives", distribution.isDocker() || distribution().isPackage());
     }
 
     public void test010Install() throws Exception {
         install();
-        // Enable security for this test only where it is necessary, until we can enable it for all
-        ServerUtils.enableSecurityFeatures(installation);
-        // Disable auto-configuration so that we can run setup-passwords
+        // Disable auto-configuration for archives so that we can run setup-passwords
         ServerUtils.disableSecurityAutoConfiguration(installation);
     }
 

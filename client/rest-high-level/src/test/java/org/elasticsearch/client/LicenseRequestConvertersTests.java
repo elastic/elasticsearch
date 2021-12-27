@@ -8,27 +8,26 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.client.license.StartTrialRequest;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.client.license.StartBasicRequest;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.license.DeleteLicenseRequest;
 import org.elasticsearch.client.license.GetLicenseRequest;
 import org.elasticsearch.client.license.PutLicenseRequest;
+import org.elasticsearch.client.license.StartBasicRequest;
+import org.elasticsearch.client.license.StartTrialRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.nullValue;
 import static org.elasticsearch.client.RequestConvertersTests.setRandomMasterTimeout;
 import static org.elasticsearch.client.RequestConvertersTests.setRandomTimeout;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
-
+import static org.hamcrest.CoreMatchers.nullValue;
 
 public class LicenseRequestConvertersTests extends ESTestCase {
 
@@ -81,9 +80,7 @@ public class LicenseRequestConvertersTests extends ESTestCase {
 
     public void testStartTrial() {
         final boolean acknowledge = randomBoolean();
-        final String licenseType = randomBoolean()
-            ? randomAlphaOfLengthBetween(3, 10)
-            : null;
+        final String licenseType = randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null;
 
         final Map<String, String> expectedParams = new HashMap<>();
         expectedParams.put("acknowledge", Boolean.toString(acknowledge));

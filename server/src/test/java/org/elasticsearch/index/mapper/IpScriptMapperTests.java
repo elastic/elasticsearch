@@ -49,9 +49,7 @@ public class IpScriptMapperTests extends MapperScriptTestCase<IpFieldScript.Fact
 
     @Override
     protected IpFieldScript.Factory errorThrowingScript() {
-        return factory(s -> {
-            throw new UnsupportedOperationException("Oops");
-        });
+        return factory(s -> { throw new UnsupportedOperationException("Oops"); });
     }
 
     @Override

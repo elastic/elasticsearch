@@ -13,20 +13,20 @@ import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistributionType;
-import org.elasticsearch.gradle.internal.Jdk;
-import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
+import org.elasticsearch.gradle.internal.Jdk;
+import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
+import org.elasticsearch.gradle.internal.conventions.GUtils;
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
-import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
-import org.elasticsearch.gradle.util.GradleUtils;
-import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.vagrant.VagrantBasePlugin;
 import org.elasticsearch.gradle.internal.vagrant.VagrantExtension;
-import org.elasticsearch.gradle.internal.conventions.GUtils;
+import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -34,6 +34,8 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Specs;
@@ -67,8 +69,8 @@ import static org.elasticsearch.gradle.internal.vagrant.VagrantMachine.convertWi
  * This class defines gradle tasks for testing our various distribution artifacts.
  */
 public class DistroTestPlugin implements Plugin<Project> {
-    private static final String SYSTEM_JDK_VERSION = "11.0.2+9";
-    private static final String SYSTEM_JDK_VENDOR = "openjdk";
+    private static final String SYSTEM_JDK_VERSION = "17.0.1+12";
+    private static final String SYSTEM_JDK_VENDOR = "adoptium";
     private static final String GRADLE_JDK_VERSION = "16.0.2+7";
     private static final String GRADLE_JDK_VENDOR = "adoptium";
 
@@ -111,7 +113,8 @@ public class DistroTestPlugin implements Plugin<Project> {
             String taskname = destructiveDistroTestTaskName(distribution);
             TaskProvider<?> depsTask = project.getTasks().register(taskname + "#deps");
             // explicitly depend on the archive not on the implicit extracted distribution
-            depsTask.configure(t -> t.dependsOn(distribution.getArchiveDependencies(), examplePlugin));
+            depsTask.configure(t -> t.dependsOn(distribution.getArchiveDependencies()));
+            depsTask.configure(t -> t.dependsOn(examplePlugin.getDependencies()));
             depsTasks.put(taskname, depsTask);
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                 t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);
@@ -310,9 +313,9 @@ public class DistroTestPlugin implements Plugin<Project> {
 
     private static Configuration configureExamplePlugin(Project project) {
         Configuration examplePlugin = project.getConfigurations().create(EXAMPLE_PLUGIN_CONFIGURATION);
+        examplePlugin.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE);
         DependencyHandler deps = project.getDependencies();
-        Map<String, String> examplePluginProject = Map.of("path", ":example-plugins:custom-settings", "configuration", "zip");
-        deps.add(EXAMPLE_PLUGIN_CONFIGURATION, deps.project(examplePluginProject));
+        deps.add(EXAMPLE_PLUGIN_CONFIGURATION, deps.project(Map.of("path", ":plugins:analysis-icu", "configuration", "zip")));
         return examplePlugin;
     }
 
@@ -364,9 +367,12 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
 
         for (Architecture architecture : Architecture.values()) {
-            ALL_INTERNAL.stream().forEach(type -> currentDistros.add(
-                createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
-            ));
+            ALL_INTERNAL.stream()
+                .forEach(
+                    type -> currentDistros.add(
+                        createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
+                    )
+                );
         }
 
         for (Architecture architecture : Architecture.values()) {

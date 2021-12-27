@@ -9,5 +9,4 @@ package org.elasticsearch.client.eql;
 
 import org.elasticsearch.client.Validatable;
 
-public final class EqlStatsRequest implements Validatable {
-}
+public final class EqlStatsRequest implements Validatable {}

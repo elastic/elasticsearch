@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.core.deprecation;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.XContentLocation;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,24 +32,30 @@ public class LoggingDeprecationAccumulationHandler implements DeprecationHandler
     public void logRenamedField(String parserName, Supplier<XContentLocation> location, String oldName, String currentName) {
         LoggingDeprecationHandler.INSTANCE.logRenamedField(parserName, location, oldName, currentName);
         String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-        deprecations.add(LoggerMessageFormat.format("{}Deprecated field [{}] used, expected [{}] instead",
-            new Object[]{prefix, oldName, currentName}));
+        deprecations.add(
+            LoggerMessageFormat.format("{}Deprecated field [{}] used, expected [{}] instead", new Object[] { prefix, oldName, currentName })
+        );
     }
 
     @Override
     public void logReplacedField(String parserName, Supplier<XContentLocation> location, String oldName, String replacedName) {
         LoggingDeprecationHandler.INSTANCE.logReplacedField(parserName, location, oldName, replacedName);
         String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-        deprecations.add(LoggerMessageFormat.format("{}Deprecated field [{}] used, replaced by [{}]",
-            new Object[]{prefix, oldName, replacedName}));
+        deprecations.add(
+            LoggerMessageFormat.format("{}Deprecated field [{}] used, replaced by [{}]", new Object[] { prefix, oldName, replacedName })
+        );
     }
 
     @Override
     public void logRemovedField(String parserName, Supplier<XContentLocation> location, String removedName) {
         LoggingDeprecationHandler.INSTANCE.logRemovedField(parserName, location, removedName);
         String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-        deprecations.add(LoggerMessageFormat.format("{}Deprecated field [{}] used, unused and will be removed entirely",
-            new Object[]{prefix, removedName}));
+        deprecations.add(
+            LoggerMessageFormat.format(
+                "{}Deprecated field [{}] used, unused and will be removed entirely",
+                new Object[] { prefix, removedName }
+            )
+        );
     }
 
     /**

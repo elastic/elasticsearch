@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -25,7 +25,12 @@ public class BertTokenization extends Tokenization {
         ConstructingObjectParser<BertTokenization, Void> parser = new ConstructingObjectParser<>(
             "bert_tokenization",
             ignoreUnknownFields,
-            a -> new BertTokenization((Boolean) a[0], (Boolean) a[1], (Integer) a[2])
+            a -> new BertTokenization(
+                (Boolean) a[0],
+                (Boolean) a[1],
+                (Integer) a[2],
+                a[3] == null ? null : Truncate.fromString((String) a[3])
+            )
         );
         Tokenization.declareCommonFields(parser);
         return parser;
@@ -38,8 +43,13 @@ public class BertTokenization extends Tokenization {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
 
-    public BertTokenization(@Nullable Boolean doLowerCase, @Nullable Boolean withSpecialTokens, @Nullable Integer maxSequenceLength) {
-        super(doLowerCase, withSpecialTokens, maxSequenceLength);
+    public BertTokenization(
+        @Nullable Boolean doLowerCase,
+        @Nullable Boolean withSpecialTokens,
+        @Nullable Integer maxSequenceLength,
+        @Nullable Truncate truncate
+    ) {
+        super(doLowerCase, withSpecialTokens, maxSequenceLength, truncate);
     }
 
     public BertTokenization(StreamInput in) throws IOException {

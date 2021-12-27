@@ -31,6 +31,7 @@ import java.util.Map;
 public class ESPolicyUnitTests extends ESTestCase {
 
     static final Map<String, URL> TEST_CODEBASES = BootstrapForTesting.getCodebases();
+
     /**
      * Test policy with null codesource.
      * <p>
@@ -61,8 +62,12 @@ public class ESPolicyUnitTests extends ESTestCase {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         PermissionCollection noPermissions = new Permissions();
         ESPolicy policy = new ESPolicy(TEST_CODEBASES, noPermissions, Collections.emptyMap(), true, new Permissions());
-        assertFalse(policy.implies(new ProtectionDomain(new CodeSource(null, (Certificate[]) null), noPermissions),
-                new FilePermission("foo", "read")));
+        assertFalse(
+            policy.implies(
+                new ProtectionDomain(new CodeSource(null, (Certificate[]) null), noPermissions),
+                new FilePermission("foo", "read")
+            )
+        );
     }
 
     public void testListen() {
@@ -72,7 +77,9 @@ public class ESPolicyUnitTests extends ESTestCase {
         assertFalse(
             policy.implies(
                 new ProtectionDomain(ESPolicyUnitTests.class.getProtectionDomain().getCodeSource(), noPermissions),
-                new SocketPermission("localhost:" + randomFrom(0, randomIntBetween(49152, 65535)), "listen")));
+                new SocketPermission("localhost:" + randomFrom(0, randomIntBetween(49152, 65535)), "listen")
+            )
+        );
     }
 
     @SuppressForbidden(reason = "to create FilePermission object")
@@ -83,7 +90,9 @@ public class ESPolicyUnitTests extends ESTestCase {
         final ESPolicy policy = new ESPolicy(TEST_CODEBASES, new Permissions(), Collections.emptyMap(), true, dataPathPermission);
         assertTrue(
             policy.implies(
-                    new ProtectionDomain(new CodeSource(null, (Certificate[]) null), new Permissions()),
-                    new FilePermission("/home/elasticsearch/data/index/file.si", "read")));
+                new ProtectionDomain(new CodeSource(null, (Certificate[]) null), new Permissions()),
+                new FilePermission("/home/elasticsearch/data/index/file.si", "read")
+            )
+        );
     }
 }

@@ -7,17 +7,17 @@
  */
 package org.elasticsearch.client.ml.inference.trainedmodel.langident;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Represents a single layer in the compressed Lang Net
@@ -35,11 +35,8 @@ public class LangNetLayer implements ToXContentObject {
     public static final ConstructingObjectParser<LangNetLayer, Void> PARSER = new ConstructingObjectParser<>(
         NAME.getPreferredName(),
         true,
-        a -> new LangNetLayer(
-            (List<Double>) a[0],
-            (int) a[1],
-            (int) a[2],
-            (List<Double>) a[3]));
+        a -> new LangNetLayer((List<Double>) a[0], (int) a[1], (int) a[2], (List<Double>) a[3])
+    );
 
     static {
         PARSER.declareDoubleArray(constructorArg(), WEIGHTS);
@@ -54,10 +51,12 @@ public class LangNetLayer implements ToXContentObject {
     private final double[] bias;
 
     private LangNetLayer(List<Double> weights, int numCols, int numRows, List<Double> bias) {
-        this(weights.stream().mapToDouble(Double::doubleValue).toArray(),
+        this(
+            weights.stream().mapToDouble(Double::doubleValue).toArray(),
             numCols,
             numRows,
-            bias.stream().mapToDouble(Double::doubleValue).toArray());
+            bias.stream().mapToDouble(Double::doubleValue).toArray()
+        );
     }
 
     LangNetLayer(double[] weights, int numCols, int numRows, double[] bias) {

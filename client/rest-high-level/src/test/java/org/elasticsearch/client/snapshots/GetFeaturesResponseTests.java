@@ -10,8 +10,8 @@ package org.elasticsearch.client.snapshots;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.feature.GetFeaturesResponse;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -23,7 +23,8 @@ import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 
 public class GetFeaturesResponseTests extends AbstractResponseTestCase<
-    org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse, GetFeaturesResponse> {
+    org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse,
+    GetFeaturesResponse> {
 
     @Override
     protected org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse createServerTestInstance(

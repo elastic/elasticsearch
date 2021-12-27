@@ -14,7 +14,7 @@ import static org.elasticsearch.xpack.eql.RemoteClusterTestUtils.remoteClusterIn
 
 public class EqlDateNanosIT extends EqlDateNanosSpecTestCase {
 
-    public EqlDateNanosIT(String query, String name, long[] eventIds) {
-        super(remoteClusterIndex(TEST_NANOS_INDEX), query, name, eventIds);
+    public EqlDateNanosIT(String query, String name, long[] eventIds, String[] joinKeys) {
+        super(remoteClusterIndex(TEST_NANOS_INDEX), query, name, eventIds, joinKeys);
     }
 }

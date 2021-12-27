@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 
 import java.io.IOException;
@@ -61,11 +61,18 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
             b.field("store", true);
         }));
 
-        SourceToParse sourceToParse = source(b ->
-             b.startArray(FIELD_NAME)
-            .startObject().field("x", 1.2).field("y", 1.3).endObject()
-            .startObject().field("x", 1.4).field("y", 1.5).endObject()
-            .endArray());
+        SourceToParse sourceToParse = source(
+            b -> b.startArray(FIELD_NAME)
+                .startObject()
+                .field("x", 1.2)
+                .field("y", 1.3)
+                .endObject()
+                .startObject()
+                .field("x", 1.4)
+                .field("y", 1.5)
+                .endObject()
+                .endArray()
+        );
         ParsedDocument doc = mapper.parse(sourceToParse);
 
         // doc values are enabled by default, but in this test we disable them; we should only have 2 points
@@ -79,7 +86,6 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         ParsedDocument doc = mapper.parse(sourceToParse);
         assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
     }
-
 
     public void testInOneValueStored() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
@@ -147,11 +153,18 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
             b.field("doc_values", false);
         }));
 
-        SourceToParse sourceToParse = source(b ->
-            b.startArray(FIELD_NAME)
-                .startArray().value(1.3).value(1.2).endArray()
-                .startArray().value(1.5).value(1.4).endArray()
-                .endArray());
+        SourceToParse sourceToParse = source(
+            b -> b.startArray(FIELD_NAME)
+                .startArray()
+                .value(1.3)
+                .value(1.2)
+                .endArray()
+                .startArray()
+                .value(1.5)
+                .value(1.4)
+                .endArray()
+                .endArray()
+        );
         ParsedDocument doc = mapper.parse(sourceToParse);
 
         assertThat(doc.rootDoc().getFields(FIELD_NAME), notNullValue());

@@ -307,6 +307,19 @@ public class OsProbeTests extends ESTestCase {
         assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(memTotalInKb * 1024L));
     }
 
+    public void testTotalMemoryOverride() {
+        assertThat(OsProbe.getTotalMemoryOverride("123456789"), is(123456789L));
+        assertThat(OsProbe.getTotalMemoryOverride("123456789123456789"), is(123456789123456789L));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> OsProbe.getTotalMemoryOverride("-1"));
+        assertThat(e.getMessage(), is("Negative memory size specified in [es.total_memory_bytes]: [-1]"));
+        e = expectThrows(IllegalArgumentException.class, () -> OsProbe.getTotalMemoryOverride("abc"));
+        assertThat(e.getMessage(), is("Invalid value for [es.total_memory_bytes]: [abc]"));
+        // Although numeric, this value overflows long. This won't be a problem in practice for sensible
+        // overrides, as it will be a very long time before machines have more than 8 exabytes of RAM.
+        e = expectThrows(IllegalArgumentException.class, () -> OsProbe.getTotalMemoryOverride("123456789123456789123456789"));
+        assertThat(e.getMessage(), is("Invalid value for [es.total_memory_bytes]: [123456789123456789123456789]"));
+    }
+
     public void testGetTotalMemoryOnDebian8() throws Exception {
         // tests the workaround for JDK bug on debian8: https://github.com/elastic/elasticsearch/issues/67089#issuecomment-756114654
         final OsProbe osProbe = new OsProbe();

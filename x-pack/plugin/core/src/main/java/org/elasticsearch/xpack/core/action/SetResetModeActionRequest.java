@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -34,9 +34,10 @@ public class SetResetModeActionRequest extends AcknowledgedRequest<SetResetModeA
 
     private static final ParseField ENABLED = new ParseField("enabled");
     private static final ParseField DELETE_METADATA = new ParseField("delete_metadata");
-    public static final ConstructingObjectParser<SetResetModeActionRequest, Void> PARSER =
-        new ConstructingObjectParser<>("set_reset_mode_action_request",
-            a -> new SetResetModeActionRequest((Boolean)a[0], (Boolean)a[1]));
+    public static final ConstructingObjectParser<SetResetModeActionRequest, Void> PARSER = new ConstructingObjectParser<>(
+        "set_reset_mode_action_request",
+        a -> new SetResetModeActionRequest((Boolean) a[0], (Boolean) a[1])
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED);
@@ -88,8 +89,7 @@ public class SetResetModeActionRequest extends AcknowledgedRequest<SetResetModeA
             return false;
         }
         SetResetModeActionRequest other = (SetResetModeActionRequest) obj;
-        return Objects.equals(enabled, other.enabled)
-            && Objects.equals(deleteMetadata, other.deleteMetadata);
+        return Objects.equals(enabled, other.enabled) && Objects.equals(deleteMetadata, other.deleteMetadata);
     }
 
     @Override

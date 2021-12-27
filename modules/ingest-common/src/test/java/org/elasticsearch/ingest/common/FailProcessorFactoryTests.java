@@ -43,18 +43,20 @@ public class FailProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[message] required property is missing"));
         }
     }
 
     public void testInvalidMustacheTemplate() throws Exception {
-        FailProcessor.Factory factory = new FailProcessor.Factory(TestTemplateService.instance(true));
+        factory = new FailProcessor.Factory(TestTemplateService.instance(true));
         Map<String, Object> config = new HashMap<>();
         config.put("message", "{{error}}");
         String processorTag = randomAlphaOfLength(10);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag,
-            null, config));
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> factory.create(null, processorTag, null, config)
+        );
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
         assertThat(exception.getMetadata("es.processor_tag").get(0), equalTo(processorTag));
     }

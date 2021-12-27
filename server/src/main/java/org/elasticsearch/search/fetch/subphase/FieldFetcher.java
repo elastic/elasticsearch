@@ -10,10 +10,10 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedValueFetcher;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -44,16 +44,19 @@ public class FieldFetcher {
      */
     private static final int AUTOMATON_MAX_DETERMINIZED_STATES = 100000;
 
-    public static FieldFetcher create(SearchExecutionContext context,
-        Collection<FieldAndFormat> fieldAndFormats) {
+    public static FieldFetcher create(SearchExecutionContext context, Collection<FieldAndFormat> fieldAndFormats) {
         Set<String> nestedMappingPaths = context.hasNested()
             ? context.nestedMappings().stream().map(ObjectMapper::name).collect(Collectors.toSet())
             : Collections.emptySet();
         return create(context, fieldAndFormats, nestedMappingPaths, "");
     }
 
-    private static FieldFetcher create(SearchExecutionContext context,
-        Collection<FieldAndFormat> fieldAndFormats, Set<String> nestedMappingsInScope, String nestedScopePath) {
+    private static FieldFetcher create(
+        SearchExecutionContext context,
+        Collection<FieldAndFormat> fieldAndFormats,
+        Set<String> nestedMappingsInScope,
+        String nestedScopePath
+    ) {
         // here we only need the nested paths that are closes to the root, e.g. only "foo" if also "foo.bar" is present.
         // the remaining nested field paths are handled recursively
         Set<String> nestedParentPaths = getParentPaths(nestedMappingsInScope, context);
@@ -167,9 +170,10 @@ public class FieldFetcher {
             String field = context.fieldName;
 
             ValueFetcher valueFetcher = context.valueFetcher;
-            List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup);
-            if (parsedValues.isEmpty() == false) {
-                documentFields.put(field, new DocumentField(field, parsedValues));
+            List<Object> ignoredValues = new ArrayList<>();
+            List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup, ignoredValues);
+            if (parsedValues.isEmpty() == false || ignoredValues.isEmpty() == false) {
+                documentFields.put(field, new DocumentField(field, parsedValues, ignoredValues));
             }
         }
         collectUnmapped(documentFields, sourceLookup.source(), "", 0);
@@ -241,12 +245,7 @@ public class FieldFetcher {
             if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
                 final Map<String, Object> objectMap = (Map<String, Object>) value;
-                collectUnmapped(
-                    documentFields,
-                    objectMap,
-                    parentPath + ".",
-                    step(this.unmappedFieldsFetchAutomaton, ".", lastState)
-                );
+                collectUnmapped(documentFields, objectMap, parentPath + ".", step(this.unmappedFieldsFetchAutomaton, ".", lastState));
             } else if (value instanceof List) {
                 // weird case, but can happen for objects with "enabled" : "false"
                 collectUnmappedList(documentFields, (List<?>) value, parentPath, lastState);
@@ -294,8 +293,7 @@ public class FieldFetcher {
         final String fieldName;
         final ValueFetcher valueFetcher;
 
-        FieldContext(String fieldName,
-                     ValueFetcher valueFetcher) {
+        FieldContext(String fieldName, ValueFetcher valueFetcher) {
             this.fieldName = fieldName;
             this.valueFetcher = valueFetcher;
         }

@@ -60,13 +60,15 @@ public class InvalidateTokenRequestTests extends ESTestCase {
         assertThat(request.getRefreshToken(), nullValue());
         assertThat(request.getRealmName(), equalTo(realmName));
         assertThat(request.getUsername(), equalTo(username));
-        assertThat(Strings.toString(request), equalTo("{\"realm_name\":\"native\",\"username\":\"user\"}"));
+        assertThat(Strings.toString(request), equalTo("""
+            {"realm_name":"native","username":"user"}"""));
     }
 
     public void testEqualsAndHashCode() {
         final String token = randomAlphaOfLength(8);
         final boolean accessToken = randomBoolean();
-        final InvalidateTokenRequest request = accessToken ? InvalidateTokenRequest.accessToken(token)
+        final InvalidateTokenRequest request = accessToken
+            ? InvalidateTokenRequest.accessToken(token)
             : InvalidateTokenRequest.refreshToken(token);
         final EqualsHashCodeTestUtils.MutateFunction<InvalidateTokenRequest> mutate = r -> {
             int randomCase = randomIntBetween(1, 4);
@@ -83,7 +85,10 @@ public class InvalidateTokenRequestTests extends ESTestCase {
                     return new InvalidateTokenRequest(null, null, randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
         };
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(request,
-            r -> new InvalidateTokenRequest(r.getAccessToken(), r.getRefreshToken()), mutate);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            request,
+            r -> new InvalidateTokenRequest(r.getAccessToken(), r.getRefreshToken()),
+            mutate
+        );
     }
 }

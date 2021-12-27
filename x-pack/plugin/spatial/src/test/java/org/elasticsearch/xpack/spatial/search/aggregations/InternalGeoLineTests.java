@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
 import java.io.IOException;
@@ -161,12 +161,12 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
 
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(super.getNamedXContents(), new NamedXContentRegistry.Entry(Aggregation.class,
-                new ParseField(GeoLineAggregationBuilder.NAME),
-                (p, c) -> {
-                    assumeTrue("There is no ParsedGeoLine yet", false);
-                    return null;
-                }
-        ));
+        return CollectionUtils.appendToCopy(
+            super.getNamedXContents(),
+            new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(GeoLineAggregationBuilder.NAME), (p, c) -> {
+                assumeTrue("There is no ParsedGeoLine yet", false);
+                return null;
+            })
+        );
     }
 }

@@ -19,6 +19,7 @@ import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
@@ -56,8 +57,9 @@ final class ShardSplittingQuery extends Query {
         this.indexMetadata = indexMetadata;
         this.indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         this.shardId = shardId;
-        this.nestedParentBitSetProducer =  hasNested ? newParentDocBitSetProducer() : null;
+        this.nestedParentBitSetProducer = hasNested ? newParentDocBitSetProducer() : null;
     }
+
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
         return new ConstantScoreWeight(this, boost) {
@@ -72,7 +74,8 @@ final class ShardSplittingQuery extends Query {
                 FixedBitSet bitSet = new FixedBitSet(leafReader.maxDoc());
                 Terms terms = leafReader.terms(RoutingFieldMapper.NAME);
                 Predicate<BytesRef> includeInShard = ref -> {
-                    int targetShardId = indexRouting.shardId(Uid.decodeId(ref.bytes, ref.offset, ref.length), null);
+                    // TODO IndexRouting should build the query somehow
+                    int targetShardId = indexRouting.getShard(Uid.decodeId(ref.bytes, ref.offset, ref.length), null);
                     return shardId == targetShardId;
                 };
                 if (terms == null) {
@@ -95,9 +98,9 @@ final class ShardSplittingQuery extends Query {
                         // this is the heaviest invariant. Here we have to visit all docs stored fields do extract _id and _routing
                         // this this index is routing partitioned.
                         Visitor visitor = new Visitor(leafReader);
-                        TwoPhaseIterator twoPhaseIterator =
-                            parentBitSet == null ? new RoutingPartitionedDocIdSetIterator(visitor) :
-                                new NestedRoutingPartitionedDocIdSetIterator(visitor, parentBitSet);
+                        TwoPhaseIterator twoPhaseIterator = parentBitSet == null
+                            ? new RoutingPartitionedDocIdSetIterator(visitor)
+                            : new NestedRoutingPartitionedDocIdSetIterator(visitor, parentBitSet);
                         return new ConstantScoreScorer(this, score(), scoreMode, twoPhaseIterator);
                     } else {
                         // here we potentially guard the docID consumers with our parent bitset if we have one.
@@ -115,7 +118,7 @@ final class ShardSplittingQuery extends Query {
                         };
                         // in the _routing case we first go and find all docs that have a routing value and mark the ones we have to delete
                         findSplitDocs(RoutingFieldMapper.NAME, ref -> {
-                            int targetShardId = indexRouting.shardId(null, ref.utf8ToString());
+                            int targetShardId = indexRouting.getShard(null, ref.utf8ToString());
                             return shardId == targetShardId;
                         }, leafReader, maybeWrapConsumer.apply(bitSet::set));
 
@@ -153,9 +156,9 @@ final class ShardSplittingQuery extends Query {
 
     private void markChildDocs(BitSet parentDocs, BitSet matchingDocs) {
         int currentDeleted = 0;
-        while (currentDeleted < matchingDocs.length() &&
-            (currentDeleted = matchingDocs.nextSetBit(currentDeleted)) != DocIdSetIterator.NO_MORE_DOCS) {
-            int previousParent = parentDocs.prevSetBit(Math.max(0, currentDeleted-1));
+        while (currentDeleted < matchingDocs.length()
+            && (currentDeleted = matchingDocs.nextSetBit(currentDeleted)) != DocIdSetIterator.NO_MORE_DOCS) {
+            int previousParent = parentDocs.prevSetBit(Math.max(0, currentDeleted - 1));
             for (int i = previousParent + 1; i < currentDeleted; i++) {
                 matchingDocs.set(i);
             }
@@ -186,8 +189,13 @@ final class ShardSplittingQuery extends Query {
         return classHash() ^ result;
     }
 
-    private static void findSplitDocs(String idField, Predicate<BytesRef> includeInShard, LeafReader leafReader,
-                                      IntConsumer consumer) throws IOException {
+    @Override
+    public void visit(QueryVisitor visitor) {
+        visitor.visitLeaf(this);
+    }
+
+    private static void findSplitDocs(String idField, Predicate<BytesRef> includeInShard, LeafReader leafReader, IntConsumer consumer)
+        throws IOException {
         Terms terms = leafReader.terms(idField);
         TermsEnum iterator = terms.iterator();
         BytesRef idTerm;
@@ -228,13 +236,10 @@ final class ShardSplittingQuery extends Query {
         }
 
         @Override
-        public void stringField(FieldInfo fieldInfo, byte[] value) throws IOException {
-            spare.bytes = value;
-            spare.offset = 0;
-            spare.length = value.length;
+        public void stringField(FieldInfo fieldInfo, String value) throws IOException {
             switch (fieldInfo.name) {
                 case RoutingFieldMapper.NAME:
-                    routing = spare.utf8ToString();
+                    routing = value;
                     break;
                 default:
                     throw new IllegalStateException("Unexpected field: " + fieldInfo.name);
@@ -259,7 +264,7 @@ final class ShardSplittingQuery extends Query {
             leftToVisit = 2;
             leafReader.document(doc, this);
             assert id != null : "docID must not be null - we might have hit a nested document";
-            int targetShardId = indexRouting.shardId(id, routing);
+            int targetShardId = indexRouting.getShard(id, routing);
             return targetShardId != shardId;
         }
     }
@@ -331,5 +336,3 @@ final class ShardSplittingQuery extends Query {
         return context -> BitsetFilterCache.bitsetFromQuery(Queries.newNonNestedFilter(), context);
     }
 }
-
-

@@ -25,12 +25,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
@@ -313,11 +313,10 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
     }
 
     private static void createPipeline() {
-        String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\""
-            + POLICY_NAME
-            + "\", \"field\": \""
-            + MATCH_FIELD
-            + "\", \"target_field\": \"user\"}}]}";
+        String pipelineBody = """
+            {
+              "processors": [ { "enrich": { "policy_name": "%s", "field": "%s", "target_field": "user" } } ]
+            }""".formatted(POLICY_NAME, MATCH_FIELD);
         PutPipelineRequest request = new PutPipelineRequest(PIPELINE_NAME, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(request).actionGet();
     }

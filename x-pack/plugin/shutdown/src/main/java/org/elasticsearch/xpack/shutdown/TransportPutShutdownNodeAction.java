@@ -69,19 +69,6 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                     currentShutdownMetadata = new NodesShutdownMetadata(new HashMap<>());
                 }
 
-                // Verify that there's not already a shutdown metadata for this node
-                SingleNodeShutdownMetadata existingRecord = currentShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId());
-                if (existingRecord != null) {
-                    logger.info(
-                        "updating existing shutdown record for node [{}] of type [{}] with reason [{}] with new type [{}] and reason [{}]",
-                        existingRecord.getNodeId(),
-                        existingRecord.getType(),
-                        existingRecord.getReason(),
-                        request.getType(),
-                        request.getReason()
-                    );
-                }
-
                 final boolean nodeSeen = currentState.getNodes().nodeExists(request.getNodeId());
 
                 SingleNodeShutdownMetadata newNodeMetadata = SingleNodeShutdownMetadata.builder()
@@ -93,6 +80,14 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                     .setAllocationDelay(request.getAllocationDelay())
                     .setTargetNodeName(request.getTargetNodeName())
                     .build();
+
+                // Verify that there's not already a shutdown metadata for this node
+                SingleNodeShutdownMetadata existingRecord = currentShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId());
+                if (existingRecord != null) {
+                    logger.info("updating existing shutdown record {} with new record {}", existingRecord, newNodeMetadata);
+                } else {
+                    logger.info("creating shutdown record {}", newNodeMetadata);
+                }
 
                 return ClusterState.builder(currentState)
                     .metadata(

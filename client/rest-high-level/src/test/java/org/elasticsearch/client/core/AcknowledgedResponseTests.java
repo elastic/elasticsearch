@@ -8,15 +8,16 @@
 package org.elasticsearch.client.core;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
 
-public class AcknowledgedResponseTests extends AbstractResponseTestCase<org.elasticsearch.action.support.master.AcknowledgedResponse,
+public class AcknowledgedResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.action.support.master.AcknowledgedResponse,
     AcknowledgedResponse> {
 
     @Override
@@ -30,8 +31,10 @@ public class AcknowledgedResponseTests extends AbstractResponseTestCase<org.elas
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.action.support.master.AcknowledgedResponse serverTestInstance,
-                                   AcknowledgedResponse clientInstance) {
+    protected void assertInstances(
+        org.elasticsearch.action.support.master.AcknowledgedResponse serverTestInstance,
+        AcknowledgedResponse clientInstance
+    ) {
         assertThat(clientInstance.isAcknowledged(), is(serverTestInstance.isAcknowledged()));
     }
 

@@ -18,6 +18,7 @@ export ES_PATH_CONF=${ES_PATH_CONF:-@path.conf@}
 
 REMOVE_DIRS=false
 REMOVE_JVM_OPTIONS_DIRECTORY=false
+REMOVE_SECURITY_AUTO_CONFIG_DIRECTORY=false
 REMOVE_ELASTICSEARCH_KEYSTORE=false
 REMOVE_USER_AND_GROUP=false
 
@@ -31,6 +32,7 @@ case "$1" in
     purge)
         REMOVE_DIRS=true
         REMOVE_JVM_OPTIONS_DIRECTORY=true
+        REMOVE_SECURITY_AUTO_CONFIG_DIRECTORY=true
         REMOVE_ELASTICSEARCH_KEYSTORE=true
         REMOVE_USER_AND_GROUP=true
     ;;
@@ -97,6 +99,16 @@ if [ "$REMOVE_DIRS" = "true" ]; then
         rm -rf "${ES_PATH_CONF}/jvm.options.d"
         echo " OK"
       fi
+    fi
+
+    # delete the security auto config directory if we are purging
+    if [ "$REMOVE_SECURITY_AUTO_CONFIG_DIRECTORY" = "true" ]; then
+      for dir in "${ES_PATH_CONF}"/tls_auto_config_*
+      do
+        echo -n "Deleting security auto-configuration directory..."
+        rm -rf "${dir}"
+        echo "OK"
+      done
     fi
 
     # delete the elasticsearch keystore if we are purging

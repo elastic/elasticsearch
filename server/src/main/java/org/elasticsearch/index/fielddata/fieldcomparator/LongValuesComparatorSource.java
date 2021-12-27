@@ -42,14 +42,24 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     private final Function<SortedNumericDocValues, SortedNumericDocValues> converter;
     private final NumericType targetNumericType;
 
-    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue,
-                                      MultiValueMode sortMode, Nested nested, NumericType targetNumericType) {
+    public LongValuesComparatorSource(
+        IndexNumericFieldData indexFieldData,
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        NumericType targetNumericType
+    ) {
         this(indexFieldData, missingValue, sortMode, nested, null, targetNumericType);
     }
 
-    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue,
-                                      MultiValueMode sortMode, Nested nested,
-                                      Function<SortedNumericDocValues, SortedNumericDocValues> converter, NumericType targetNumericType) {
+    public LongValuesComparatorSource(
+        IndexNumericFieldData indexFieldData,
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        Function<SortedNumericDocValues, SortedNumericDocValues> converter,
+        NumericType targetNumericType
+    ) {
         super(missingValue, sortMode, nested);
         this.indexFieldData = indexFieldData;
         this.converter = converter;
@@ -90,7 +100,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         final long lMissingValue = (Long) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new LongComparator(numHits, null, null, reversed, sortPos) {
+        LongComparator comparator = new LongComparator(numHits, null, null, reversed, sortPos) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new LongLeafComparator(context) {
@@ -101,11 +111,19 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                 };
             }
         };
+        // TODO: when LUCENE-10154 is available, instead of disableSkipping this comparator should implement `getPointValue`
+        comparator.disableSkipping();
+        return comparator;
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
-            int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         return new BucketedSort.ForLongs(bigArrays, sortOrder, format, bucketSize, extra) {
             private final long lMissingValue = (Long) missingObject(missingValue, sortOrder == SortOrder.DESC);
 

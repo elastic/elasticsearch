@@ -21,7 +21,7 @@ import java.util.Objects;
  * Pattern converter to format the trace id provided in the traceparent header into JSON fields <code>trace.id</code>.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "TraceIdConverter")
-@ConverterKeys({"trace_id"})
+@ConverterKeys({ "trace_id" })
 public final class TraceIdConverter extends LogEventPatternConverter {
     /**
      * Called by log4j2 to initialize this converter.

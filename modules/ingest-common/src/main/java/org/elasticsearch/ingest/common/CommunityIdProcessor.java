@@ -160,10 +160,19 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         Object destinationPort,
         Object icmpType,
         Object icmpCode,
-        int seed) {
+        int seed
+    ) {
 
-        Flow flow = buildFlow(sourceIpAddrString, destIpAddrString, ianaNumber, () -> transport, () -> sourcePort, () -> destinationPort,
-            icmpType, icmpCode);
+        Flow flow = buildFlow(
+            sourceIpAddrString,
+            destIpAddrString,
+            ianaNumber,
+            () -> transport,
+            () -> sourcePort,
+            () -> destinationPort,
+            icmpType,
+            icmpCode
+        );
 
         if (flow == null) {
             throw new IllegalArgumentException("unable to construct flow from document");
@@ -180,13 +189,21 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         Object sourcePort,
         Object destinationPort,
         Object icmpType,
-        Object icmpCode) {
+        Object icmpCode
+    ) {
         return apply(sourceIpAddrString, destIpAddrString, ianaNumber, transport, sourcePort, destinationPort, icmpType, icmpCode, 0);
     }
 
-    private static Flow buildFlow(String sourceIpAddrString, String destIpAddrString, Object ianaNumber,
-        Supplier<Object> transport, Supplier<Object> sourcePort, Supplier<Object> destinationPort,
-        Object icmpType, Object icmpCode) {
+    private static Flow buildFlow(
+        String sourceIpAddrString,
+        String destIpAddrString,
+        Object ianaNumber,
+        Supplier<Object> transport,
+        Supplier<Object> sourcePort,
+        Supplier<Object> destinationPort,
+        Object icmpType,
+        Object icmpCode
+    ) {
         if (sourceIpAddrString == null) {
             return null;
         }
@@ -254,11 +271,11 @@ public final class CommunityIdProcessor extends AbstractProcessor {
     static int parseIntFromObjectOrString(Object o, String fieldName) {
         if (o == null) {
             return 0;
-        } else if (o instanceof Number) {
-            return ((Number) o).intValue();
-        } else if (o instanceof String) {
+        } else if (o instanceof Number number) {
+            return number.intValue();
+        } else if (o instanceof String string) {
             try {
-                return Integer.parseInt((String) o);
+                return Integer.parseInt(string);
             } catch (NumberFormatException e) {
                 // fall through to IllegalArgumentException below
             }
@@ -451,11 +468,9 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         }
 
         public static Transport fromObject(Object o) {
-            if (o instanceof Number) {
-                return fromNumber(((Number) o).intValue());
-            } else if (o instanceof String) {
-                String protocolStr = (String) o;
-
+            if (o instanceof Number number) {
+                return fromNumber(number.intValue());
+            } else if (o instanceof String protocolStr) {
                 // check if matches protocol name
                 if (TRANSPORT_NAMES.containsKey(protocolStr.toLowerCase(Locale.ROOT))) {
                     return TRANSPORT_NAMES.get(protocolStr.toLowerCase(Locale.ROOT));

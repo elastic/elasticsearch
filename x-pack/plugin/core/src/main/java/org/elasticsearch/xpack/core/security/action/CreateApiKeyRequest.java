@@ -11,11 +11,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -58,8 +58,12 @@ public final class CreateApiKeyRequest extends ActionRequest {
         this(name, roleDescriptors, expiration, null);
     }
 
-    public CreateApiKeyRequest(String name, @Nullable List<RoleDescriptor> roleDescriptors, @Nullable TimeValue expiration,
-                               @Nullable Map<String, Object> metadata) {
+    public CreateApiKeyRequest(
+        String name,
+        @Nullable List<RoleDescriptor> roleDescriptors,
+        @Nullable TimeValue expiration,
+        @Nullable Map<String, Object> metadata
+    ) {
         this();
         this.name = name;
         this.roleDescriptors = (roleDescriptors == null) ? List.of() : List.copyOf(roleDescriptors);
@@ -154,8 +158,10 @@ public final class CreateApiKeyRequest extends ActionRequest {
             }
         }
         if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {
-            validationException =
-                addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]", validationException);
+            validationException = addValidationError(
+                "metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
+                validationException
+            );
         }
         return validationException;
     }

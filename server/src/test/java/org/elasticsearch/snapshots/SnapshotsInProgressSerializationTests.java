@@ -21,8 +21,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -31,6 +30,8 @@ import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.AbstractDiffableWireSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,7 +43,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -51,11 +52,11 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
     @Override
     protected Custom createTestInstance() {
         int numberOfSnapshots = randomInt(10);
-        List<Entry> entries = new ArrayList<>();
+        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.EMPTY;
         for (int i = 0; i < numberOfSnapshots; i++) {
-            entries.add(randomSnapshot());
+            snapshotsInProgress.withAddedEntry(randomSnapshot());
         }
-        return SnapshotsInProgress.of(entries);
+        return snapshotsInProgress;
     }
 
     private Entry randomSnapshot() {
@@ -121,30 +122,43 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
 
     @Override
     protected Custom makeTestChanges(Custom testInstance) {
-        SnapshotsInProgress snapshots = (SnapshotsInProgress) testInstance;
-        List<Entry> entries = new ArrayList<>(snapshots.entries());
-        if (randomBoolean() && entries.size() > 1) {
+        final SnapshotsInProgress snapshots = (SnapshotsInProgress) testInstance;
+        SnapshotsInProgress updatedInstance = SnapshotsInProgress.EMPTY;
+        if (randomBoolean() && snapshots.count() > 1) {
             // remove some elements
-            int leaveElements = randomIntBetween(0, entries.size() - 1);
-            entries = randomSubsetOf(leaveElements, entries.toArray(new Entry[leaveElements]));
+            int leaveElements = randomIntBetween(0, snapshots.count() - 1);
+            for (List<Entry> entriesForRepo : snapshots.entriesByRepo()) {
+                for (Entry entry : entriesForRepo) {
+                    if (updatedInstance.count() == leaveElements) {
+                        break;
+                    }
+                    if (randomBoolean()) {
+                        updatedInstance = updatedInstance.withAddedEntry(entry);
+                    }
+                }
+            }
         }
         if (randomBoolean()) {
             // add some elements
             int addElements = randomInt(10);
             for (int i = 0; i < addElements; i++) {
-                entries.add(randomSnapshot());
+                updatedInstance = updatedInstance.withAddedEntry(randomSnapshot());
             }
         }
         if (randomBoolean()) {
             // modify some elements
-            for (int i = 0; i < entries.size(); i++) {
-                if (randomBoolean()) {
-                    final Entry entry = entries.get(i);
-                    entries.set(i, mutateEntry(entry));
+            for (List<Entry> perRepoEntries : updatedInstance.entriesByRepo()) {
+                final List<Entry> entries = new ArrayList<>(perRepoEntries);
+                for (int i = 0; i < entries.size(); i++) {
+                    if (randomBoolean()) {
+                        final Entry entry = entries.get(i);
+                        entries.set(i, mutateEntry(entry));
+                    }
                 }
+                updatedInstance = updatedInstance.withUpdatedEntriesForRepo(perRepoEntries.get(0).repository(), entries);
             }
         }
-        return SnapshotsInProgress.of(entries);
+        return updatedInstance;
     }
 
     @Override
@@ -159,22 +173,22 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
 
     @Override
     protected Custom mutateInstance(Custom instance) {
-        List<Entry> entries = new ArrayList<>(((SnapshotsInProgress) instance).entries());
-        if (false || entries.isEmpty()) {
+        final SnapshotsInProgress snapshotsInProgress = (SnapshotsInProgress) instance;
+        if (snapshotsInProgress.isEmpty()) {
             // add or remove an entry
-            boolean addEntry = entries.isEmpty() ? true : randomBoolean();
-            if (addEntry) {
-                entries.add(randomSnapshot());
-            } else {
-                entries.remove(randomIntBetween(0, entries.size() - 1));
-            }
+            return snapshotsInProgress.withAddedEntry(randomSnapshot());
         } else {
             // mutate an entry
-            int index = randomIntBetween(0, entries.size() - 1);
-            Entry entry = entries.get(index);
-            entries.set(index, mutateEntry(entry));
+            final String repo = randomFrom(
+                snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::repository).collect(Collectors.toSet())
+            );
+            final List<Entry> forRepo = snapshotsInProgress.forRepo(repo);
+            int index = randomIntBetween(0, forRepo.size() - 1);
+            Entry entry = forRepo.get(index);
+            final List<Entry> updatedEntries = new ArrayList<>(forRepo);
+            updatedEntries.set(index, mutateEntry(entry));
+            return snapshotsInProgress.withUpdatedEntriesForRepo(repo, updatedEntries);
         }
-        return SnapshotsInProgress.of(entries);
     }
 
     private Entry mutateEntry(Entry entry) {
@@ -360,40 +374,38 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
 
     public void testXContent() throws IOException {
         final IndexId indexId = new IndexId("index", "uuid");
-        SnapshotsInProgress sip = SnapshotsInProgress.of(
-            Collections.singletonList(
-                new Entry(
-                    new Snapshot("repo", new SnapshotId("name", "uuid")),
-                    true,
-                    true,
-                    State.SUCCESS,
-                    Collections.singletonMap(indexId.getName(), indexId),
-                    Collections.emptyList(),
-                    Collections.emptyList(),
-                    1234567,
-                    0,
-                    ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder()
-                        .fPut(
-                            new ShardId("index", "uuid", 0),
-                            SnapshotsInProgress.ShardSnapshotStatus.success(
-                                "nodeId",
-                                new ShardSnapshotResult(new ShardGeneration("shardgen"), new ByteSizeValue(1L), 1)
-                            )
+        SnapshotsInProgress sip = SnapshotsInProgress.EMPTY.withAddedEntry(
+            new Entry(
+                new Snapshot("repo", new SnapshotId("name", "uuid")),
+                true,
+                true,
+                State.SUCCESS,
+                Collections.singletonMap(indexId.getName(), indexId),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                1234567,
+                0,
+                ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder()
+                    .fPut(
+                        new ShardId("index", "uuid", 0),
+                        SnapshotsInProgress.ShardSnapshotStatus.success(
+                            "nodeId",
+                            new ShardSnapshotResult(new ShardGeneration("shardgen"), new ByteSizeValue(1L), 1)
                         )
-                        .fPut(
-                            new ShardId("index", "uuid", 1),
-                            new SnapshotsInProgress.ShardSnapshotStatus(
-                                "nodeId",
-                                ShardState.FAILED,
-                                "failure-reason",
-                                new ShardGeneration("fail-gen")
-                            )
+                    )
+                    .fPut(
+                        new ShardId("index", "uuid", 1),
+                        new SnapshotsInProgress.ShardSnapshotStatus(
+                            "nodeId",
+                            ShardState.FAILED,
+                            "failure-reason",
+                            new ShardGeneration("fail-gen")
                         )
-                        .build(),
-                    null,
-                    null,
-                    Version.CURRENT
-                )
+                    )
+                    .build(),
+                null,
+                null,
+                Version.CURRENT
             )
         );
 
@@ -406,30 +418,103 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             assertThat(
                 json,
                 anyOf(
-                    equalTo(
-                        "{\"snapshots\":[{\"repository\":\"repo\",\"snapshot\":\"name\",\"uuid\":\"uuid\","
-                            + "\"include_global_state\":true,\"partial\":true,\"state\":\"SUCCESS\","
-                            + "\"indices\":[{\"name\":\"index\",\"id\":\"uuid\"}],\"start_time\":\"1970-01-01T00:20:34.567Z\","
-                            + "\"start_time_millis\":1234567,\"repository_state_id\":0,\"shards\":["
-                            + "{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"},\"shard\":0,\"state\":\"SUCCESS\","
-                            + "\"generation\":\"shardgen\",\"node\":\"nodeId\","
-                            + "\"result\":{\"generation\":\"shardgen\",\"size\":\"1b\",\"size_in_bytes\":1,\"segments\":1}},"
-                            + "{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"},\"shard\":1,\"state\":\"FAILED\","
-                            + "\"generation\":\"fail-gen\",\"node\":\"nodeId\",\"reason\":\"failure-reason\"}"
-                            + "],\"feature_states\":[],\"data_streams\":[]}]}"
-                    ), // or the shards might be in the other order:
-                    equalTo(
-                        "{\"snapshots\":[{\"repository\":\"repo\",\"snapshot\":\"name\",\"uuid\":\"uuid\","
-                            + "\"include_global_state\":true,\"partial\":true,\"state\":\"SUCCESS\","
-                            + "\"indices\":[{\"name\":\"index\",\"id\":\"uuid\"}],\"start_time\":\"1970-01-01T00:20:34.567Z\","
-                            + "\"start_time_millis\":1234567,\"repository_state_id\":0,\"shards\":["
-                            + "{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"},\"shard\":1,\"state\":\"FAILED\","
-                            + "\"generation\":\"fail-gen\",\"node\":\"nodeId\",\"reason\":\"failure-reason\"},"
-                            + "{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"},\"shard\":0,\"state\":\"SUCCESS\","
-                            + "\"generation\":\"shardgen\",\"node\":\"nodeId\","
-                            + "\"result\":{\"generation\":\"shardgen\",\"size\":\"1b\",\"size_in_bytes\":1,\"segments\":1}}"
-                            + "],\"feature_states\":[],\"data_streams\":[]}]}"
-                    )
+                    equalTo(XContentHelper.stripWhitespace("""
+                        {
+                          "snapshots": [
+                            {
+                              "repository": "repo",
+                              "snapshot": "name",
+                              "uuid": "uuid",
+                              "include_global_state": true,
+                              "partial": true,
+                              "state": "SUCCESS",
+                              "indices": [ { "name": "index", "id": "uuid" } ],
+                              "start_time": "1970-01-01T00:20:34.567Z",
+                              "start_time_millis": 1234567,
+                              "repository_state_id": 0,
+                              "shards": [
+                                {
+                                  "index": {
+                                    "index_name": "index",
+                                    "index_uuid": "uuid"
+                                  },
+                                  "shard": 0,
+                                  "state": "SUCCESS",
+                                  "generation": "shardgen",
+                                  "node": "nodeId",
+                                  "result": {
+                                    "generation": "shardgen",
+                                    "size": "1b",
+                                    "size_in_bytes": 1,
+                                    "segments": 1
+                                  }
+                                },
+                                {
+                                  "index": {
+                                    "index_name": "index",
+                                    "index_uuid": "uuid"
+                                  },
+                                  "shard": 1,
+                                  "state": "FAILED",
+                                  "generation": "fail-gen",
+                                  "node": "nodeId",
+                                  "reason": "failure-reason"
+                                }
+                              ],
+                              "feature_states": [],
+                              "data_streams": []
+                            }
+                          ]
+                        }""")),
+                    // or the shards might be in the other order:
+                    equalTo(XContentHelper.stripWhitespace("""
+                        {
+                          "snapshots": [
+                            {
+                              "repository": "repo",
+                              "snapshot": "name",
+                              "uuid": "uuid",
+                              "include_global_state": true,
+                              "partial": true,
+                              "state": "SUCCESS",
+                              "indices": [ { "name": "index", "id": "uuid" } ],
+                              "start_time": "1970-01-01T00:20:34.567Z",
+                              "start_time_millis": 1234567,
+                              "repository_state_id": 0,
+                              "shards": [
+                                {
+                                  "index": {
+                                    "index_name": "index",
+                                    "index_uuid": "uuid"
+                                  },
+                                  "shard": 1,
+                                  "state": "FAILED",
+                                  "generation": "fail-gen",
+                                  "node": "nodeId",
+                                  "reason": "failure-reason"
+                                },
+                                {
+                                  "index": {
+                                    "index_name": "index",
+                                    "index_uuid": "uuid"
+                                  },
+                                  "shard": 0,
+                                  "state": "SUCCESS",
+                                  "generation": "shardgen",
+                                  "node": "nodeId",
+                                  "result": {
+                                    "generation": "shardgen",
+                                    "size": "1b",
+                                    "size_in_bytes": 1,
+                                    "segments": 1
+                                  }
+                                }
+                              ],
+                              "feature_states": [],
+                              "data_streams": []
+                            }
+                          ]
+                        }"""))
                 )
             );
         }

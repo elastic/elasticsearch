@@ -156,8 +156,7 @@ public class AbstractAsyncTaskTests extends ESTestCase {
             }
 
             @Override
-            protected void runInternal() {
-            }
+            protected void runInternal() {}
         };
 
         assertFalse(task.isScheduled());
@@ -208,6 +207,7 @@ public class AbstractAsyncTaskTests extends ESTestCase {
                 protected boolean mustReschedule() {
                     return counter.get() <= 1000;
                 }
+
                 @Override
                 protected void runInternal() {
                     counter.incrementAndGet();

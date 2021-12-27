@@ -448,6 +448,6 @@ public class StatsAggregatorTests extends AggregatorTestCase {
         );
         final MockScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts, emptyMap());
         final Map<String, ScriptEngine> engines = singletonMap(engine.getType(), engine);
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
     }
 }

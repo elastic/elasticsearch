@@ -24,8 +24,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class ConcurrentDocumentOperationIT extends ESIntegTestCase {
     public void testConcurrentOperationOnSameDoc() throws Exception {
         logger.info("--> create an index with 1 shard and max replicas based on nodes");
-        assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
 
         logger.info("execute concurrent updates on the same doc");
         int numberOfUpdates = 100;

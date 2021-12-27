@@ -34,8 +34,12 @@ final class EsTieredMergePolicy extends FilterMergePolicy {
     }
 
     @Override
-    public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount,
-            Map<SegmentCommitInfo, Boolean> segmentsToMerge, MergeContext mergeContext) throws IOException {
+    public MergeSpecification findForcedMerges(
+        SegmentInfos infos,
+        int maxSegmentCount,
+        Map<SegmentCommitInfo, Boolean> segmentsToMerge,
+        MergeContext mergeContext
+    ) throws IOException {
         return forcedMergePolicy.findForcedMerges(infos, maxSegmentCount, segmentsToMerge, mergeContext);
     }
 
@@ -71,15 +75,6 @@ final class EsTieredMergePolicy extends FilterMergePolicy {
 
     public int getMaxMergeAtOnce() {
         return regularMergePolicy.getMaxMergeAtOnce();
-    }
-
-    public void setMaxMergeAtOnceExplicit(int maxMergeAtOnceExplicit) {
-        regularMergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
-        forcedMergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
-    }
-
-    public int getMaxMergeAtOnceExplicit() {
-        return forcedMergePolicy.getMaxMergeAtOnceExplicit();
     }
 
     // only setter that must NOT delegate to the forced merge policy

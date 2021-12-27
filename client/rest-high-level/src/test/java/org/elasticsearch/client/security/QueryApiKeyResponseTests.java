@@ -10,8 +10,8 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.security.support.ApiKey;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -21,20 +21,26 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class QueryApiKeyResponseTests
-    extends AbstractResponseTestCase<org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse, QueryApiKeyResponse> {
+public class QueryApiKeyResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse,
+    QueryApiKeyResponse> {
 
     @Override
     protected org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse createServerTestInstance(XContentType xContentType) {
         final int count = randomIntBetween(0, 5);
         final int total = randomIntBetween(count, count + 5);
         final int nSortValues = randomIntBetween(0, 3);
-        return new org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse(total,
+        return new org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse(
+            total,
             IntStream.range(0, count)
-                .mapToObj(i -> new org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse.Item(
-                    randomApiKeyInfo(),
-                    randSortValues(nSortValues)))
-                .collect(Collectors.toUnmodifiableList()));
+                .mapToObj(
+                    i -> new org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse.Item(
+                        randomApiKeyInfo(),
+                        randSortValues(nSortValues)
+                    )
+                )
+                .collect(Collectors.toUnmodifiableList())
+        );
     }
 
     @Override
@@ -44,7 +50,9 @@ public class QueryApiKeyResponseTests
 
     @Override
     protected void assertInstances(
-        org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse serverTestInstance, QueryApiKeyResponse clientInstance) {
+        org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse serverTestInstance,
+        QueryApiKeyResponse clientInstance
+    ) {
         assertThat(serverTestInstance.getTotal(), equalTo(clientInstance.getTotal()));
         assertThat(serverTestInstance.getCount(), equalTo(clientInstance.getCount()));
         for (int i = 0; i < serverTestInstance.getItems().length; i++) {
@@ -53,7 +61,9 @@ public class QueryApiKeyResponseTests
     }
 
     private void assertApiKeyInfo(
-        org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse.Item serverItem, ApiKey clientApiKeyInfo) {
+        org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse.Item serverItem,
+        ApiKey clientApiKeyInfo
+    ) {
         assertThat(serverItem.getApiKey().getId(), equalTo(clientApiKeyInfo.getId()));
         assertThat(serverItem.getApiKey().getName(), equalTo(clientApiKeyInfo.getName()));
         assertThat(serverItem.getApiKey().getUsername(), equalTo(clientApiKeyInfo.getUsername()));
@@ -66,7 +76,8 @@ public class QueryApiKeyResponseTests
 
     private org.elasticsearch.xpack.core.security.action.ApiKey randomApiKeyInfo() {
         final Instant creation = Instant.now();
-        return new org.elasticsearch.xpack.core.security.action.ApiKey(randomAlphaOfLengthBetween(3, 8),
+        return new org.elasticsearch.xpack.core.security.action.ApiKey(
+            randomAlphaOfLengthBetween(3, 8),
             randomAlphaOfLength(20),
             creation,
             randomFrom(creation.plus(randomLongBetween(1, 10), ChronoUnit.DAYS), null),
@@ -79,8 +90,12 @@ public class QueryApiKeyResponseTests
 
     private Object[] randSortValues(int nSortValues) {
         if (nSortValues > 0) {
-            return randomArray(nSortValues, nSortValues, Object[]::new,
-                () -> randomFrom(randomInt(Integer.MAX_VALUE), randomAlphaOfLength(8), randomBoolean()));
+            return randomArray(
+                nSortValues,
+                nSortValues,
+                Object[]::new,
+                () -> randomFrom(randomInt(Integer.MAX_VALUE), randomAlphaOfLength(8), randomBoolean())
+            );
         } else {
             return null;
         }

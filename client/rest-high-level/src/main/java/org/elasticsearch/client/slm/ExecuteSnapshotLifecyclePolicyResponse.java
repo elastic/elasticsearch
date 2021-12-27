@@ -8,20 +8,22 @@
 
 package org.elasticsearch.client.slm;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 public class ExecuteSnapshotLifecyclePolicyResponse implements ToXContentObject {
 
     private static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
-    private static final ConstructingObjectParser<ExecuteSnapshotLifecyclePolicyResponse, Void> PARSER =
-        new ConstructingObjectParser<>("excecute_snapshot_policy", true,
-            a -> new ExecuteSnapshotLifecyclePolicyResponse((String) a[0]));
+    private static final ConstructingObjectParser<ExecuteSnapshotLifecyclePolicyResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "excecute_snapshot_policy",
+        true,
+        a -> new ExecuteSnapshotLifecyclePolicyResponse((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_NAME);

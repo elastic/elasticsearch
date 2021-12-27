@@ -109,8 +109,9 @@ public final class ApplicationPrivilege extends Privilege {
                 return;
             }
             if (asterisk != application.length() - 1) {
-                throw new IllegalArgumentException("Application name patterns only support trailing wildcards (found '" + application
-                    + "')");
+                throw new IllegalArgumentException(
+                    "Application name patterns only support trailing wildcards (found '" + application + "')"
+                );
             }
         }
         if (WHITESPACE.matcher(application).find()) {
@@ -123,8 +124,9 @@ public final class ApplicationPrivilege extends Privilege {
             prefix = prefix.substring(0, prefix.length() - 1);
         }
         if (VALID_APPLICATION_PREFIX.matcher(prefix).matches() == false) {
-            throw new IllegalArgumentException("An application name prefix must match the pattern " + VALID_APPLICATION_PREFIX.pattern()
-                + " (found '" + prefix + "')");
+            throw new IllegalArgumentException(
+                "An application name prefix must match the pattern " + VALID_APPLICATION_PREFIX.pattern() + " (found '" + prefix + "')"
+            );
         }
         if (prefix.length() < 3 && asterisk == -1) {
             throw new IllegalArgumentException("An application name prefix must be at least 3 characters long (found '" + prefix + "')");
@@ -136,8 +138,13 @@ public final class ApplicationPrivilege extends Privilege {
                 suffix = suffix.substring(0, suffix.length() - 1);
             }
             if (Strings.validFileName(suffix) == false) {
-                throw new IllegalArgumentException("An application name suffix may not contain any of the characters '" +
-                    Strings.collectionToDelimitedString(Strings.INVALID_FILENAME_CHARS, "") + "' (found '" + suffix + "')");
+                throw new IllegalArgumentException(
+                    "An application name suffix may not contain any of the characters '"
+                        + Strings.collectionToDelimitedString(Strings.INVALID_FILENAME_CHARS, "")
+                        + "' (found '"
+                        + suffix
+                        + "')"
+                );
             }
         }
     }
@@ -149,8 +156,9 @@ public final class ApplicationPrivilege extends Privilege {
      */
     public static void validatePrivilegeName(String name) {
         if (isValidPrivilegeName(name) == false) {
-            throw new IllegalArgumentException("Application privilege names must match the pattern " + VALID_NAME.pattern()
-                + " (found '" + name + "')");
+            throw new IllegalArgumentException(
+                "Application privilege names must match the pattern " + VALID_NAME.pattern() + " (found '" + name + "')"
+            );
         }
     }
 
@@ -165,8 +173,13 @@ public final class ApplicationPrivilege extends Privilege {
      */
     public static void validatePrivilegeOrActionName(String name) {
         if (VALID_NAME_OR_ACTION.matcher(name).matches() == false) {
-            throw new IllegalArgumentException("Application privilege names and actions must match the pattern "
-                + VALID_NAME_OR_ACTION.pattern() + " (found '" + name + "')");
+            throw new IllegalArgumentException(
+                "Application privilege names and actions must match the pattern "
+                    + VALID_NAME_OR_ACTION.pattern()
+                    + " (found '"
+                    + name
+                    + "')"
+            );
         }
     }
 

@@ -15,12 +15,12 @@ import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureSta
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.elasticsearch.cluster.metadata.Template;
@@ -30,15 +30,15 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemDataStreamDescriptor.Type;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.junit.After;
@@ -112,8 +112,21 @@ public class SystemDataStreamIT extends ESIntegTestCase {
             Response putResponse = restClient.performRequest(putRequest);
             assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
 
+            // system data streams are hidden
+            Request listAllVisibleRequest = new Request("GET", "/_data_stream");
+            Response listAllVisibleResponse = restClient.performRequest(listAllVisibleRequest);
+            assertThat(listAllVisibleResponse.getStatusLine().getStatusCode(), is(200));
+            Map<String, Object> visibleResponseMap = XContentHelper.convertToMap(
+                XContentType.JSON.xContent(),
+                EntityUtils.toString(listAllVisibleResponse.getEntity()),
+                false
+            );
+            List<Object> visibleDataStreams = (List<Object>) visibleResponseMap.get("data_streams");
+            assertThat(visibleDataStreams.size(), is(0));
+
             // list - no header needed
             Request listAllRequest = new Request("GET", "/_data_stream");
+            listAllRequest.addParameter("expand_wildcards", "open,hidden");
             Response listAllResponse = restClient.performRequest(listAllRequest);
             assertThat(listAllResponse.getStatusLine().getStatusCode(), is(200));
             Map<String, Object> responseMap = XContentHelper.convertToMap(
@@ -158,6 +171,7 @@ public class SystemDataStreamIT extends ESIntegTestCase {
             assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
 
             Request statsRequest = new Request("GET", "/_data_stream/_stats");
+            statsRequest.addParameter("expand_wildcards", "open,hidden");
             Response response = restClient.performRequest(statsRequest);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
 
@@ -224,6 +238,7 @@ public class SystemDataStreamIT extends ESIntegTestCase {
 
             // search all
             Request search = new Request("GET", "/_search");
+            search.addParameter("expand_wildcards", "open,hidden");
             search.setJsonEntity("{ \"query\": { \"match_all\": {} } }");
 
             // no header

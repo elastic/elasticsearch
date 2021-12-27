@@ -191,7 +191,7 @@ these nodes according to their responsibilities, allowing you to scale their
 resources independently as needed. You can have as many <<data-node,data
 nodes>>, <<ingest,ingest nodes>>, <<ml-node,{ml} nodes>>, etc. as needed to
 support your workload. As your cluster grows larger, we recommend using
-dedicated nodes for each role. This lets you to independently scale resources
+dedicated nodes for each role. This allows you to independently scale resources
 for each task.
 
 However, it is good practice to limit the number of master-eligible nodes in

@@ -28,13 +28,13 @@ import org.elasticsearch.client.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -44,12 +44,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.oneOf;
 
+@SuppressWarnings("removal")
 public class TransformIT extends TransformIntegTestCase {
 
     private static final int NUM_USERS = 28;
@@ -69,11 +70,13 @@ public class TransformIT extends TransformIntegTestCase {
     @Before
     public void setClusterSettings() throws IOException {
         Request settingsRequest = new Request("PUT", "/_cluster/settings");
-        settingsRequest.setJsonEntity(
-            "{\"transient\": {"
-                + "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"debug\","
-                + "\"logger.org.elasticsearch.xpack.transform\": \"debug\"}}"
-        );
+        settingsRequest.setJsonEntity("""
+            {
+              "persistent": {
+                "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "debug",
+                "logger.org.elasticsearch.xpack.transform": "debug"
+              }
+            }""");
         client().performRequest(settingsRequest);
     }
 
@@ -96,10 +99,12 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        TransformConfig config =
-            createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryBuilders.matchAllQuery(), indexName)
-                .setPivotConfig(createPivotConfig(groups, aggs))
-                .build();
+        TransformConfig config = createTransformConfigBuilder(
+            transformId,
+            "reviews-by-user-business-day",
+            QueryBuilders.matchAllQuery(),
+            indexName
+        ).setPivotConfig(createPivotConfig(groups, aggs)).build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
@@ -107,9 +112,9 @@ public class TransformIT extends TransformIntegTestCase {
         waitUntilCheckpoint(config.getId(), 1L);
 
         stopTransform(config.getId());
-        assertBusy(() -> {
-            assertEquals(TransformStats.State.STOPPED, getTransformStats(config.getId()).getTransformsStats().get(0).getState());
-        });
+        assertBusy(
+            () -> { assertEquals(TransformStats.State.STOPPED, getTransformStats(config.getId()).getTransformsStats().get(0).getState()); }
+        );
 
         TransformConfig storedConfig = getTransform(config.getId()).getTransformConfigurations().get(0);
         assertThat(storedConfig.getVersion(), equalTo(Version.CURRENT));
@@ -132,12 +137,15 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        TransformConfig config =
-            createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryBuilders.matchAllQuery(), indexName)
-                .setPivotConfig(createPivotConfig(groups, aggs))
-                .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
-                .setSettings(SettingsConfig.builder().setAlignCheckpoints(false).build())
-                .build();
+        TransformConfig config = createTransformConfigBuilder(
+            transformId,
+            "reviews-by-user-business-day",
+            QueryBuilders.matchAllQuery(),
+            indexName
+        ).setPivotConfig(createPivotConfig(groups, aggs))
+            .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
+            .setSettings(SettingsConfig.builder().setAlignCheckpoints(false).build())
+            .build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
@@ -181,11 +189,9 @@ public class TransformIT extends TransformIntegTestCase {
 
         String id = "transform-to-update";
         String dest = "reviews-by-user-business-day-to-update";
-        TransformConfig config =
-            createTransformConfigBuilder(id, dest, QueryBuilders.matchAllQuery(), indexName)
-                .setPivotConfig(createPivotConfig(groups, aggs))
-                .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
-                .build();
+        TransformConfig config = createTransformConfigBuilder(id, dest, QueryBuilders.matchAllQuery(), indexName).setPivotConfig(
+            createPivotConfig(groups, aggs)
+        ).setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build()).build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
@@ -267,11 +273,14 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        TransformConfig config =
-            createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryBuilders.matchAllQuery(), indexName)
-                .setPivotConfig(createPivotConfig(groups, aggs))
-                .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
-                .build();
+        TransformConfig config = createTransformConfigBuilder(
+            transformId,
+            "reviews-by-user-business-day",
+            QueryBuilders.matchAllQuery(),
+            indexName
+        ).setPivotConfig(createPivotConfig(groups, aggs))
+            .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
+            .build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
 
@@ -334,13 +343,16 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        TransformConfig config =
-            createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryBuilders.matchAllQuery(), indexName)
-                .setPivotConfig(createPivotConfig(groups, aggs))
-                .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
-                // set requests per second and page size low enough to fail the test if update does not succeed,
-                .setSettings(SettingsConfig.builder().setRequestsPerSecond(1F).setMaxPageSearchSize(10).setAlignCheckpoints(false).build())
-                .build();
+        TransformConfig config = createTransformConfigBuilder(
+            transformId,
+            "reviews-by-user-business-day",
+            QueryBuilders.matchAllQuery(),
+            indexName
+        ).setPivotConfig(createPivotConfig(groups, aggs))
+            .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
+            // set requests per second and page size low enough to fail the test if update does not succeed,
+            .setSettings(SettingsConfig.builder().setRequestsPerSecond(1F).setMaxPageSearchSize(10).setAlignCheckpoints(false).build())
+            .build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
@@ -398,21 +410,10 @@ public class TransformIT extends TransformIntegTestCase {
             int stars = (i + 20) % 5;
             long business = (i + 100) % 50;
 
-            StringBuilder sourceBuilder = new StringBuilder();
-            sourceBuilder.append("{\"user_id\":\"")
-                .append("user_")
-                .append(userId)
-                .append("\",\"count\":")
-                .append(i)
-                .append(",\"business_id\":\"")
-                .append("business_")
-                .append(business)
-                .append("\",\"stars\":")
-                .append(stars)
-                .append(",\"timestamp\":")
-                .append(timestamp)
-                .append("}");
-            bulk.add(new IndexRequest().source(sourceBuilder.toString(), XContentType.JSON));
+            String source = """
+                {"user_id":"user_%s","count":%s,"business_id":"business_%s","stars":%s,"timestamp":%s}
+                """.formatted(userId, i, business, stars, timestamp);
+            bulk.add(new IndexRequest().source(source, XContentType.JSON));
         }
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         bulkIndexDocs(bulk);

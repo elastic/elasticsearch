@@ -49,7 +49,8 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
         final HttpClientStatsTracker httpClientStatsTracker = new HttpClientStatsTracker(
             settings,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            new FakeTimeThreadPool());
+            new FakeTimeThreadPool()
+        );
 
         final HttpChannel httpChannel = randomHttpChannel();
         httpClientStatsTracker.addClientStats(httpChannel);
@@ -83,7 +84,8 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
         final HttpClientStatsTracker httpClientStatsTracker = new HttpClientStatsTracker(
             settings.build(),
             new ClusterSettings(settings.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool);
+            threadPool
+        );
 
         threadPool.setRandomTime();
         final long openTimeMillis = threadPool.absoluteTimeInMillis();
@@ -123,10 +125,15 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
             assertThat(clientStats.openedTimeMillis, equalTo(openTimeMillis));
 
             final Map<String, String> relevantHeaders = getRelevantHeaders(httpRequest1);
-            assertThat(clientStats.agent, equalTo(Optional.empty()
-                .or(() -> Optional.ofNullable(relevantHeaders.get("x-elastic-product-origin")))
-                .or(() -> Optional.ofNullable(relevantHeaders.get("user-agent")))
-                .orElse(null)));
+            assertThat(
+                clientStats.agent,
+                equalTo(
+                    Optional.empty()
+                        .or(() -> Optional.ofNullable(relevantHeaders.get("x-elastic-product-origin")))
+                        .or(() -> Optional.ofNullable(relevantHeaders.get("user-agent")))
+                        .orElse(null)
+                )
+            );
             assertThat(clientStats.forwardedFor, equalTo(relevantHeaders.get("x-forwarded-for")));
             assertThat(clientStats.opaqueId, equalTo(relevantHeaders.get("x-opaque-id")));
         }
@@ -149,20 +156,35 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
 
             final Map<String, String> relevantHeaders1 = getRelevantHeaders(httpRequest1);
             final Map<String, String> relevantHeaders2 = getRelevantHeaders(httpRequest2);
-            assertThat(clientStats.agent, equalTo(Optional.empty()
-                .or(() -> Optional.ofNullable(relevantHeaders1.get("x-elastic-product-origin")))
-                .or(() -> Optional.ofNullable(relevantHeaders1.get("user-agent")))
-                .or(() -> Optional.ofNullable(relevantHeaders2.get("x-elastic-product-origin")))
-                .or(() -> Optional.ofNullable(relevantHeaders2.get("user-agent")))
-                .orElse(null)));
-            assertThat(clientStats.forwardedFor, equalTo(Optional.empty()
-                .or(() -> Optional.ofNullable(relevantHeaders1.get("x-forwarded-for")))
-                .or(() -> Optional.ofNullable(relevantHeaders2.get("x-forwarded-for")))
-                .orElse(null)));
-            assertThat(clientStats.opaqueId, equalTo(Optional.empty()
-                .or(() -> Optional.ofNullable(relevantHeaders1.get("x-opaque-id")))
-                .or(() -> Optional.ofNullable(relevantHeaders2.get("x-opaque-id")))
-                .orElse(null)));
+            assertThat(
+                clientStats.agent,
+                equalTo(
+                    Optional.empty()
+                        .or(() -> Optional.ofNullable(relevantHeaders1.get("x-elastic-product-origin")))
+                        .or(() -> Optional.ofNullable(relevantHeaders1.get("user-agent")))
+                        .or(() -> Optional.ofNullable(relevantHeaders2.get("x-elastic-product-origin")))
+                        .or(() -> Optional.ofNullable(relevantHeaders2.get("user-agent")))
+                        .orElse(null)
+                )
+            );
+            assertThat(
+                clientStats.forwardedFor,
+                equalTo(
+                    Optional.empty()
+                        .or(() -> Optional.ofNullable(relevantHeaders1.get("x-forwarded-for")))
+                        .or(() -> Optional.ofNullable(relevantHeaders2.get("x-forwarded-for")))
+                        .orElse(null)
+                )
+            );
+            assertThat(
+                clientStats.opaqueId,
+                equalTo(
+                    Optional.empty()
+                        .or(() -> Optional.ofNullable(relevantHeaders1.get("x-opaque-id")))
+                        .or(() -> Optional.ofNullable(relevantHeaders2.get("x-opaque-id")))
+                        .orElse(null)
+                )
+            );
         }
 
         threadPool.setRandomTime();
@@ -182,27 +204,40 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
 
             final Map<String, String> relevantHeaders1 = getRelevantHeaders(httpRequest1);
             final Map<String, String> relevantHeaders2 = getRelevantHeaders(httpRequest2);
-            assertThat(clientStats.agent, equalTo(Optional.empty()
-                .or(() -> Optional.ofNullable(relevantHeaders1.get("x-elastic-product-origin")))
-                .or(() -> Optional.ofNullable(relevantHeaders1.get("user-agent")))
-                .or(() -> Optional.ofNullable(relevantHeaders2.get("x-elastic-product-origin")))
-                .or(() -> Optional.ofNullable(relevantHeaders2.get("user-agent")))
-                .orElse(null)));
-            assertThat(clientStats.forwardedFor, equalTo(Optional.empty()
-                .or(() -> Optional.ofNullable(relevantHeaders1.get("x-forwarded-for")))
-                .or(() -> Optional.ofNullable(relevantHeaders2.get("x-forwarded-for")))
-                .orElse(null)));
-            assertThat(clientStats.opaqueId, equalTo(Optional.empty()
-                .or(() -> Optional.ofNullable(relevantHeaders1.get("x-opaque-id")))
-                .or(() -> Optional.ofNullable(relevantHeaders2.get("x-opaque-id")))
-                .orElse(null)));
+            assertThat(
+                clientStats.agent,
+                equalTo(
+                    Optional.empty()
+                        .or(() -> Optional.ofNullable(relevantHeaders1.get("x-elastic-product-origin")))
+                        .or(() -> Optional.ofNullable(relevantHeaders1.get("user-agent")))
+                        .or(() -> Optional.ofNullable(relevantHeaders2.get("x-elastic-product-origin")))
+                        .or(() -> Optional.ofNullable(relevantHeaders2.get("user-agent")))
+                        .orElse(null)
+                )
+            );
+            assertThat(
+                clientStats.forwardedFor,
+                equalTo(
+                    Optional.empty()
+                        .or(() -> Optional.ofNullable(relevantHeaders1.get("x-forwarded-for")))
+                        .or(() -> Optional.ofNullable(relevantHeaders2.get("x-forwarded-for")))
+                        .orElse(null)
+                )
+            );
+            assertThat(
+                clientStats.opaqueId,
+                equalTo(
+                    Optional.empty()
+                        .or(() -> Optional.ofNullable(relevantHeaders1.get("x-opaque-id")))
+                        .or(() -> Optional.ofNullable(relevantHeaders2.get("x-opaque-id")))
+                        .orElse(null)
+                )
+            );
         }
 
         threadPool.setCurrentTimeInMillis(
-            threadPool.relativeTimeInMillis()
-                + maxAgeMillis
-                + 1
-                + (randomBoolean() ? 0L : randomLongBetween(0L, 1L << 60)));
+            threadPool.relativeTimeInMillis() + maxAgeMillis + 1 + (randomBoolean() ? 0L : randomLongBetween(0L, 1L << 60))
+        );
         assertThat(httpClientStatsTracker.getClientStats(), empty());
     }
 
@@ -275,9 +310,7 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
                 closeLock.writeLock().lock();
                 final List<HttpStats.ClientStats> clientStats = httpClientStatsTracker.getClientStats();
                 closeLock.writeLock().unlock();
-                assertThat(
-                    clientStats.stream().filter(c -> c.closedTimeMillis >= 0L).count(),
-                    lessThanOrEqualTo((long) closedClientLimit));
+                assertThat(clientStats.stream().filter(c -> c.closedTimeMillis >= 0L).count(), lessThanOrEqualTo((long) closedClientLimit));
             }
 
         }, "stats-thread");
@@ -298,11 +331,14 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
         final Thread[] clientThreads = new Thread[between(1, 5)];
         final CyclicBarrier startBarrier = new CyclicBarrier(clientThreads.length + 1);
         final boolean expectPruning = randomBoolean();
-        final Semaphore operationPermits = new Semaphore(between(
-            1,
-            expectPruning
-                ? SETTING_HTTP_CLIENT_STATS_MAX_CLOSED_CHANNEL_COUNT.get(Settings.EMPTY) - 1
-                : SETTING_HTTP_CLIENT_STATS_MAX_CLOSED_CHANNEL_COUNT.get(Settings.EMPTY) * 2));
+        final Semaphore operationPermits = new Semaphore(
+            between(
+                1,
+                expectPruning
+                    ? SETTING_HTTP_CLIENT_STATS_MAX_CLOSED_CHANNEL_COUNT.get(Settings.EMPTY) - 1
+                    : SETTING_HTTP_CLIENT_STATS_MAX_CLOSED_CHANNEL_COUNT.get(Settings.EMPTY) * 2
+            )
+        );
         for (int i = 0; i < clientThreads.length; i++) {
             clientThreads[i] = new Thread(() -> {
                 try {
@@ -333,15 +369,13 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
         } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
             throw new AssertionError("unexpected", e);
         }
-        clusterSettings.applySettings(
-            Settings.builder().put(SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), false).build());
+        clusterSettings.applySettings(Settings.builder().put(SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), false).build());
 
         try {
             assertThat(httpClientStatsTracker.getClientStats(), empty());
 
             // starts collecting stats again
-            clusterSettings.applySettings(
-                Settings.builder().put(SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), true).build());
+            clusterSettings.applySettings(Settings.builder().put(SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), true).build());
 
             final HttpChannel httpChannel = randomHttpChannel();
             httpClientStatsTracker.addClientStats(httpChannel);
@@ -349,8 +383,11 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
                 // won't be pruned, the clock is not moving and we don't open enough channels to hit the limit
                 httpChannel.close();
             }
-            assertTrue(httpClientStatsTracker.getClientStats().stream()
-                .anyMatch(cs -> cs.remoteAddress.equals(NetworkAddress.format(httpChannel.getRemoteAddress()))));
+            assertTrue(
+                httpClientStatsTracker.getClientStats()
+                    .stream()
+                    .anyMatch(cs -> cs.remoteAddress.equals(NetworkAddress.format(httpChannel.getRemoteAddress())))
+            );
         } finally {
             for (Thread clientThread : clientThreads) {
                 clientThread.join();
@@ -360,7 +397,7 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
 
     private Map<String, String> getRelevantHeaders(HttpRequest httpRequest) {
         final Map<String, String> headers = new HashMap<>(4);
-        final String[] relevantHeaderNames = new String[]{"user-agent", "x-elastic-product-origin", "x-forwarded-for", "x-opaque-id"};
+        final String[] relevantHeaderNames = new String[] { "user-agent", "x-elastic-product-origin", "x-forwarded-for", "x-opaque-id" };
         for (Map.Entry<String, List<String>> header : httpRequest.getHeaders().entrySet()) {
             if (header.getValue().size() > 0) {
                 for (String relevantHeaderName : relevantHeaderNames) {
@@ -383,7 +420,8 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
             randomFrom(RestRequest.Method.values()),
             randomAlphaOfLength(10),
             new BytesArray(randomByteArrayOfLength(between(0, 20))),
-            headers);
+            headers
+        );
     }
 
     private static void putRandomHeader(String key, Map<String, List<String>> headers) {

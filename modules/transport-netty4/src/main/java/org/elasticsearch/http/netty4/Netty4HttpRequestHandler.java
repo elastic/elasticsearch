@@ -11,6 +11,7 @@ package org.elasticsearch.http.netty4;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.http.HttpPipelinedRequest;
 

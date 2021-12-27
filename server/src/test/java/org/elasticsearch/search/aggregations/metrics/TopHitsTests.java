@@ -9,9 +9,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
@@ -22,6 +19,9 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -173,25 +173,26 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
     }
 
     public void testFailWithSubAgg() throws Exception {
-        String source = "{\n"
-            + "    \"top-tags\": {\n"
-            + "      \"terms\": {\n"
-            + "        \"field\": \"tags\"\n"
-            + "      },\n"
-            + "      \"aggs\": {\n"
-            + "        \"top_tags_hits\": {\n"
-            + "          \"top_hits\": {},\n"
-            + "          \"aggs\": {\n"
-            + "            \"max\": {\n"
-            + "              \"max\": {\n"
-            + "                \"field\": \"age\"\n"
-            + "              }\n"
-            + "            }\n"
-            + "          }\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }\n"
-            + "}";
+        String source = """
+            {
+                "top-tags": {
+                  "terms": {
+                    "field": "tags"
+                  },
+                  "aggs": {
+                    "top_tags_hits": {
+                      "top_hits": {},
+                      "aggs": {
+                        "max": {
+                          "max": {
+                            "field": "age"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+            }""";
         XContentParser parser = createParser(JsonXContent.jsonXContent, source);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         Exception e = expectThrows(AggregationInitializationException.class, () -> AggregatorFactories.parseAggregators(parser));

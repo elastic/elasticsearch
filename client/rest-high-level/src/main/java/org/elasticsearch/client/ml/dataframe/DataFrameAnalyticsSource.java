@@ -8,15 +8,15 @@
 
 package org.elasticsearch.client.ml.dataframe;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -43,10 +43,12 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
     static {
         PARSER.declareStringArray(Builder::setIndex, INDEX);
         PARSER.declareObject(Builder::setQueryConfig, (p, c) -> QueryConfig.fromXContent(p), QUERY);
-        PARSER.declareField(Builder::setSourceFiltering,
+        PARSER.declareField(
+            Builder::setSourceFiltering,
             (p, c) -> FetchSourceContext.fromXContent(p),
             _SOURCE,
-            ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
+            ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING
+        );
         PARSER.declareObject(Builder::setRuntimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
     }
 
@@ -55,8 +57,12 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
     private final FetchSourceContext sourceFiltering;
     private final Map<String, Object> runtimeMappings;
 
-    private DataFrameAnalyticsSource(String[] index, @Nullable QueryConfig queryConfig, @Nullable FetchSourceContext sourceFiltering,
-                                     @Nullable Map<String, Object> runtimeMappings) {
+    private DataFrameAnalyticsSource(
+        String[] index,
+        @Nullable QueryConfig queryConfig,
+        @Nullable FetchSourceContext sourceFiltering,
+        @Nullable Map<String, Object> runtimeMappings
+    ) {
         this.index = Objects.requireNonNull(index);
         this.queryConfig = queryConfig;
         this.sourceFiltering = sourceFiltering;

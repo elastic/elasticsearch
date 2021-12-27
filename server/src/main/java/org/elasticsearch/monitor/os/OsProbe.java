@@ -11,8 +11,8 @@ package org.elasticsearch.monitor.os;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.Probes;
 
 import java.io.IOException;
@@ -59,6 +59,10 @@ import java.util.stream.Stream;
 public class OsProbe {
 
     private static final OperatingSystemMXBean osMxBean = ManagementFactory.getOperatingSystemMXBean();
+
+    // This property is specified without units because it also needs to be parsed by the launcher
+    // code, which does not have access to all the utility classes of the Elasticsearch server.
+    private static final String memoryOverrideProperty = System.getProperty("es.total_memory_bytes");
 
     private static final Method getFreePhysicalMemorySize;
     private static final Method getTotalPhysicalMemorySize;
@@ -120,6 +124,35 @@ public class OsProbe {
         } catch (Exception e) {
             logger.warn("exception retrieving total physical memory", e);
             return 0;
+        }
+    }
+
+    /**
+     * Returns the adjusted total amount of physical memory in bytes.
+     * Total memory may be overridden when some other process is running
+     * that is known to consume a non-negligible amount of memory. This
+     * is read from the "es.total_memory_bytes" system property. When
+     * there is no override this method returns the same value as
+     * {@link #getTotalPhysicalMemorySize}.
+     */
+    public long getAdjustedTotalMemorySize() {
+        return Optional.ofNullable(getTotalMemoryOverride(memoryOverrideProperty)).orElse(getTotalPhysicalMemorySize());
+    }
+
+    static Long getTotalMemoryOverride(String memoryOverrideProperty) {
+        if (memoryOverrideProperty == null) {
+            return null;
+        }
+        try {
+            long memoryOverride = Long.parseLong(memoryOverrideProperty);
+            if (memoryOverride < 0) {
+                throw new IllegalArgumentException(
+                    "Negative memory size specified in [es.total_memory_bytes]: [" + memoryOverrideProperty + "]"
+                );
+            }
+            return memoryOverride;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid value for [es.total_memory_bytes]: [" + memoryOverrideProperty + "]", e);
         }
     }
 
@@ -859,7 +892,7 @@ public class OsProbe {
 
     public OsStats osStats() {
         final OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage());
-        final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getFreePhysicalMemorySize());
+        final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getAdjustedTotalMemorySize(), getFreePhysicalMemorySize());
         final OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
         final OsStats.Cgroup cgroup = getCgroup(Constants.LINUX);
         return new OsStats(System.currentTimeMillis(), cpu, mem, swap, cgroup);

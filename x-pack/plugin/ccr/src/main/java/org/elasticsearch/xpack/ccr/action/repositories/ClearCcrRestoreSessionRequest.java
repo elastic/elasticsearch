@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.ccr.action.repositories;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.transport.RemoteClusterAwareRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.RemoteClusterAwareRequest;
 
 import java.io.IOException;
 

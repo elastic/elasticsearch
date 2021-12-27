@@ -23,12 +23,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -64,7 +66,8 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
         XPackLicenseState licenseState,
         ActionFilters actionFilters,
         InferenceAuditor auditor,
-        IndexNameExpressionResolver indexNameExpressionResolver) {
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
         super(
             PutTrainedModelAliasAction.NAME,
             transportService,
@@ -87,18 +90,22 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        final boolean mlSupported = licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING);
-        final Predicate<TrainedModelConfig> isLicensed = (model) -> mlSupported || licenseState.isAllowedByLicense(model.getLicenseLevel());
+        final boolean mlSupported = MachineLearningField.ML_API_FEATURE.check(licenseState);
+        final Predicate<TrainedModelConfig> isLicensed = (model) -> mlSupported
+            // Either we support plat+ or the model is basic licensed
+            || model.getLicenseLevel() == License.OperationMode.BASIC;
         final String oldModelId = ModelAliasMetadata.fromState(state).getModelId(request.getModelAlias());
 
         if (oldModelId != null && (request.isReassign() == false)) {
-            listener.onFailure(ExceptionsHelper.badRequestException(
-                "cannot assign model_alias [{}] to model_id [{}] as model_alias already refers to [{}]. "
-                    +
-                    "Set parameter [reassign] to [true] if model_alias should be reassigned.",
-                request.getModelAlias(),
-                request.getModelId(),
-                oldModelId));
+            listener.onFailure(
+                ExceptionsHelper.badRequestException(
+                    "cannot assign model_alias [{}] to model_id [{}] as model_alias already refers to [{}]. "
+                        + "Set parameter [reassign] to [true] if model_alias should be reassigned.",
+                    request.getModelAlias(),
+                    request.getModelId(),
+                    oldModelId
+                )
+            );
             return;
         }
         Set<String> modelIds = new HashSet<>();
@@ -107,83 +114,75 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
         if (oldModelId != null) {
             modelIds.add(oldModelId);
         }
-        trainedModelProvider.getTrainedModels(modelIds, GetTrainedModelsAction.Includes.empty(), true, ActionListener.wrap(
-            models -> {
-                TrainedModelConfig newModel = null;
-                TrainedModelConfig oldModel = null;
-                for (TrainedModelConfig config : models) {
-                    if (config.getModelId().equals(request.getModelId())) {
-                        newModel = config;
-                    }
-                    if (config.getModelId().equals(oldModelId)) {
-                        oldModel = config;
-                    }
-                    if (config.getModelId().equals(request.getModelAlias())) {
+        trainedModelProvider.getTrainedModels(modelIds, GetTrainedModelsAction.Includes.empty(), true, ActionListener.wrap(models -> {
+            TrainedModelConfig newModel = null;
+            TrainedModelConfig oldModel = null;
+            for (TrainedModelConfig config : models) {
+                if (config.getModelId().equals(request.getModelId())) {
+                    newModel = config;
+                }
+                if (config.getModelId().equals(oldModelId)) {
+                    oldModel = config;
+                }
+                if (config.getModelId().equals(request.getModelAlias())) {
+                    listener.onFailure(
+                        ExceptionsHelper.badRequestException("model_alias cannot be the same as an existing trained model_id")
+                    );
+                    return;
+                }
+            }
+            if (newModel == null) {
+                listener.onFailure(ExceptionsHelper.missingTrainedModel(request.getModelId()));
+                return;
+            }
+            if (isLicensed.test(newModel) == false) {
+                listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
+                return;
+            }
+            if (newModel.getModelType() == TrainedModelType.PYTORCH) {
+                listener.onFailure(ExceptionsHelper.badRequestException("model_alias is not supported on pytorch models"));
+                return;
+            }
+            // if old model is null, none of these validations matter
+            // we should still allow reassignment even if the old model was some how deleted and the alias still refers to it
+            if (oldModel != null) {
+                // validate inference configs are the same type. Moving an alias from regression -> classification seems dangerous
+                if (newModel.getInferenceConfig() != null && oldModel.getInferenceConfig() != null) {
+                    if (newModel.getInferenceConfig().getName().equals(oldModel.getInferenceConfig().getName()) == false) {
                         listener.onFailure(
-                            ExceptionsHelper.badRequestException("model_alias cannot be the same as an existing trained model_id")
+                            ExceptionsHelper.badRequestException(
+                                "cannot reassign model_alias [{}] to model [{}] "
+                                    + "with inference config type [{}] from model [{}] with type [{}]",
+                                request.getModelAlias(),
+                                newModel.getModelId(),
+                                newModel.getInferenceConfig().getName(),
+                                oldModel.getModelId(),
+                                oldModel.getInferenceConfig().getName()
+                            )
                         );
                         return;
                     }
                 }
-                if (newModel == null) {
-                    listener.onFailure(
-                        ExceptionsHelper.missingTrainedModel(request.getModelId())
-                    );
-                    return;
-                }
-                if (isLicensed.test(newModel) == false) {
-                    listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
-                    return;
-                }
-                if (newModel.getModelType() == TrainedModelType.PYTORCH) {
-                    listener.onFailure(ExceptionsHelper.badRequestException("model_alias is not supported on pytorch models"));
-                    return;
-                }
-                // if old model is null, none of these validations matter
-                // we should still allow reassignment even if the old model was some how deleted and the alias still refers to it
-                if (oldModel != null) {
-                    // validate inference configs are the same type. Moving an alias from regression -> classification seems dangerous
-                    if (newModel.getInferenceConfig() != null && oldModel.getInferenceConfig() != null) {
-                        if (newModel.getInferenceConfig().getName().equals(oldModel.getInferenceConfig().getName()) == false) {
-                            listener.onFailure(
-                                ExceptionsHelper.badRequestException(
-                                    "cannot reassign model_alias [{}] to model [{}] "
-                                    + "with inference config type [{}] from model [{}] with type [{}]",
-                                    request.getModelAlias(),
-                                    newModel.getModelId(),
-                                    newModel.getInferenceConfig().getName(),
-                                    oldModel.getModelId(),
-                                    oldModel.getInferenceConfig().getName()
-                                )
-                            );
-                            return;
-                        }
-                    }
 
-                    Set<String> oldInputFields = new HashSet<>(oldModel.getInput().getFieldNames());
-                    Set<String> newInputFields = new HashSet<>(newModel.getInput().getFieldNames());
-                    // TODO should we fail in this case???
-                    if (Sets.difference(oldInputFields, newInputFields).size() > (oldInputFields.size() / 2)
+                Set<String> oldInputFields = new HashSet<>(oldModel.getInput().getFieldNames());
+                Set<String> newInputFields = new HashSet<>(newModel.getInput().getFieldNames());
+                // TODO should we fail in this case???
+                if (Sets.difference(oldInputFields, newInputFields).size() > (oldInputFields.size() / 2)
                     || Sets.intersection(newInputFields, oldInputFields).size() < (oldInputFields.size() / 2)) {
-                        String warning =  Messages.getMessage(
-                            TRAINED_MODEL_INPUTS_DIFFER_SIGNIFICANTLY,
-                            request.getModelId(),
-                            oldModelId);
-                        auditor.warning(oldModelId, warning);
-                        logger.warn("[{}] {}", oldModelId, warning);
-                        HeaderWarning.addWarning(warning);
-                    }
+                    String warning = Messages.getMessage(TRAINED_MODEL_INPUTS_DIFFER_SIGNIFICANTLY, request.getModelId(), oldModelId);
+                    auditor.warning(oldModelId, warning);
+                    logger.warn("[{}] {}", oldModelId, warning);
+                    HeaderWarning.addWarning(warning);
                 }
-                clusterService.submitStateUpdateTask("update-model-alias", new AckedClusterStateUpdateTask(request, listener) {
-                    @Override
-                    public ClusterState execute(final ClusterState currentState) {
-                        return updateModelAlias(currentState, request);
-                    }
-                });
+            }
+            clusterService.submitStateUpdateTask("update-model-alias", new AckedClusterStateUpdateTask(request, listener) {
+                @Override
+                public ClusterState execute(final ClusterState currentState) {
+                    return updateModelAlias(currentState, request);
+                }
+            });
 
-            },
-            listener::onFailure
-        ));
+        }, listener::onFailure));
     }
 
     static ClusterState updateModelAlias(final ClusterState currentState, final PutTrainedModelAliasAction.Request request) {

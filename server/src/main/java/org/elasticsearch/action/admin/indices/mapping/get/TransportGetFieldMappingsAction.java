@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -34,9 +34,13 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     private final NodeClient client;
 
     @Inject
-    public TransportGetFieldMappingsAction(TransportService transportService, ClusterService clusterService,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                           NodeClient client) {
+    public TransportGetFieldMappingsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        NodeClient client
+    ) {
         super(GetFieldMappingsAction.NAME, transportService, actionFilters, GetFieldMappingsRequest::new);
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

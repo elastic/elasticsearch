@@ -26,7 +26,7 @@ public class PidFileTests extends ESTestCase {
     public void testParentIsFile() throws IOException {
         Path dir = createTempDir();
         Path parent = dir.resolve("foo");
-        try(BufferedWriter stream = Files.newBufferedWriter(parent, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW)) {
+        try (BufferedWriter stream = Files.newBufferedWriter(parent, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW)) {
             stream.write("foo");
         }
 
@@ -49,7 +49,7 @@ public class PidFileTests extends ESTestCase {
                     Files.createSymbolicLink(link, parent.getFileName());
                     parent = link;
                 } catch (UnsupportedOperationException | IOException | SecurityException ex) {
-                   // fine - no links on this system
+                    // fine - no links on this system
                 }
 
             }

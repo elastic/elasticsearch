@@ -64,8 +64,10 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
                 }
                 for (String action : privilege.getActions()) {
                     if (action.indexOf('/') == -1 && action.indexOf('*') == -1 && action.indexOf(':') == -1) {
-                        validationException = addValidationError("action [" + action + "] must contain one of [ '/' , '*' , ':' ]",
-                            validationException);
+                        validationException = addValidationError(
+                            "action [" + action + "] must contain one of [ '/' , '*' , ':' ]",
+                            validationException
+                        );
                     }
                     try {
                         ApplicationPrivilege.validatePrivilegeOrActionName(action);
@@ -74,8 +76,16 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
                     }
                 }
                 if (MetadataUtils.containsReservedMetadata(privilege.getMetadata())) {
-                    validationException = addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX
-                        + "] (in privilege " + privilege.getApplication() + ' ' + privilege.getName() + ")", validationException);
+                    validationException = addValidationError(
+                        "metadata keys may not start with ["
+                            + MetadataUtils.RESERVED_PREFIX
+                            + "] (in privilege "
+                            + privilege.getApplication()
+                            + ' '
+                            + privilege.getName()
+                            + ")",
+                        validationException
+                    );
                 }
             }
         }
@@ -107,15 +117,19 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
 
     @Override
     public Collection<String> getApplicationNames() {
-        return Collections.unmodifiableSet(privileges.stream()
-            .map(ApplicationPrivilegeDescriptor::getApplication)
-            .collect(Collectors.toSet()));
+        return Collections.unmodifiableSet(
+            privileges.stream().map(ApplicationPrivilegeDescriptor::getApplication).collect(Collectors.toSet())
+        );
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{[" + privileges.stream().map(Strings::toString).collect(Collectors.joining(","))
-            + "];" + refreshPolicy + "}";
+        return getClass().getSimpleName()
+            + "{["
+            + privileges.stream().map(Strings::toString).collect(Collectors.joining(","))
+            + "];"
+            + refreshPolicy
+            + "}";
     }
 
     @Override

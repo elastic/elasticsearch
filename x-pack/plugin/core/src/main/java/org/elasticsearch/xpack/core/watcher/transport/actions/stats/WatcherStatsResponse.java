@@ -11,11 +11,11 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
@@ -26,8 +26,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
-public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse.Node>
-        implements ToXContentObject {
+public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse.Node> implements ToXContentObject {
 
     private WatcherMetadata watcherMetadata;
 
@@ -36,8 +35,12 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
         watcherMetadata = new WatcherMetadata(in.readBoolean());
     }
 
-    public WatcherStatsResponse(ClusterName clusterName, WatcherMetadata watcherMetadata,
-                                List<Node> nodes, List<FailedNodeException> failures) {
+    public WatcherStatsResponse(
+        ClusterName clusterName,
+        WatcherMetadata watcherMetadata,
+        List<Node> nodes,
+        List<FailedNodeException> failures
+    ) {
         super(clusterName, nodes, failures);
         this.watcherMetadata = watcherMetadata;
     }
@@ -207,10 +210,8 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
             }
         }
 
-
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params)
-                throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("node_id", getNode().getId());
             builder.field("watcher_state", watcherState.toString().toLowerCase(Locale.ROOT));

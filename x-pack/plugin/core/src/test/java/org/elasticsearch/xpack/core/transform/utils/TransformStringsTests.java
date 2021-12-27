@@ -24,8 +24,7 @@ public class TransformStringsTests extends ESTestCase {
     }
 
     public void testKasValidLengthForId_givenTooLong() {
-        assertTrue(TransformStrings.hasValidLengthForId("#".repeat(TransformStrings.ID_LENGTH_LIMIT )));
+        assertTrue(TransformStrings.hasValidLengthForId("#".repeat(TransformStrings.ID_LENGTH_LIMIT)));
         assertFalse(TransformStrings.hasValidLengthForId("#".repeat(TransformStrings.ID_LENGTH_LIMIT + 1)));
     }
 }
-

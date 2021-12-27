@@ -68,8 +68,6 @@ public class FilterExec extends UnaryExec implements Unexecutable {
         }
 
         FilterExec other = (FilterExec) obj;
-        return onAggs == other.onAggs
-                && Objects.equals(condition, other.condition)
-                && Objects.equals(child(), other.child());
+        return onAggs == other.onAggs && Objects.equals(condition, other.condition) && Objects.equals(child(), other.child());
     }
 }

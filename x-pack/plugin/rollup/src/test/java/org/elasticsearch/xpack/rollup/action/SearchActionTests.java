@@ -45,6 +45,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
@@ -55,11 +56,11 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.hamcrest.core.IsEqual;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -454,7 +455,7 @@ public class SearchActionTests extends ESTestCase {
         SearchRequest request = new SearchRequest(combinedIndices, source);
 
         final GroupConfig groupConfig = new GroupConfig(
-            new DateHistogramGroupConfig.CalendarInterval("foo", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID())
+            new DateHistogramGroupConfig.CalendarInterval("foo", new DateHistogramInterval("1d"), null, ZoneOffset.UTC.getId())
         );
         final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10, groupConfig, emptyList(), null);
         Set<RollupJobCaps> caps = singleton(new RollupJobCaps(job));
@@ -686,7 +687,7 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse r = TransportRollupSearchAction.processResponses(
             result,
             msearchResponse,
-            mock(InternalAggregation.ReduceContext.class)
+            InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction()
         );
         assertThat(r, equalTo(response));
     }
@@ -748,7 +749,7 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse r = TransportRollupSearchAction.processResponses(
             result,
             msearchResponse,
-            mock(InternalAggregation.ReduceContext.class)
+            InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction()
         );
 
         assertNotNull(r);
@@ -800,7 +801,11 @@ public class SearchActionTests extends ESTestCase {
 
         RuntimeException e = expectThrows(
             RuntimeException.class,
-            () -> TransportRollupSearchAction.processResponses(result, msearchResponse, mock(InternalAggregation.ReduceContext.class))
+            () -> TransportRollupSearchAction.processResponses(
+                result,
+                msearchResponse,
+                InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction()
+            )
         );
         assertThat(e.getMessage(), equalTo("MSearch response was empty, cannot unroll RollupSearch results"));
     }
@@ -884,7 +889,7 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse response = TransportRollupSearchAction.processResponses(
             separateIndices,
             msearchResponse,
-            mock(InternalAggregation.ReduceContext.class)
+            InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction()
         );
 
         assertNotNull(response);

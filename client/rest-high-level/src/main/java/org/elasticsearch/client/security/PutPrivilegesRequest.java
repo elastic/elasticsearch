@@ -11,8 +11,8 @@ package org.elasticsearch.client.security;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -35,8 +35,9 @@ public final class PutPrivilegesRequest implements Validatable, ToXContentObject
         if (privileges == null || privileges.isEmpty()) {
             throw new IllegalArgumentException("privileges are required");
         }
-        this.privileges = Collections.unmodifiableMap(privileges.stream()
-                .collect(Collectors.groupingBy(ApplicationPrivilege::getApplication, TreeMap::new, Collectors.toList())));
+        this.privileges = Collections.unmodifiableMap(
+            privileges.stream().collect(Collectors.groupingBy(ApplicationPrivilege::getApplication, TreeMap::new, Collectors.toList()))
+        );
         this.refreshPolicy = refreshPolicy == null ? RefreshPolicy.IMMEDIATE : refreshPolicy;
     }
 

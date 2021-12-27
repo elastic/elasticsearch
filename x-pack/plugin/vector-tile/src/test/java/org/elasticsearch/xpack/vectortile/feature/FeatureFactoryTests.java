@@ -39,6 +39,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
+import static org.hamcrest.Matchers.iterableWithSize;
+
 public class FeatureFactoryTests extends ESTestCase {
 
     public void testPoint() throws IOException {
@@ -199,5 +201,52 @@ public class FeatureFactoryTests extends ESTestCase {
         assertThat(bytes, Matchers.iterableWithSize(1));
         final VectorTile.Tile.Feature feature = VectorTile.Tile.Feature.parseFrom(bytes.get(0));
         assertThat(feature.getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POLYGON));
+    }
+
+    public void testManyIntersectingGeometries() {
+        final int z = randomIntBetween(2, 6);
+        final int x = randomIntBetween(0, (1 << z) - 1);
+        final int y = randomIntBetween(0, (1 << z) - 1);
+        final int extent = randomIntBetween(128, 8012);
+        final FeatureFactory builder = new FeatureFactory(z, x, y, extent);
+        // within geometries
+        assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x, 2 * y, z + 1)), iterableWithSize(1));
+        assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y, z + 1)), iterableWithSize(1));
+        assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x, 2 * y + 1, z + 1)), iterableWithSize(1));
+        assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y + 1, z + 1)), iterableWithSize(1));
+        // intersecting geometries
+        assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x, 2 * y, z + 1))), iterableWithSize(1));
+        assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y, z + 1))), iterableWithSize(1));
+        assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x, 2 * y + 1, z + 1))), iterableWithSize(1));
+        assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y + 1, z + 1))), iterableWithSize(1));
+        // contain geometries
+        assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(x / 4, y / 4, z - 2)), iterableWithSize(1));
+        assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(x / 4, y / 4, z - 2)), iterableWithSize(1));
+    }
+
+    private Rectangle expandByHalf(Rectangle rectangle) {
+        double halfWidth = (rectangle.getMaxX() - rectangle.getMinX()) / 2;
+        double halfHeight = (rectangle.getMaxY() - rectangle.getMinY()) / 2;
+        double minX = Math.max(-180, rectangle.getMinX() - halfWidth);
+        double maxX = Math.min(180, rectangle.getMaxX() + halfWidth);
+        double minY = Math.max(-GeoTileUtils.LATITUDE_MASK, rectangle.getMinY() - halfHeight);
+        double maxY = Math.min(GeoTileUtils.LATITUDE_MASK, rectangle.getMaxY() + halfHeight);
+        return new Rectangle(minX, maxX, maxY, minY);
+    }
+
+    public void testAntarctica() throws IOException, ParseException {
+        assertParsing(new GZIPInputStream(getClass().getResourceAsStream("Antarctica.wkt.gz")));
+    }
+
+    public void testFrance() throws IOException, ParseException {
+        assertParsing(new GZIPInputStream(getClass().getResourceAsStream("France.wkt.gz")));
+    }
+
+    private void assertParsing(InputStream is) throws IOException, ParseException {
+        // make sure we can parse big polygons
+        final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+        final Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, reader.readLine());
+        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096);
+        assertThat(builder.getFeatures(geometry), iterableWithSize(1));
     }
 }

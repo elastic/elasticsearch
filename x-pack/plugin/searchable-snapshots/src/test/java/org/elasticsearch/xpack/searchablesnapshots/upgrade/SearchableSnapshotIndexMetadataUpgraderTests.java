@@ -18,7 +18,6 @@ import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.stream.StreamSupport;
 
@@ -148,7 +147,7 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
         Settings.Builder settings = settings(version);
         settings.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE);
         if (partial || randomBoolean()) {
-            settings.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), partial);
+            settings.put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), partial);
         }
         return settings.build();
     }

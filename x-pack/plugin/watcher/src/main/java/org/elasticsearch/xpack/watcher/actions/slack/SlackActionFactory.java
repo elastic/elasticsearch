@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.actions.slack;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.notification.slack.SlackService;

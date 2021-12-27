@@ -35,19 +35,22 @@ class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBin
 
     private final Factory<T> factory;
 
-    private ConstructorBindingImpl(Injector injector, Key<T> key, Object source,
-                                   InternalFactory<? extends T> scopedFactory, Scoping scoping, Factory<T> factory) {
+    private ConstructorBindingImpl(
+        Injector injector,
+        Key<T> key,
+        Object source,
+        InternalFactory<? extends T> scopedFactory,
+        Scoping scoping,
+        Factory<T> factory
+    ) {
         super(injector, key, source, scopedFactory, scoping);
         this.factory = factory;
     }
 
-    static <T> ConstructorBindingImpl<T> create(
-            InjectorImpl injector, Key<T> key, Object source, Scoping scoping) {
+    static <T> ConstructorBindingImpl<T> create(InjectorImpl injector, Key<T> key, Object source, Scoping scoping) {
         Factory<T> factoryFactory = new Factory<>();
-        InternalFactory<? extends T> scopedFactory
-                = Scopes.scope(key, injector, factoryFactory, scoping);
-        return new ConstructorBindingImpl<>(
-                injector, key, source, scopedFactory, scoping, factoryFactory);
+        InternalFactory<? extends T> scopedFactory = Scopes.scope(key, injector, factoryFactory, scoping);
+        return new ConstructorBindingImpl<>(injector, key, source, scopedFactory, scoping, factoryFactory);
     }
 
     public void initialize(InjectorImpl injector, Errors errors) throws ErrorsException {
@@ -93,11 +96,10 @@ class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBin
 
     @Override
     public String toString() {
-        return new ToStringBuilder(ConstructorBinding.class)
-                .add("key", getKey())
-                .add("source", getSource())
-                .add("scope", getScoping())
-                .toString();
+        return new ToStringBuilder(ConstructorBinding.class).add("key", getKey())
+            .add("source", getSource())
+            .add("scope", getScoping())
+            .toString();
     }
 
     private static class Factory<T> implements InternalFactory<T> {
@@ -105,8 +107,7 @@ class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBin
 
         @Override
         @SuppressWarnings("unchecked")
-        public T get(Errors errors, InternalContext context, Dependency<?> dependency)
-                throws ErrorsException {
+        public T get(Errors errors, InternalContext context, Dependency<?> dependency) throws ErrorsException {
             if (constructorInjector == null) {
                 throw new IllegalStateException("Constructor not ready");
             }

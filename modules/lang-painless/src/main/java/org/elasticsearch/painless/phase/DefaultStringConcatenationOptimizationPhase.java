@@ -15,14 +15,14 @@ public class DefaultStringConcatenationOptimizationPhase extends IRTreeBaseVisit
 
     @Override
     public void visitStringConcatenation(StringConcatenationNode irStringConcatenationNode, Void scope) {
-         int i = 0;
+        int i = 0;
 
         while (i < irStringConcatenationNode.getArgumentNodes().size()) {
             ExpressionNode irArgumentNode = irStringConcatenationNode.getArgumentNodes().get(i);
 
             if (irArgumentNode instanceof StringConcatenationNode) {
                 irStringConcatenationNode.getArgumentNodes().remove(i);
-                irStringConcatenationNode.getArgumentNodes().addAll(i, ((StringConcatenationNode)irArgumentNode).getArgumentNodes());
+                irStringConcatenationNode.getArgumentNodes().addAll(i, ((StringConcatenationNode) irArgumentNode).getArgumentNodes());
             } else {
                 i++;
             }

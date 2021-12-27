@@ -21,9 +21,10 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestCase<BinaryArithmeticProcessor> {
     public static BinaryArithmeticProcessor randomProcessor() {
         return new BinaryArithmeticProcessor(
-                new ConstantProcessor(randomLong()),
-                new ConstantProcessor(randomLong()),
-                randomFrom(DefaultBinaryArithmeticOperation.values()));
+            new ConstantProcessor(randomLong()),
+            new ConstantProcessor(randomLong()),
+            randomFrom(DefaultBinaryArithmeticOperation.values())
+        );
     }
 
     @Override

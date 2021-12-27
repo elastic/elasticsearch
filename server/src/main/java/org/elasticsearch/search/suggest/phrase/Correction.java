@@ -49,11 +49,11 @@ public final class Correction implements Comparable<Correction> {
                 final int maxLen = preTag.length + postTag.length + candidate.term.length;
                 final BytesRefBuilder highlighted = new BytesRefBuilder();// just allocate once
                 highlighted.grow(maxLen);
-                if (i == 0 || candidates[i-1].userInput) {
+                if (i == 0 || candidates[i - 1].userInput) {
                     highlighted.append(preTag);
                 }
                 highlighted.append(candidate.term);
-                if (toJoin.length == i + 1 || candidates[i+1].userInput) {
+                if (toJoin.length == i + 1 || candidates[i + 1].userInput) {
                     highlighted.append(postTag);
                 }
                 toJoin[i] = highlighted.get();
@@ -74,7 +74,7 @@ public final class Correction implements Comparable<Correction> {
     int compareTo(double otherScore, Candidate[] otherCandidates) {
         if (score == otherScore) {
             int limit = Math.min(candidates.length, otherCandidates.length);
-            for (int i=0;i<limit;i++) {
+            for (int i = 0; i < limit; i++) {
                 int cmp = candidates[i].term.compareTo(otherCandidates[i].term);
                 if (cmp != 0) {
                     // Later (zzz) terms sort before (are weaker than) earlier (aaa) terms:

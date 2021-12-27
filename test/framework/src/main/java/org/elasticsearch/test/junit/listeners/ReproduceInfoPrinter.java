@@ -12,9 +12,9 @@ import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.internal.AssumptionViolatedException;
@@ -128,13 +128,13 @@ public class ReproduceInfoPrinter extends RunListener {
                 return this;
             }
             if (sysPropName.equals(SYSPROP_TESTCLASS())) {
-                //don't print out the test class, we print it ourselves in appendAllOpts
-                //without filtering out the parameters (needed for REST tests)
+                // don't print out the test class, we print it ourselves in appendAllOpts
+                // without filtering out the parameters (needed for REST tests)
                 return this;
             }
             if (sysPropName.equals(SYSPROP_TESTMETHOD())) {
-                //don't print out the test method, we print it ourselves in appendAllOpts
-                //without filtering out the parameters (needed for REST tests)
+                // don't print out the test method, we print it ourselves in appendAllOpts
+                // without filtering out the parameters (needed for REST tests)
                 return this;
             }
             if (sysPropName.equals(SYSPROP_PREFIX())) {
@@ -153,8 +153,16 @@ public class ReproduceInfoPrinter extends RunListener {
                 // these properties only make sense for integration tests
                 appendProperties(ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
             }
-            appendProperties("tests.assertion.disabled", "tests.nightly", "tests.jvms",
-                             "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version", "build.snapshot");
+            appendProperties(
+                "tests.assertion.disabled",
+                "tests.nightly",
+                "tests.jvms",
+                "tests.client.ratio",
+                "tests.heap.size",
+                "tests.bwc",
+                "tests.bwc.version",
+                "build.snapshot"
+            );
             if (System.getProperty("tests.jvm.argline") != null && System.getProperty("tests.jvm.argline").isEmpty() == false) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }

@@ -7,21 +7,21 @@
 package org.elasticsearch.xpack.core.enrich;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,11 +39,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     public static final String MATCH_TYPE = "match";
     public static final String GEO_MATCH_TYPE = "geo_match";
     public static final String RANGE_TYPE = "range";
-    public static final String[] SUPPORTED_POLICY_TYPES = new String[]{
-        MATCH_TYPE,
-        GEO_MATCH_TYPE,
-        RANGE_TYPE
-    };
+    public static final String[] SUPPORTED_POLICY_TYPES = new String[] { MATCH_TYPE, GEO_MATCH_TYPE, RANGE_TYPE };
 
     private static final ParseField QUERY = new ParseField("query");
     private static final ParseField INDICES = new ParseField("indices");
@@ -78,8 +74,12 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES);
         parser.declareString(ConstructingObjectParser.constructorArg(), MATCH_FIELD);
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), ENRICH_FIELDS);
-        parser.declareField(ConstructingObjectParser.optionalConstructorArg(), ((p, c) -> Version.fromString(p.text())),
-            ELASTICSEARCH_VERSION, ValueType.STRING);
+        parser.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            ((p, c) -> Version.fromString(p.text())),
+            ELASTICSEARCH_VERSION,
+            ValueType.STRING
+        );
     }
 
     public static EnrichPolicy fromXContent(XContentParser parser) throws IOException {
@@ -121,20 +121,18 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         );
     }
 
-    public EnrichPolicy(String type,
-                        QuerySource query,
-                        List<String> indices,
-                        String matchField,
-                        List<String> enrichFields) {
+    public EnrichPolicy(String type, QuerySource query, List<String> indices, String matchField, List<String> enrichFields) {
         this(type, query, indices, matchField, enrichFields, Version.CURRENT);
     }
 
-    public EnrichPolicy(String type,
-                        QuerySource query,
-                        List<String> indices,
-                        String matchField,
-                        List<String> enrichFields,
-                        Version elasticsearchVersion) {
+    public EnrichPolicy(
+        String type,
+        QuerySource query,
+        List<String> indices,
+        String matchField,
+        List<String> enrichFields,
+        Version elasticsearchVersion
+    ) {
         this.type = type;
         this.query = query;
         this.indices = indices;
@@ -208,24 +206,17 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         EnrichPolicy policy = (EnrichPolicy) o;
-        return type.equals(policy.type) &&
-            Objects.equals(query, policy.query) &&
-            indices.equals(policy.indices) &&
-            matchField.equals(policy.matchField) &&
-            enrichFields.equals(policy.enrichFields) &&
-            elasticsearchVersion.equals(policy.elasticsearchVersion);
+        return type.equals(policy.type)
+            && Objects.equals(query, policy.query)
+            && indices.equals(policy.indices)
+            && matchField.equals(policy.matchField)
+            && enrichFields.equals(policy.enrichFields)
+            && elasticsearchVersion.equals(policy.elasticsearchVersion);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            type,
-            query,
-            indices,
-            matchField,
-            enrichFields,
-            elasticsearchVersion
-        );
+        return Objects.hash(type, query, indices, matchField, enrichFields, elasticsearchVersion);
     }
 
     public String toString() {
@@ -269,8 +260,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             QuerySource that = (QuerySource) o;
-            return query.equals(that.query) &&
-                contentType == that.contentType;
+            return query.equals(that.query) && contentType == that.contentType;
         }
 
         @Override
@@ -288,12 +278,14 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             false,
             (args, policyType) -> new NamedPolicy(
                 (String) args[0],
-                new EnrichPolicy(policyType,
+                new EnrichPolicy(
+                    policyType,
                     (QuerySource) args[1],
                     (List<String>) args[2],
                     (String) args[3],
                     (List<String>) args[4],
-                    (Version) args[5])
+                    (Version) args[5]
+                )
             )
         );
 
@@ -370,8 +362,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             NamedPolicy that = (NamedPolicy) o;
-            return name.equals(that.name) &&
-                policy.equals(that.policy);
+            return name.equals(that.name) && policy.equals(that.policy);
         }
 
         @Override

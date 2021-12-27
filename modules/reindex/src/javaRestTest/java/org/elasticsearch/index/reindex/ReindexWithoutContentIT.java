@@ -19,8 +19,10 @@ import static org.hamcrest.CoreMatchers.containsString;
 public class ReindexWithoutContentIT extends ESRestTestCase {
 
     public void testReindexMissingBody() throws IOException {
-        ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(
-                new Request("POST", "/_reindex")));
+        ResponseException responseException = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(new Request("POST", "/_reindex"))
+        );
         assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
         assertThat(responseException.getMessage(), containsString("request body is required"));
     }

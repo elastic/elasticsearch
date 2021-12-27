@@ -130,7 +130,7 @@ def commonPackageConfig(String type, String architecture) {
         fileMode 0644
       }
       into('lib') {
-        with libFiles(false)
+        with libFiles
       }
       into('modules') {
         with modulesFiles('linux-' + ((architecture == 'x64') ? 'x86_64' : architecture))
@@ -175,6 +175,7 @@ def commonPackageConfig(String type, String architecture) {
 
     // ========= config files =========
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
+    configurationFile '/etc/elasticsearch/elasticsearch-plugins.example.yml'
     configurationFile '/etc/elasticsearch/jvm.options'
     configurationFile '/etc/elasticsearch/log4j2.properties'
     configurationFile '/etc/elasticsearch/role_mapping.yml'
@@ -254,7 +255,7 @@ def commonPackageConfig(String type, String architecture) {
   }
 }
 
-// this is package indepdendent configuration
+// this is package independent configuration
 ospackage {
   maintainer 'Elasticsearch Team <info@elastic.co>'
   summary 'Distributed RESTful search engine built for the cloud'

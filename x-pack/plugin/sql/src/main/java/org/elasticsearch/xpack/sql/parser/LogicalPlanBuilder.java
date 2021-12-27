@@ -105,9 +105,8 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             Source source = source(ctx.ORDER(), endContext);
             List<Order> order = visitList(this, ctx.orderBy(), Order.class);
 
-            if (plan instanceof Limit) {
+            if (plan instanceof Limit limit) {
                 // Limit from TOP clauses must be the parent of the OrderBy clause
-                Limit limit = (Limit) plan;
                 plan = limit.replaceChild(new OrderBy(source, limit.child(), order));
             } else {
                 plan = new OrderBy(source, plan, order);
@@ -119,8 +118,10 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             Token limit = limitClause.limit;
             if (limit != null && limitClause.INTEGER_VALUE() != null) {
                 if (plan instanceof Limit) {
-                    throw new ParsingException(source(limitClause),
-                        "TOP and LIMIT are not allowed in the same query - use one or the other");
+                    throw new ParsingException(
+                        source(limitClause),
+                        "TOP and LIMIT are not allowed in the same query - use one or the other"
+                    );
                 } else {
                     plan = limit(plan, source(limitClause), limit);
                 }
@@ -160,8 +161,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             List<Expression> groupBy = expressions(groupingElement);
             ParserRuleContext endSource = groupingElement.isEmpty() ? groupByCtx : groupingElement.get(groupingElement.size() - 1);
             query = new Aggregate(source(ctx.GROUP(), endSource), query, groupBy, selectTarget);
-        }
-        else if (selectTarget.isEmpty() == false) {
+        } else if (selectTarget.isEmpty() == false) {
             query = new Project(source(ctx.selectItems()), query, selectTarget);
         }
 
@@ -187,9 +187,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitFromClause(FromClauseContext ctx) {
         // if there are multiple FROM clauses, convert each pair in a inner join
         List<LogicalPlan> plans = plans(ctx.relation());
-        LogicalPlan plan = plans.stream()
-                .reduce((left, right) -> new Join(source(ctx), left, right, Join.JoinType.IMPLICIT, null))
-                .get();
+        LogicalPlan plan = plans.stream().reduce((left, right) -> new Join(source(ctx), left, right, Join.JoinType.IMPLICIT, null)).get();
 
         // PIVOT
         if (ctx.pivotClause() != null) {
@@ -197,8 +195,11 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             UnresolvedAttribute column = new UnresolvedAttribute(source(pivotClause.column), visitQualifiedName(pivotClause.column));
             List<NamedExpression> values = namedValues(pivotClause.aggs);
             if (values.size() > 1) {
-                throw new ParsingException(source(pivotClause.aggs), "PIVOT currently supports only one aggregation, found [{}]",
-                        values.size());
+                throw new ParsingException(
+                    source(pivotClause.aggs),
+                    "PIVOT currently supports only one aggregation, found [{}]",
+                    values.size()
+                );
             }
             plan = new Pivot(source(pivotClause), plan, column, namedValues(pivotClause.vals), namedValues(pivotClause.aggs));
         }

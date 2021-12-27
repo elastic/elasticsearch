@@ -8,8 +8,6 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.IntHashSet;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,6 +22,8 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -49,6 +49,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -367,7 +368,8 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 "starting shards for " + indexName,
                 clusterState -> ESAllocationTestCase.startInitializingShardsAndReroute(allocationService, clusterState, indexName)
             );
-            assertTrue(clusterService.state().routingTable().shardsWithState(ShardRoutingState.UNASSIGNED).isEmpty());
+            RoutingNodes routingNodes = clusterService.state().getRoutingNodes();
+            assertTrue(RoutingNodesHelper.shardsWithState(routingNodes, ShardRoutingState.UNASSIGNED).isEmpty());
 
         } else {
             // simulate deletion of the index
@@ -432,7 +434,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final Index index = indexMetadata.getIndex();
 
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
-        routingTable.add(IndexRoutingTable.builder(index).initializeAsNewRestore(indexMetadata, recoverySource, new IntHashSet()).build());
+        routingTable.add(IndexRoutingTable.builder(index).initializeAsNewRestore(indexMetadata, recoverySource, new HashSet<>()).build());
 
         final RestoreInProgress.Builder restores = new RestoreInProgress.Builder(
             currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)

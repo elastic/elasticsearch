@@ -12,10 +12,10 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
 import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
@@ -32,6 +32,7 @@ import java.util.Map.Entry;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.assertResponse;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.expectBadRequest;
@@ -46,7 +47,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
     /*
      *    "text_field": {
-     *       "text": "keyword"
+     *       "type": "text"
      *    }
      */
     public void testTextField() throws IOException {
@@ -450,7 +451,9 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             actualValue = "\"foo\"";
         }
         createIndexWithFieldTypeAndProperties("geo_shape", fieldProps, explicitSourceSetting ? indexProps : null);
-        index("{\"geo_shape_field\":{\"type\":\"point\",\"coordinates\":" + actualValue + "}}");
+        index("""
+            {"geo_shape_field":{"type":"point","coordinates":%s}}
+            """.formatted(actualValue));
 
         if (explicitSourceSetting == false || enableSource) {
             Map<String, Object> expected = new HashMap<>();
@@ -647,6 +650,36 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             expectSourceDisabledError(query);
             expectSourceDisabledError("SELECT " + subFieldName + " FROM test");
         }
+    }
+
+    /*
+     *      "keyword_field": {
+     *          "type": "keyword",
+     *          "ignore_above": 10
+     *      },
+     *      "date": {
+     *          "type": "date"
+     *      }
+     *      Test for bug https://github.com/elastic/elasticsearch/issues/80653
+     */
+    public void testTopHitsAggBug_With_IgnoreAbove_Subfield() throws IOException {
+        String text = randomAlphaOfLength(10) + " " + randomAlphaOfLength(10);
+        String function = randomFrom("FIRST", "LAST");
+        String query = "select keyword_field from test group by keyword_field order by " + function + "(date)";
+
+        Map<String, Map<String, Object>> fieldProps = new HashMap<>(1);
+        Map<String, Object> fieldProp = new HashMap<>(1);
+        fieldProp.put("ignore_above", 10);
+        fieldProps.put("keyword_field", fieldProp);
+
+        createIndexWithFieldTypeAndProperties("keyword", fieldProps, null);
+        index("{\"keyword_field\":\"" + text + "\",\"date\":\"2021-11-11T11:11:11.000Z\"}");
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", singletonList(columnInfo("plain", "keyword_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+
+        expected.put("rows", singletonList(singletonList(null)));
+        assertResponse(expected, runSql(query));
     }
 
     /*
@@ -1043,42 +1076,45 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
     public void testNestedFieldsHierarchyWithMultiNestedValues() throws IOException {
         Request request = new Request("PUT", "/test");
-        request.setJsonEntity(
-            "{"
-                + "  \"mappings\" : {"
-                + "    \"properties\" : {"
-                + "      \"h\" : {"
-                + "        \"type\" : \"nested\","
-                + "        \"properties\" : {"
-                + "          \"i\" : {"
-                + "            \"type\" : \"keyword\""
-                + "          },"
-                + "          \"j\" : {"
-                + "            \"type\" : \"keyword\""
-                + "          },"
-                + "          \"f\" : {"
-                + "            \"type\" : \"nested\","
-                + "            \"properties\" : {"
-                + "              \"o\" : {"
-                + "                \"type\" : \"keyword\""
-                + "              },"
-                + "              \"b\" : {"
-                + "                \"properties\" : {"
-                + "                  \"a\" : {"
-                + "                    \"type\" : \"keyword\""
-                + "                  }"
-                + "                }"
-                + "              }"
-                + "            }"
-                + "          }"
-                + "        }"
-                + "      }"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "h": {
+                    "type": "nested",
+                    "properties": {
+                      "i": {
+                        "type": "keyword"
+                      },
+                      "j": {
+                        "type": "keyword"
+                      },
+                      "f": {
+                        "type": "nested",
+                        "properties": {
+                          "o": {
+                            "type": "keyword"
+                          },
+                          "b": {
+                            "properties": {
+                              "a": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
         client().performRequest(request);
-        index("{\"h\": [{\"i\":\"123\", \"j\":\"abc\"}, {\"i\":\"890\", \"j\":\"xyz\"}, {\"i\":\"567\", \"j\":\"klm\"}],\"test\":\"foo\"}");
+        index(stripWhitespace("""
+            {
+              "h": [ { "i": "123", "j": "abc" }, { "i": "890", "j": "xyz" }, { "i": "567", "j": "klm" } ],
+              "test": "foo"
+            }"""));
 
         Map<String, Object> expected = new HashMap<>();
         expected.put(
@@ -1095,39 +1131,41 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
     public void testNestedFieldsHierarchyWithMissingValue() throws IOException {
         Request request = new Request("PUT", "/test");
-        request.setJsonEntity(
-            "{"
-                + "  \"mappings\" : {"
-                + "    \"properties\" : {"
-                + "      \"h\" : {"
-                + "        \"type\" : \"nested\","
-                + "        \"properties\" : {"
-                + "          \"i\" : {"
-                + "            \"type\" : \"keyword\""
-                + "          },"
-                + "          \"f\" : {"
-                + "            \"type\" : \"nested\","
-                + "            \"properties\" : {"
-                + "              \"o\" : {"
-                + "                \"type\" : \"keyword\""
-                + "              },"
-                + "              \"b\" : {"
-                + "                \"properties\" : {"
-                + "                  \"a\" : {"
-                + "                    \"type\" : \"keyword\""
-                + "                  }"
-                + "                }"
-                + "              }"
-                + "            }"
-                + "          }"
-                + "        }"
-                + "      }"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "h": {
+                    "type": "nested",
+                    "properties": {
+                      "i": {
+                        "type": "keyword"
+                      },
+                      "f": {
+                        "type": "nested",
+                        "properties": {
+                          "o": {
+                            "type": "keyword"
+                          },
+                          "b": {
+                            "properties": {
+                              "a": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
         client().performRequest(request);
-        index("{\"h\": [{\"f\":{\"b\": {\"a\": \"ABC\"}}}]}");
+        index(stripWhitespace("""
+            {
+              "h": [ { "f": { "b": { "a": "ABC" } } } ]
+            }"""));
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", singletonList(columnInfo("plain", "h.f.o", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
@@ -1140,39 +1178,41 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
     public void testNestedFieldsHierarchyExtractDeeplyNestedValue() throws IOException {
         Request request = new Request("PUT", "/test");
-        request.setJsonEntity(
-            "{"
-                + "  \"mappings\" : {"
-                + "    \"properties\" : {"
-                + "      \"h\" : {"
-                + "        \"type\" : \"nested\","
-                + "        \"properties\" : {"
-                + "          \"i\" : {"
-                + "            \"type\" : \"keyword\""
-                + "          },"
-                + "          \"f\" : {"
-                + "            \"type\" : \"nested\","
-                + "            \"properties\" : {"
-                + "              \"o\" : {"
-                + "                \"type\" : \"keyword\""
-                + "              },"
-                + "              \"b\" : {"
-                + "                \"properties\" : {"
-                + "                  \"a\" : {"
-                + "                    \"type\" : \"keyword\""
-                + "                  }"
-                + "                }"
-                + "              }"
-                + "            }"
-                + "          }"
-                + "        }"
-                + "      }"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "h": {
+                    "type": "nested",
+                    "properties": {
+                      "i": {
+                        "type": "keyword"
+                      },
+                      "f": {
+                        "type": "nested",
+                        "properties": {
+                          "o": {
+                            "type": "keyword"
+                          },
+                          "b": {
+                            "properties": {
+                              "a": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
         client().performRequest(request);
-        index("{\"h\": [{\"f\":{\"b\": {\"a\": \"ABC\"}}}]}");
+        index(stripWhitespace("""
+            {
+              "h": [ { "f": { "b": { "a": "ABC" } } } ]
+            }"""));
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", singletonList(columnInfo("plain", "h.f.b.a", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
@@ -1182,45 +1222,58 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
     public void testNestedFieldsHierarchyWithArrayOfValues() throws IOException {
         Request request = new Request("PUT", "/test");
-        request.setJsonEntity(
-            "{"
-                + "  \"mappings\" : {"
-                + "    \"properties\" : {"
-                + "      \"h\" : {"
-                + "        \"type\" : \"nested\","
-                + "        \"properties\" : {"
-                + "          \"i\" : {"
-                + "            \"type\" : \"keyword\""
-                + "          },"
-                + "          \"j\" : {"
-                + "            \"type\" : \"keyword\""
-                + "          },"
-                + "          \"f\" : {"
-                + "            \"type\" : \"nested\","
-                + "            \"properties\" : {"
-                + "              \"o\" : {"
-                + "                \"type\" : \"keyword\""
-                + "              },"
-                + "              \"b\" : {"
-                + "                \"properties\" : {"
-                + "                  \"a\" : {"
-                + "                    \"type\" : \"keyword\""
-                + "                  }"
-                + "                }"
-                + "              }"
-                + "            }"
-                + "          }"
-                + "        }"
-                + "      }"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        request.setJsonEntity(stripWhitespace("""
+            {
+              "mappings": {
+                "properties": {
+                  "h": {
+                    "type": "nested",
+                    "properties": {
+                      "i": {
+                        "type": "keyword"
+                      },
+                      "j": {
+                        "type": "keyword"
+                      },
+                      "f": {
+                        "type": "nested",
+                        "properties": {
+                          "o": {
+                            "type": "keyword"
+                          },
+                          "b": {
+                            "properties": {
+                              "a": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }"""));
         client().performRequest(request);
-        index(
-            "{\"h\": [{\"i\":[\"123\",\"124\",\"125\"], \"j\":\"abc\"}, {\"i\":\"890\", \"j\":\"xyz\"}, {\"i\":\"567\", \"j\":\"klm\"}],"
-                + "\"test\":\"foo\"}"
-        );
+        index(stripWhitespace("""
+            {
+              "h": [
+                {
+                  "i": [ "123", "124", "125" ],
+                  "j": "abc"
+                },
+                {
+                  "i": "890",
+                  "j": "xyz"
+                },
+                {
+                  "i": "567",
+                  "j": "klm"
+                }
+              ],
+              "test": "foo"
+            }"""));
 
         Map<String, Object> expected = new HashMap<>();
         Map<String, Object> actual = new HashMap<>();

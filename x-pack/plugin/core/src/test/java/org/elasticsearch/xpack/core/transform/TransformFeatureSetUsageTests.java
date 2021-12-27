@@ -22,12 +22,10 @@ public class TransformFeatureSetUsageTests extends AbstractWireSerializingTestCa
 
     @Override
     protected TransformFeatureSetUsage createTestInstance() {
-        Map<String, Long> transformCountByState =
-            randomSubsetOf(Arrays.asList(IndexerState.values())).stream()
-                .collect(toMap(state -> state.value(), state -> randomLong()));
-        Map<String, Long> transformCountByFeature =
-            randomList(10, () -> randomAlphaOfLength(10)).stream()
-                .collect(toMap(f -> f, f -> randomLong()));
+        Map<String, Long> transformCountByState = randomSubsetOf(Arrays.asList(IndexerState.values())).stream()
+            .collect(toMap(state -> state.value(), state -> randomLong()));
+        Map<String, Long> transformCountByFeature = randomList(10, () -> randomAlphaOfLength(10)).stream()
+            .collect(toMap(f -> f, f -> randomLong()));
         TransformIndexerStats accumulatedStats = TransformIndexerStatsTests.randomStats();
         return new TransformFeatureSetUsage(transformCountByState, transformCountByFeature, accumulatedStats);
     }

@@ -13,15 +13,15 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -59,8 +59,9 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
             if (request.getId() == null) {
                 request.setId(id);
             } else if (Strings.isNullOrEmpty(id) == false && id.equals(request.getId()) == false) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, DataFrameAnalyticsConfig.ID,
-                    request.getId(), id));
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.INCONSISTENT_ID, DataFrameAnalyticsConfig.ID, request.getId(), id)
+                );
             }
             return request;
         }
@@ -146,8 +147,10 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         public static final Version VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED = Version.V_7_10_0;
 
         public static final ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
-            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, true,
-            a -> new TaskParams((String) a[0], (String) a[1], (Boolean) a[2]));
+            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
+            true,
+            a -> new TaskParams((String) a[0], (String) a[1], (Boolean) a[2])
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameAnalyticsConfig.ID);

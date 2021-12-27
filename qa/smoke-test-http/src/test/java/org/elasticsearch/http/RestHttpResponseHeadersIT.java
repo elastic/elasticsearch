@@ -41,8 +41,7 @@ public class RestHttpResponseHeadersIT extends ESRestTestCase {
         Response response = client().performRequest(new Request("OPTIONS", "/_tasks"));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getHeader("Allow"), notNullValue());
-        List<String> responseAllowHeaderStringArray =
-                Arrays.asList(response.getHeader("Allow").split(","));
+        List<String> responseAllowHeaderStringArray = Arrays.asList(response.getHeader("Allow").split(","));
         assertThat(responseAllowHeaderStringArray, containsInAnyOrder("GET"));
     }
 
@@ -62,11 +61,12 @@ public class RestHttpResponseHeadersIT extends ESRestTestCase {
             Response response = e.getResponse();
             assertThat(response.getStatusLine().getStatusCode(), is(405));
             assertThat(response.getHeader("Allow"), notNullValue());
-            List<String> responseAllowHeaderStringArray =
-                    Arrays.asList(response.getHeader("Allow").split(","));
+            List<String> responseAllowHeaderStringArray = Arrays.asList(response.getHeader("Allow").split(","));
             assertThat(responseAllowHeaderStringArray, containsInAnyOrder("GET"));
-            assertThat(EntityUtils.toString(response.getEntity()),
-                containsString("Incorrect HTTP method for uri [/_tasks] and method [DELETE], allowed: [GET]"));
+            assertThat(
+                EntityUtils.toString(response.getEntity()),
+                containsString("Incorrect HTTP method for uri [/_tasks] and method [DELETE], allowed: [GET]")
+            );
         }
     }
 
@@ -85,11 +85,12 @@ public class RestHttpResponseHeadersIT extends ESRestTestCase {
             Response response = e.getResponse();
             assertThat(response.getStatusLine().getStatusCode(), is(405));
             assertThat(response.getHeader("Allow"), notNullValue());
-            List<String> responseAllowHeaderStringArray =
-                    Arrays.asList(response.getHeader("Allow").split(","));
+            List<String> responseAllowHeaderStringArray = Arrays.asList(response.getHeader("Allow").split(","));
             assertThat(responseAllowHeaderStringArray, containsInAnyOrder("PUT", "GET"));
-            assertThat(EntityUtils.toString(response.getEntity()),
-                containsString("Incorrect HTTP method for uri [/testindex/_settings] and method [POST], allowed:"));
+            assertThat(
+                EntityUtils.toString(response.getEntity()),
+                containsString("Incorrect HTTP method for uri [/testindex/_settings] and method [POST], allowed:")
+            );
             assertThat(EntityUtils.toString(response.getEntity()), containsString("GET"));
             assertThat(EntityUtils.toString(response.getEntity()), containsString("PUT"));
         }

@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -35,8 +35,10 @@ public class MigrateActionTests extends AbstractXContentTestCase<MigrateAction> 
     }
 
     public void testEqualsHashCode() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(),
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            createTestInstance(),
             m -> new MigrateAction(m.isEnabled()),
-            m -> new MigrateAction(m.isEnabled() == false));
+            m -> new MigrateAction(m.isEnabled() == false)
+        );
     }
 }

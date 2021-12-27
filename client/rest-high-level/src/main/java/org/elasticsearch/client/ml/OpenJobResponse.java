@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -24,9 +24,11 @@ public class OpenJobResponse implements ToXContentObject {
     private static final ParseField OPENED = new ParseField("opened");
     private static final ParseField NODE = new ParseField("node");
 
-    public static final ConstructingObjectParser<OpenJobResponse, Void> PARSER =
-        new ConstructingObjectParser<>("open_job_response", true,
-            (a) -> new OpenJobResponse((Boolean) a[0], (String) a[1]));
+    public static final ConstructingObjectParser<OpenJobResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "open_job_response",
+        true,
+        (a) -> new OpenJobResponse((Boolean) a[0], (String) a[1])
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), OPENED);
@@ -77,8 +79,7 @@ public class OpenJobResponse implements ToXContentObject {
         }
 
         OpenJobResponse that = (OpenJobResponse) other;
-        return opened == that.opened
-            && Objects.equals(node, that.node);
+        return opened == that.opened && Objects.equals(node, that.node);
     }
 
     @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -61,7 +62,7 @@ public class QueryTranslatorSpecTests extends ESTestCase {
         }
 
         PhysicalPlan optimizeAndPlan(LogicalPlan plan) {
-            return planner.plan(optimizer.optimize(plan),true);
+            return planner.plan(optimizer.optimize(plan), true);
         }
     }
 
@@ -95,7 +96,7 @@ public class QueryTranslatorSpecTests extends ESTestCase {
 
     public void test() {
         assumeFalse("Test is ignored", name.endsWith("-Ignore"));
-        
+
         PhysicalPlan p = testContext.optimizeAndPlan(query);
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;

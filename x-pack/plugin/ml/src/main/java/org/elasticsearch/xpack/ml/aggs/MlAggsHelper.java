@@ -21,18 +21,16 @@ import java.util.Optional;
 
 public final class MlAggsHelper {
 
-    private MlAggsHelper() { }
+    private MlAggsHelper() {}
 
     public static InvalidAggregationPathException invalidPathException(List<String> path, String aggType, String aggName) {
-        return new InvalidAggregationPathException(
-            "unknown property " + path + " for " + aggType + " aggregation [" + aggName + "]"
-        );
+        return new InvalidAggregationPathException("unknown property " + path + " for " + aggType + " aggregation [" + aggName + "]");
     }
 
     /**
      * This extracts the bucket values as doubles from the passed aggregations.
      *
-     * The gap policy is always `INSERT_ZERO`
+     * The gap policy is always `INSERT_ZEROS`
      * @param bucketPath The bucket path from which to extract values
      * @param aggregations The aggregations
      * @return The double values and doc_counts extracted from the path if the bucket path exists and the value is a valid number
@@ -65,10 +63,12 @@ public final class MlAggsHelper {
                     values.add(bucketValue);
                     docCounts.add(bucket.getDocCount());
                 }
-                return Optional.of(new DoubleBucketValues(
-                    docCounts.stream().mapToLong(Long::longValue).toArray(),
-                    values.stream().mapToDouble(Double::doubleValue).toArray()
-                ));
+                return Optional.of(
+                    new DoubleBucketValues(
+                        docCounts.stream().mapToLong(Long::longValue).toArray(),
+                        values.stream().mapToDouble(Double::doubleValue).toArray()
+                    )
+                );
             }
         }
         return Optional.empty();

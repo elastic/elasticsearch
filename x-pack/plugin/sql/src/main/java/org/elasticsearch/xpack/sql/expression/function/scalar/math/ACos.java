@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 
-
 /**
  * <a href="https://en.wikipedia.org/wiki/Inverse_trigonometric_functions">Arc cosine</a>
  * function.

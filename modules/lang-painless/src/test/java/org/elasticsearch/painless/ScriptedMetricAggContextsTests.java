@@ -40,8 +40,12 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
     }
 
     public void testInitBasic() {
-        ScriptedMetricAggContexts.InitScript.Factory factory = scriptEngine.compile("test",
-            "state.testField = params.initialVal", ScriptedMetricAggContexts.InitScript.CONTEXT, Collections.emptyMap());
+        ScriptedMetricAggContexts.InitScript.Factory factory = scriptEngine.compile(
+            "test",
+            "state.testField = params.initialVal",
+            ScriptedMetricAggContexts.InitScript.CONTEXT,
+            Collections.emptyMap()
+        );
 
         Map<String, Object> params = new HashMap<>();
         Map<String, Object> state = new HashMap<>();
@@ -51,23 +55,31 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
         ScriptedMetricAggContexts.InitScript script = factory.newInstance(params, state);
         script.execute();
 
-        assert(state.containsKey("testField"));
+        assert (state.containsKey("testField"));
         assertEquals(10, state.get("testField"));
     }
 
     public void testMapBasic() throws IOException {
-        ScriptedMetricAggContexts.MapScript.Factory factory = scriptEngine.compile("test",
-            "state.testField = 2*_score", ScriptedMetricAggContexts.MapScript.CONTEXT, Collections.emptyMap());
+        ScriptedMetricAggContexts.MapScript.Factory factory = scriptEngine.compile(
+            "test",
+            "state.testField = 2*_score",
+            ScriptedMetricAggContexts.MapScript.CONTEXT,
+            Collections.emptyMap()
+        );
 
         Map<String, Object> params = new HashMap<>();
         Map<String, Object> state = new HashMap<>();
 
         Scorable scorer = new Scorable() {
             @Override
-            public int docID() { return 0; }
+            public int docID() {
+                return 0;
+            }
 
             @Override
-            public float score() { return 0.5f; }
+            public float score() {
+                return 0.5f;
+            }
         };
 
         ScriptedMetricAggContexts.MapScript.LeafFactory leafFactory = factory.newFactory(params, state, null);
@@ -76,13 +88,17 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
         script.setScorer(scorer);
         script.execute();
 
-        assert(state.containsKey("testField"));
+        assert (state.containsKey("testField"));
         assertEquals(1.0, state.get("testField"));
     }
 
     public void testReturnSource() throws IOException {
-        ScriptedMetricAggContexts.MapScript.Factory factory = scriptEngine.compile("test",
-                "state._source = params._source", ScriptedMetricAggContexts.MapScript.CONTEXT, Collections.emptyMap());
+        ScriptedMetricAggContexts.MapScript.Factory factory = scriptEngine.compile(
+            "test",
+            "state._source = params._source",
+            ScriptedMetricAggContexts.MapScript.CONTEXT,
+            Collections.emptyMap()
+        );
 
         Map<String, Object> params = new HashMap<>();
         Map<String, Object> state = new HashMap<>();
@@ -103,13 +119,17 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
         script.execute();
 
         assertTrue(state.containsKey("_source"));
-        assertTrue(state.get("_source") instanceof Map && ((Map)state.get("_source")).containsKey("test"));
-        assertEquals(1, ((Map)state.get("_source")).get("test"));
+        assertTrue(state.get("_source") instanceof Map && ((Map) state.get("_source")).containsKey("test"));
+        assertEquals(1, ((Map) state.get("_source")).get("test"));
     }
 
     public void testMapSourceAccess() throws IOException {
-        ScriptedMetricAggContexts.MapScript.Factory factory = scriptEngine.compile("test",
-            "state.testField = params._source.three", ScriptedMetricAggContexts.MapScript.CONTEXT, Collections.emptyMap());
+        ScriptedMetricAggContexts.MapScript.Factory factory = scriptEngine.compile(
+            "test",
+            "state.testField = params._source.three",
+            ScriptedMetricAggContexts.MapScript.CONTEXT,
+            Collections.emptyMap()
+        );
 
         Map<String, Object> params = new HashMap<>();
         Map<String, Object> state = new HashMap<>();
@@ -134,9 +154,12 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
     }
 
     public void testCombineBasic() {
-        ScriptedMetricAggContexts.CombineScript.Factory factory = scriptEngine.compile("test",
-            "state.testField = params.initialVal; return state.testField + params.inc", ScriptedMetricAggContexts.CombineScript.CONTEXT,
-            Collections.emptyMap());
+        ScriptedMetricAggContexts.CombineScript.Factory factory = scriptEngine.compile(
+            "test",
+            "state.testField = params.initialVal; return state.testField + params.inc",
+            ScriptedMetricAggContexts.CombineScript.CONTEXT,
+            Collections.emptyMap()
+        );
 
         Map<String, Object> params = new HashMap<>();
         Map<String, Object> state = new HashMap<>();
@@ -147,14 +170,18 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
         ScriptedMetricAggContexts.CombineScript script = factory.newInstance(params, state);
         Object res = script.execute();
 
-        assert(state.containsKey("testField"));
+        assert (state.containsKey("testField"));
         assertEquals(10, state.get("testField"));
         assertEquals(12, res);
     }
 
     public void testReduceBasic() {
-        ScriptedMetricAggContexts.ReduceScript.Factory factory = scriptEngine.compile("test",
-            "states[0].testField + states[1].testField", ScriptedMetricAggContexts.ReduceScript.CONTEXT, Collections.emptyMap());
+        ScriptedMetricAggContexts.ReduceScript.Factory factory = scriptEngine.compile(
+            "test",
+            "states[0].testField + states[1].testField",
+            ScriptedMetricAggContexts.ReduceScript.CONTEXT,
+            Collections.emptyMap()
+        );
 
         Map<String, Object> params = new HashMap<>();
         List<Object> states = new ArrayList<>();

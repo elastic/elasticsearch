@@ -33,8 +33,11 @@ public class NodesHotThreadsRequestTests extends ESTestCase {
         request.snapshots(3);
 
         Version latest = Version.CURRENT;
-        Version previous = VersionUtils.randomVersionBetween(random(),
-            VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.CURRENT));
+        Version previous = VersionUtils.randomVersionBetween(
+            random(),
+            VersionUtils.getFirstVersion(),
+            VersionUtils.getPreviousVersion(Version.CURRENT)
+        );
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(latest);
@@ -55,7 +58,7 @@ public class NodesHotThreadsRequestTests extends ESTestCase {
             out.setVersion(previous);
             request.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                in.setVersion(latest);
+                in.setVersion(previous);
                 NodesHotThreadsRequest deserialized = new NodesHotThreadsRequest(in);
                 assertEquals(request.threads(), deserialized.threads());
                 assertEquals(request.ignoreIdleThreads(), deserialized.ignoreIdleThreads());

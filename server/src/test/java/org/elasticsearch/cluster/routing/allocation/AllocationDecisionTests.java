@@ -62,8 +62,9 @@ public class AllocationDecisionTests extends ESTestCase {
     public void testFromDecisionType() {
         Type type = randomFrom(Type.values());
         AllocationDecision allocationDecision = AllocationDecision.fromDecisionType(type);
-        AllocationDecision expected = type == Type.NO ? AllocationDecision.NO :
-                                          type == Type.THROTTLE ? AllocationDecision.THROTTLED : AllocationDecision.YES;
+        AllocationDecision expected = type == Type.NO ? AllocationDecision.NO
+            : type == Type.THROTTLE ? AllocationDecision.THROTTLED
+            : AllocationDecision.YES;
         assertEquals(expected, allocationDecision);
     }
 

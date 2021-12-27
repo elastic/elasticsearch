@@ -30,15 +30,16 @@ public class RecoveryTranslogOperationsRequest extends RecoveryTransportRequest 
     private final long mappingVersionOnPrimary;
 
     RecoveryTranslogOperationsRequest(
-            final long recoveryId,
-            final long requestSeqNo,
-            final ShardId shardId,
-            final List<Translog.Operation> operations,
-            final int totalTranslogOps,
-            final long maxSeenAutoIdTimestampOnPrimary,
-            final long maxSeqNoOfUpdatesOrDeletesOnPrimary,
-            final RetentionLeases retentionLeases,
-            final long mappingVersionOnPrimary) {
+        final long recoveryId,
+        final long requestSeqNo,
+        final ShardId shardId,
+        final List<Translog.Operation> operations,
+        final int totalTranslogOps,
+        final long maxSeenAutoIdTimestampOnPrimary,
+        final long maxSeqNoOfUpdatesOrDeletesOnPrimary,
+        final RetentionLeases retentionLeases,
+        final long mappingVersionOnPrimary
+    ) {
         super(requestSeqNo);
         this.recoveryId = recoveryId;
         this.shardId = shardId;

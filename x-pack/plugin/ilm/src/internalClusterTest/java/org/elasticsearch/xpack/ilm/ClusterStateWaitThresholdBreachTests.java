@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -88,16 +90,22 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         internalCluster().startDataOnlyNode();
 
         int numShards = 2;
-        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(MigrateAction.NAME, new MigrateAction(false), ShrinkAction.NAME,
-            new ShrinkAction(1, null)));
+        Phase warmPhase = new Phase(
+            "warm",
+            TimeValue.ZERO,
+            Map.of(MigrateAction.NAME, MigrateAction.DISABLED, ShrinkAction.NAME, new ShrinkAction(1, null))
+        );
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("warm", warmPhase));
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
 
         // we're configuring a very high number of replicas. this will make ths shrunk index unable to allocate successfully, so ILM will
         // wait in the `shrunk-shards-allocated` step (we don't wait for the original index to be GREEN before)
-        Settings settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(SETTING_NUMBER_OF_REPLICAS, 42).put(LifecycleSettings.LIFECYCLE_NAME, policy)
+        Settings settings = Settings.builder()
+            .put(indexSettings())
+            .put(SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(SETTING_NUMBER_OF_REPLICAS, 42)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
             // configuring the threshold to the minimum value
             .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1h")
             .build();
@@ -107,8 +115,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         String[] firstAttemptShrinkIndexName = new String[1];
         assertBusy(() -> {
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
-            ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
-                explainRequest).get();
+            ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
             firstAttemptShrinkIndexName[0] = indexLifecycleExplainResponse.getShrinkIndexName();
@@ -118,8 +125,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // let's check ILM for the managed index is waiting in the `shrunk-shards-allocated` step
         assertBusy(() -> {
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
-            ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
-                explainRequest).get();
+            ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
             assertThat(indexLifecycleExplainResponse.getStep(), is(ShrunkShardsAllocatedStep.NAME));
@@ -138,16 +144,30 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // an old timestamp so the `1h` wait threshold we configured using LIFECYCLE_STEP_WAIT_TIME_THRESHOLD is breached and a new
         // shrink cycle is started
         LongSupplier nowWayBackInThePastSupplier = () -> 1234L;
-        clusterService.submitStateUpdateTask("testing-move-to-step-to-manipulate-step-time",
-            new MoveToNextStepUpdateTask(managedIndexMetadata.getIndex(), policy, currentStepKey, currentStepKey,
-                nowWayBackInThePastSupplier, indexLifecycleService.getPolicyRegistry(), state -> {
-            }));
+        clusterService.submitStateUpdateTask("testing-move-to-step-to-manipulate-step-time", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                return new MoveToNextStepUpdateTask(
+                    managedIndexMetadata.getIndex(),
+                    policy,
+                    currentStepKey,
+                    currentStepKey,
+                    nowWayBackInThePastSupplier,
+                    indexLifecycleService.getPolicyRegistry(),
+                    state -> {}
+                ).execute(currentState);
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                throw new AssertionError(e);
+            }
+        });
 
         String[] secondCycleShrinkIndexName = new String[1];
         assertBusy(() -> {
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
-            ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
-                explainRequest).get();
+            ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
             secondCycleShrinkIndexName[0] = indexLifecycleExplainResponse.getShrinkIndexName();
@@ -165,14 +185,11 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // waiting for the huge numbers of replicas for the shrunk index to allocate. this will never happen, so let's unblock this
         // situation and allow for shrink to complete by reducing the number of shards for the shrunk index to 0
         Settings.Builder zeroReplicasSetting = Settings.builder().put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
-        assertAcked(
-            client().admin().indices().prepareUpdateSettings(secondCycleShrinkIndexName[0]).setSettings(zeroReplicasSetting)
-        );
+        assertAcked(client().admin().indices().prepareUpdateSettings(secondCycleShrinkIndexName[0]).setSettings(zeroReplicasSetting));
 
         assertBusy(() -> {
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(secondCycleShrinkIndexName[0]);
-            ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
-                explainRequest).get();
+            ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses()
                 .get(secondCycleShrinkIndexName[0]);
             assertThat(indexLifecycleExplainResponse.getPhase(), equalTo("warm"));

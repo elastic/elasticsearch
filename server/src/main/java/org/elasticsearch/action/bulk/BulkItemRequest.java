@@ -11,11 +11,11 @@ package org.elasticsearch.action.bulk;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -81,12 +81,14 @@ public class BulkItemRequest implements Writeable, Accountable {
             setPrimaryResponse(BulkItemResponse.failure(id, request.opType(), failure));
         } else {
             assert primaryResponse.isFailed() && primaryResponse.getFailure().isAborted()
-                    : "response [" + Strings.toString(primaryResponse) + "]; cause [" + cause + "]";
+                : "response [" + Strings.toString(primaryResponse) + "]; cause [" + cause + "]";
             if (primaryResponse.isFailed() && primaryResponse.getFailure().isAborted()) {
                 primaryResponse.getFailure().getCause().addSuppressed(cause);
             } else {
                 throw new IllegalStateException(
-                        "aborting item that with response [" + primaryResponse + "] that was previously processed", cause);
+                    "aborting item that with response [" + primaryResponse + "] that was previously processed",
+                    cause
+                );
             }
         }
     }

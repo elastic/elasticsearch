@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
 
 import java.io.IOException;
@@ -50,10 +50,9 @@ public class NerConfigTests extends InferenceConfigItemTestCase<NerConfig> {
     public static NerConfig createRandom() {
         return new NerConfig(
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
-            randomBoolean() ?
-                null :
-                randomFrom(BertTokenizationTests.createRandom(), DistilBertTokenizationTests.createRandom()),
-            randomBoolean() ? null : randomList(5, () -> randomAlphaOfLength(10))
+            randomBoolean() ? null : BertTokenizationTests.createRandom(),
+            randomBoolean() ? null : randomList(5, () -> randomAlphaOfLength(10)),
+            randomBoolean() ? null : randomAlphaOfLength(5)
         );
     }
 }

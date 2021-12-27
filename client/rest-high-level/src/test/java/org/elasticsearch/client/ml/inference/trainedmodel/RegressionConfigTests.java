@@ -8,19 +8,16 @@
 
 package org.elasticsearch.client.ml.inference.trainedmodel;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 public class RegressionConfigTests extends AbstractXContentTestCase<RegressionConfig> {
 
     public static RegressionConfig randomRegressionConfig() {
-        return new RegressionConfig(
-            randomBoolean() ? null : randomAlphaOfLength(10),
-            randomBoolean() ? null : randomIntBetween(0, 10));
+        return new RegressionConfig(randomBoolean() ? null : randomAlphaOfLength(10), randomBoolean() ? null : randomIntBetween(0, 10));
     }
-
 
     @Override
     protected RegressionConfig createTestInstance() {

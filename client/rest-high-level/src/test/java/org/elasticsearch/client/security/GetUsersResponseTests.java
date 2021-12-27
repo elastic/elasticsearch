@@ -9,12 +9,12 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,10 +31,7 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class GetUsersResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
-            GetUsersResponseTests::createTestInstance,
-            this::toXContent,
-            GetUsersResponse::fromXContent)
+        xContentTester(this::createParser, GetUsersResponseTests::createTestInstance, this::toXContent, GetUsersResponse::fromXContent)
             .supportsUnknownFields(false)
             .assertToXContentEquivalence(false)
             .test();
@@ -53,8 +50,12 @@ public class GetUsersResponseTests extends ESTestCase {
 
         // This sub object should support unknown fields, but metadata cannot contain complex extra objects or it will fail
         Predicate<String> excludeFilter = path -> path.equals("metadata");
-        BytesReference newBytes = XContentTestUtils.insertRandomFields(XContentType.JSON, BytesReference.bytes(tempBuilder),
-            excludeFilter, random());
+        BytesReference newBytes = XContentTestUtils.insertRandomFields(
+            XContentType.JSON,
+            BytesReference.bytes(tempBuilder),
+            excludeFilter,
+            random()
+        );
         builder.rawValue(newBytes.streamInput(), XContentType.JSON);
         return builder;
     }
@@ -83,18 +84,26 @@ public class GetUsersResponseTests extends ESTestCase {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(randomAlphaOfLengthBetween(1, 5), randomInt());
 
-        final User user1 = new User(randomAlphaOfLength(8),
-            Arrays.asList(new String[] {randomAlphaOfLength(5), randomAlphaOfLength(5)}),
-            metadata, randomAlphaOfLength(10), null);
+        final User user1 = new User(
+            randomAlphaOfLength(8),
+            Arrays.asList(new String[] { randomAlphaOfLength(5), randomAlphaOfLength(5) }),
+            metadata,
+            randomAlphaOfLength(10),
+            null
+        );
         users.add(user1);
         enabledUsers.add(user1);
         Map<String, Object> metadata2 = new HashMap<>();
         metadata2.put(randomAlphaOfLengthBetween(1, 5), randomInt());
         metadata2.put(randomAlphaOfLengthBetween(1, 5), randomBoolean());
 
-        final User user2 = new User(randomAlphaOfLength(8),
-            Arrays.asList(new String[] {randomAlphaOfLength(5), randomAlphaOfLength(5)}),
-            metadata2, randomAlphaOfLength(10), null);
+        final User user2 = new User(
+            randomAlphaOfLength(8),
+            Arrays.asList(new String[] { randomAlphaOfLength(5), randomAlphaOfLength(5) }),
+            metadata2,
+            randomAlphaOfLength(10),
+            null
+        );
         users.add(user2);
         return new GetUsersResponse(toMap(users), toMap(enabledUsers));
     }
@@ -104,26 +113,32 @@ public class GetUsersResponseTests extends ESTestCase {
         final List<User> enabledUsers = new ArrayList<>();
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("intelligence", 1);
-        final User user1 = new User("testUser1", Arrays.asList(new String[] {"admin", "other_role1"}),
-            metadata, "Test User 1", null);
+        final User user1 = new User("testUser1", Arrays.asList(new String[] { "admin", "other_role1" }), metadata, "Test User 1", null);
         users.add(user1);
         enabledUsers.add(user1);
         Map<String, Object> metadata2 = new HashMap<>();
         metadata2.put("intelligence", 9);
         metadata2.put("specialty", "geo");
-        final User user2 = new User("testUser2", Arrays.asList(new String[] {"admin"}),
-            metadata2, "Test User 2", "testuser2@example.com");
+        final User user2 = new User(
+            "testUser2",
+            Arrays.asList(new String[] { "admin" }),
+            metadata2,
+            "Test User 2",
+            "testuser2@example.com"
+        );
         users.add(user2);
         enabledUsers.add(user2);
         final GetUsersResponse getUsersResponse = new GetUsersResponse(toMap(users), toMap(enabledUsers));
         assertNotNull(getUsersResponse);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-                getUsersResponse,
-                (original) -> new GetUsersResponse(toMap(original.getUsers()), toMap(original.getEnabledUsers())));
+            getUsersResponse,
+            (original) -> new GetUsersResponse(toMap(original.getUsers()), toMap(original.getEnabledUsers()))
+        );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-                getUsersResponse,
-                (original) -> new GetUsersResponse(toMap(original.getUsers()), toMap(original.getEnabledUsers())),
-                GetUsersResponseTests::mutateTestItem);
+            getUsersResponse,
+            (original) -> new GetUsersResponse(toMap(original.getUsers()), toMap(original.getEnabledUsers())),
+            GetUsersResponseTests::mutateTestItem
+        );
     }
 
     private static GetUsersResponse mutateTestItem(GetUsersResponse original) {
@@ -132,16 +147,14 @@ public class GetUsersResponseTests extends ESTestCase {
             final List<User> enabledUsers = new ArrayList<>();
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("intelligence", 1);
-            final User user1 = new User("testUser1", Arrays.asList(new String[] {"admin", "other_role1"}),
-                metadata, "Test User 1", null);
+            final User user1 = new User("testUser1", Arrays.asList(new String[] { "admin", "other_role1" }), metadata, "Test User 1", null);
             users.add(user1);
             enabledUsers.add(user1);
             return new GetUsersResponse(toMap(users), toMap(enabledUsers));
         }
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("intelligence", 5);  // change intelligence
-        final User user1 = new User("testUser1", Arrays.asList(new String[] {"admin", "other_role1"}),
-            metadata, "Test User 1", null);
+        final User user1 = new User("testUser1", Arrays.asList(new String[] { "admin", "other_role1" }), metadata, "Test User 1", null);
         List<User> newUsers = new ArrayList<>(original.getUsers());
         List<User> enabledUsers = new ArrayList<>(original.getEnabledUsers());
         newUsers.clear();

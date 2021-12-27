@@ -18,12 +18,15 @@ public abstract class TestFieldScript {
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
+
     public interface Factory {
         TestFieldScript newInstance();
     }
 
-    public static final ScriptContext<TestFieldScript.Factory> CONTEXT =
-            new ScriptContext<>("painless_test_fieldscript", TestFieldScript.Factory.class);
+    public static final ScriptContext<TestFieldScript.Factory> CONTEXT = new ScriptContext<>(
+        "painless_test_fieldscript",
+        TestFieldScript.Factory.class
+    );
 
     public static class Emit {
         private final TestFieldScript script;
@@ -44,6 +47,6 @@ public abstract class TestFieldScript {
     }
 
     public long[] fetchValues() {
-        return values.stream().mapToLong(i->i).toArray();
+        return values.stream().mapToLong(i -> i).toArray();
     }
 }

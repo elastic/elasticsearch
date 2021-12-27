@@ -17,7 +17,6 @@ import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
-import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -31,6 +30,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 /**
  * Build service for detecting available Docker installation and checking for compatibility with Elasticsearch Docker image build
@@ -153,8 +154,11 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         // Some other problem, print the error
         final String message = String.format(
             Locale.ROOT,
-            "a problem occurred while using Docker from [%s]%s yet it is required to run the following task%s: \n%s\n"
-                + "the problem is that Docker exited with exit code [%d] with standard error output:\n%s",
+            """
+                a problem occurred while using Docker from [%s]%s yet it is required to run the following task%s:
+                %s
+                the problem is that Docker exited with exit code [%d] with standard error output:
+                %s""",
             availability.path,
             availability.version == null ? "" : " v" + availability.version,
             tasks.size() > 1 ? "s" : "",

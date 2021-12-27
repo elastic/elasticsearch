@@ -25,21 +25,19 @@ if (BuildParams.inFipsJvm){
   tasks.named("javaRestTest").configure{enabled = false }
 }
 
-testClusters {
-  javaRestTest {
+def cluster = testClusters.register("javaRestTest") {
     testDistribution = 'DEFAULT'
     numberOfNodes = 2
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'basic'
     setting 'xpack.security.enabled', 'false'
-  }
 }
 
 tasks.register("javaRestTestWithSecurityEnabled", StandaloneRestIntegTestTask) {
   mustRunAfter("javaRestTest")
   description = "Run tests against a cluster that has security enabled"
   dependsOn "javaRestTest"
-  useCluster testClusters.javaRestTest
+  useCluster cluster
   systemProperty 'tests.has_security', 'true'
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs
   classpath = sourceSets.javaRestTest.runtimeClasspath
@@ -47,7 +45,7 @@ tasks.register("javaRestTestWithSecurityEnabled", StandaloneRestIntegTestTask) {
     BuildParams.inFipsJvm == false
   }
   doFirst {
-    testClusters.javaRestTest {
+    cluster.configure {
       // TODO Rene: revisit if using dedicated new cluster definitions would be more efficient.
       // Reconfigure cluster to enable security
       setting 'xpack.security.enabled', 'true'
@@ -68,8 +66,7 @@ tasks.register("javaRestTestWithSecurityEnabled", StandaloneRestIntegTestTask) {
 
       restart()
     }
-    nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.javaRestTest.getAllHttpSocketURI().join(",")}"
+    nonInputProperties.systemProperty 'tests.rest.cluster', cluster.map(c->c.getAllHttpSocketURI().join(","))
   }
 }
 tasks.named("check").configure { dependsOn("javaRestTestWithSecurityEnabled") }
-

@@ -96,12 +96,17 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
 
     @Override
     public String toString() {
-        return "TimedRunnable{" +
-            "original=" + original +
-            ", creationTimeNanos=" + creationTimeNanos +
-            ", startTimeNanos=" + startTimeNanos +
-            ", finishTimeNanos=" + finishTimeNanos +
-            ", failedOrRejected=" + failedOrRejected +
-            '}';
+        return "TimedRunnable{"
+            + "original="
+            + original
+            + ", creationTimeNanos="
+            + creationTimeNanos
+            + ", startTimeNanos="
+            + startTimeNanos
+            + ", finishTimeNanos="
+            + finishTimeNanos
+            + ", failedOrRejected="
+            + failedOrRejected
+            + '}';
     }
 }

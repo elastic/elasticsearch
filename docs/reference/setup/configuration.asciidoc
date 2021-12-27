@@ -100,7 +100,7 @@ Values for environment variables must be simple strings. Use a comma-separated s
 
 [source,yaml]
 ----
-export HOSTNAME=“host1,host2"
+export HOSTNAME="host1,host2"
 ----
 
 [discrete]
@@ -135,11 +135,20 @@ For example, you can apply a transient setting to override a persistent setting
 or `elasticsearch.yml` setting. However, a change to an `elasticsearch.yml`
 setting will not override a defined transient or persistent setting.
 
-TIP: It’s best to set dynamic, cluster-wide settings with the cluster update
-settings API and use `elasticsearch.yml` only for local configurations. Using
-the cluster update settings API ensures the setting is the same on all nodes. If
-you accidentally configure different settings in `elasticsearch.yml` on
-different nodes, it can be difficult to notice discrepancies.
+[TIP]
+====
+If you use {ess}, use the {cloud}/ec-add-user-settings.html[user settings]
+feature to configure all cluster settings. This method lets {ess} automatically
+reject unsafe settings that could break your cluster.
+
+If you run {es} on your own hardware, use the <<cluster-update-settings,cluster
+update settings API>> to configure dynamic cluster settings. Only use
+`elasticsearch.yml` for static cluster settings and node settings. The API
+doesn't require a restart and ensures a setting's value is the same on all
+nodes.
+====
+
+include::{es-repo-dir}/cluster/update-settings.asciidoc[tag=transient-settings-warning]
 --
 
 [[static-cluster-setting]]

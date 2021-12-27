@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 

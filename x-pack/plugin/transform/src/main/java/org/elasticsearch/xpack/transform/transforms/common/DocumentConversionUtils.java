@@ -33,10 +33,12 @@ public class DocumentConversionUtils {
      * @param destinationPipeline Optional destination pipeline
      * @return A valid {@link IndexRequest}
      */
-    public static IndexRequest convertDocumentToIndexRequest(String docId,
-                                                             Map<String, Object> document,
-                                                             String destinationIndex,
-                                                             String destinationPipeline) {
+    public static IndexRequest convertDocumentToIndexRequest(
+        String docId,
+        Map<String, Object> document,
+        String destinationIndex,
+        String destinationPipeline
+    ) {
         if (docId == null) {
             throw new RuntimeException("Expected a document id but got null.");
         }
@@ -53,7 +55,8 @@ public class DocumentConversionUtils {
      * @return A new {@link Map} but with all keys that start with "_" removed
      */
     public static <V> Map<String, V> removeInternalFields(Map<String, V> document) {
-        return document.entrySet().stream()
+        return document.entrySet()
+            .stream()
             .filter(not(e -> e.getKey() != null && e.getKey().startsWith("_")))
             // Workaround for handling null keys properly. For details see https://bugs.openjdk.java.net/browse/JDK-8148463
             .collect(HashMap::new, (m, e) -> m.put(e.getKey(), e.getValue()), HashMap::putAll);
@@ -68,16 +71,13 @@ public class DocumentConversionUtils {
     public static Map<String, String> extractFieldMappings(FieldCapabilitiesResponse response) {
         Map<String, String> extractedTypes = new HashMap<>();
 
-        response.get()
-            .forEach(
-                (fieldName, capabilitiesMap) -> {
-                    // TODO: overwrites types, requires resolve if types are mixed
-                    capabilitiesMap.forEach((name, capability) -> {
-                        logger.trace(() -> new ParameterizedMessage("Extracted type for [{}] : [{}]", fieldName, capability.getType()));
-                        extractedTypes.put(fieldName, capability.getType());
-                    });
-                }
-            );
+        response.get().forEach((fieldName, capabilitiesMap) -> {
+            // TODO: overwrites types, requires resolve if types are mixed
+            capabilitiesMap.forEach((name, capability) -> {
+                logger.trace(() -> new ParameterizedMessage("Extracted type for [{}] : [{}]", fieldName, capability.getType()));
+                extractedTypes.put(fieldName, capability.getType());
+            });
+        });
         return extractedTypes;
     }
 

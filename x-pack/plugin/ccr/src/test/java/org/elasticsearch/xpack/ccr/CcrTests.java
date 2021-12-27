@@ -15,7 +15,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 
 import java.io.IOException;
@@ -31,17 +30,16 @@ public class CcrTests extends ESTestCase {
             final String indexName = "following-" + value;
             final Index index = new Index(indexName, UUIDs.randomBase64UUID());
             final Settings.Builder builder = Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
             if (value != null) {
                 builder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), value);
             }
 
-            final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName())
-                    .settings(builder.build())
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
-                    .build();
+            final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName()).settings(builder.build())
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
             final Ccr ccr = new Ccr(Settings.EMPTY, new CcrLicenseChecker(() -> true, () -> false));
             final Optional<EngineFactory> engineFactory = ccr.getEngineFactory(new IndexSettings(indexMetadata, Settings.EMPTY));
             if (value != null && value) {

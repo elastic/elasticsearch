@@ -16,6 +16,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 
@@ -29,26 +30,28 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MappingLookupTests extends ESTestCase {
 
-    private static MappingLookup createMappingLookup(List<FieldMapper> fieldMappers,
-                                                     List<ObjectMapper> objectMappers,
-                                                     List<RuntimeField> runtimeFields) {
+    private static MappingLookup createMappingLookup(
+        List<FieldMapper> fieldMappers,
+        List<ObjectMapper> objectMappers,
+        List<RuntimeField> runtimeFields
+    ) {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
-        Mapping mapping = new Mapping(
-            builder.build(MapperBuilderContext.ROOT),
-            new MetadataFieldMapper[0],
-            Collections.emptyMap()
-        );
+        Mapping mapping = new Mapping(builder.build(MapperBuilderContext.ROOT), new MetadataFieldMapper[0], Collections.emptyMap());
         return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, emptyList());
     }
 
     public void testOnlyRuntimeField() {
-        MappingLookup mappingLookup = createMappingLookup(emptyList(), emptyList(),
-            Collections.singletonList(new TestRuntimeField("test", "type")));
+        MappingLookup mappingLookup = createMappingLookup(
+            emptyList(),
+            emptyList(),
+            Collections.singletonList(new TestRuntimeField("test", "type"))
+        );
         assertEquals(0, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
         assertNull(mappingLookup.getMapper("test"));
@@ -57,8 +60,11 @@ public class MappingLookupTests extends ESTestCase {
 
     public void testRuntimeFieldLeafOverride() {
         MockFieldMapper fieldMapper = new MockFieldMapper("test");
-        MappingLookup mappingLookup = createMappingLookup(Collections.singletonList(fieldMapper), emptyList(),
-            Collections.singletonList(new TestRuntimeField("test", "type")));
+        MappingLookup mappingLookup = createMappingLookup(
+            Collections.singletonList(fieldMapper),
+            emptyList(),
+            Collections.singletonList(new TestRuntimeField("test", "type"))
+        );
         assertThat(mappingLookup.getMapper("test"), instanceOf(MockFieldMapper.class));
         assertEquals(1, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
@@ -67,8 +73,13 @@ public class MappingLookupTests extends ESTestCase {
 
     public void testSubfieldOverride() {
         MockFieldMapper fieldMapper = new MockFieldMapper("object.subfield");
-        ObjectMapper objectMapper = new ObjectMapper("object", "object", new Explicit<>(true, true),
-            ObjectMapper.Dynamic.TRUE, Collections.singletonMap("object.subfield", fieldMapper));
+        ObjectMapper objectMapper = new ObjectMapper(
+            "object",
+            "object",
+            new Explicit<>(true, true),
+            ObjectMapper.Dynamic.TRUE,
+            Collections.singletonMap("object.subfield", fieldMapper)
+        );
         MappingLookup mappingLookup = createMappingLookup(
             Collections.singletonList(fieldMapper),
             Collections.singletonList(objectMapper),
@@ -87,18 +98,14 @@ public class MappingLookupTests extends ESTestCase {
         FakeFieldType fieldType2 = new FakeFieldType("field2");
         FieldMapper fieldMapper2 = new FakeFieldMapper(fieldType2, "index2");
 
-        MappingLookup mappingLookup = createMappingLookup(
-            Arrays.asList(fieldMapper1, fieldMapper2),
-            emptyList(),
-            emptyList()
-        );
+        MappingLookup mappingLookup = createMappingLookup(Arrays.asList(fieldMapper1, fieldMapper2), emptyList(), emptyList());
 
         assertAnalyzes(mappingLookup.indexAnalyzer("field1", f -> null), "field1", "index1");
         assertAnalyzes(mappingLookup.indexAnalyzer("field2", f -> null), "field2", "index2");
-        expectThrows(IllegalArgumentException.class,
-            () -> mappingLookup.indexAnalyzer("field3", f -> {
-                throw new IllegalArgumentException();
-            }).tokenStream("field3", "blah"));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> mappingLookup.indexAnalyzer("field3", f -> { throw new IllegalArgumentException(); }).tokenStream("field3", "blah")
+        );
     }
 
     public void testEmptyMappingLookup() {
@@ -109,6 +116,71 @@ public class MappingLookupTests extends ESTestCase {
         assertEquals(0, mappingLookup.getMapping().getMetadataMappersMap().size());
         assertFalse(mappingLookup.fieldMappers().iterator().hasNext());
         assertEquals(0, mappingLookup.getMatchingFieldNames("*").size());
+    }
+
+    public void testValidateDoesNotShadow() {
+        FakeFieldType dim = new FakeFieldType("dim") {
+            @Override
+            public boolean isDimension() {
+                return true;
+            }
+        };
+        FieldMapper dimMapper = new FakeFieldMapper(dim, "index1");
+
+        MetricType metricType = randomFrom(MetricType.values());
+        FakeFieldType metric = new FakeFieldType("metric") {
+            @Override
+            public MetricType getMetricType() {
+                return metricType;
+            }
+        };
+        FieldMapper metricMapper = new FakeFieldMapper(metric, "index1");
+
+        FakeFieldType plain = new FakeFieldType("plain");
+        FieldMapper plainMapper = new FakeFieldMapper(plain, "index1");
+
+        MappingLookup mappingLookup = createMappingLookup(List.of(dimMapper, metricMapper, plainMapper), emptyList(), emptyList());
+        mappingLookup.validateDoesNotShadow("not_mapped");
+        Exception e = expectThrows(MapperParsingException.class, () -> mappingLookup.validateDoesNotShadow("dim"));
+        assertThat(e.getMessage(), equalTo("Field [dim] attempted to shadow a time_series_dimension"));
+        e = expectThrows(MapperParsingException.class, () -> mappingLookup.validateDoesNotShadow("metric"));
+        assertThat(e.getMessage(), equalTo("Field [metric] attempted to shadow a time_series_metric"));
+        mappingLookup.validateDoesNotShadow("plain");
+    }
+
+    public void testShadowingOnConstruction() {
+        FakeFieldType dim = new FakeFieldType("dim") {
+            @Override
+            public boolean isDimension() {
+                return true;
+            }
+        };
+        FieldMapper dimMapper = new FakeFieldMapper(dim, "index1");
+
+        MetricType metricType = randomFrom(MetricType.values());
+        FakeFieldType metric = new FakeFieldType("metric") {
+            @Override
+            public MetricType getMetricType() {
+                return metricType;
+            }
+        };
+        FieldMapper metricMapper = new FakeFieldMapper(metric, "index1");
+
+        boolean shadowDim = randomBoolean();
+        TestRuntimeField shadowing = new TestRuntimeField(shadowDim ? "dim" : "metric", "keyword");
+
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createMappingLookup(List.of(dimMapper, metricMapper), emptyList(), List.of(shadowing))
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                shadowDim
+                    ? "Field [dim] attempted to shadow a time_series_dimension"
+                    : "Field [metric] attempted to shadow a time_series_metric"
+            )
+        );
     }
 
     private void assertAnalyzes(Analyzer analyzer, String field, String output) throws IOException {
@@ -178,15 +250,18 @@ public class MappingLookupTests extends ESTestCase {
         final String indexedValue;
 
         FakeFieldMapper(FakeFieldType fieldType, String indexedValue) {
-            super(fieldType.name(), fieldType,
+            super(
+                fieldType.name(),
+                fieldType,
                 new NamedAnalyzer("fake", AnalyzerScope.INDEX, new FakeAnalyzer(indexedValue)),
-                MultiFields.empty(), CopyTo.empty());
+                MultiFields.empty(),
+                CopyTo.empty()
+            );
             this.indexedValue = indexedValue;
         }
 
         @Override
-        protected void parseCreateField(DocumentParserContext context) {
-        }
+        protected void parseCreateField(DocumentParserContext context) {}
 
         @Override
         protected String contentType() {

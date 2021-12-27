@@ -8,8 +8,9 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import groovy.lang.Closure;
-import org.elasticsearch.gradle.util.GradleUtils;
+
 import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Task;
@@ -24,7 +25,6 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.testing.Test;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
@@ -47,6 +47,8 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import javax.inject.Inject;
 
 public class TestingConventionsTasks extends DefaultTask {
 

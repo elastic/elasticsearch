@@ -9,8 +9,8 @@
 package org.elasticsearch.client.transform.transforms.hlrc;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 
 import java.util.LinkedHashMap;
@@ -19,11 +19,10 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransformIndexerPositionTests extends AbstractResponseTestCase<
-        TransformIndexerPosition,
-        org.elasticsearch.client.transform.transforms.TransformIndexerPosition> {
+    TransformIndexerPosition,
+    org.elasticsearch.client.transform.transforms.TransformIndexerPosition> {
 
-    public static TransformIndexerPosition fromHlrc(
-            org.elasticsearch.client.transform.transforms.TransformIndexerPosition instance) {
+    public static TransformIndexerPosition fromHlrc(org.elasticsearch.client.transform.transforms.TransformIndexerPosition instance) {
         if (instance == null) {
             return null;
         }
@@ -45,8 +44,10 @@ public class TransformIndexerPositionTests extends AbstractResponseTestCase<
     }
 
     @Override
-    protected void assertInstances(TransformIndexerPosition serverTestInstance,
-                                   org.elasticsearch.client.transform.transforms.TransformIndexerPosition clientInstance) {
+    protected void assertInstances(
+        TransformIndexerPosition serverTestInstance,
+        org.elasticsearch.client.transform.transforms.TransformIndexerPosition clientInstance
+    ) {
         assertThat(serverTestInstance.getIndexerPosition(), equalTo(clientInstance.getIndexerPosition()));
         assertThat(serverTestInstance.getBucketsPosition(), equalTo(clientInstance.getBucketsPosition()));
     }

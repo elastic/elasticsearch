@@ -34,8 +34,6 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
         return GetIndexResponse::new;
     }
 
-
-
     @Override
     protected GetIndexResponse createTestInstance() {
         String[] indices = generateRandomStringArray(5, 5, false, false);
@@ -52,8 +50,10 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
             List<AliasMetadata> aliasMetadataList = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);
             for (int i = 0; i < aliasesNum; i++) {
-                aliasMetadataList.add(GetAliasesResponseTests.createAliasMetadata(
-                    s -> aliasMetadataList.stream().map(AliasMetadata::alias).collect(Collectors.toList()).contains(s))
+                aliasMetadataList.add(
+                    GetAliasesResponseTests.createAliasMetadata(
+                        s -> aliasMetadataList.stream().map(AliasMetadata::alias).collect(Collectors.toList()).contains(s)
+                    )
                 );
             }
             CollectionUtil.timSort(aliasMetadataList, Comparator.comparing(AliasMetadata::alias));
@@ -72,7 +72,12 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
             }
         }
         return new GetIndexResponse(
-            indices, mappings.build(), aliases.build(), settings.build(), defaultSettings.build(), dataStreams.build()
+            indices,
+            mappings.build(),
+            aliases.build(),
+            settings.build(),
+            defaultSettings.build(),
+            dataStreams.build()
         );
     }
 }

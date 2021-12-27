@@ -44,9 +44,7 @@ public class SnapshotRetentionService implements LocalNodeMasterListener, Closea
     private volatile String slmRetentionSchedule;
     private volatile boolean isMaster = false;
 
-    public SnapshotRetentionService(Settings settings,
-                                    Supplier<SnapshotRetentionTask> taskSupplier,
-                                    Clock clock) {
+    public SnapshotRetentionService(Settings settings, Supplier<SnapshotRetentionTask> taskSupplier, Clock clock) {
         this.clock = clock;
         this.scheduler = new SchedulerEngine(settings, clock);
         this.retentionTask = taskSupplier.get();
@@ -59,8 +57,8 @@ public class SnapshotRetentionService implements LocalNodeMasterListener, Closea
      */
     public void init(ClusterService clusterService) {
         clusterService.addLocalNodeMasterListener(this);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
-            this::setUpdateSchedule);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING, this::setUpdateSchedule);
     }
 
     void setUpdateSchedule(String retentionSchedule) {
@@ -89,8 +87,7 @@ public class SnapshotRetentionService implements LocalNodeMasterListener, Closea
     private void rescheduleRetentionJob() {
         final String schedule = this.slmRetentionSchedule;
         if (this.running.get() && this.isMaster && Strings.hasText(schedule)) {
-            final SchedulerEngine.Job retentionJob = new SchedulerEngine.Job(SLM_RETENTION_JOB_ID,
-                new CronSchedule(schedule));
+            final SchedulerEngine.Job retentionJob = new SchedulerEngine.Job(SLM_RETENTION_JOB_ID, new CronSchedule(schedule));
             logger.debug("scheduling SLM retention job for [{}]", schedule);
             this.scheduler.add(retentionJob);
         } else {

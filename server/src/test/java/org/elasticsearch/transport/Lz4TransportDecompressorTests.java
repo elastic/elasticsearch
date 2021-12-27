@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -16,6 +17,9 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
@@ -27,6 +31,8 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class Lz4TransportDecompressorTests extends ESTestCase {
 
+    private final Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+
     public void testSimpleCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             byte randomByte = randomByte();
@@ -36,7 +42,7 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
 
             BytesReference bytes = output.bytes();
 
-            Lz4TransportDecompressor decompressor = new Lz4TransportDecompressor(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+            Lz4TransportDecompressor decompressor = new Lz4TransportDecompressor(recycler);
             int bytesConsumed = decompressor.decompress(bytes);
             assertEquals(bytes.length(), bytesConsumed);
             ReleasableBytesReference releasableBytesReference = decompressor.pollDecompressedPage(true);
@@ -50,8 +56,11 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
         int uncompressedLength = intsToWrite * 4;
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            try (StreamOutput lz4BlockStream = new OutputStreamStreamOutput(Compression.Scheme.lz4OutputStream(
-                Streams.flushOnCloseStream(output)))) {
+            try (
+                StreamOutput lz4BlockStream = new OutputStreamStreamOutput(
+                    Compression.Scheme.lz4OutputStream(Streams.flushOnCloseStream(output))
+                )
+            ) {
                 for (int i = 0; i < intsToWrite; ++i) {
                     int lowByte = (i & 0xFF);
                     if (lowByte < 128) {
@@ -68,7 +77,7 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
             // Since 200 / 255 data is repeated, we should get a compression ratio of at least 50%
             assertThat(bytes.length(), lessThan(uncompressedLength / 2));
 
-            Lz4TransportDecompressor decompressor = new Lz4TransportDecompressor(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+            Lz4TransportDecompressor decompressor = new Lz4TransportDecompressor(recycler);
             int bytesConsumed = decompressor.decompress(bytes);
             assertEquals(bytes.length(), bytesConsumed);
 
@@ -92,7 +101,7 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
                 int lowByte = (i & 0xFF);
                 if (lowByte < 128) {
                     assertEquals(0, streamInput.readInt());
-                }  else if (lowByte < 200) {
+                } else if (lowByte < 200) {
                     assertEquals(1, streamInput.readInt());
                 } else {
                     assertEquals(i, streamInput.readInt());
@@ -107,8 +116,11 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
         int uncompressedLength = intsToWrite * 4;
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            try (StreamOutput lz4BlockStream = new OutputStreamStreamOutput(
-                Compression.Scheme.lz4OutputStream(Streams.flushOnCloseStream(output)))) {
+            try (
+                StreamOutput lz4BlockStream = new OutputStreamStreamOutput(
+                    Compression.Scheme.lz4OutputStream(Streams.flushOnCloseStream(output))
+                )
+            ) {
                 for (int i = 0; i < intsToWrite; ++i) {
                     int lowByte = (i & 0xFF);
                     if (lowByte < 128) {
@@ -125,7 +137,7 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
             // Since 200 / 255 data is repeated, we should get a compression ratio of at least 50%
             assertThat(bytes.length(), lessThan(uncompressedLength / 2));
 
-            Lz4TransportDecompressor decompressor = new Lz4TransportDecompressor(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+            Lz4TransportDecompressor decompressor = new Lz4TransportDecompressor(recycler);
 
             int split1 = (int) (bytes.length() * 0.3);
             int split2 = (int) (bytes.length() * 0.65);
@@ -160,7 +172,7 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
                 int lowByte = (i & 0xFF);
                 if (lowByte < 128) {
                     assertEquals(0, streamInput.readInt());
-                }  else if (lowByte < 200) {
+                } else if (lowByte < 200) {
                     assertEquals(1, streamInput.readInt());
                 } else {
                     assertEquals(i, streamInput.readInt());

@@ -1,4 +1,5 @@
-/* @notice
+/*
+ * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -16,13 +17,13 @@
  */
 package org.apache.lucene.geo;
 
-import java.util.ArrayList;
-import java.util.Random;
-
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.BiasedNumbers;
-import org.apache.lucene.util.SloppyMath;
+
 import org.apache.lucene.util.TestUtil;
+
+import java.util.ArrayList;
+import java.util.Random;
 
 /** generates random cartesian geometry; heavy reuse of {@link GeoTestUtil} */
 public class XShapeTestUtil {
@@ -121,7 +122,7 @@ public class XShapeTestUtil {
     private static XYPolygon surpriseMePolygon() {
         // repeat until we get a poly that doesn't cross dateline:
         while (true) {
-            //System.out.println("\nPOLY ITER");
+            // System.out.println("\nPOLY ITER");
             double centerX = nextDouble();
             double centerY = nextDouble();
             double radius = 0.1 + 20 * random().nextDouble();
@@ -131,8 +132,8 @@ public class XShapeTestUtil {
             ArrayList<Float> yList = new ArrayList<>();
             double angle = 0.0;
             while (true) {
-                angle += random().nextDouble()*40.0;
-                //System.out.println("  angle " + angle);
+                angle += random().nextDouble() * 40.0;
+                // System.out.println(" angle " + angle);
                 if (angle > 360) {
                     break;
                 }
@@ -142,14 +143,14 @@ public class XShapeTestUtil {
 
                 len = StrictMath.min(len, StrictMath.min(maxX, maxY));
 
-                //System.out.println("    len=" + len);
-                float x = (float)(centerX + len * Math.cos(SloppyMath.toRadians(angle)));
-                float y = (float)(centerY + len * Math.sin(SloppyMath.toRadians(angle)));
+                // System.out.println(" len=" + len);
+                float x = (float) (centerX + len * Math.cos(Math.toRadians(angle)));
+                float y = (float) (centerY + len * Math.sin(Math.toRadians(angle)));
 
                 xList.add(x);
                 yList.add(y);
 
-                //System.out.println("    lat=" + lats.get(lats.size()-1) + " lon=" + lons.get(lons.size()-1));
+                // System.out.println(" lat=" + lats.get(lats.size()-1) + " lon=" + lons.get(lons.size()-1));
             }
 
             // close it
@@ -158,7 +159,7 @@ public class XShapeTestUtil {
 
             float[] xArray = new float[xList.size()];
             float[] yArray = new float[yList.size()];
-            for(int i=0;i<xList.size();i++) {
+            for (int i = 0; i < xList.size(); i++) {
                 xArray[i] = xList.get(i);
                 yArray[i] = yList.get(i);
             }
@@ -178,16 +179,16 @@ public class XShapeTestUtil {
         radius = StrictMath.min(radius, StrictMath.min(maxX, maxY));
 
         float[][] result = new float[2][];
-        result[0] = new float[gons+1];
-        result[1] = new float[gons+1];
-        //System.out.println("make gon=" + gons);
-        for(int i=0;i<gons;i++) {
-            double angle = 360.0-i*(360.0/gons);
-            //System.out.println("  angle " + angle);
+        result[0] = new float[gons + 1];
+        result[1] = new float[gons + 1];
+        // System.out.println("make gon=" + gons);
+        for (int i = 0; i < gons; i++) {
+            double angle = 360.0 - i * (360.0 / gons);
+            // System.out.println(" angle " + angle);
             double x = Math.cos(StrictMath.toRadians(angle));
             double y = Math.sin(StrictMath.toRadians(angle));
-            result[0][i] = (float)(centerY + y * radius);
-            result[1][i] = (float)(centerX + x * radius);
+            result[0][i] = (float) (centerY + y * radius);
+            result[1][i] = (float) (centerX + x * radius);
         }
 
         // close poly

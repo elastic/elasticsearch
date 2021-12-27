@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.nio.HttpReadWriteHandler;
 import org.elasticsearch.http.nio.NioHttpChannel;
 import org.elasticsearch.http.nio.NioHttpServerChannel;
@@ -30,16 +29,18 @@ import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.nio.NioGroupFactory;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.SecurityHttpExceptionHandler;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
-import javax.net.ssl.SSLEngine;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.function.Consumer;
+
+import javax.net.ssl.SSLEngine;
 
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 
@@ -52,13 +53,30 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
     private final SslConfiguration sslConfiguration;
     private final boolean sslEnabled;
 
-    public SecurityNioHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
-                                          PageCacheRecycler pageCacheRecycler, ThreadPool threadPool,
-                                          NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, IPFilter ipFilter,
-                                          SSLService sslService, NioGroupFactory nioGroupFactory,
-                                          ClusterSettings clusterSettings) {
-        super(settings, networkService, bigArrays, pageCacheRecycler, threadPool, xContentRegistry, dispatcher, nioGroupFactory,
-            clusterSettings);
+    public SecurityNioHttpServerTransport(
+        Settings settings,
+        NetworkService networkService,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        ThreadPool threadPool,
+        NamedXContentRegistry xContentRegistry,
+        Dispatcher dispatcher,
+        IPFilter ipFilter,
+        SSLService sslService,
+        NioGroupFactory nioGroupFactory,
+        ClusterSettings clusterSettings
+    ) {
+        super(
+            settings,
+            networkService,
+            bigArrays,
+            pageCacheRecycler,
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            nioGroupFactory,
+            clusterSettings
+        );
         this.securityExceptionHandler = new SecurityHttpExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.ipFilter = ipFilter;
         this.sslEnabled = HTTP_SSL_ENABLED.get(settings);
@@ -66,8 +84,10 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
         if (sslEnabled) {
             this.sslConfiguration = sslService.getHttpTransportSSLConfiguration();
             if (sslService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
-                throw new IllegalArgumentException("a key must be provided to run as a server. the key should be configured using the " +
-                    "[xpack.security.http.ssl.key] or [xpack.security.http.ssl.keystore.path] setting");
+                throw new IllegalArgumentException(
+                    "a key must be provided to run as a server. the key should be configured using the "
+                        + "[xpack.security.http.ssl.key] or [xpack.security.http.ssl.keystore.path] setting"
+                );
             }
         } else {
             this.sslConfiguration = null;
@@ -87,15 +107,28 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
     class SecurityHttpChannelFactory extends ChannelFactory<NioHttpServerChannel, NioHttpChannel> {
 
         private SecurityHttpChannelFactory() {
-            super(tcpNoDelay, tcpKeepAlive, tcpKeepIdle, tcpKeepInterval, tcpKeepCount, reuseAddress, tcpSendBufferSize,
-                tcpReceiveBufferSize);
+            super(
+                tcpNoDelay,
+                tcpKeepAlive,
+                tcpKeepIdle,
+                tcpKeepInterval,
+                tcpKeepCount,
+                reuseAddress,
+                tcpSendBufferSize,
+                tcpReceiveBufferSize
+            );
         }
 
         @Override
         public NioHttpChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) throws IOException {
             NioHttpChannel httpChannel = new NioHttpChannel(channel);
-            HttpReadWriteHandler httpHandler = new HttpReadWriteHandler(httpChannel,SecurityNioHttpServerTransport.this,
-                handlingSettings, selector.getTaskScheduler(), threadPool::relativeTimeInNanos);
+            HttpReadWriteHandler httpHandler = new HttpReadWriteHandler(
+                httpChannel,
+                SecurityNioHttpServerTransport.this,
+                handlingSettings,
+                selector.getTaskScheduler(),
+                threadPool::relativeTimeInNanos
+            );
             final NioChannelHandler handler;
             if (ipFilter != null) {
                 handler = new NioIPFilter(httpHandler, socketConfig.getRemoteAddress(), ipFilter, IPFilter.HTTP_PROFILE_NAME);
@@ -119,8 +152,16 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
                 }
                 SSLDriver sslDriver = new SSLDriver(sslEngine, pageAllocator, false);
                 InboundChannelBuffer applicationBuffer = new InboundChannelBuffer(pageAllocator);
-                context = new SSLChannelContext(httpChannel, selector, socketConfig, exceptionHandler, sslDriver, handler, networkBuffer,
-                    applicationBuffer);
+                context = new SSLChannelContext(
+                    httpChannel,
+                    selector,
+                    socketConfig,
+                    exceptionHandler,
+                    sslDriver,
+                    handler,
+                    networkBuffer,
+                    applicationBuffer
+                );
             } else {
                 context = new BytesChannelContext(httpChannel, selector, socketConfig, exceptionHandler, handler, networkBuffer);
             }
@@ -130,13 +171,22 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
         }
 
         @Override
-        public NioHttpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel,
-                                                        Config.ServerSocket socketConfig) {
+        public NioHttpServerChannel createServerChannel(
+            NioSelector selector,
+            ServerSocketChannel channel,
+            Config.ServerSocket socketConfig
+        ) {
             NioHttpServerChannel httpServerChannel = new NioHttpServerChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> onServerException(httpServerChannel, e);
             Consumer<NioSocketChannel> acceptor = SecurityNioHttpServerTransport.this::acceptChannel;
-            ServerChannelContext context = new ServerChannelContext(httpServerChannel, this, selector, socketConfig, acceptor,
-                exceptionHandler);
+            ServerChannelContext context = new ServerChannelContext(
+                httpServerChannel,
+                this,
+                selector,
+                socketConfig,
+                acceptor,
+                exceptionHandler
+            );
             httpServerChannel.setContext(context);
 
             return httpServerChannel;

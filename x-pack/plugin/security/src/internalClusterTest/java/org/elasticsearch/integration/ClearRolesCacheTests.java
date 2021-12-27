@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Test for the clear roles API
  */
+@SuppressWarnings("removal")
 public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
 
     private static String[] roles;
@@ -54,13 +55,20 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
         // create roles
         for (String role : roles) {
-            restClient.security().putRole(new PutRoleRequest(
-                Role.builder().name(role)
-                    .clusterPrivileges("none")
-                    .indicesPrivileges(
-                        IndicesPrivileges.builder().indices("*").privileges("ALL").allowRestrictedIndices(randomBoolean()).build())
-                    .build(), RefreshPolicy.IMMEDIATE),
-                SECURITY_REQUEST_OPTIONS);
+            restClient.security()
+                .putRole(
+                    new PutRoleRequest(
+                        Role.builder()
+                            .name(role)
+                            .clusterPrivileges("none")
+                            .indicesPrivileges(
+                                IndicesPrivileges.builder().indices("*").privileges("ALL").allowRestrictedIndices(randomBoolean()).build()
+                            )
+                            .build(),
+                        RefreshPolicy.IMMEDIATE
+                    ),
+                    SECURITY_REQUEST_OPTIONS
+                );
             logger.debug("--> created role [{}]", role);
         }
 
@@ -87,12 +95,21 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         List<String> toModify = randomSubsetOf(modifiedRolesCount, roles);
         logger.debug("--> modifying roles {} to have run_as", toModify);
         for (String role : toModify) {
-            PutRoleResponse response = restClient.security().putRole(new PutRoleRequest(Role.builder().name(role)
-                    .clusterPrivileges("none")
-                    .indicesPrivileges(
-                        IndicesPrivileges.builder().indices("*").privileges("ALL").allowRestrictedIndices(randomBoolean()).build())
-                    .runAsPrivilege(role)
-                    .build(), randomBoolean() ? RefreshPolicy.IMMEDIATE : RefreshPolicy.NONE), SECURITY_REQUEST_OPTIONS);
+            PutRoleResponse response = restClient.security()
+                .putRole(
+                    new PutRoleRequest(
+                        Role.builder()
+                            .name(role)
+                            .clusterPrivileges("none")
+                            .indicesPrivileges(
+                                IndicesPrivileges.builder().indices("*").privileges("ALL").allowRestrictedIndices(randomBoolean()).build()
+                            )
+                            .runAsPrivilege(role)
+                            .build(),
+                        randomBoolean() ? RefreshPolicy.IMMEDIATE : RefreshPolicy.NONE
+                    ),
+                    SECURITY_REQUEST_OPTIONS
+                );
             assertThat(response.isCreated(), is(false));
             logger.debug("--> updated role [{}] with run_as", role);
         }
@@ -125,8 +142,11 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
                 assertThat("role [" + role + "] should be modified and have run as", runAs == null || runAs.size() == 0, is(false));
                 assertThat(runAs.contains(role), is(true));
             } else {
-                assertThat("role [" + role + "] should be cached and not have run as set but does!", runAs == null || runAs.size() == 0,
-                        is(true));
+                assertThat(
+                    "role [" + role + "] should be cached and not have run as set but does!",
+                    runAs == null || runAs.size() == 0,
+                    is(true)
+                );
             }
         }
     }

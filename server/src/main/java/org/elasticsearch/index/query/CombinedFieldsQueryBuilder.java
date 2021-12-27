@@ -10,32 +10,32 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.sandbox.search.CombinedFieldQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.XCombinedFieldQuery;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.search.QueryParserHelper;
+import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
+import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,8 +65,10 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     private ZeroTermsQueryOption zeroTermsQuery = ZeroTermsQueryOption.NONE;
     private boolean autoGenerateSynonymsPhraseQuery = true;
 
-    private static final ConstructingObjectParser<CombinedFieldsQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        a -> new CombinedFieldsQueryBuilder(a[0]));
+    private static final ConstructingObjectParser<CombinedFieldsQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        a -> new CombinedFieldsQueryBuilder(a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), QUERY_FIELD);
@@ -281,8 +283,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
         Map<String, Float> fields = QueryParserHelper.resolveMappingFields(context, fieldsAndBoosts);
         // If all fields are unmapped, then return an 'unmapped field query'.
-        boolean hasMappedField = fields.keySet().stream()
-            .anyMatch(k -> context.getFieldType(k) != null);
+        boolean hasMappedField = fields.keySet().stream().anyMatch(k -> context.getFieldType(k) != null);
         if (hasMappedField == false) {
             return Queries.newUnmappedFieldsQuery(fields.keySet());
         }
@@ -299,8 +300,9 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
             }
 
             if (fieldType.familyTypeName().equals(TextFieldMapper.CONTENT_TYPE) == false) {
-                throw new IllegalArgumentException("Field [" + fieldType.name() + "] of type [" +
-                    fieldType.typeName() + "] does not support [" + NAME + "] queries");
+                throw new IllegalArgumentException(
+                    "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "] does not support [" + NAME + "] queries"
+                );
             }
 
             float boost = entry.getValue() == null ? 1.0f : entry.getValue();
@@ -321,8 +323,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
             canGenerateSynonymsPhraseQuery &= textSearchInfo.hasPositions();
         }
 
-        CombinedFieldsBuilder builder = new CombinedFieldsBuilder(fieldsAndBoosts,
-            sharedAnalyzer, canGenerateSynonymsPhraseQuery, context);
+        CombinedFieldsBuilder builder = new CombinedFieldsBuilder(fieldsAndBoosts, sharedAnalyzer, canGenerateSynonymsPhraseQuery, context);
         Query query = builder.createBooleanQuery(placeholderFieldName, value.toString(), operator.toBooleanClauseOccur());
 
         query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
@@ -337,14 +338,13 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
             String name = entry.getKey();
             MappedFieldType fieldType = context.getFieldType(name);
             if (fieldType != null && fieldType.getTextSearchInfo().getSimilarity() != null) {
-                throw new IllegalArgumentException("["+ NAME + "] queries cannot be used with per-field similarities");
+                throw new IllegalArgumentException("[" + NAME + "] queries cannot be used with per-field similarities");
             }
         }
 
         Similarity defaultSimilarity = context.getDefaultSimilarity();
-        if ((defaultSimilarity instanceof LegacyBM25Similarity
-            || defaultSimilarity instanceof BM25Similarity) == false) {
-            throw new IllegalArgumentException("["+ NAME + "] queries can only be used with the [BM25] similarity");
+        if ((defaultSimilarity instanceof LegacyBM25Similarity || defaultSimilarity instanceof BM25Similarity) == false) {
+            throw new IllegalArgumentException("[" + NAME + "] queries can only be used with the [BM25] similarity");
         }
     }
 
@@ -362,10 +362,12 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         private final List<FieldAndBoost> fields;
         private final SearchExecutionContext context;
 
-        CombinedFieldsBuilder(List<FieldAndBoost> fields,
-                              Analyzer analyzer,
-                              boolean autoGenerateSynonymsPhraseQuery,
-                              SearchExecutionContext context) {
+        CombinedFieldsBuilder(
+            List<FieldAndBoost> fields,
+            Analyzer analyzer,
+            boolean autoGenerateSynonymsPhraseQuery,
+            SearchExecutionContext context
+        ) {
             super(analyzer);
             this.fields = fields;
             setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
@@ -395,7 +397,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
         @Override
         protected Query newSynonymQuery(TermAndBoost[] terms) {
-            XCombinedFieldQuery.Builder query = new XCombinedFieldQuery.Builder();
+            CombinedFieldQuery.Builder query = new CombinedFieldQuery.Builder();
             for (TermAndBoost termAndBoost : terms) {
                 assert termAndBoost.boost == BoostAttribute.DEFAULT_BOOST;
                 BytesRef bytes = termAndBoost.term.bytes();
@@ -412,7 +414,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         @Override
         protected Query newTermQuery(Term term, float boost) {
             TermAndBoost termAndBoost = new TermAndBoost(term, boost);
-            return newSynonymQuery(new TermAndBoost[]{termAndBoost});
+            return newSynonymQuery(new TermAndBoost[] { termAndBoost });
         }
 
         @Override
@@ -436,11 +438,11 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
     @Override
     protected boolean doEquals(CombinedFieldsQueryBuilder other) {
-        return Objects.equals(value, other.value) &&
-            Objects.equals(fieldsAndBoosts, other.fieldsAndBoosts) &&
-            Objects.equals(operator, other.operator) &&
-            Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
-            Objects.equals(zeroTermsQuery, other.zeroTermsQuery) &&
-            Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
+        return Objects.equals(value, other.value)
+            && Objects.equals(fieldsAndBoosts, other.fieldsAndBoosts)
+            && Objects.equals(operator, other.operator)
+            && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
+            && Objects.equals(zeroTermsQuery, other.zeroTermsQuery)
+            && Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
     }
 }

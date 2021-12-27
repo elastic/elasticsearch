@@ -9,11 +9,11 @@
 package org.elasticsearch.client.transform.transforms.pivot;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -80,26 +80,22 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
     }
 
     public void testLenientParsing() throws IOException {
-        BytesArray json = new BytesArray(
-            "{"
-                + "  \"unknown-field\": \"foo\","
-                + "  \"destination-field\": {"
-                + "    \"terms\": {"
-                + "      \"field\": \"term-field\""
-                + "    }"
-                + "  },"
-                + "  \"unknown-field-2\": \"bar\","
-                + "  \"destination-field2\": {"
-                + "    \"terms\": {"
-                + "      \"field\": \"term-field2\""
-                + "    }"
-                + "  },"
-                + "  \"array-field\": ["
-                + "    1,"
-                + "    2"
-                + "  ]"
-                + "}"
-        );
+        BytesArray json = new BytesArray("""
+            {
+              "unknown-field": "foo",
+              "destination-field": {
+                "terms": {
+                  "field": "term-field"
+                }
+              },
+              "unknown-field-2": "bar",
+              "destination-field2": {
+                "terms": {
+                  "field": "term-field2"
+                }
+              },
+              "array-field": [ 1, 2 ]
+            }""");
         XContentParser parser = JsonXContent.jsonXContent.createParser(
             NamedXContentRegistry.EMPTY,
             DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
@@ -116,22 +112,21 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
     }
 
     public void testLenientParsingUnknowGroupType() throws IOException {
-        BytesArray json = new BytesArray(
-            "{"
-                + "  \"destination-field1\": {"
-                + "    \"newgroup\": {"
-                + "      \"field1\": \"bar\","
-                + "      \"field2\": \"foo\""
-                + "    }"
-                + "  },"
-                + "  \"unknown-field\": \"bar\","
-                + "  \"destination-field2\": {"
-                + "    \"terms\": {"
-                + "      \"field\": \"term-field\""
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        BytesArray json = new BytesArray("""
+            {
+              "destination-field1": {
+                "newgroup": {
+                  "field1": "bar",
+                  "field2": "foo"
+                }
+              },
+              "unknown-field": "bar",
+              "destination-field2": {
+                "terms": {
+                  "field": "term-field"
+                }
+              }
+            }""");
         XContentParser parser = JsonXContent.jsonXContent.createParser(
             NamedXContentRegistry.EMPTY,
             DeprecationHandler.THROW_UNSUPPORTED_OPERATION,

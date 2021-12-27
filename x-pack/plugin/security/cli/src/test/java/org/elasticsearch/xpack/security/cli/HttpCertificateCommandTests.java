@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.security.cli;
 
+import joptsimple.OptionSet;
+
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-import joptsimple.OptionSet;
+
 import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DLSequence;
@@ -25,11 +27,10 @@ import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -39,7 +40,6 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import javax.security.auth.x500.X500Principal;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -80,6 +80,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.test.FileMatchers.isDirectory;
 import static org.elasticsearch.test.FileMatchers.isRegularFile;
@@ -209,9 +211,12 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         // No CA in CSR mode
 
-        verifyKibanaDirectory(zipRoot, false, List.of("Certificate Signing Request"),
-            Stream.of(password, csrName)
-            .filter(s -> "".equals(s) == false).collect(Collectors.toList()));
+        verifyKibanaDirectory(
+            zipRoot,
+            false,
+            List.of("Certificate Signing Request"),
+            Stream.of(password, csrName).filter(s -> "".equals(s) == false).collect(Collectors.toList())
+        );
     }
 
     public void testGenerateSingleCertificateWithExistingCA() throws Exception {
@@ -331,9 +336,14 @@ public class HttpCertificateCommandTests extends ESTestCase {
         // Should not be a CA directory when using an existing CA.
         assertThat(zipRoot.resolve("ca"), not(pathExists()));
 
-        verifyKibanaDirectory(zipRoot, true, List.of("2. elasticsearch-ca.pem"),
+        verifyKibanaDirectory(
+            zipRoot,
+            true,
+            List.of("2. elasticsearch-ca.pem"),
             Stream.of(password, caPassword, caKeyPath.getFileName().toString())
-                .filter(s -> "".equals(s) == false).collect(Collectors.toList()));
+                .filter(s -> "".equals(s) == false)
+                .collect(Collectors.toList())
+        );
     }
 
     public void testGenerateMultipleCertificateWithNewCA() throws Exception {
@@ -418,7 +428,6 @@ public class HttpCertificateCommandTests extends ESTestCase {
         }
         terminal.addTextInput("n"); // no more certs
 
-
         final String password = randomPassword(false);
         // randomly enter an incorrect password here which will fail the "enter twice" check and prompt to try again
         if (randomBoolean()) {
@@ -496,9 +505,12 @@ public class HttpCertificateCommandTests extends ESTestCase {
             }
         }
 
-        verifyKibanaDirectory(zipRoot, true, List.of("2. elasticsearch-ca.pem"),
-            Stream.of(password, caPassword, caPath.getFileName().toString())
-                .filter(s -> "".equals(s) == false).collect(Collectors.toList()));
+        verifyKibanaDirectory(
+            zipRoot,
+            true,
+            List.of("2. elasticsearch-ca.pem"),
+            Stream.of(password, caPassword, caPath.getFileName().toString()).filter(s -> "".equals(s) == false).collect(Collectors.toList())
+        );
     }
 
     public void testParsingValidityPeriod() throws Exception {
@@ -596,9 +608,11 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
     public void testTextFileSubstitutions() throws Exception {
         CheckedBiFunction<String, Map<String, String>, String, Exception> copy = (source, subs) -> {
-            try (InputStream in = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8));
-                 StringWriter out = new StringWriter();
-                 PrintWriter writer = new PrintWriter(out)) {
+            try (
+                InputStream in = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8));
+                StringWriter out = new StringWriter();
+                PrintWriter writer = new PrintWriter(out)
+            ) {
                 HttpCertificateCommand.copyWithSubstitutions(in, writer, subs);
                 return out.toString().replace("\r\n", "\n");
             }
@@ -661,8 +675,12 @@ public class HttpCertificateCommandTests extends ESTestCase {
         );
     }
 
-    private void verifyCertificationRequest(PKCS10CertificationRequest csr, String certificateName, List<String> hostNames,
-                                            List<String> ipAddresses) throws IOException {
+    private void verifyCertificationRequest(
+        PKCS10CertificationRequest csr,
+        String certificateName,
+        List<String> hostNames,
+        List<String> ipAddresses
+    ) throws IOException {
         // We rebuild the DN from the encoding because BC uses openSSL style toString, but we use LDAP style.
         assertThat(new X500Principal(csr.getSubject().getEncoded()).toString(), is("CN=" + certificateName.replaceAll("\\.", ", DC=")));
         final Attribute[] extensionAttributes = csr.getAttributes(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest);
@@ -687,8 +705,13 @@ public class HttpCertificateCommandTests extends ESTestCase {
         }
     }
 
-    private void verifyCertificate(X509Certificate cert, String certificateName, int years,
-                                   List<String> hostNames, List<String> ipAddresses) throws CertificateParsingException {
+    private void verifyCertificate(
+        X509Certificate cert,
+        String certificateName,
+        int years,
+        List<String> hostNames,
+        List<String> ipAddresses
+    ) throws CertificateParsingException {
         assertThat(cert.getSubjectX500Principal().toString(), is("CN=" + certificateName.replaceAll("\\.", ", DC=")));
         final Collection<List<?>> san = cert.getSubjectAlternativeNames();
         final int expectedSanEntries = hostNames.size() + ipAddresses.size();
@@ -746,8 +769,12 @@ public class HttpCertificateCommandTests extends ESTestCase {
         assertTrue("PublicKey and PrivateKey are not a matching pair", rsa.verify(signature));
     }
 
-    private void verifyKibanaDirectory(Path zipRoot, boolean expectCAFile, Iterable<String> readmeShouldContain,
-                                       Iterable<String> shouldNotContain) throws IOException {
+    private void verifyKibanaDirectory(
+        Path zipRoot,
+        boolean expectCAFile,
+        Iterable<String> readmeShouldContain,
+        Iterable<String> shouldNotContain
+    ) throws IOException {
         assertThat(zipRoot.resolve("kibana"), isDirectory());
         if (expectCAFile) {
             assertThat(zipRoot.resolve("kibana/elasticsearch-ca.pem"), isRegularFile());
@@ -785,8 +812,8 @@ public class HttpCertificateCommandTests extends ESTestCase {
         return rsa.getModulus().bitLength();
     }
 
-    private Tuple<X509Certificate, PrivateKey> readCertificateAndKey(Path pkcs12,
-                                                                     char[] password) throws IOException, GeneralSecurityException {
+    private Tuple<X509Certificate, PrivateKey> readCertificateAndKey(Path pkcs12, char[] password) throws IOException,
+        GeneralSecurityException {
 
         final Map<Certificate, Key> entries = CertParsingUtils.readPkcs12KeyPairs(pkcs12, password, alias -> password);
         assertThat(entries.entrySet(), Matchers.hasSize(1));
@@ -800,8 +827,8 @@ public class HttpCertificateCommandTests extends ESTestCase {
         return new Tuple<>((X509Certificate) cert, (PrivateKey) key);
     }
 
-    private <T> T readPemObject(Path path, String expectedType,
-                                CheckedFunction<? super byte[], T, IOException> factory) throws IOException {
+    private <T> T readPemObject(Path path, String expectedType, CheckedFunction<? super byte[], T, IOException> factory)
+        throws IOException {
         assertThat(path, isRegularFile());
         final PemReader csrReader = new PemReader(Files.newBufferedReader(path));
         final PemObject csrPem = csrReader.readPemObject();

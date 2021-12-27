@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.idp.saml.authn;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.idp.authc.AuthenticationMethod;
 import org.elasticsearch.xpack.idp.authc.NetworkControl;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.support.SamlObjectSigner;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.opensaml.core.xml.schema.XSString;
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.Attribute;
@@ -42,6 +40,7 @@ import org.opensaml.saml.saml2.core.SubjectConfirmation;
 import org.opensaml.saml.saml2.core.SubjectConfirmationData;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -69,7 +68,7 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
 
     public Response build(UserServiceAuthentication user, @Nullable SamlAuthenticationState authnState) {
         logger.debug("Building success response for [{}] from [{}]", user, authnState);
-        final DateTime now = now();
+        final Instant now = clock.instant();
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
 
         final Response response = samlFactory.object(Response.class, Response.DEFAULT_ELEMENT_NAME);
@@ -102,9 +101,9 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         return samlFactory.buildXmlObject(signer.sign(response), Response.class);
     }
 
-    private Conditions buildConditions(DateTime now, SamlServiceProvider serviceProvider) {
+    private Conditions buildConditions(Instant now, SamlServiceProvider serviceProvider) {
         final Audience spAudience = samlFactory.object(Audience.class, Audience.DEFAULT_ELEMENT_NAME);
-        spAudience.setAudienceURI(serviceProvider.getEntityId());
+        spAudience.setURI(serviceProvider.getEntityId());
 
         final AudienceRestriction restriction = samlFactory.object(AudienceRestriction.class, AudienceRestriction.DEFAULT_ELEMENT_NAME);
         restriction.getAudiences().add(spAudience);
@@ -116,11 +115,7 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         return conditions;
     }
 
-    private DateTime now() {
-        return new DateTime(clock.millis(), DateTimeZone.UTC);
-    }
-
-    private Subject buildSubject(DateTime now, UserServiceAuthentication user, SamlAuthenticationState authnState) {
+    private Subject buildSubject(Instant now, UserServiceAuthentication user, SamlAuthenticationState authnState) {
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
 
         final NameID nameID = buildNameId(user, authnState);
@@ -128,8 +123,10 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         final Subject subject = samlFactory.object(Subject.class, Subject.DEFAULT_ELEMENT_NAME);
         subject.setNameID(nameID);
 
-        final SubjectConfirmationData data = samlFactory.object(SubjectConfirmationData.class,
-            SubjectConfirmationData.DEFAULT_ELEMENT_NAME);
+        final SubjectConfirmationData data = samlFactory.object(
+            SubjectConfirmationData.class,
+            SubjectConfirmationData.DEFAULT_ELEMENT_NAME
+        );
         if (authnState != null && authnState.getAuthnRequestId() != null) {
             data.setInResponseTo(authnState.getAuthnRequestId());
         }
@@ -145,7 +142,7 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         return subject;
     }
 
-    private AuthnStatement buildAuthnStatement(DateTime now, UserServiceAuthentication user) {
+    private AuthnStatement buildAuthnStatement(Instant now, UserServiceAuthentication user) {
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
         final AuthnStatement statement = samlFactory.object(AuthnStatement.class, AuthnStatement.DEFAULT_ELEMENT_NAME);
         statement.setAuthnInstant(now);
@@ -153,7 +150,7 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
 
         final AuthnContext context = samlFactory.object(AuthnContext.class, AuthnContext.DEFAULT_ELEMENT_NAME);
         final AuthnContextClassRef classRef = samlFactory.object(AuthnContextClassRef.class, AuthnContextClassRef.DEFAULT_ELEMENT_NAME);
-        classRef.setAuthnContextClassRef(resolveAuthnClass(user.getAuthenticationMethods(), user.getNetworkControls()));
+        classRef.setURI(resolveAuthnClass(user.getAuthenticationMethods(), user.getNetworkControls()));
         context.setAuthnContextClassRef(classRef);
         statement.setAuthnContext(context);
 
@@ -255,8 +252,9 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         if (authnState != null && authnState.getRequestedNameidFormat() != null) {
             nameIdFormat = authnState.getRequestedNameidFormat();
         } else {
-            nameIdFormat = serviceProvider.getAllowedNameIdFormat() != null ? serviceProvider.getAllowedNameIdFormat() :
-                idp.getServiceProviderDefaults().nameIdFormat;
+            nameIdFormat = serviceProvider.getAllowedNameIdFormat() != null
+                ? serviceProvider.getAllowedNameIdFormat()
+                : idp.getServiceProviderDefaults().nameIdFormat;
         }
         nameID.setFormat(nameIdFormat);
         nameID.setValue(getNameIdValueForFormat(nameIdFormat, user));

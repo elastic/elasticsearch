@@ -63,8 +63,7 @@ public class ExplainLifecycleRequest extends TimedRequest {
             return false;
         }
         ExplainLifecycleRequest other = (ExplainLifecycleRequest) obj;
-        return Objects.deepEquals(getIndices(), other.getIndices()) &&
-                Objects.equals(indicesOptions(), other.indicesOptions());
+        return Objects.deepEquals(getIndices(), other.getIndices()) && Objects.equals(indicesOptions(), other.indicesOptions());
     }
 
     @Override

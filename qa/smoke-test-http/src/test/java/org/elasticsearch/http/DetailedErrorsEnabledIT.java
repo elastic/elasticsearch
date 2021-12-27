@@ -10,6 +10,7 @@ package org.elasticsearch.http;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -40,14 +41,16 @@ public class DetailedErrorsEnabledIT extends HttpSmokeTestCase {
 
             assertThat(
                 jsonNode.get("error").get("stack_trace").asText(),
-                startsWith("org.elasticsearch.action.ActionRequestValidationException: Validation Failed: 1: index / indices is missing"));
+                startsWith("org.elasticsearch.action.ActionRequestValidationException: Validation Failed: 1: index / indices is missing")
+            );
 
             // An ActionRequestValidationException isn't an ElasticsearchException, so when the code tries
             // to work out the root cause, all it actually achieves is wrapping the actual exception in
             // an ElasticsearchException. At least this proves that the root cause logic is executing.
             assertThat(
                 jsonNode.get("error").get("root_cause").get(0).get("stack_trace").asText(),
-                startsWith("org.elasticsearch.ElasticsearchException$1: Validation Failed: 1: index / indices is missing"));
+                startsWith("org.elasticsearch.ElasticsearchException$1: Validation Failed: 1: index / indices is missing")
+            );
         }
     }
 
@@ -66,7 +69,8 @@ public class DetailedErrorsEnabledIT extends HttpSmokeTestCase {
             assertFalse("Unexpected .stack_trace in JSON response", jsonNode.get("error").has("stack_trace"));
             assertFalse(
                 "Unexpected .error.root_cause[0].stack_trace in JSON response",
-                jsonNode.get("error").get("root_cause").get(0).has("stack_trace"));
+                jsonNode.get("error").get("root_cause").get(0).has("stack_trace")
+            );
         }
     }
 }

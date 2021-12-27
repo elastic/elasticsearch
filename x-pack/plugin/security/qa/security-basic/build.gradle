@@ -6,6 +6,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(":client:rest-high-level")
 }
 
 if (BuildParams.inFipsJvm){
@@ -13,7 +14,7 @@ if (BuildParams.inFipsJvm){
   tasks.named("javaRestTest").configure{enabled = false }
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
 

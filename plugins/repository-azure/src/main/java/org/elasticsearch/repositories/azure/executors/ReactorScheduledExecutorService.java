@@ -11,9 +11,9 @@ package org.elasticsearch.repositories.azure.executors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -73,9 +73,14 @@ public class ReactorScheduledExecutorService extends AbstractExecutorService imp
                 delegate.execute(decoratedCommand);
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
-                    logger.debug(new ParameterizedMessage(
-                        "could not schedule execution of [{}] on [{}] as executor is shut down",
-                        decoratedCommand, executorName), e);
+                    logger.debug(
+                        new ParameterizedMessage(
+                            "could not schedule execution of [{}] on [{}] as executor is shut down",
+                            decoratedCommand,
+                            executorName
+                        ),
+                        e
+                    );
                 } else {
                     throw e;
                 }
@@ -87,9 +92,7 @@ public class ReactorScheduledExecutorService extends AbstractExecutorService imp
     public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
         Runnable decorateRunnable = decorateRunnable(command);
 
-        Scheduler.Cancellable cancellable = threadPool.scheduleWithFixedDelay(decorateRunnable,
-            new TimeValue(delay, unit),
-            executorName);
+        Scheduler.Cancellable cancellable = threadPool.scheduleWithFixedDelay(decorateRunnable, new TimeValue(delay, unit), executorName);
 
         return new ReactorFuture<>(cancellable);
     }

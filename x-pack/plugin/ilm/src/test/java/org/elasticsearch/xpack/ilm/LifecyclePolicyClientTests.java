@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -51,12 +51,17 @@ public class LifecyclePolicyClientTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
 
-        try (LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN,
-                Collections.emptyMap())) {
+        try (
+            LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(
+                client,
+                ClientHelper.INDEX_LIFECYCLE_ORIGIN,
+                Collections.emptyMap()
+            )
+        ) {
             policyClient.execute(SearchAction.INSTANCE, request, listener);
         }
 
@@ -82,15 +87,20 @@ public class LifecyclePolicyClientTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
         Map<String, String> headers = new HashMap<>(1);
         headers.put("foo", "foo");
         headers.put("bar", "bar");
 
-        try (LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN,
-                headers)) {
+        try (
+            LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(
+                client,
+                ClientHelper.INDEX_LIFECYCLE_ORIGIN,
+                headers
+            )
+        ) {
             policyClient.execute(SearchAction.INSTANCE, request, listener);
         }
 
@@ -118,15 +128,20 @@ public class LifecyclePolicyClientTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
         Map<String, String> headers = new HashMap<>(1);
         headers.put("es-security-runas-user", "foo");
         headers.put("_xpack_security_authentication", "bar");
 
-        try (LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN,
-                headers)) {
+        try (
+            LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(
+                client,
+                ClientHelper.INDEX_LIFECYCLE_ORIGIN,
+                headers
+            )
+        ) {
             policyClient.execute(SearchAction.INSTANCE, request, listener);
         }
 

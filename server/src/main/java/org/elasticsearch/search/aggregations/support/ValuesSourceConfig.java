@@ -13,6 +13,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
@@ -20,6 +21,7 @@ import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
 
 /**
@@ -146,7 +148,26 @@ public class ValuesSourceConfig {
                 if (valuesSourceType == null) {
                     // We have a field, and the user didn't specify a type, so get the type from the field
                     valuesSourceType = fieldResolver.getValuesSourceType(fieldContext, userValueTypeHint, defaultValueSourceType);
-                }
+                } else if (valuesSourceType != fieldResolver.getValuesSourceType(fieldContext, userValueTypeHint, defaultValueSourceType)
+                    && script == null) {
+                        /*
+                         * This is the case where the user has specified the type they expect, but we found a field of a different type.
+                         * Usually this happens because of a mapping error, e.g. an older index mapped an IP address as a keyword.  If
+                         * the aggregation proceeds, it will usually break during reduction and return no results.  So instead, we fail the
+                         * shard with the conflict at this point, allowing the correctly mapped shards to return results with a partial
+                         * failure.
+                         *
+                         * Note that if a script is specified, the assumption is that the script adapts the field into the specified type,
+                         * and we allow the aggregation to continue.
+                         */
+                        throw new IllegalArgumentException(
+                            "Field type ["
+                                + fieldContext.getTypeName()
+                                + "] is incompatible with specified value_type ["
+                                + userValueTypeHint
+                                + "]"
+                        );
+                    }
             }
         }
         if (valuesSourceType == null) {
@@ -319,6 +340,17 @@ public class ValuesSourceConfig {
 
     public FieldContext fieldContext() {
         return fieldContext;
+    }
+
+    /**
+     * Returns a function from the mapper that adjusts a double value to the value it would have been had it been parsed by that mapper
+     * and then cast up to a double.  Used to correct precision errors.
+     */
+    public DoubleUnaryOperator reduceToStoredPrecisionFunction() {
+        if (fieldContext() != null && fieldType() instanceof NumberFieldMapper.NumberFieldType) {
+            return ((NumberFieldMapper.NumberFieldType) fieldType())::reduceToStoredPrecision;
+        }
+        return (value) -> value;
     }
 
     /**

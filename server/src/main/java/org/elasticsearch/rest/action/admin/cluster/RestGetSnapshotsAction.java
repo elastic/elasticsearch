@@ -9,19 +9,19 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.client.Requests.getSnapshotsRequest;
+import static org.elasticsearch.client.internal.Requests.getSnapshotsRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.snapshots.SnapshotInfo.INCLUDE_REPOSITORY_XCONTENT_PARAM;
 import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_DETAILS_XCONTENT_PARAM;
@@ -74,7 +74,8 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         final SortOrder order = SortOrder.fromString(request.param("order", getSnapshotsRequest.order().toString()));
         getSnapshotsRequest.order(order);
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin().cluster()
-                .getSnapshots(getSnapshotsRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .cluster()
+            .getSnapshots(getSnapshotsRequest, new RestToXContentListener<>(channel));
     }
 }

@@ -11,11 +11,11 @@ package org.elasticsearch.client.core;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -60,7 +60,8 @@ public final class CountRequest implements Validatable, ToXContentObject {
      */
     public CountRequest(String[] indices, QueryBuilder query) {
         indices(indices);
-        this.query = Objects.requireNonNull(query, "query must not be null");;
+        this.query = Objects.requireNonNull(query, "query must not be null");
+        ;
     }
 
     /**
@@ -228,14 +229,14 @@ public final class CountRequest implements Validatable, ToXContentObject {
             return false;
         }
         CountRequest that = (CountRequest) o;
-        return Objects.equals(indicesOptions, that.indicesOptions) &&
-            Arrays.equals(indices, that.indices) &&
-            Arrays.equals(types, that.types) &&
-            Objects.equals(routing, that.routing) &&
-            Objects.equals(preference, that.preference) &&
-            Objects.equals(terminateAfter, that.terminateAfter) &&
-            Objects.equals(minScore, that.minScore) &&
-            Objects.equals(query, that.query);
+        return Objects.equals(indicesOptions, that.indicesOptions)
+            && Arrays.equals(indices, that.indices)
+            && Arrays.equals(types, that.types)
+            && Objects.equals(routing, that.routing)
+            && Objects.equals(preference, that.preference)
+            && Objects.equals(terminateAfter, that.terminateAfter)
+            && Objects.equals(minScore, that.minScore)
+            && Objects.equals(query, that.query);
     }
 
     @Override

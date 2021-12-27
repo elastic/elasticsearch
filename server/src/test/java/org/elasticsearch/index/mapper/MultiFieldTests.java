@@ -14,9 +14,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -37,8 +37,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
-        LuceneDocument doc = mapperService.documentMapper().parse(
-            new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        LuceneDocument doc = mapperService.documentMapper().parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -114,7 +113,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
         }));
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
-        LuceneDocument doc = builderDocMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        LuceneDocument doc = builderDocMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -155,11 +154,13 @@ public class MultiFieldTests extends MapperServiceTestCase {
         }));
         Arrays.sort(multiFieldNames);
 
-        Map<String, Object> sourceAsMap =
-            XContentHelper.convertToMap(docMapper.mappingSource().compressedReference(), true, XContentType.JSON).v2();
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(
+            docMapper.mappingSource().compressedReference(),
+            true,
+            XContentType.JSON
+        ).v2();
         @SuppressWarnings("unchecked")
-        Map<String, Object> multiFields =
-            (Map<String, Object>) XContentMapValues.extractValue("_doc.properties.field.fields", sourceAsMap);
+        Map<String, Object> multiFields = (Map<String, Object>) XContentMapValues.extractValue("_doc.properties.field.fields", sourceAsMap);
         assertThat(multiFields.size(), equalTo(multiFieldNames.length));
 
         int i = 0;
@@ -170,36 +171,35 @@ public class MultiFieldTests extends MapperServiceTestCase {
     }
 
     public void testObjectFieldNotAllowed() {
-        MapperParsingException exception = expectThrows(MapperParsingException.class,
-            () -> createMapperService(fieldMapping(b -> {
-                b.field("type", "text");
-                b.startObject("fields");
-                b.startObject("multi").field("type", "object").endObject();
-                b.endObject();
-            })));
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("multi").field("type", "object").endObject();
+            b.endObject();
+        })));
         assertThat(exception.getMessage(), containsString("cannot be used in multi field"));
     }
 
     public void testNestedFieldNotAllowed() {
-        MapperParsingException exception = expectThrows(MapperParsingException.class,
-            () -> createMapperService(fieldMapping(b -> {
-                b.field("type", "text");
-                b.startObject("fields");
-                b.startObject("multi").field("type", "nested").endObject();
-                b.endObject();
-            })));
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("multi").field("type", "nested").endObject();
+            b.endObject();
+        })));
         assertThat(exception.getMessage(), containsString("cannot be used in multi field"));
     }
 
     public void testMultiFieldWithDot() {
-        MapperParsingException exception = expectThrows(MapperParsingException.class,
-            () -> createMapperService(fieldMapping(b -> {
-                b.field("type", "text");
-                b.startObject("fields");
-                b.startObject("raw.foo").field("type", "text").endObject();
-                b.endObject();
-            })));
-        assertThat(exception.getMessage(),
-            equalTo("Failed to parse mapping: Field name [raw.foo] which is a multi field of [field] cannot contain '.'"));
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("raw.foo").field("type", "text").endObject();
+            b.endObject();
+        })));
+        assertThat(
+            exception.getMessage(),
+            equalTo("Failed to parse mapping: Field name [raw.foo] which is a multi field of [field] cannot contain '.'")
+        );
     }
 }

@@ -45,21 +45,29 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
         DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonMasterNode).state().nodes();
 
-        TransportService masterTranspotService =
-                internalCluster().getInstance(TransportService.class, discoveryNodes.getMasterNode().getName());
+        TransportService masterTranspotService = internalCluster().getInstance(
+            TransportService.class,
+            discoveryNodes.getMasterNode().getName()
+        );
 
         logger.info("blocking requests from non master [{}] to master [{}]", nonMasterNode, masterNode);
-        MockTransportService nonMasterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class,
-                nonMasterNode);
+        MockTransportService nonMasterTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            nonMasterNode
+        );
         nonMasterTransportService.addFailToSendNoConnectRule(masterTranspotService);
 
         assertNoMaster(nonMasterNode);
 
         logger.info("blocking cluster state publishing from master [{}] to non master [{}]", masterNode, nonMasterNode);
-        MockTransportService masterTransportService =
-                (MockTransportService) internalCluster().getInstance(TransportService.class, masterNode);
-        TransportService localTransportService =
-                internalCluster().getInstance(TransportService.class, discoveryNodes.getLocalNode().getName());
+        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            masterNode
+        );
+        TransportService localTransportService = internalCluster().getInstance(
+            TransportService.class,
+            discoveryNodes.getLocalNode().getName()
+        );
         if (randomBoolean()) {
             masterTransportService.addFailToSendNoConnectRule(localTransportService, PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME);
         } else {
@@ -108,8 +116,10 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
     public void testElectMasterWithLatestVersion() throws Exception {
         final Set<String> nodes = new HashSet<>(internalCluster().startNodes(3));
         ensureStableCluster(3);
-        ServiceDisruptionScheme isolateAllNodes =
-                new NetworkDisruption(new NetworkDisruption.IsolateAllNodes(nodes), NetworkDisruption.DISCONNECT);
+        ServiceDisruptionScheme isolateAllNodes = new NetworkDisruption(
+            new NetworkDisruption.IsolateAllNodes(nodes),
+            NetworkDisruption.DISCONNECT
+        );
         internalCluster().setDisruptionScheme(isolateAllNodes);
 
         logger.info("--> forcing a complete election to make sure \"preferred\" master is elected");
@@ -128,8 +138,13 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         internalCluster().setDisruptionScheme(isolatePreferredMaster);
         isolatePreferredMaster.startDisrupting();
 
-        client(randomFrom(nonPreferredNodes)).admin().indices().prepareCreate("test").setSettings(
-            Settings.builder().put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)).get();
+        client(randomFrom(nonPreferredNodes)).admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(
+                Settings.builder().put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            )
+            .get();
 
         internalCluster().clearDisruptionScheme(false);
         internalCluster().setDisruptionScheme(isolateAllNodes);
@@ -154,7 +169,6 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      * sure that the node is removed form the cluster, that the node start pinging and that
      * the cluster reforms when healed.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77751")
     public void testNodeNotReachableFromMaster() throws Exception {
         startCluster(3);
 
@@ -168,8 +182,10 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         }
 
         logger.info("blocking request from master [{}] to [{}]", masterNode, nonMasterNode);
-        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class,
-                masterNode);
+        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            masterNode
+        );
         if (randomBoolean()) {
             masterTransportService.addUnresponsiveRule(internalCluster().getInstance(TransportService.class, nonMasterNode));
         } else {

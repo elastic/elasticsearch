@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[sql-functions-conditional]]
 === Conditional Functions And Expressions
 

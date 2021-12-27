@@ -12,8 +12,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,15 +44,30 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.shouldInj
 public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     @Inject
-    public IndexLifecycleUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(XPackUsageFeatureAction.INDEX_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver);
+    public IndexLifecycleUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            XPackUsageFeatureAction.INDEX_LIFECYCLE.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver
+        );
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
         Metadata metadata = state.metadata();
         IndexLifecycleMetadata lifecycleMetadata = metadata.custom(IndexLifecycleMetadata.TYPE);
         final IndexLifecycleFeatureSetUsage usage;
@@ -77,8 +92,10 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
                     }
                     String[] actionNames = actionStream.toArray(String[]::new);
                     phase.getActions().forEach((k, v) -> collectActionConfigurations(k, v, configurations));
-                    return new Tuple<>(phase.getName(), new IndexLifecycleFeatureSetUsage.PhaseStats(phase.getMinimumAge(), actionNames,
-                        configurations.build()));
+                    return new Tuple<>(
+                        phase.getName(),
+                        new IndexLifecycleFeatureSetUsage.PhaseStats(phase.getMinimumAge(), actionNames, configurations.build())
+                    );
                 }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
                 return new IndexLifecycleFeatureSetUsage.PolicyStats(phaseStats, policyUsage.getOrDefault(policy.getName(), 0));
             }).collect(Collectors.toList());

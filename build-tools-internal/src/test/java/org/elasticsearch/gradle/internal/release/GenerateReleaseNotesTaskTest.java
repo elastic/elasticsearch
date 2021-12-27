@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal.release;
 
 import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
@@ -31,10 +30,9 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-@Ignore("https://github.com/elastic/elasticsearch/issues/77190")
 public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
     private GitWrapper gitWrapper;
 
@@ -109,7 +107,7 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
             partitionedFiles,
             hasEntry(equalTo(QualifiedVersion.of("8.0.0-SNAPSHOT")), hasItem(new File("docs/changelog/1234.yaml")))
         );
-        verifyZeroInteractions(gitWrapper);
+        verifyNoMoreInteractions(gitWrapper);
     }
 
     /**
@@ -128,7 +126,7 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
         // then:
         assertThat(partitionedFiles, aMapWithSize(1));
         assertThat(partitionedFiles, hasEntry(equalTo(QualifiedVersion.of("8.5.0")), hasItem(new File("docs/changelog/1234.yaml"))));
-        verifyZeroInteractions(gitWrapper);
+        verifyNoMoreInteractions(gitWrapper);
     }
 
     /**
@@ -146,7 +144,7 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
         // then:
         assertThat(partitionedFiles, aMapWithSize(1));
         assertThat(partitionedFiles, hasEntry(equalTo(QualifiedVersion.of("8.0.0-alpha1")), hasItem(new File("docs/changelog/1234.yaml"))));
-        verifyZeroInteractions(gitWrapper);
+        verifyNoMoreInteractions(gitWrapper);
     }
 
     /**

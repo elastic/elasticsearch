@@ -16,8 +16,11 @@ import java.util.function.BiFunction;
 /**
  * Base class for definition binary processors based on functions (for applying) defined as enums (for serialization purposes).
  */
-public abstract class FunctionalEnumBinaryProcessor<T, U, R, F extends Enum<F> & BiFunction<T, U, R>>
-        extends FunctionalBinaryProcessor<T, U, R, F> {
+public abstract class FunctionalEnumBinaryProcessor<T, U, R, F extends Enum<F> & BiFunction<T, U, R>> extends FunctionalBinaryProcessor<
+    T,
+    U,
+    R,
+    F> {
 
     protected FunctionalEnumBinaryProcessor(Processor left, Processor right, F function) {
         super(left, right, function);

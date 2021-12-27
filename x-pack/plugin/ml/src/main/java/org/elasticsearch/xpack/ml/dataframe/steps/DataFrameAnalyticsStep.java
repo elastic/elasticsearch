@@ -15,7 +15,10 @@ import java.util.Locale;
 public interface DataFrameAnalyticsStep {
 
     enum Name {
-        REINDEXING, ANALYSIS, INFERENCE, FINAL;
+        REINDEXING,
+        ANALYSIS,
+        INFERENCE,
+        FINAL;
 
         @Override
         public String toString() {

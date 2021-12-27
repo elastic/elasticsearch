@@ -14,6 +14,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -34,6 +36,8 @@ import static java.util.Collections.singletonList;
 
 public class Graph extends Plugin implements ActionPlugin {
 
+    public static final LicensedFeature.Momentary GRAPH_FEATURE = LicensedFeature.momentary(null, "graph", License.OperationMode.PLATINUM);
+
     protected final boolean enabled;
 
     public Graph(Settings settings) {
@@ -47,17 +51,19 @@ public class Graph extends Plugin implements ActionPlugin {
         if (false == enabled) {
             return Arrays.asList(usageAction, infoAction);
         }
-        return Arrays.asList(
-            new ActionHandler<>(GraphExploreAction.INSTANCE, TransportGraphExploreAction.class),
-            usageAction,
-            infoAction);
+        return Arrays.asList(new ActionHandler<>(GraphExploreAction.INSTANCE, TransportGraphExploreAction.class), usageAction, infoAction);
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         if (false == enabled) {
             return emptyList();
         }

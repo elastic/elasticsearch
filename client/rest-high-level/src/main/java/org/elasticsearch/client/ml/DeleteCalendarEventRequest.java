@@ -55,7 +55,6 @@ public class DeleteCalendarEventRequest implements Validatable {
         }
 
         DeleteCalendarEventRequest that = (DeleteCalendarEventRequest) other;
-        return Objects.equals(eventId, that.eventId) &&
-            Objects.equals(calendarId, that.calendarId);
+        return Objects.equals(eventId, that.eventId) && Objects.equals(calendarId, that.calendarId);
     }
 }

@@ -31,9 +31,12 @@ public class RealmConfig {
         this.threadContext = threadContext;
         this.enabled = getSetting(RealmSettings.ENABLED_SETTING);
         if (enabled && false == hasSetting(RealmSettings.ORDER_SETTING.apply(type()))) {
-            throw new IllegalArgumentException("'order' is a mandatory parameter for realm config. " +
-                "Found invalid config for realm: '" + identifier.name + "'\n" +
-                "Please see the breaking changes documentation."
+            throw new IllegalArgumentException(
+                "'order' is a mandatory parameter for realm config. "
+                    + "Found invalid config for realm: '"
+                    + identifier.name
+                    + "'\n"
+                    + "Please see the breaking changes documentation."
             );
         }
         this.order = getSetting(RealmSettings.ORDER_SETTING);
@@ -205,8 +208,7 @@ public class RealmConfig {
                 return false;
             }
             final RealmIdentifier other = (RealmIdentifier) o;
-            return Objects.equals(this.type, other.type) &&
-                    Objects.equals(this.name, other.name);
+            return Objects.equals(this.type, other.type) && Objects.equals(this.name, other.name);
         }
 
         @Override

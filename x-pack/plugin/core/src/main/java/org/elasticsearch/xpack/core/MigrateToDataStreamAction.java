@@ -77,7 +77,7 @@ public class MigrateToDataStreamAction extends ActionType<AcknowledgedResponse> 
 
         @Override
         public String[] indices() {
-            return new String[]{aliasName};
+            return new String[] { aliasName };
         }
 
         @Override

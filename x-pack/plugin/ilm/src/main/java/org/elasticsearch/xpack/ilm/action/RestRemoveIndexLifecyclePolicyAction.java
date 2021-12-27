@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -38,7 +38,10 @@ public class RestRemoveIndexLifecyclePolicyAction extends BaseRestHandler {
         changePolicyRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", changePolicyRequest.masterNodeTimeout()));
         changePolicyRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, changePolicyRequest.indicesOptions()));
 
-        return channel ->
-                client.execute(RemoveIndexLifecyclePolicyAction.INSTANCE, changePolicyRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            RemoveIndexLifecyclePolicyAction.INSTANCE,
+            changePolicyRequest,
+            new RestToXContentListener<>(channel)
+        );
     }
 }

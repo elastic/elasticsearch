@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.dataframe.inference;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -50,8 +50,8 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     @Override
     protected QueryBuilder getQuery() {
-        return QueryBuilders.boolQuery().mustNot(
-            QueryBuilders.termQuery(config.getDest().getResultsField() + "." + DestinationIndex.IS_TRAINING, true));
+        return QueryBuilders.boolQuery()
+            .mustNot(QueryBuilders.termQuery(config.getDest().getResultsField() + "." + DestinationIndex.IS_TRAINING, true));
     }
 
     @Override
@@ -66,7 +66,7 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     @Override
     protected Object[] searchAfterFields() {
-        return lastDocId == null ? null : new Object[] {lastDocId};
+        return lastDocId == null ? null : new Object[] { lastDocId };
     }
 
     @Override
@@ -76,8 +76,12 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     @Override
     protected SearchResponse executeSearchRequest(SearchRequest searchRequest) {
-        return ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client(),
-            () -> client().search(searchRequest).actionGet());
+        return ClientHelper.executeWithHeaders(
+            config.getHeaders(),
+            ClientHelper.ML_ORIGIN,
+            client(),
+            () -> client().search(searchRequest).actionGet()
+        );
     }
 
     @Override

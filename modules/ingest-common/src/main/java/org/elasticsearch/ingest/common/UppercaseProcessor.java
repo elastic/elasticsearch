@@ -44,8 +44,14 @@ public final class UppercaseProcessor extends AbstractStringProcessor<String> {
         }
 
         @Override
-        protected UppercaseProcessor newProcessor(String tag, String description, Map<String, Object> config, String field,
-                                                  boolean ignoreMissing, String targetField) {
+        protected UppercaseProcessor newProcessor(
+            String tag,
+            String description,
+            Map<String, Object> config,
+            String field,
+            boolean ignoreMissing,
+            String targetField
+        ) {
             return new UppercaseProcessor(tag, description, field, ignoreMissing, targetField);
         }
     }

@@ -42,21 +42,18 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
 
     protected Settings localExporterSettings() {
         return Settings.builder()
-                       .put("xpack.monitoring.collection.enabled", false)
-                       .put("xpack.monitoring.collection.interval", "1s")
-                       .put("xpack.monitoring.exporters." + exporterName + ".type", LocalExporter.TYPE)
-                       .put("xpack.monitoring.exporters." + exporterName +  ".enabled", false)
-                       .put("xpack.monitoring.exporters." + exporterName +  ".cluster_alerts.management.enabled", false)
-                       .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
-                       .build();
+            .put("xpack.monitoring.collection.enabled", false)
+            .put("xpack.monitoring.collection.interval", "1s")
+            .put("xpack.monitoring.exporters." + exporterName + ".type", LocalExporter.TYPE)
+            .put("xpack.monitoring.exporters." + exporterName + ".enabled", false)
+            .put("xpack.monitoring.exporters." + exporterName + ".cluster_alerts.management.enabled", false)
+            .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
+            .build();
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-                       .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                       .put(localExporterSettings())
-                       .build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put(localExporterSettings()).build();
     }
 
     /**
@@ -79,16 +76,23 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
      *
      * @return Never {@code null}.
      */
-    protected LocalExporter createLocalExporter(String exporterName, Settings exporterSettings) {
-        return createLocalExporter(exporterName, exporterSettings, new MonitoringMigrationCoordinator());
+    protected LocalExporter createLocalExporter(String localExporterName, Settings exporterSettings) {
+        return createLocalExporter(localExporterName, exporterSettings, new MonitoringMigrationCoordinator());
     }
 
-    protected LocalExporter createLocalExporter(String exporterName, Settings exporterSettings,
-                                                MonitoringMigrationCoordinator coordinator) {
+    protected LocalExporter createLocalExporter(
+        String localExporterName,
+        Settings exporterSettings,
+        MonitoringMigrationCoordinator coordinator
+    ) {
         final XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        final Exporter.Config config = new Exporter.Config(exporterName, "local", exporterSettings, clusterService(), licenseState);
-        final CleanerService cleanerService =
-            new CleanerService(exporterSettings, clusterService().getClusterSettings(), THREADPOOL, licenseState);
+        final Exporter.Config config = new Exporter.Config(localExporterName, "local", exporterSettings, clusterService(), licenseState);
+        final CleanerService cleanerService = new CleanerService(
+            exporterSettings,
+            clusterService().getClusterSettings(),
+            THREADPOOL,
+            licenseState
+        );
         return new LocalExporter(config, client(), coordinator, cleanerService);
     }
 

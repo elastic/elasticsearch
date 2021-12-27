@@ -71,9 +71,7 @@ public class InsertFunctionProcessor implements Processor {
         StringBuilder sb = new StringBuilder(input.toString());
         String replString = (replacement.toString());
 
-        return sb.replace(realStart,
-                realStart + ((Number) length).intValue(),
-                replString).toString();
+        return sb.replace(realStart, realStart + ((Number) length).intValue(), replString).toString();
     }
 
     @Override
@@ -88,9 +86,9 @@ public class InsertFunctionProcessor implements Processor {
 
         InsertFunctionProcessor other = (InsertFunctionProcessor) obj;
         return Objects.equals(input(), other.input())
-                && Objects.equals(start(), other.start())
-                && Objects.equals(length(), other.length())
-                && Objects.equals(replacement(), other.replacement());
+            && Objects.equals(start(), other.start())
+            && Objects.equals(length(), other.length())
+            && Objects.equals(replacement(), other.replacement());
     }
 
     @Override

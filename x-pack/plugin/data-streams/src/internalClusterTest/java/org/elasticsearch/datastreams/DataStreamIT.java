@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.datastreams;
 
+import org.apache.logging.log4j.core.util.Throwables;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -13,10 +14,12 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -39,7 +42,6 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -52,20 +54,22 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction;
@@ -84,6 +88,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -118,16 +123,11 @@ public class DataStreamIT extends ESIntegTestCase {
 
     @After
     public void cleanup() {
-        AcknowledgedResponse response = client().execute(
-            DeleteDataStreamAction.INSTANCE,
-            new DeleteDataStreamAction.Request(new String[] { "*" })
-        ).actionGet();
-        assertAcked(response);
+        DeleteDataStreamAction.Request deleteDataStreamsRequest = new DeleteDataStreamAction.Request("*");
+        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamsRequest).actionGet());
 
-        DeleteDataStreamAction.Request deleteDSRequest = new DeleteDataStreamAction.Request(new String[] { "*" });
-        client().execute(DeleteDataStreamAction.INSTANCE, deleteDSRequest).actionGet();
         DeleteComposableIndexTemplateAction.Request deleteTemplateRequest = new DeleteComposableIndexTemplateAction.Request("*");
-        client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteTemplateRequest).actionGet();
+        assertAcked(client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteTemplateRequest).actionGet());
     }
 
     public void testBasicScenario() throws Exception {
@@ -418,16 +418,17 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testComposableTemplateOnlyMatchingWithDataStreamName() throws Exception {
         String dataStreamName = "logs-foobar";
 
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"baz_field\": {\n"
-            + "          \"type\": \"keyword\"\n"
-            + "        },\n"
-            + "        \"@timestamp\": {\n"
-            + "          \"type\": \"date\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+                  "properties": {
+                    "baz_field": {
+                      "type": "keyword"
+                    },
+                    "@timestamp": {
+                      "type": "date"
+                    }
+                  }
+                }""";
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id_1");
         request.indexTemplate(
             new ComposableIndexTemplate(
@@ -505,13 +506,14 @@ public class DataStreamIT extends ESIntegTestCase {
 
     public void testTimeStampValidationInvalidFieldMapping() throws Exception {
         // Adding a template with an invalid mapping for timestamp field and expect template creation to fail.
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"@timestamp\": {\n"
-            + "          \"type\": \"keyword\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "keyword"
+                    }
+                  }
+                }""";
         PutComposableIndexTemplateAction.Request createTemplateRequest = new PutComposableIndexTemplateAction.Request("logs-foo");
         createTemplateRequest.indexTemplate(
             new ComposableIndexTemplate(
@@ -569,14 +571,8 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, client().admin().indices().prepareRecoveries(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareGetAliases("dummy").addIndices(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareGetFieldMappings(dataStreamName), false);
-        verifyResolvability(
-            dataStreamName,
-            client().admin()
-                .indices()
-                .preparePutMapping(dataStreamName)
-                .setSource("{\"_doc\":{\"properties\": {\"my_field\":{\"type\":\"keyword\"}}}}", XContentType.JSON),
-            false
-        );
+        verifyResolvability(dataStreamName, client().admin().indices().preparePutMapping(dataStreamName).setSource("""
+            {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareGetMappings(dataStreamName), false);
         verifyResolvability(
             dataStreamName,
@@ -624,14 +620,8 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, client().admin().indices().prepareRecoveries(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareGetAliases(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareGetFieldMappings(wildcardExpression), false);
-        verifyResolvability(
-            wildcardExpression,
-            client().admin()
-                .indices()
-                .preparePutMapping(wildcardExpression)
-                .setSource("{\"_doc\":{\"properties\": {\"my_field\":{\"type\":\"keyword\"}}}}", XContentType.JSON),
-            false
-        );
+        verifyResolvability(wildcardExpression, client().admin().indices().preparePutMapping(wildcardExpression).setSource("""
+            {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareGetMappings(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareGetSettings(wildcardExpression), false);
         verifyResolvability(
@@ -844,7 +834,7 @@ public class DataStreamIT extends ESIntegTestCase {
                     + backingIndex
                     + "] match a backing index belonging to data stream ["
                     + dataStreamName
-                    + "]. Data streams and their backing indices don't "
+                    + "]. Data stream backing indices don't "
                     + "support aliases."
             )
         );
@@ -993,17 +983,18 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testTimestampFieldCustomAttributes() throws Exception {
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"@timestamp\": {\n"
-            + "          \"type\": \"date\",\n"
-            + "          \"format\": \"yyyy-MM\",\n"
-            + "          \"meta\": {\n"
-            + "            \"x\": \"y\"\n"
-            + "          }\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "date",
+                      "format": "yyyy-MM",
+                      "meta": {
+                        "x": "y"
+                      }
+                    }
+                  }
+                }""";
         putComposableIndexTemplate("id1", mapping, List.of("logs-foo*"), null, null);
 
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
@@ -1033,7 +1024,7 @@ public class DataStreamIT extends ESIntegTestCase {
         Map<?, ?> expectedMapping = Map.of(
             "properties",
             Map.of("@timestamp", Map.of("type", "date")),
-            "_data_stream_timestamp",
+            DataStreamTimestampFieldMapper.NAME,
             Map.of("enabled", true)
         );
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("logs-foobar").get();
@@ -1044,7 +1035,7 @@ public class DataStreamIT extends ESIntegTestCase {
         expectedMapping = Map.of(
             "properties",
             Map.of("@timestamp", Map.of("type", "date"), "my_field", Map.of("type", "keyword")),
-            "_data_stream_timestamp",
+            DataStreamTimestampFieldMapper.NAME,
             Map.of("enabled", true)
         );
         client().admin()
@@ -1109,8 +1100,8 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(
             exception.getMessage(),
             is(
-                "index request targeting data stream [logs-foobar] specifies a custom routing. target the "
-                    + "backing indices directly or remove the custom routing."
+                "index request targeting data stream [logs-foobar] specifies a custom routing "
+                    + "but the [allow_custom_routing] setting was not enabled in the data stream's template."
             )
         );
 
@@ -1131,9 +1122,51 @@ public class DataStreamIT extends ESIntegTestCase {
                 responseItem.getFailureMessage(),
                 is(
                     "java.lang.IllegalArgumentException: index request targeting data stream "
-                        + "[logs-foobar] specifies a custom routing. target the backing indices directly or remove the custom routing."
+                        + "[logs-foobar] specifies a custom routing "
+                        + "but the [allow_custom_routing] setting was not enabled in the data stream's template."
                 )
             );
+        }
+    }
+
+    public void testIndexDocsWithCustomRoutingAllowed() throws Exception {
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of("logs-foobar*"),
+            new Template(null, null, null),
+            null,
+            null,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(false, true)
+        );
+        client().execute(
+            PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("id1").indexTemplate(template)
+        ).actionGet();
+        // Index doc that triggers creation of a data stream
+        String dataStream = "logs-foobar";
+        IndexRequest indexRequest = new IndexRequest(dataStream).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
+            .opType(DocWriteRequest.OpType.CREATE)
+            .routing("custom");
+        IndexResponse indexResponse = client().index(indexRequest).actionGet();
+        assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStream, 1)));
+        // Index doc with custom routing that targets the data stream
+        IndexRequest indexRequestWithRouting = new IndexRequest(dataStream).source("@timestamp", System.currentTimeMillis())
+            .opType(DocWriteRequest.OpType.CREATE)
+            .routing("custom");
+        client().index(indexRequestWithRouting).actionGet();
+        // Bulk indexing with custom routing targeting the data stream
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < 10; i++) {
+            bulkRequest.add(
+                new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
+                    .source("@timestamp", System.currentTimeMillis())
+                    .routing("bulk-request-routing")
+            );
+        }
+        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        for (BulkItemResponse responseItem : bulkResponse.getItems()) {
+            assertThat(responseItem.getFailure(), nullValue());
         }
     }
 
@@ -1493,6 +1526,174 @@ public class DataStreamIT extends ESIntegTestCase {
         assertTrue(timestamp2 > timestamp3);
     }
 
+    public void testCreateDataStreamWithSameNameAsIndexAlias() throws Exception {
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index").alias(new Alias("my-alias"));
+        assertAcked(client().admin().indices().create(createIndexRequest).actionGet());
+
+        // Important detail: create template with data stream template after the index has been created
+        DataStreamIT.putComposableIndexTemplate("my-template", List.of("my-*"));
+
+        var request = new CreateDataStreamAction.Request("my-alias");
+        var e = expectThrows(IllegalStateException.class, () -> client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+        assertThat(e.getMessage(), containsString("[my-alias (alias of ["));
+        assertThat(e.getMessage(), containsString("]) conflicts with data stream"));
+    }
+
+    public void testCreateDataStreamWithSameNameAsIndex() throws Exception {
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index").alias(new Alias("my-alias"));
+        assertAcked(client().admin().indices().create(createIndexRequest).actionGet());
+
+        // Important detail: create template with data stream template after the index has been created
+        DataStreamIT.putComposableIndexTemplate("my-template", List.of("my-*"));
+
+        var request = new CreateDataStreamAction.Request("my-index");
+        var e = expectThrows(IllegalStateException.class, () -> client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+        assertThat(e.getMessage(), containsString("data stream [my-index] conflicts with index"));
+    }
+
+    public void testCreateDataStreamWithSameNameAsDataStreamAlias() throws Exception {
+        {
+            DataStreamIT.putComposableIndexTemplate("my-template", List.of("my-*"));
+            var request = new CreateDataStreamAction.Request("my-ds");
+            assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+            var aliasesAddRequest = new IndicesAliasesRequest();
+            aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("my-ds").aliases("my-alias"));
+            assertAcked(client().admin().indices().aliases(aliasesAddRequest).actionGet());
+
+            var request2 = new CreateDataStreamAction.Request("my-alias");
+            var e = expectThrows(
+                IllegalStateException.class,
+                () -> client().execute(CreateDataStreamAction.INSTANCE, request2).actionGet()
+            );
+            assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
+        }
+        {
+            assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet());
+            DataStreamIT.putComposableIndexTemplate(
+                "my-template",
+                null,
+                List.of("my-*"),
+                null,
+                null,
+                Map.of("my-alias", AliasMetadata.builder("my-alias").build())
+            );
+            var request = new CreateDataStreamAction.Request("my-ds");
+            assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+
+            var request2 = new CreateDataStreamAction.Request("my-alias");
+            var e = expectThrows(
+                IllegalStateException.class,
+                () -> client().execute(CreateDataStreamAction.INSTANCE, request2).actionGet()
+            );
+            assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
+        }
+    }
+
+    public void testCreateDataStreamAliasWithSameNameAsIndexAlias() throws Exception {
+        {
+            DataStreamIT.putComposableIndexTemplate("my-template", List.of("logs-*"));
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("es-logs").alias(new Alias("logs"));
+            assertAcked(client().admin().indices().create(createIndexRequest).actionGet());
+
+            var request = new CreateDataStreamAction.Request("logs-es");
+            assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("logs-es").aliases("logs"));
+            var e = expectThrows(IllegalStateException.class, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
+            assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (logs)"));
+        }
+        {
+            assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet());
+            DataStreamIT.putComposableIndexTemplate(
+                "my-template",
+                null,
+                List.of("logs-*"),
+                null,
+                null,
+                Map.of("logs", AliasMetadata.builder("logs").build())
+            );
+
+            var request = new CreateDataStreamAction.Request("logs-es");
+            var e = expectThrows(IllegalStateException.class, () -> client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+            assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (logs)"));
+        }
+    }
+
+    public void testCreateDataStreamAliasWithSameNameAsIndex() throws Exception {
+        DataStreamIT.putComposableIndexTemplate("my-template", List.of("logs-*"));
+
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("logs");
+        assertAcked(client().admin().indices().create(createIndexRequest).actionGet());
+
+        {
+            var request = new CreateDataStreamAction.Request("logs-es");
+            assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("logs-es").aliases("logs"));
+            var e = expectThrows(InvalidAliasNameException.class, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
+            assertThat(
+                e.getMessage(),
+                equalTo("Invalid alias name [logs]: an index or data stream exists with the same name as the alias")
+            );
+        }
+        {
+            assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet());
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> DataStreamIT.putComposableIndexTemplate(
+                    "my-template",
+                    null,
+                    List.of("logs-*"),
+                    null,
+                    null,
+                    Map.of("logs", AliasMetadata.builder("logs").build())
+                )
+            );
+            assertThat(
+                e.getCause().getMessage(),
+                equalTo("Invalid alias name [logs]: an index or data stream exists with the same name as the alias")
+            );
+        }
+    }
+
+    public void testCreateIndexWithSameNameAsDataStreamAlias() throws Exception {
+        DataStreamIT.putComposableIndexTemplate("my-template", List.of("logs-*"));
+
+        var request = new CreateDataStreamAction.Request("logs-es");
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+        IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+        aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("logs-es").aliases("logs"));
+        assertAcked(client().admin().indices().aliases(aliasesAddRequest).actionGet());
+
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("logs");
+        var e = expectThrows(InvalidIndexNameException.class, () -> client().admin().indices().create(createIndexRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("Invalid index name [logs], already exists as alias"));
+    }
+
+    public void testCreateIndexAliasWithSameNameAsDataStreamAlias() throws Exception {
+        DataStreamIT.putComposableIndexTemplate("my-template", List.of("logs-*"));
+
+        var request = new CreateDataStreamAction.Request("logs-es");
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+        IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+        aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("logs-es").aliases("logs"));
+        assertAcked(client().admin().indices().aliases(aliasesAddRequest).actionGet());
+
+        {
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index").alias(new Alias("logs"));
+            var e = expectThrows(IllegalStateException.class, () -> client().admin().indices().create(createIndexRequest).actionGet());
+            assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (logs)"));
+        }
+        {
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index");
+            assertAcked(client().admin().indices().create(createIndexRequest).actionGet());
+            IndicesAliasesRequest addAliasRequest = new IndicesAliasesRequest();
+            addAliasRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("my-index").aliases("logs"));
+            var e = expectThrows(IllegalStateException.class, () -> client().admin().indices().aliases(addAliasRequest).actionGet());
+            assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (logs)"));
+        }
+    }
+
     private static void verifyResolvability(String dataStream, ActionRequestBuilder<?, ?> requestBuilder, boolean fail) {
         verifyResolvability(dataStream, requestBuilder, fail, 0);
     }
@@ -1519,8 +1720,7 @@ public class DataStreamIT extends ESIntegTestCase {
                 assertThat(e.getMessage(), equalTo(expectedErrorMessage));
             }
         } else {
-            if (requestBuilder instanceof SearchRequestBuilder) {
-                SearchRequestBuilder searchRequestBuilder = (SearchRequestBuilder) requestBuilder;
+            if (requestBuilder instanceof SearchRequestBuilder searchRequestBuilder) {
                 assertHitCount(searchRequestBuilder.get(), expectedCount);
             } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
@@ -1572,6 +1772,128 @@ public class DataStreamIT extends ESIntegTestCase {
         putComposableIndexTemplate(id, null, patterns, null, null);
     }
 
+    public void testPartitionedTemplate() throws IOException {
+        /**
+         * partition size with no routing required
+         */
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of("logs"),
+            new Template(
+                Settings.builder().put("index.number_of_shards", "3").put("index.routing_partition_size", "2").build(),
+                null,
+                null
+            ),
+            null,
+            null,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(false, true)
+        );
+        ComposableIndexTemplate finalTemplate = template;
+        client().execute(
+            PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(finalTemplate)
+        ).actionGet();
+        /**
+         * partition size with routing required
+         */
+        template = new ComposableIndexTemplate(
+            List.of("logs"),
+            new Template(
+                Settings.builder().put("index.number_of_shards", "3").put("index.routing_partition_size", "2").build(),
+                new CompressedXContent("""
+                    {
+                          "_routing": {
+                            "required": true
+                          }
+                        }"""),
+                null
+            ),
+            null,
+            null,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(false, true)
+        );
+        client().execute(
+            PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(template)
+        ).actionGet();
+
+        /**
+         * routing enable with allow custom routing false
+         */
+        template = new ComposableIndexTemplate(
+            List.of("logs"),
+            new Template(
+                Settings.builder().put("index.number_of_shards", "3").put("index.routing_partition_size", "2").build(),
+                new CompressedXContent("""
+                    {
+                          "_routing": {
+                            "required": true
+                          }
+                        }"""),
+                null
+            ),
+            null,
+            null,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(false, false)
+        );
+        ComposableIndexTemplate finalTemplate1 = template;
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(
+                PutComposableIndexTemplateAction.INSTANCE,
+                new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(finalTemplate1)
+            ).actionGet()
+        );
+        Exception actualException = (Exception) e.getCause();
+        assertTrue(
+            Throwables.getRootCause(actualException)
+                .getMessage()
+                .contains("mapping type [_doc] must have routing required for partitioned index")
+        );
+    }
+
+    public void testSearchWithRouting() throws IOException, ExecutionException, InterruptedException {
+        /**
+         * partition size with routing required
+         */
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of("my-logs"),
+            new Template(
+                Settings.builder()
+                    .put("index.number_of_shards", "10")
+                    .put("index.number_of_routing_shards", "10")
+                    .put("index.routing_partition_size", "4")
+                    .build(),
+                new CompressedXContent("""
+                    {
+                          "_routing": {
+                            "required": true
+                          }
+                        }"""),
+                null
+            ),
+            null,
+            null,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(false, true)
+        );
+        client().execute(
+            PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(template)
+        ).actionGet();
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("my-logs");
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+        SearchRequest searchRequest = new SearchRequest("my-logs").routing("123");
+        SearchResponse searchResponse = client().search(searchRequest).actionGet();
+        assertEquals(searchResponse.getTotalShards(), 4);
+    }
+
     static void putComposableIndexTemplate(
         String id,
         @Nullable String mappings,
@@ -1579,11 +1901,22 @@ public class DataStreamIT extends ESIntegTestCase {
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata
     ) throws IOException {
+        putComposableIndexTemplate(id, mappings, patterns, settings, metadata, null);
+    }
+
+    static void putComposableIndexTemplate(
+        String id,
+        @Nullable String mappings,
+        List<String> patterns,
+        @Nullable Settings settings,
+        @Nullable Map<String, Object> metadata,
+        @Nullable Map<String, AliasMetadata> aliases
+    ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             new ComposableIndexTemplate(
                 patterns,
-                new Template(settings, mappings == null ? null : new CompressedXContent(mappings), null),
+                new Template(settings, mappings == null ? null : new CompressedXContent(mappings), aliases),
                 null,
                 null,
                 null,

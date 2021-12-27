@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.core.ml.inference.allocation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -48,7 +48,7 @@ public class AllocationStatus implements Writeable, ToXContentObject {
 
     private static final ConstructingObjectParser<AllocationStatus, Void> PARSER = new ConstructingObjectParser<>(
         "allocation_health",
-        a -> new AllocationStatus((int)a[0], (int)a[1])
+        a -> new AllocationStatus((int) a[0], (int) a[1])
     );
     static {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), ALLOCATION_COUNT);

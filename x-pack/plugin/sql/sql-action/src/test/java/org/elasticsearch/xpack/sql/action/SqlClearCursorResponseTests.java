@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 public class SqlClearCursorResponseTests extends AbstractSerializingTestCase<SqlClearCursorResponse> {
 
@@ -29,8 +29,8 @@ public class SqlClearCursorResponseTests extends AbstractSerializingTestCase<Sql
 
     @Override
     protected SqlClearCursorResponse doParseInstance(XContentParser parser) {
-        org.elasticsearch.xpack.sql.proto.SqlClearCursorResponse response =
-            org.elasticsearch.xpack.sql.proto.SqlClearCursorResponse.fromXContent(parser);
+        org.elasticsearch.xpack.sql.proto.SqlClearCursorResponse response = org.elasticsearch.xpack.sql.proto.SqlClearCursorResponse
+            .fromXContent(parser);
         return new SqlClearCursorResponse(response.isSucceeded());
     }
 }

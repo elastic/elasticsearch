@@ -11,7 +11,7 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
@@ -62,8 +62,7 @@ public class RestTasksAction extends AbstractCatAction {
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final ListTasksRequest listTasksRequest = generateListTasksRequest(request);
-        return channel ->
-                client.admin().cluster().listTasks(listTasksRequest, new RestResponseListener<>(channel) {
+        return channel -> client.admin().cluster().listTasks(listTasksRequest, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(ListTasksResponse listTasksResponse) throws Exception {
                 return RestTable.buildResponse(buildTable(request, listTasksResponse), channel);
@@ -145,7 +144,7 @@ public class RestTasksAction extends AbstractCatAction {
         table.addCell(node.getAddress().address().getPort());
         table.addCell(node == null ? "-" : node.getName());
         table.addCell(node == null ? "-" : node.getVersion().toString());
-        table.addCell(taskInfo.getHeaders().getOrDefault(Task.X_OPAQUE_ID, "-"));
+        table.addCell(taskInfo.getHeaders().getOrDefault(Task.X_OPAQUE_ID_HTTP_HEADER, "-"));
 
         if (detailed) {
             table.addCell(taskInfo.getDescription());

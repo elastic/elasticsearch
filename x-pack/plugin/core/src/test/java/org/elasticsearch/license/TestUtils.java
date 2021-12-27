@@ -14,14 +14,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
 
@@ -40,15 +40,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static org.apache.lucene.util.LuceneTestCase.createTempFile;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertThat;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TestUtils {
 
@@ -68,13 +66,13 @@ public class TestUtils {
         long now = System.currentTimeMillis();
         String uid = UUID.randomUUID().toString();
         String feature = "feature__" + randomInt();
-        String issuer = "issuer__"  + randomInt();
+        String issuer = "issuer__" + randomInt();
         String issuedTo = "issuedTo__" + randomInt();
         final String type;
         final String subscriptionType;
         if (version < License.VERSION_NO_FEATURE_TYPE) {
             subscriptionType = randomFrom("gold", "silver", "platinum");
-            type = "subscription";//randomFrom("subscription", "internal", "development");
+            type = "subscription";// randomFrom("subscription", "internal", "development");
         } else {
             subscriptionType = null;
             type = randomFrom("basic", "dev", "gold", "silver", "platinum");
@@ -83,8 +81,18 @@ public class TestUtils {
         if (datesInMillis) {
             long issueDateInMillis = dateMath("now", now);
             long expiryDateInMillis = dateMath("now+10d/d", now);
-            return new LicenseSpec(version, uid, feature, issueDateInMillis, expiryDateInMillis, type, subscriptionType, issuedTo, issuer,
-                maxNodes);
+            return new LicenseSpec(
+                version,
+                uid,
+                feature,
+                issueDateInMillis,
+                expiryDateInMillis,
+                type,
+                subscriptionType,
+                issuedTo,
+                issuer,
+                maxNodes
+            );
         } else {
             String issueDate = dateMathString("now", now);
             String expiryDate = dateMathString("now+10d/d", now);
@@ -178,12 +186,32 @@ public class TestUtils {
         public final int maxNodes;
 
         public LicenseSpec(String issueDate, String expiryDate) {
-            this(License.VERSION_CURRENT, UUID.randomUUID().toString(), "feature", issueDate, expiryDate, "trial", "none", "customer",
-                "elasticsearch", 5);
+            this(
+                License.VERSION_CURRENT,
+                UUID.randomUUID().toString(),
+                "feature",
+                issueDate,
+                expiryDate,
+                "trial",
+                "none",
+                "customer",
+                "elasticsearch",
+                5
+            );
         }
 
-        public LicenseSpec(int version, String uid, String feature, long issueDateInMillis, long expiryDateInMillis, String type,
-                           String subscriptionType, String issuedTo, String issuer, int maxNodes) {
+        public LicenseSpec(
+            int version,
+            String uid,
+            String feature,
+            long issueDateInMillis,
+            long expiryDateInMillis,
+            String type,
+            String subscriptionType,
+            String issuedTo,
+            String issuer,
+            int maxNodes
+        ) {
             this.version = version;
             this.feature = feature;
             this.issueDateInMillis = issueDateInMillis;
@@ -198,8 +226,18 @@ public class TestUtils {
             this.maxNodes = maxNodes;
         }
 
-        public LicenseSpec(int version, String uid, String feature, String issueDate, String expiryDate, String type,
-                           String subscriptionType, String issuedTo, String issuer, int maxNodes) {
+        public LicenseSpec(
+            int version,
+            String uid,
+            String feature,
+            String issueDate,
+            String expiryDate,
+            String type,
+            String subscriptionType,
+            String issuedTo,
+            String issuer,
+            int maxNodes
+        ) {
             this.version = version;
             this.feature = feature;
             this.issueDate = issueDate;
@@ -214,6 +252,7 @@ public class TestUtils {
             this.maxNodes = maxNodes;
         }
     }
+
     private static Path getTestPriKeyPath() throws Exception {
         return getResourcePath("/private.key");
     }
@@ -251,13 +290,13 @@ public class TestUtils {
     public static License generateSignedLicenseOldSignature() {
         long issueDate = System.currentTimeMillis();
         License.Builder specBuilder = License.builder()
-                .uid(UUID.randomUUID().toString())
-                .version(License.VERSION_START_DATE)
-                .issuedTo("customer")
-                .maxNodes(5)
-                .type("trial")
-                .issueDate(issueDate)
-                .expiryDate(issueDate + TimeValue.timeValueHours(24).getMillis());
+            .uid(UUID.randomUUID().toString())
+            .version(License.VERSION_START_DATE)
+            .issuedTo("customer")
+            .maxNodes(5)
+            .type("trial")
+            .issueDate(issueDate)
+            .expiryDate(issueDate + TimeValue.timeValueHours(24).getMillis());
         return SelfGeneratedLicense.create(specBuilder, License.VERSION_START_DATE);
     }
 
@@ -274,22 +313,20 @@ public class TestUtils {
             licenseType = (type != null) ? type : randomFrom("silver", "dev", "gold", "platinum");
         }
         final License.Builder builder = License.builder()
-                .uid(UUID.randomUUID().toString())
-                .version(version)
-                .expiryDate(System.currentTimeMillis() + expiryDuration.getMillis())
-                .issueDate(issue)
-                .type(licenseType)
-                .issuedTo("customer")
-                .issuer("elasticsearch")
-                .maxNodes(5);
+            .uid(UUID.randomUUID().toString())
+            .version(version)
+            .expiryDate(System.currentTimeMillis() + expiryDuration.getMillis())
+            .issueDate(issue)
+            .type(licenseType)
+            .issuedTo("customer")
+            .issuer("elasticsearch")
+            .maxNodes(5);
         if (version == License.VERSION_START) {
             builder.subscriptionType((type != null) ? type : randomFrom("dev", "gold", "platinum", "silver"));
             builder.feature(randomAlphaOfLength(10));
         }
         if ("enterprise".equals(licenseType)) {
-            builder.version(License.VERSION_ENTERPRISE)
-                .maxResourceUnits(randomIntBetween(5, 500))
-                .maxNodes(-1);
+            builder.version(License.VERSION_ENTERPRISE).maxResourceUnits(randomIntBetween(5, 500)).maxNodes(-1);
         }
         final LicenseSigner signer = new LicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
         return signer.sign(builder.build());
@@ -309,20 +346,22 @@ public class TestUtils {
     }
 
     public static License generateExpiredNonBasicLicense(String type) throws Exception {
-        return generateExpiredNonBasicLicense(type,
-                System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(1, 10)).getMillis());
+        return generateExpiredNonBasicLicense(
+            type,
+            System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(1, 10)).getMillis()
+        );
     }
 
     public static License generateExpiredNonBasicLicense(String type, long expiryDate) throws Exception {
         final License.Builder builder = License.builder()
-                .uid(UUID.randomUUID().toString())
-                .version(License.VERSION_CURRENT)
-                .expiryDate(expiryDate)
-                .issueDate(expiryDate - TimeValue.timeValueMinutes(10).getMillis())
-                .type(type)
-                .issuedTo("customer")
-                .issuer("elasticsearch")
-                .maxNodes(5);
+            .uid(UUID.randomUUID().toString())
+            .version(License.VERSION_CURRENT)
+            .expiryDate(expiryDate)
+            .issueDate(expiryDate - TimeValue.timeValueMinutes(10).getMillis())
+            .type(type)
+            .issuedTo("customer")
+            .issuer("elasticsearch")
+            .maxNodes(5);
         LicenseSigner signer = new LicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
         return signer.sign(builder.build());
     }
@@ -335,8 +374,11 @@ public class TestUtils {
         return resourceFile;
     }
 
-    public static void registerAndAckSignedLicenses(final LicenseService licenseService, License license,
-                                                    final LicensesStatus expectedStatus) {
+    public static void registerAndAckSignedLicenses(
+        final LicenseService licenseService,
+        License license,
+        final LicensesStatus expectedStatus
+    ) {
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(license).acknowledge(true);
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<LicensesStatus> status = new AtomicReference<>();
@@ -405,12 +447,6 @@ public class TestUtils {
     }
 
     public static MockLicenseState newMockLicenceState() {
-        MockLicenseState mock = mock(MockLicenseState.class);
-        // These are deprecated methods, but we haven't replaced all usage of them yet
-        // By calling the real methods, we force everything through a small number of mockable methods like
-        //  XPackLicenseState.isAllowed(LicensedFeature)
-        when(mock.isAllowed(any(XPackLicenseState.Feature.class))).thenCallRealMethod();
-        when(mock.checkFeature(any(XPackLicenseState.Feature.class))).thenCallRealMethod();
-        return mock;
+        return mock(MockLicenseState.class);
     }
 }

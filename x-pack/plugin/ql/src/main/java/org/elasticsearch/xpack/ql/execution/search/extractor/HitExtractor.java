@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ql.execution.search.extractor;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchHit;
 
 /**

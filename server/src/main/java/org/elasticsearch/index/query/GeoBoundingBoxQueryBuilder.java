@@ -13,7 +13,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -22,12 +21,13 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -49,7 +49,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
-
 
     /** Name of field holding geo coordinates to compute the bounding box on.*/
     private final String fieldName;
@@ -119,17 +118,14 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
             // all corners are valid after above checks - make sure they are in the right relation
             if (top < bottom) {
-                throw new IllegalArgumentException("top is below bottom corner: " +
-                            top + " vs. " + bottom);
+                throw new IllegalArgumentException("top is below bottom corner: " + top + " vs. " + bottom);
             } else if (top == bottom) {
-                throw new IllegalArgumentException("top cannot be the same as bottom: " +
-                    top + " == " + bottom);
+                throw new IllegalArgumentException("top cannot be the same as bottom: " + top + " == " + bottom);
             } else if (left == right) {
-                throw new IllegalArgumentException("left cannot be the same as right: " +
-                    left + " == " + right);
+                throw new IllegalArgumentException("left cannot be the same as right: " + left + " == " + right);
             }
 
-                // we do not check longitudes as the query generation code can deal with flipped left/right values
+            // we do not check longitudes as the query generation code can deal with flipped left/right values
         }
 
         geoBoundingBox.topLeft().reset(top, left);
@@ -247,20 +243,16 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         QueryValidationException validationException = null;
         // For everything post 2.0 validate latitude and longitude unless validation was explicitly turned off
         if (GeoUtils.isValidLatitude(topLeft.getLat()) == false) {
-            validationException = addValidationError("top latitude is invalid: " + topLeft.getLat(),
-                    validationException);
+            validationException = addValidationError("top latitude is invalid: " + topLeft.getLat(), validationException);
         }
         if (GeoUtils.isValidLongitude(topLeft.getLon()) == false) {
-            validationException = addValidationError("left longitude is invalid: " + topLeft.getLon(),
-                    validationException);
+            validationException = addValidationError("left longitude is invalid: " + topLeft.getLon(), validationException);
         }
         if (GeoUtils.isValidLatitude(bottomRight.getLat()) == false) {
-            validationException = addValidationError("bottom latitude is invalid: " + bottomRight.getLat(),
-                    validationException);
+            validationException = addValidationError("bottom latitude is invalid: " + bottomRight.getLat(), validationException);
         }
         if (GeoUtils.isValidLongitude(bottomRight.getLon()) == false) {
-            validationException = addValidationError("right longitude is invalid: " + bottomRight.getLon(),
-                    validationException);
+            validationException = addValidationError("right longitude is invalid: " + bottomRight.getLon(), validationException);
         }
         return validationException;
     }
@@ -276,8 +268,10 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             }
         }
         if ((fieldType instanceof GeoShapeQueryable) == false) {
-            throw new QueryShardException(context,
-                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query");
+            throw new QueryShardException(
+                context,
+                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
+            );
         }
 
         QueryValidationException exception = checkLatLon();
@@ -303,8 +297,12 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         }
 
         final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) fieldType;
-        final Rectangle rectangle =
-            new Rectangle(luceneTopLeft.getLon(), luceneBottomRight.getLon(), luceneTopLeft.getLat(), luceneBottomRight.getLat());
+        final Rectangle rectangle = new Rectangle(
+            luceneTopLeft.getLon(),
+            luceneBottomRight.getLon(),
+            luceneTopLeft.getLat(),
+            luceneBottomRight.getLat()
+        );
         return geoShapeQueryable.geoShapeQuery(rectangle, fieldType.name(), SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, context);
     }
 
@@ -356,8 +354,12 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                 } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     ignoreUnmapped = parser.booleanValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. unexpected field [{}]",
-                            NAME, currentFieldName);
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "failed to parse [{}] query. unexpected field [{}]",
+                        NAME,
+                        currentFieldName
+                    );
                 }
             }
         }
@@ -380,10 +382,10 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     @Override
     protected boolean doEquals(GeoBoundingBoxQueryBuilder other) {
-        return Objects.equals(geoBoundingBox, other.geoBoundingBox) &&
-                Objects.equals(validationMethod, other.validationMethod) &&
-                Objects.equals(fieldName, other.fieldName) &&
-                Objects.equals(ignoreUnmapped, other.ignoreUnmapped);
+        return Objects.equals(geoBoundingBox, other.geoBoundingBox)
+            && Objects.equals(validationMethod, other.validationMethod)
+            && Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(ignoreUnmapped, other.ignoreUnmapped);
     }
 
     @Override

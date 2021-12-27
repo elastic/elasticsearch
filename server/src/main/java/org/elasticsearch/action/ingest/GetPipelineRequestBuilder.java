@@ -9,10 +9,12 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
-public class GetPipelineRequestBuilder
-        extends MasterNodeReadOperationRequestBuilder<GetPipelineRequest, GetPipelineResponse, GetPipelineRequestBuilder> {
+public class GetPipelineRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+    GetPipelineRequest,
+    GetPipelineResponse,
+    GetPipelineRequestBuilder> {
 
     public GetPipelineRequestBuilder(ElasticsearchClient client, GetPipelineAction action) {
         super(client, action, new GetPipelineRequest());

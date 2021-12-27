@@ -4,9 +4,10 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(path: xpackModule('transform'))
+  javaRestTestImplementation project(":client:rest-high-level")
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'

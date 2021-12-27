@@ -12,14 +12,14 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AbstractRequestTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -105,16 +105,25 @@ public class CountRequestTests extends AbstractRequestTestCase<CountRequest, Que
     private CountRequest mutate(CountRequest countRequest) {
         CountRequest mutation = copyRequest(countRequest);
         List<Runnable> mutators = new ArrayList<>();
-        mutators.add(() -> mutation.indices(ArrayUtils.concat(countRequest.indices(), new String[]{randomAlphaOfLength(10)})));
-        mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(countRequest.indicesOptions(),
-            () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
-        mutators.add(() -> mutation.types(ArrayUtils.concat(countRequest.types(), new String[]{randomAlphaOfLength(10)})));
+        mutators.add(() -> mutation.indices(ArrayUtils.concat(countRequest.indices(), new String[] { randomAlphaOfLength(10) })));
+        mutators.add(
+            () -> mutation.indicesOptions(
+                randomValueOtherThan(
+                    countRequest.indicesOptions(),
+                    () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
+                )
+            )
+        );
+        mutators.add(() -> mutation.types(ArrayUtils.concat(countRequest.types(), new String[] { randomAlphaOfLength(10) })));
         mutators.add(() -> mutation.preference(randomValueOtherThan(countRequest.preference(), () -> randomAlphaOfLengthBetween(3, 10))));
         mutators.add(() -> mutation.routing(randomValueOtherThan(countRequest.routing(), () -> randomAlphaOfLengthBetween(3, 10))));
         mutators.add(() -> mutation.terminateAfter(randomValueOtherThan(countRequest.terminateAfter(), () -> randomIntBetween(0, 10))));
         mutators.add(() -> mutation.minScore(randomValueOtherThan(countRequest.minScore(), () -> (float) randomIntBetween(0, 10))));
-        mutators.add(() -> mutation.query(randomValueOtherThan(countRequest.query(),
-            () -> new MatchQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(4)))));
+        mutators.add(
+            () -> mutation.query(
+                randomValueOtherThan(countRequest.query(), () -> new MatchQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(4)))
+            )
+        );
         randomFrom(mutators).run();
         return mutation;
     }

@@ -9,10 +9,10 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -28,8 +28,10 @@ public class FlushJobRequest implements Validatable, ToXContentObject {
     public static final ParseField ADVANCE_TIME = new ParseField("advance_time");
     public static final ParseField SKIP_TIME = new ParseField("skip_time");
 
-    public static final ConstructingObjectParser<FlushJobRequest, Void> PARSER =
-        new ConstructingObjectParser<>("flush_job_request", (a) -> new FlushJobRequest((String) a[0]));
+    public static final ConstructingObjectParser<FlushJobRequest, Void> PARSER = new ConstructingObjectParser<>(
+        "flush_job_request",
+        (a) -> new FlushJobRequest((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -145,12 +147,12 @@ public class FlushJobRequest implements Validatable, ToXContentObject {
         }
 
         FlushJobRequest other = (FlushJobRequest) obj;
-        return Objects.equals(jobId, other.jobId) &&
-            calcInterim == other.calcInterim &&
-            Objects.equals(start, other.start) &&
-            Objects.equals(end, other.end) &&
-            Objects.equals(advanceTime, other.advanceTime) &&
-            Objects.equals(skipTime, other.skipTime);
+        return Objects.equals(jobId, other.jobId)
+            && calcInterim == other.calcInterim
+            && Objects.equals(start, other.start)
+            && Objects.equals(end, other.end)
+            && Objects.equals(advanceTime, other.advanceTime)
+            && Objects.equals(skipTime, other.skipTime);
     }
 
     @Override

@@ -27,26 +27,25 @@ public class IterablesTests extends ESTestCase {
     }
 
     public void testGetOverIterable() {
-        Iterable<String> iterable = () ->
-                new Iterator<String>() {
-                    private int position = 0;
+        Iterable<String> iterable = () -> new Iterator<String>() {
+            private int position = 0;
 
-                    @Override
-                    public boolean hasNext() {
-                        return position < 3;
-                    }
+            @Override
+            public boolean hasNext() {
+                return position < 3;
+            }
 
-                    @Override
-                    public String next() {
-                        if (position < 3) {
-                            String s = position == 0 ? "a" : position == 1 ? "b" : "c";
-                            position++;
-                            return s;
-                        } else {
-                            throw new NoSuchElementException();
-                        }
-                    }
-                };
+            @Override
+            public String next() {
+                if (position < 3) {
+                    String s = position == 0 ? "a" : position == 1 ? "b" : "c";
+                    position++;
+                    return s;
+                } else {
+                    throw new NoSuchElementException();
+                }
+            }
+        };
         test(iterable);
     }
 
@@ -56,7 +55,8 @@ public class IterablesTests extends ESTestCase {
 
         Iterable<Integer> allInts = Iterables.flatten(list);
         int count = 0;
-        for(@SuppressWarnings("unused") int x : allInts) {
+        for (@SuppressWarnings("unused")
+        int x : allInts) {
             count++;
         }
         assertEquals(0, count);
@@ -65,14 +65,16 @@ public class IterablesTests extends ESTestCase {
 
         // changes to the outer list are not seen since flatten pre-caches outer list on init:
         count = 0;
-        for(@SuppressWarnings("unused") int x : allInts) {
+        for (@SuppressWarnings("unused")
+        int x : allInts) {
             count++;
         }
         assertEquals(0, count);
 
         // but changes to the original inner lists are seen:
         list.get(0).add(0);
-        for(@SuppressWarnings("unused") int x : allInts) {
+        for (@SuppressWarnings("unused")
+        int x : allInts) {
             count++;
         }
         assertEquals(1, count);

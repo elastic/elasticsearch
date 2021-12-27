@@ -30,7 +30,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def "yamlRestTestVxCompatTest does nothing when there are no tests"() {
         given:
-        addSubProject(":distribution:bwc:minor") << """
+        addSubProject(":distribution:bwc:staged") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -53,11 +53,11 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
     }
 
-    def "yamlRestTestVxCompatTest executes and copies api and transforms tests from :bwc:minor"() {
+    def "yamlRestTestVxCompatTest executes and copies api and transforms tests from :bwc:staged"() {
         given:
         internalBuild()
 
-        addSubProject(":distribution:bwc:minor") << """
+        addSubProject(":distribution:bwc:staged") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -82,15 +82,16 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         String wrongTest = "wrong_version.yml"
         String additionalTest = "additional_test.yml"
         setupRestResources([wrongApi], [wrongTest]) //setups up resources for current version, which should not be used for this test
-        addRestTestsToProject([additionalTest], "yamlRestCompatTest")
+        String sourceSetName = "yamlRestTestV" + compatibleVersion + "Compat"
+        addRestTestsToProject([additionalTest], sourceSetName)
         //intentionally adding to yamlRestTest source set since the .classes are copied from there
         file("src/yamlRestTest/java/MockIT.java") << "import org.junit.Test;class MockIT { @Test public void doNothing() { }}"
 
         String api = "foo.json"
         String test = "10_basic.yml"
         //add the compatible test and api files, these are the prior version's normal yaml rest tests
-        file("distribution/bwc/minor/checkoutDir/rest-api-spec/src/main/resources/rest-api-spec/api/" + api) << ""
-        file("distribution/bwc/minor/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/" + test) << ""
+        file("distribution/bwc/staged/checkoutDir/rest-api-spec/src/main/resources/rest-api-spec/api/" + api) << ""
+        file("distribution/bwc/staged/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/" + test) << ""
 
         when:
         def result = gradleRunner("yamlRestTestV${compatibleVersion}CompatTest").build()
@@ -107,17 +108,17 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         file("/build/${testIntermediateDir}/original/rest-api-spec/test/" + test).exists()
         file("/build/${testIntermediateDir}/transformed/rest-api-spec/test/" + test).exists()
         file("/build/${testIntermediateDir}/transformed/rest-api-spec/test/" + test).text.contains("headers") //transformation adds this
-        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + additionalTest).exists()
+        file("/build/resources/${sourceSetName}/rest-api-spec/test/" + additionalTest).exists()
 
         //additionalTest is not copied from the prior version, and thus not in the intermediate directory, nor transformed
-        file("/build/resources/yamlRestCompatTest/" + testIntermediateDir + "/rest-api-spec/test/" + additionalTest).exists() == false
-        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + additionalTest).text.contains("headers") == false
+        file("/build/resources/${sourceSetName}/" + testIntermediateDir + "/rest-api-spec/test/" + additionalTest).exists() == false
+        file("/build/resources/${sourceSetName}/rest-api-spec/test/" + additionalTest).text.contains("headers") == false
 
         file("/build/classes/java/yamlRestTest/MockIT.class").exists() //The "standard" runner is used to execute the compat test
 
-        file("/build/resources/yamlRestCompatTest/rest-api-spec/api/" + wrongApi).exists() == false
-        file("/build/resources/yamlRestCompatTest/" + testIntermediateDir + "/rest-api-spec/test/" + wrongTest).exists() == false
-        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + wrongTest).exists() == false
+        file("/build/resources/${sourceSetName}/rest-api-spec/api/" + wrongApi).exists() == false
+        file("/build/resources/${sourceSetName}/" + testIntermediateDir + "/rest-api-spec/test/" + wrongTest).exists() == false
+        file("/build/resources/${sourceSetName}/rest-api-spec/test/" + wrongTest).exists() == false
 
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
@@ -135,7 +136,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
     def "yamlRestTestVxCompatTest is wired into check and checkRestCompat"() {
         given:
 
-        addSubProject(":distribution:bwc:minor") << """
+        addSubProject(":distribution:bwc:staged") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -179,7 +180,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         given:
         internalBuild()
 
-        addSubProject(":distribution:bwc:minor") << """
+        addSubProject(":distribution:bwc:staged") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -196,6 +197,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
                yamlRestTestImplementation "junit:junit:4.12"
             }
             tasks.named("yamlRestTestV${compatibleVersion}CompatTransform").configure({ task ->
+              task.skipTest("test/test/two", "This is a test to skip test two")
               task.replaceValueInMatch("_type", "_doc")
               task.replaceValueInMatch("_source.values", ["z", "x", "y"], "one")
               task.removeMatch("_source.blah")
@@ -212,6 +214,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
               task.replaceKeyInDo("do_.some.key_to_replace_in_two", "do_.some.key_that_was_replaced_in_two", "two")
               task.replaceKeyInMatch("match_.some.key_to_replace", "match_.some.key_that_was_replaced")
               task.replaceKeyInLength("key.in_length_to_replace", "key.in_length_that_was_replaced")
+              task.replaceValueInLength("value_to_replace", 99, "one")
               task.replaceValueTextByKeyValue("keyvalue", "toreplace", "replacedkeyvalue")
               task.replaceValueTextByKeyValue("index", "test", "test2", "two")
             })
@@ -221,7 +224,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         setupRestResources([], [])
 
-        file("distribution/bwc/minor/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/test.yml" ) << """
+        file("distribution/bwc/staged/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/test.yml" ) << """
         "one":
           - do:
               do_.some.key_to_replace:
@@ -242,6 +245,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
           - is_true: "value_not_to_replace"
           - is_false: "value_not_to_replace"
           - length: { key.in_length_to_replace: 1 }
+          - length: { value_to_replace: 1 }
         ---
         "two":
           - do:
@@ -258,6 +262,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
           - is_false: "value_to_replace"
           - is_true: "value_not_to_replace"
           - is_false: "value_not_to_replace"
+          - length: { value_not_to_replace: 1 }
         ---
         "use cat with no header":
           - do:
@@ -322,6 +327,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         - is_true: "value_not_to_replace"
         - is_false: "value_not_to_replace"
         - length: { key.in_length_that_was_replaced: 1 }
+        - length: { value_to_replace: 99 }
         - match:
             _source.added:
               name: "jake"
@@ -329,6 +335,9 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         ---
         two:
+        - skip:
+            version: "all"
+            reason: "This is a test to skip test two"
         - do:
             get:
               index: "test2"
@@ -355,6 +364,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         - is_false: "replaced_value"
         - is_true: "value_not_to_replace"
         - is_false: "value_not_to_replace"
+        - length: { value_not_to_replace: 1 }
         ---
         "use cat with no header":
           - do:

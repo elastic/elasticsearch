@@ -56,7 +56,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("processor creation should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("[field] required property is missing"));
         }
     }
@@ -71,7 +71,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("processor creation should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("[formats] required property is missing"));
         }
     }
@@ -119,7 +119,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("processor creation should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("[formats] property isn't a list, but of type [java.lang.String]"));
         }
     }

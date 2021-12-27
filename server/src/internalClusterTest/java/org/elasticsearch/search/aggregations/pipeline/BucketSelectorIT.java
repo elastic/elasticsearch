@@ -11,8 +11,6 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -22,6 +20,8 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,13 +32,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketSelector;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
@@ -457,15 +457,13 @@ public class BucketSelectorIT extends ESIntegTestCase {
                 .preparePutStoredScript()
                 .setId("my_script")
                 // Source is not interpreted but my_script is defined in CustomScriptPlugin
-                .setContent(
-                    new BytesArray(
-                        "{ \"script\": { \"lang\": \""
-                            + CustomScriptPlugin.NAME
-                            + "\", "
-                            + "\"source\": \"Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)\" } }"
-                    ),
-                    XContentType.JSON
-                )
+                .setContent(new BytesArray("""
+                    {
+                      "script": {
+                        "lang": "%s",
+                        "source": "Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)"
+                      }
+                    }""".formatted(CustomScriptPlugin.NAME)), XContentType.JSON)
         );
 
         Script script = new Script(ScriptType.STORED, null, "my_script", Collections.emptyMap());

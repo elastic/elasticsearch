@@ -34,9 +34,7 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
 
         ScriptTemplate script = super.asScript();
         String template = formatTemplate("{sql}.dateTimeExtract(" + script.template() + ", {}, {})");
-        params.script(script.params())
-              .variable(zoneId().getId())
-              .variable(extractor.name());
+        params.script(script.params()).variable(zoneId().getId()).variable(extractor.name());
 
         return new ScriptTemplate(template, params.build(), dataType());
     }

@@ -7,13 +7,11 @@
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.CharArrays;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.SuppressForbidden;
 
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
 import java.nio.CharBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -24,6 +22,9 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 
 public enum Hasher {
 
@@ -656,10 +657,15 @@ public enum Hasher {
             saltChars = Arrays.copyOfRange(hash, hash.length - (2 * tokenLength + 1), hash.length - (tokenLength + 1));
             int cost = Integer.parseInt(new String(Arrays.copyOfRange(hash, prefix.length(), hash.length - (2 * tokenLength + 2))));
             SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
-            PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), Base64.getDecoder().decode(CharArrays.toUtf8Bytes(saltChars)),
-                cost, PBKDF2_KEY_LENGTH);
-            computedPwdHash = CharArrays.utf8BytesToChars(Base64.getEncoder()
-                .encode(secretKeyFactory.generateSecret(keySpec).getEncoded()));
+            PBEKeySpec keySpec = new PBEKeySpec(
+                data.getChars(),
+                Base64.getDecoder().decode(CharArrays.toUtf8Bytes(saltChars)),
+                cost,
+                PBKDF2_KEY_LENGTH
+            );
+            computedPwdHash = CharArrays.utf8BytesToChars(
+                Base64.getEncoder().encode(secretKeyFactory.generateSecret(keySpec).getEncoded())
+            );
             final boolean result = CharArrays.constantTimeEquals(computedPwdHash, hashChars);
             return result;
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
@@ -696,7 +702,9 @@ public enum Hasher {
      */
     @SuppressForbidden(reason = "This is the only allowed way to get available values")
     public static List<String> getAvailableAlgoStoredHash() {
-        return Arrays.stream(Hasher.values()).map(Hasher::name).map(name -> name.toLowerCase(Locale.ROOT))
+        return Arrays.stream(Hasher.values())
+            .map(Hasher::name)
+            .map(name -> name.toLowerCase(Locale.ROOT))
             .filter(name -> (name.startsWith("pbkdf2") || name.startsWith("bcrypt")))
             .collect(Collectors.toList());
     }
@@ -708,7 +716,9 @@ public enum Hasher {
      */
     @SuppressForbidden(reason = "This is the only allowed way to get available values")
     public static List<String> getAvailableAlgoCacheHash() {
-        return Arrays.stream(Hasher.values()).map(Hasher::name).map(name -> name.toLowerCase(Locale.ROOT))
+        return Arrays.stream(Hasher.values())
+            .map(Hasher::name)
+            .map(name -> name.toLowerCase(Locale.ROOT))
             .filter(name -> (name.equals("sha256") == false))
             .collect(Collectors.toList());
     }

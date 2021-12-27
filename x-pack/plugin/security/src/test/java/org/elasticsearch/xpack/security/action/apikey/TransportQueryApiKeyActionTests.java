@@ -32,10 +32,12 @@ public class TransportQueryApiKeyActionTests extends ESTestCase {
             "creation",
             "expiration",
             "invalidated",
-            "metadata." + randomAlphaOfLengthBetween(3, 8));
+            "metadata." + randomAlphaOfLengthBetween(3, 8)
+        );
 
-        final List<FieldSortBuilder> originals =
-            fieldNames.stream().map(this::randomFieldSortBuilderWithName).collect(Collectors.toUnmodifiableList());
+        final List<FieldSortBuilder> originals = fieldNames.stream()
+            .map(this::randomFieldSortBuilderWithName)
+            .collect(Collectors.toUnmodifiableList());
 
         final SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource();
         TransportQueryApiKeyAction.translateFieldSortBuilders(originals, searchSourceBuilder);
@@ -76,7 +78,8 @@ public class TransportQueryApiKeyActionTests extends ESTestCase {
         fieldSortBuilder.setNestedSort(new NestedSortBuilder("name"));
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportQueryApiKeyAction.translateFieldSortBuilders(List.of(fieldSortBuilder), SearchSourceBuilder.searchSource()));
+            () -> TransportQueryApiKeyAction.translateFieldSortBuilders(List.of(fieldSortBuilder), SearchSourceBuilder.searchSource())
+        );
         assertThat(e.getMessage(), equalTo("nested sorting is not supported for API Key query"));
     }
 

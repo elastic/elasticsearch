@@ -20,6 +20,8 @@ include::bucket/adjacency-matrix-aggregation.asciidoc[]
 
 include::bucket/autodatehistogram-aggregation.asciidoc[]
 
+include::bucket/categorize-text-aggregation.asciidoc[]
+
 include::bucket/children-aggregation.asciidoc[]
 
 include::bucket/composite-aggregation.asciidoc[]

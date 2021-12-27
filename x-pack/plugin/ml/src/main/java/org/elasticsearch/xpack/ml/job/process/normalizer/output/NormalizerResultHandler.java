@@ -10,11 +10,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerResult;
 
 import java.io.IOException;
@@ -78,9 +78,10 @@ public class NormalizerResultHandler {
     }
 
     private void parseResult(XContent xContent, BytesReference bytesRef) throws IOException {
-        try (InputStream stream = bytesRef.streamInput();
-             XContentParser parser = xContent
-                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = bytesRef.streamInput();
+            XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+        ) {
             NormalizerResult result = NormalizerResult.PARSER.apply(parser, null);
             normalizedResults.add(result);
         }
@@ -95,4 +96,3 @@ public class NormalizerResultHandler {
         return -1;
     }
 }
-

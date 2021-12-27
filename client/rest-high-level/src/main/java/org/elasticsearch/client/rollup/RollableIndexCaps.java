@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Represents the rollup capabilities of a non-rollup index.  E.g. what values/aggregations
@@ -32,11 +32,14 @@ public class RollableIndexCaps implements ToXContentFragment {
     private static final ParseField ROLLUP_JOBS = new ParseField("rollup_jobs");
 
     public static final ConstructingObjectParser<RollableIndexCaps, String> PARSER = new ConstructingObjectParser<>(
-            ROLLUP_JOBS.getPreferredName(), true, (Object[] args, String indexName) -> {
-                @SuppressWarnings("unchecked")
-                var caps = (List<RollupJobCaps>) args[0];
-                return new RollableIndexCaps(indexName, caps);
-            });
+        ROLLUP_JOBS.getPreferredName(),
+        true,
+        (Object[] args, String indexName) -> {
+            @SuppressWarnings("unchecked")
+            var caps = (List<RollupJobCaps>) args[0];
+            return new RollableIndexCaps(indexName, caps);
+        }
+    );
     static {
         PARSER.declareObjectArray(constructorArg(), (p, name) -> RollupJobCaps.PARSER.parse(p, null), ROLLUP_JOBS);
     }
@@ -46,10 +49,9 @@ public class RollableIndexCaps implements ToXContentFragment {
 
     RollableIndexCaps(final String indexName, final List<RollupJobCaps> caps) {
         this.indexName = indexName;
-        this.jobCaps = Collections.unmodifiableList(Objects.requireNonNull(caps)
-            .stream()
-            .sorted(Comparator.comparing(RollupJobCaps::getJobID))
-            .collect(Collectors.toList()));
+        this.jobCaps = Collections.unmodifiableList(
+            Objects.requireNonNull(caps).stream().sorted(Comparator.comparing(RollupJobCaps::getJobID)).collect(Collectors.toList())
+        );
     }
 
     public String getIndexName() {
@@ -81,8 +83,7 @@ public class RollableIndexCaps implements ToXContentFragment {
         }
 
         RollableIndexCaps that = (RollableIndexCaps) other;
-        return Objects.equals(this.jobCaps, that.jobCaps)
-            && Objects.equals(this.indexName, that.indexName);
+        return Objects.equals(this.jobCaps, that.jobCaps) && Objects.equals(this.indexName, that.indexName);
     }
 
     @Override

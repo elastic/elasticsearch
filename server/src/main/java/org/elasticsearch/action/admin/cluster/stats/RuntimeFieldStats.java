@@ -11,8 +11,8 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -82,13 +82,13 @@ public final class RuntimeFieldStats implements Writeable, ToXContentObject {
             return false;
         }
         RuntimeFieldStats that = (RuntimeFieldStats) o;
-        return count == that.count &&
-            indexCount == that.indexCount &&
-            scriptLessCount == that.scriptLessCount &&
-            shadowedCount == that.shadowedCount &&
-            fieldScriptStats.equals(that.fieldScriptStats) &&
-            type.equals(that.type) &&
-            scriptLangs.equals(that.scriptLangs);
+        return count == that.count
+            && indexCount == that.indexCount
+            && scriptLessCount == that.scriptLessCount
+            && shadowedCount == that.shadowedCount
+            && fieldScriptStats.equals(that.fieldScriptStats)
+            && type.equals(that.type)
+            && scriptLangs.equals(that.scriptLangs);
     }
 
     @Override

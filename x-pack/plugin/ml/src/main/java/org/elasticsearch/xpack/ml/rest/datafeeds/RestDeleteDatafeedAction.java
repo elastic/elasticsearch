@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -28,7 +28,8 @@ public class RestDeleteDatafeedAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(DELETE, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}")
-                .replaces(DELETE, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}", RestApiVersion.V_7).build()
+                .replaces(DELETE, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}", RestApiVersion.V_7)
+                .build()
         );
     }
 

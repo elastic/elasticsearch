@@ -9,8 +9,8 @@ package org.elasticsearch.client.rollup.job.config;
 
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -87,6 +87,7 @@ public class HistogramGroupConfigTests extends AbstractXContentTestCase<Histogra
         assertThat(validation, notNullValue());
         assertThat(validation.isPresent(), is(false));
     }
+
     static HistogramGroupConfig randomHistogramGroupConfig() {
         final long interval = randomNonNegativeLong();
         final String[] fields = new String[randomIntBetween(1, 10)];

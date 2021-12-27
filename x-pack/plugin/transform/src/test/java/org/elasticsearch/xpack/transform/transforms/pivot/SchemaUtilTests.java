@@ -15,7 +15,7 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -107,8 +107,13 @@ public class SchemaUtilTests extends ESTestCase {
 
             // fields is empty
             this.<Map<String, String>>assertAsync(
-                listener ->
-                    SchemaUtil.getSourceFieldMappings(client, new String[] { "index-1", "index-2" }, new String[] {}, emptyMap(), listener),
+                listener -> SchemaUtil.getSourceFieldMappings(
+                    client,
+                    new String[] { "index-1", "index-2" },
+                    new String[] {},
+                    emptyMap(),
+                    listener
+                ),
                 mappings -> {
                     assertNotNull(mappings);
                     assertTrue(mappings.isEmpty());
@@ -126,8 +131,13 @@ public class SchemaUtilTests extends ESTestCase {
 
             // indices is empty
             this.<Map<String, String>>assertAsync(
-                listener ->
-                    SchemaUtil.getSourceFieldMappings(client, new String[] {}, new String[] { "field-1", "field-2" }, emptyMap(), listener),
+                listener -> SchemaUtil.getSourceFieldMappings(
+                    client,
+                    new String[] {},
+                    new String[] { "field-1", "field-2" },
+                    emptyMap(),
+                    listener
+                ),
                 mappings -> {
                     assertNotNull(mappings);
                     assertTrue(mappings.isEmpty());
@@ -154,10 +164,12 @@ public class SchemaUtilTests extends ESTestCase {
     }
 
     public void testGetSourceFieldMappingsWithRuntimeMappings() throws InterruptedException {
-        Map<String, Object> runtimeMappings = new HashMap<>() {{
-            put("field-2", singletonMap("type", "keyword"));
-            put("field-3", singletonMap("type", "boolean"));
-        }};
+        Map<String, Object> runtimeMappings = new HashMap<>() {
+            {
+                put("field-2", singletonMap("type", "keyword"));
+                put("field-3", singletonMap("type", "boolean"));
+            }
+        };
         try (Client client = new FieldCapsMockClient(getTestName())) {
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
@@ -171,7 +183,8 @@ public class SchemaUtilTests extends ESTestCase {
                     assertThat(mappings, is(aMapWithSize(3)));
                     assertThat(
                         mappings,
-                        allOf(hasEntry("field-1", "long"), hasEntry("field-2", "keyword"), hasEntry("field-3", "boolean")));
+                        allOf(hasEntry("field-1", "long"), hasEntry("field-2", "keyword"), hasEntry("field-3", "boolean"))
+                    );
                 }
             );
         }
@@ -189,15 +202,14 @@ public class SchemaUtilTests extends ESTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
-            if (request instanceof FieldCapabilitiesRequest) {
-                FieldCapabilitiesRequest fieldCapsRequest = (FieldCapabilitiesRequest) request;
+            if (request instanceof FieldCapabilitiesRequest fieldCapsRequest) {
                 Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
                 for (String field : fieldCapsRequest.fields()) {
                     responseMap.put(field, singletonMap(field, createFieldCapabilities(field, "long")));
                 }
                 for (Map.Entry<String, Object> runtimeField : fieldCapsRequest.runtimeFields().entrySet()) {
                     String field = runtimeField.getKey();
-                    String type = (String)((Map) runtimeField.getValue()).get("type");
+                    String type = (String) ((Map) runtimeField.getValue()).get("type");
                     responseMap.put(field, singletonMap(field, createFieldCapabilities(field, type)));
                 }
 

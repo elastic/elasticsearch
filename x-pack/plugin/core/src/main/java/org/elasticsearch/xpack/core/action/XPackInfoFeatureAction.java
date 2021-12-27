@@ -51,11 +51,32 @@ public class XPackInfoFeatureAction extends ActionType<XPackInfoFeatureResponse>
     public static final List<XPackInfoFeatureAction> ALL;
     static {
         final List<XPackInfoFeatureAction> actions = new ArrayList<>();
-        actions.addAll(Arrays.asList(
-            SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, EQL, SQL, ROLLUP, INDEX_LIFECYCLE, SNAPSHOT_LIFECYCLE, CCR,
-            TRANSFORM, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, ENRICH, DATA_STREAMS, SEARCHABLE_SNAPSHOTS, DATA_TIERS,
-            AGGREGATE_METRIC
-        ));
+        actions.addAll(
+            Arrays.asList(
+                SECURITY,
+                MONITORING,
+                WATCHER,
+                GRAPH,
+                MACHINE_LEARNING,
+                LOGSTASH,
+                EQL,
+                SQL,
+                ROLLUP,
+                INDEX_LIFECYCLE,
+                SNAPSHOT_LIFECYCLE,
+                CCR,
+                TRANSFORM,
+                VOTING_ONLY,
+                FROZEN_INDICES,
+                SPATIAL,
+                ANALYTICS,
+                ENRICH,
+                DATA_STREAMS,
+                SEARCHABLE_SNAPSHOTS,
+                DATA_TIERS,
+                AGGREGATE_METRIC
+            )
+        );
         ALL = Collections.unmodifiableList(actions);
     }
 

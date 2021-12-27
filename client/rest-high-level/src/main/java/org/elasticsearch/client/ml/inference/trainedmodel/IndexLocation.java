@@ -8,10 +8,10 @@
 
 package org.elasticsearch.client.ml.inference.trainedmodel;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -21,8 +21,11 @@ public class IndexLocation implements TrainedModelLocation {
     public static final String INDEX = "index";
     private static final ParseField NAME = new ParseField("name");
 
-    private static final ConstructingObjectParser<IndexLocation, Void> PARSER =
-        new ConstructingObjectParser<>(INDEX, true, a -> new IndexLocation((String) a[0]));
+    private static final ConstructingObjectParser<IndexLocation, Void> PARSER = new ConstructingObjectParser<>(
+        INDEX,
+        true,
+        a -> new IndexLocation((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);

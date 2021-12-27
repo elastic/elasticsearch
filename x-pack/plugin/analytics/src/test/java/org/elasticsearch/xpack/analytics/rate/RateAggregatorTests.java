@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -107,7 +108,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
     }
 
     public void testNoMatchingField() throws IOException {
@@ -718,7 +719,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHistogramFieldMonthToMonth() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
+        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
         if (randomBoolean()) {
@@ -741,7 +742,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHistogramFieldMonthToYear() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
+        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
         if (randomBoolean()) {
@@ -761,7 +762,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHistogramFieldMonthToMonthValueCount() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
+        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month")
             .rateMode("value_count")
@@ -783,7 +784,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHistogramFieldMonthToYearValueCount() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
+        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month")
             .rateMode("value_count")
@@ -804,7 +805,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFilterWithHistogramField() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
+        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType("term");
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
@@ -857,6 +858,18 @@ public class RateAggregatorTests extends AggregatorTestCase {
             )
         );
         assertEquals("The mode parameter is only supported with field or script", ex.getMessage());
+    }
+
+    public void testWithCustomDocCount() throws IOException {
+        testCase(new MatchAllDocsQuery(), "month", true, "month", null, iw -> {
+            iw.addDocument(doc("2010-03-12T01:07:45", new CustomTermFreqField("_doc_count", "_doc_count", 10)));
+            iw.addDocument(doc("2010-04-01T03:43:34"));
+            iw.addDocument(doc("2010-04-27T03:43:34", new CustomTermFreqField("_doc_count", "_doc_count", 5)));
+        }, dh -> {
+            assertThat(dh.getBuckets(), hasSize(2));
+            assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(10.0, 0.000001));
+            assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(6.0, 0.000001));
+        });
     }
 
     private static AbstractAggregationBuilder<?> randomValidMultiBucketAggBuilder(

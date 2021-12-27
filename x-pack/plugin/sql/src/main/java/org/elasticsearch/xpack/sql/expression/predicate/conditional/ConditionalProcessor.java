@@ -26,7 +26,6 @@ public class ConditionalProcessor implements Processor {
         GREATEST(Conditionals::greatest, Conditionals::greatestInput),
         LEAST(Conditionals::least, Conditionals::leastInput);
 
-
         String scriptMethodName() {
             return name().toLowerCase(Locale.ROOT);
         }
@@ -34,8 +33,7 @@ public class ConditionalProcessor implements Processor {
         private final Function<Collection<Object>, Object> process;
         private final BiFunction<List<Processor>, Object, Object> inputProcess;
 
-        ConditionalOperation(Function<Collection<Object>, Object> process,
-                             BiFunction<List<Processor>, Object, Object> inputProcess) {
+        ConditionalOperation(Function<Collection<Object>, Object> process, BiFunction<List<Processor>, Object, Object> inputProcess) {
             this.process = process;
             this.inputProcess = inputProcess;
         }
@@ -91,8 +89,7 @@ public class ConditionalProcessor implements Processor {
         }
 
         ConditionalProcessor that = (ConditionalProcessor) o;
-        return Objects.equals(processors, that.processors) &&
-            operation == that.operation;
+        return Objects.equals(processors, that.processors) && operation == that.operation;
     }
 
     @Override

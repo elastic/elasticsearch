@@ -43,8 +43,11 @@ public class ESLoggerUsageTests extends ESTestCase {
                     logger.info("Checking logger usage for method {}", method.getName());
                     InputStream classInputStream = getClass().getResourceAsStream(getClass().getSimpleName() + ".class");
                     List<WrongLoggerUsage> errors = new ArrayList<>();
-                    ESLoggerUsageChecker.check(errors::add, classInputStream,
-                        m -> m.equals(method.getName()) || m.startsWith("lambda$" + method.getName()));
+                    ESLoggerUsageChecker.check(
+                        errors::add,
+                        classInputStream,
+                        m -> m.equals(method.getName()) || m.startsWith("lambda$" + method.getName())
+                    );
                     if (method.getName().startsWith("checkFail")) {
                         assertFalse("Expected " + method.getName() + " to have wrong Logger usage", errors.isEmpty());
                     } else {
@@ -68,8 +71,10 @@ public class ESLoggerUsageTests extends ESTestCase {
                     assertEquals(String.class, method.getParameterTypes()[markerOffset]);
                     assertThat(method.getParameterTypes()[markerOffset + 1], is(oneOf(Object[].class, Supplier[].class)));
                 } else {
-                    assertThat(method.getParameterTypes()[markerOffset], is(oneOf(Message.class, MessageSupplier.class,
-                        CharSequence.class, Object.class, String.class, Supplier.class)));
+                    assertThat(
+                        method.getParameterTypes()[markerOffset],
+                        is(oneOf(Message.class, MessageSupplier.class, CharSequence.class, Object.class, String.class, Supplier.class))
+                    );
 
                     if (paramLength == 2) {
                         assertThat(method.getParameterTypes()[markerOffset + 1], is(oneOf(Throwable.class, Object.class)));
@@ -111,17 +116,14 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkArgumentsProvidedInConstructor() {
-        logger.debug(new ESLogMessage("message {}", "some-arg")
-            .field("x-opaque-id", "some-value"));
+        logger.debug(new ESLogMessage("message {}", "some-arg").field("x-opaque-id", "some-value"));
     }
 
     public void checkWithUsage() {
-        logger.debug(new ESLogMessage("message {}")
-            .argAndField("x-opaque-id", "some-value")
-            .field("field", "value")
-            .with("field2", "value2"));
+        logger.debug(
+            new ESLogMessage("message {}").argAndField("x-opaque-id", "some-value").field("field", "value").with("field2", "value2")
+        );
     }
-
 
     public void checkFailArraySizeForSubclasses(Object... arr) {
         logger.debug(new ESLogMessage("message {}", arr));
@@ -132,12 +134,11 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkFailForTooManyArgumentsWithChain() {
-        logger.debug(new ESLogMessage("message {}").argAndField("x-opaque-id", "some-value")
-                                                   .argAndField("too-many-arg", "xxx"));
+        logger.debug(new ESLogMessage("message {}").argAndField("x-opaque-id", "some-value").argAndField("too-many-arg", "xxx"));
     }
 
     public void checkFailArraySize(String... arr) {
-        logger.debug(new ParameterizedMessage("text {}", (Object[])arr));
+        logger.debug(new ParameterizedMessage("text {}", (Object[]) arr));
     }
 
     public void checkNumberOfArguments1() {
@@ -253,7 +254,7 @@ public class ESLoggerUsageTests extends ESTestCase {
 
     public void checkDeprecationLogger() {
         DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ESLoggerUsageTests.class);
-        deprecationLogger.critical(DeprecationCategory.OTHER, "key","message {}", 123);
+        deprecationLogger.warn(DeprecationCategory.OTHER, "key", "message {}", 123);
     }
 
 }

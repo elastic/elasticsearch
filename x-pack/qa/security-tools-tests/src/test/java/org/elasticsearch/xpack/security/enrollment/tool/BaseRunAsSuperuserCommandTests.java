@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.security.enrollment.tool;
 
+import joptsimple.OptionSet;
+
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-
-import joptsimple.OptionSet;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Command;
@@ -27,10 +27,10 @@ import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.tool.BaseRunAsSuperuserCommand;
 import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 import org.elasticsearch.xpack.core.security.HttpResponse;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.security.tool.BaseRunAsSuperuserCommand;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -58,9 +58,9 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.stringContainsInOrder;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -111,10 +111,7 @@ public class BaseRunAsSuperuserCommandTests extends CommandTestCase {
         when(client.getDefaultURL()).thenReturn("https://localhost:9200");
 
         URL url = new URL(client.getDefaultURL());
-        HttpResponse healthResponse = new HttpResponse(
-            HttpURLConnection.HTTP_OK,
-            Map.of("status", randomFrom("yellow", "green"))
-        );
+        HttpResponse healthResponse = new HttpResponse(HttpURLConnection.HTTP_OK, Map.of("status", randomFrom("yellow", "green")));
         when(
             client.execute(
                 anyString(),
@@ -167,37 +164,58 @@ public class BaseRunAsSuperuserCommandTests extends CommandTestCase {
         final Path rolesPath = confDir.resolve("users_roles");
         Files.delete(rolesPath);
         UserException e = expectThrows(UserException.class, this::execute);
-        assertThat(e.getMessage(),
-            equalTo("File realm configuration file [/work/" + rolesPath + "] is missing"));
+        assertThat(e.getMessage(), equalTo("File realm configuration file [/work/" + rolesPath + "] is missing"));
         assertThat(terminal.getOutput(), is(emptyString()));
     }
 
     public void testUnhealthyCluster() throws Exception {
         URL url = new URL(client.getDefaultURL());
-        HttpResponse healthResponse =
-            new HttpResponse(HttpURLConnection.HTTP_OK, Map.of("status", randomFrom("red")));
-        when(client.execute(anyString(), eq(clusterHealthUrl(url)), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(healthResponse);
+        HttpResponse healthResponse = new HttpResponse(HttpURLConnection.HTTP_OK, Map.of("status", randomFrom("red")));
+        when(
+            client.execute(
+                anyString(),
+                eq(clusterHealthUrl(url)),
+                anyString(),
+                any(SecureString.class),
+                any(CheckedSupplier.class),
+                any(CheckedFunction.class)
+            )
+        ).thenReturn(healthResponse);
         UserException e = expectThrows(UserException.class, this::execute);
         assertThat(e.exitCode, equalTo(ExitCodes.UNAVAILABLE));
         assertThat(e.getMessage(), containsString("RED"));
         assertThat(terminal.getOutput(), is(emptyString()));
         String error = terminal.getErrorOutput();
-        assertThat(error, stringContainsInOrder("Failed to determine the health of the cluster. Cluster health is currently RED.",
-            "This means that some cluster data is unavailable and your cluster is not fully functional.",
-            "The cluster logs (https://www.elastic.co/guide/en/elasticsearch/reference/"
-                + Version.CURRENT.major + "." + Version.CURRENT.minor + "/logging.html)" +
-                " might contain information/indications for the underlying cause"));
+        assertThat(
+            error,
+            stringContainsInOrder(
+                "Failed to determine the health of the cluster. Cluster health is currently RED.",
+                "This means that some cluster data is unavailable and your cluster is not fully functional.",
+                "The cluster logs (https://www.elastic.co/guide/en/elasticsearch/reference/"
+                    + Version.CURRENT.major
+                    + "."
+                    + Version.CURRENT.minor
+                    + "/logging.html)"
+                    + " might contain information/indications for the underlying cause"
+            )
+        );
         assertNoUsers();
         assertNoUsersRoles();
     }
 
     public void testUnhealthyClusterWithForce() throws Exception {
         URL url = new URL(client.getDefaultURL());
-        HttpResponse healthResponse =
-            new HttpResponse(HttpURLConnection.HTTP_OK, Map.of("status", randomFrom("red")));
-        when(client.execute(anyString(), eq(clusterHealthUrl(url)), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(healthResponse);
+        HttpResponse healthResponse = new HttpResponse(HttpURLConnection.HTTP_OK, Map.of("status", randomFrom("red")));
+        when(
+            client.execute(
+                anyString(),
+                eq(clusterHealthUrl(url)),
+                anyString(),
+                any(SecureString.class),
+                any(CheckedSupplier.class),
+                any(CheckedFunction.class)
+            )
+        ).thenReturn(healthResponse);
         execute("-f");
         assertThat(terminal.getOutput(), is(emptyString()));
         assertThat(terminal.getErrorOutput(), is(emptyString()));
@@ -207,15 +225,24 @@ public class BaseRunAsSuperuserCommandTests extends CommandTestCase {
 
     public void testWillRetryOnUnauthorized() throws Exception {
         URL url = new URL(client.getDefaultURL());
-        HttpResponse unauthorizedResponse =
-            new HttpResponse(HttpURLConnection.HTTP_UNAUTHORIZED, Map.of());
-        when(client.execute(anyString(), eq(clusterHealthUrl(url)), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(unauthorizedResponse);
+        HttpResponse unauthorizedResponse = new HttpResponse(HttpURLConnection.HTTP_UNAUTHORIZED, Map.of());
+        when(
+            client.execute(
+                anyString(),
+                eq(clusterHealthUrl(url)),
+                anyString(),
+                any(SecureString.class),
+                any(CheckedSupplier.class),
+                any(CheckedFunction.class)
+            )
+        ).thenReturn(unauthorizedResponse);
         UserException e = expectThrows(UserException.class, () -> execute("--verbose"));
         String verboseOutput = terminal.getOutput();
         assertThat(verboseOutput.split("\\n").length, equalTo(5));
-        assertThat(verboseOutput,
-            containsString("Unexpected http status [401] while attempting to determine cluster health. Will retry at most"));
+        assertThat(
+            verboseOutput,
+            containsString("Unexpected http status [401] while attempting to determine cluster health. Will retry at most")
+        );
         assertThat(e.exitCode, equalTo(ExitCodes.DATA_ERROR));
         assertNoUsers();
         assertNoUsersRoles();

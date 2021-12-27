@@ -51,8 +51,7 @@ public class LockableLifecycleType implements LifecycleType {
     }
 
     @Override
-    public void validate(Collection<Phase> phases) {
-    }
+    public void validate(Collection<Phase> phases) {}
 
     @Override
     public String getWriteableName() {
@@ -60,6 +59,5 @@ public class LockableLifecycleType implements LifecycleType {
     }
 
     @Override
-    public void writeTo(StreamOutput out) {
-    }
+    public void writeTo(StreamOutput out) {}
 }

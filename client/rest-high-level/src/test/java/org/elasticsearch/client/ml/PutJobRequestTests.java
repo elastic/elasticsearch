@@ -9,9 +9,8 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.config.JobTests;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
-
+import org.elasticsearch.xcontent.XContentParser;
 
 public class PutJobRequestTests extends AbstractXContentTestCase<PutJobRequest> {
 

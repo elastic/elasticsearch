@@ -13,8 +13,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -30,6 +28,8 @@ import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -37,7 +37,6 @@ import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
@@ -54,6 +53,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFail
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -432,26 +432,50 @@ public class NestedIT extends ESIntegTestCase {
         ensureGreen("idx2");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(2);
-        indexRequests.add(
-            client().prepareIndex("idx2")
-                .setId("1")
-                .setSource(
-                    "{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, "
-                        + "\"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": ["
-                        + "{\"tid\" :44,\"name\": \"Roles\"}], \"identifier\": \"29101\"}]}",
-                    XContentType.JSON
-                )
-        );
-        indexRequests.add(
-            client().prepareIndex("idx2")
-                .setId("2")
-                .setSource(
-                    "{\"dates\": {\"month\": {\"label\": \"2014-12\", \"end\": \"2014-12-31\", \"start\": \"2014-12-01\"}, "
-                        + "\"day\": \"2014-12-03\"}, \"comments\": [{\"cid\": 1, \"identifier\": \"29111\"}, {\"cid\": 2,\"tags\": ["
-                        + "{\"tid\" : 22, \"name\": \"DataChannels\"}], \"identifier\": \"29101\"}]}",
-                    XContentType.JSON
-                )
-        );
+        indexRequests.add(client().prepareIndex("idx2").setId("1").setSource("""
+            {
+              "dates": {
+                "month": {
+                  "label": "2014-11",
+                  "end": "2014-11-30",
+                  "start": "2014-11-01"
+                },
+                "day": "2014-11-30"
+              },
+              "comments": [
+                {
+                  "cid": 3,
+                  "identifier": "29111"
+                },
+                {
+                  "cid": 4,
+                  "tags": [ { "tid": 44, "name": "Roles" } ],
+                  "identifier": "29101"
+                }
+              ]
+            }""", XContentType.JSON));
+        indexRequests.add(client().prepareIndex("idx2").setId("2").setSource("""
+            {
+              "dates": {
+                "month": {
+                  "label": "2014-12",
+                  "end": "2014-12-31",
+                  "start": "2014-12-01"
+                },
+                "day": "2014-12-03"
+              },
+              "comments": [
+                {
+                  "cid": 1,
+                  "identifier": "29111"
+                },
+                {
+                  "cid": 2,
+                  "tags": [ { "tid": 22, "name": "DataChannels" } ],
+                  "identifier": "29101"
+                }
+              ]
+            }""", XContentType.JSON));
         indexRandom(true, indexRequests);
 
         SearchResponse response = client().prepareSearch("idx2")

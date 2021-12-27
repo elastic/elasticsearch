@@ -12,8 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 
 import java.io.IOException;
@@ -60,7 +60,8 @@ public class AutoFollowMetadataTests extends AbstractSerializingTestCase<AutoFol
                 randomIntBetween(0, Integer.MAX_VALUE),
                 new ByteSizeValue(randomNonNegativeLong()),
                 TimeValue.timeValueMillis(500),
-                TimeValue.timeValueMillis(500));
+                TimeValue.timeValueMillis(500)
+            );
             configs.put(Integer.toString(i), autoFollowPattern);
             followedLeaderIndices.put(Integer.toString(i), Arrays.asList(generateRandomStringArray(4, 4, false)));
             if (randomBoolean()) {

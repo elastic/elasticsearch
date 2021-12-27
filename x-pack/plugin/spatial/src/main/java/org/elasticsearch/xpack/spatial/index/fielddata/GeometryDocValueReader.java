@@ -99,12 +99,12 @@ public class GeometryDocValueReader {
      * Visit the triangle tree with the provided visitor
      */
     public void visit(TriangleTreeReader.Visitor visitor) throws IOException {
-        Extent extent = getExtent();
-        int thisMaxX = extent.maxX();
-        int thisMinX = extent.minX();
-        int thisMaxY = extent.maxY();
-        int thisMinY = extent.minY();
-        if(visitor.push(thisMinX, thisMinY, thisMaxX, thisMaxY)) {
+        Extent geometryExtent = getExtent();
+        int thisMaxX = geometryExtent.maxX();
+        int thisMinX = geometryExtent.minX();
+        int thisMaxY = geometryExtent.maxY();
+        int thisMinY = geometryExtent.minY();
+        if (visitor.push(thisMinX, thisMinY, thisMaxX, thisMaxY)) {
             TriangleTreeReader.visit(input, visitor, thisMaxX, thisMaxY);
         }
     }

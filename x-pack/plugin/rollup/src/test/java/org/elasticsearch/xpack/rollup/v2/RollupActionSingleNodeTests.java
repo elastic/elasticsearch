@@ -27,8 +27,6 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -49,6 +47,8 @@ import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -414,37 +414,41 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void assertRollupIndex(RollupActionConfig config, String sourceIndex, String rollupIndex) {
+    private void assertRollupIndex(RollupActionConfig config, String sourceIndex, String rollupIndexName) {
         final CompositeAggregationBuilder aggregation = buildCompositeAggs("resp", config);
         long numBuckets = 0;
         InternalComposite origResp = client().prepareSearch(sourceIndex).addAggregation(aggregation).get().getAggregations().get("resp");
-        InternalComposite rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
+        InternalComposite rollupResp = client().prepareSearch(rollupIndexName)
+            .addAggregation(aggregation)
+            .get()
+            .getAggregations()
+            .get("resp");
         while (origResp.afterKey() != null) {
             numBuckets += origResp.getBuckets().size();
             assertThat(origResp, equalTo(rollupResp));
             aggregation.aggregateAfter(origResp.afterKey());
             origResp = client().prepareSearch(sourceIndex).addAggregation(aggregation).get().getAggregations().get("resp");
-            rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
+            rollupResp = client().prepareSearch(rollupIndexName).addAggregation(aggregation).get().getAggregations().get("resp");
         }
         assertThat(origResp, equalTo(rollupResp));
 
-        SearchResponse resp = client().prepareSearch(rollupIndex).setTrackTotalHits(true).get();
+        SearchResponse resp = client().prepareSearch(rollupIndexName).setTrackTotalHits(true).get();
         assertThat(resp.getHits().getTotalHits().value, equalTo(numBuckets));
 
-        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
+        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndex, rollupIndexName).get();
         // Assert rollup metadata are set in index settings
         assertEquals(
             indexSettingsResp.getSetting(sourceIndex, "index.uuid"),
-            indexSettingsResp.getSetting(rollupIndex, "index.rollup.source.uuid")
+            indexSettingsResp.getSetting(rollupIndexName, "index.rollup.source.uuid")
         );
         assertEquals(
             indexSettingsResp.getSetting(sourceIndex, "index.provided_name"),
-            indexSettingsResp.getSetting(rollupIndex, "index.rollup.source.name")
+            indexSettingsResp.getSetting(rollupIndexName, "index.rollup.source.name")
         );
 
         // Assert field mappings
         Map<String, Map<String, Object>> mappings = (Map<String, Map<String, Object>>) indexSettingsResp.getMappings()
-            .get(rollupIndex)
+            .get(rollupIndexName)
             .getSourceAsMap()
             .get("properties");
 
@@ -485,7 +489,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         // Assert that temporary index was removed
         expectThrows(
             IndexNotFoundException.class,
-            () -> client().admin().indices().prepareGetIndex().addIndices(".rolluptmp-" + rollupIndex).get()
+            () -> client().admin().indices().prepareGetIndex().addIndices(".rolluptmp-" + rollupIndexName).get()
         );
     }
 
@@ -560,11 +564,9 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private String createDataStream() throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
-        Template idxTemplate = new Template(
-            null,
-            new CompressedXContent("{\"properties\":{\"" + timestampFieldName + "\":{\"type\":\"date\"},\"data\":{\"type\":\"keyword\"}}}"),
-            null
-        );
+        Template idxTemplate = new Template(null, new CompressedXContent("""
+            {"properties":{"%s":{"type":"date"},"data":{"type":"keyword"}}}
+            """.formatted(timestampFieldName)), null);
         ComposableIndexTemplate template = new ComposableIndexTemplate(
             List.of(dataStreamName + "*"),
             idxTemplate,

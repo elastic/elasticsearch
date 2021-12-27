@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
@@ -312,31 +311,20 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     // visible for testing
     void asyncFetch(final DiscoveryNode[] nodes, long fetchingRound) {
         logger.trace("{} fetching [{}] from {}", shardId, type, nodes);
+        Set<String> nodeIds = Arrays.stream(nodes).map(DiscoveryNode::getId).collect(Collectors.toSet());
         action.list(shardId, customDataPath, nodes, new ActionListener<BaseNodesResponse<T>>() {
             @Override
             public void onResponse(BaseNodesResponse<T> response) {
-                assert assertSameNodes(response);
                 processAsyncFetch(response.getNodes(), response.failures(), fetchingRound);
             }
 
             @Override
             public void onFailure(Exception e) {
-                List<FailedNodeException> failures = new ArrayList<>(nodes.length);
-                for (final DiscoveryNode node : nodes) {
-                    failures.add(new FailedNodeException(node.getId(), "total failure in fetching", e));
+                List<FailedNodeException> failures = new ArrayList<>(nodeIds.size());
+                for (final String nodeId : nodeIds) {
+                    failures.add(new FailedNodeException(nodeId, "total failure in fetching", e));
                 }
                 processAsyncFetch(null, failures, fetchingRound);
-            }
-
-            private boolean assertSameNodes(BaseNodesResponse<T> response) {
-                final Map<String, DiscoveryNode> nodesById = Arrays.stream(nodes)
-                    .collect(Collectors.toMap(DiscoveryNode::getEphemeralId, Function.identity()));
-                for (T nodeResponse : response.getNodes()) {
-                    final DiscoveryNode responseNode = nodeResponse.getNode();
-                    final DiscoveryNode localNode = nodesById.get(responseNode.getEphemeralId());
-                    assert localNode == responseNode : "not reference equal: " + localNode + " vs " + responseNode;
-                }
-                return true;
             }
         });
     }

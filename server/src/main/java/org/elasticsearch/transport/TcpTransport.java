@@ -107,6 +107,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         Setting.Property.NodeScope
     );
 
+    private final boolean ignoreDeserializationErrors;
+
     protected final Settings settings;
     protected final ThreadPool threadPool;
     protected final Recycler<BytesRef> recycler;
@@ -154,7 +156,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.recycler = createRecycler(settings, pageCacheRecycler);
         this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, recycler, outboundHandlingTimeTracker);
 
-        final boolean ignoreDeserializationErrors = IGNORE_DESERIALIZATION_ERRORS_SETTING.get(settings);
+        ignoreDeserializationErrors = IGNORE_DESERIALIZATION_ERRORS_SETTING.get(settings);
 
         this.handshaker = new TransportHandshaker(
             version,
@@ -212,6 +214,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     public void setSlowLogThreshold(TimeValue slowLogThreshold) {
         inboundHandler.setSlowLogThreshold(slowLogThreshold);
         outboundHandler.setSlowLogThreshold(slowLogThreshold);
+    }
+
+    /**
+     * Only used in tests, see {@link #IGNORE_DESERIALIZATION_ERRORS_SETTING}.
+     */
+    public boolean ignoreDeserializationErrors() {
+        return ignoreDeserializationErrors;
     }
 
     public final class NodeChannels extends CloseableConnection {

@@ -81,7 +81,7 @@ public class ShardStateAction {
 
     // a list of shards that failed during replication
     // we keep track of these shards in order to avoid sending duplicate failed shard requests for a single failing shard.
-    private final ResultDeduplicator<FailedShardEntry, Void> remoteFailedShardsDeduplicator = new ResultDeduplicator<>();
+    private final ResultDeduplicator<TransportRequest, Void> remoteFailedShardsDeduplicator = new ResultDeduplicator<>();
 
     @Inject
     public ShardStateAction(
@@ -588,14 +588,11 @@ public class ShardStateAction {
         final ActionListener<Void> listener,
         final ClusterState currentState
     ) {
-        final StartedShardEntry entry = new StartedShardEntry(
-            shardRouting.shardId(),
-            shardRouting.allocationId().getId(),
-            primaryTerm,
-            message,
-            timestampRange
+        remoteFailedShardsDeduplicator.executeOnce(
+            new StartedShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), primaryTerm, message, timestampRange),
+            listener,
+            (req, l) -> sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, req, l)
         );
-        sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, entry, listener);
     }
 
     private static class ShardStartedTransportHandler implements TransportRequestHandler<StartedShardEntry> {
@@ -841,6 +838,23 @@ public class ShardStateAction {
                 primaryTerm,
                 message
             );
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            StartedShardEntry that = (StartedShardEntry) o;
+            return primaryTerm == that.primaryTerm
+                && shardId.equals(that.shardId)
+                && allocationId.equals(that.allocationId)
+                && message.equals(that.message)
+                && timestampRange.equals(that.timestampRange);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(shardId, allocationId, primaryTerm, message, timestampRange);
         }
     }
 

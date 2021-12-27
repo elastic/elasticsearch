@@ -117,7 +117,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         false,
         true,
         RestStatus.TOO_MANY_REQUESTS,
-        EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE)
+        EnumSet.of(ClusterBlockLevel.WRITE)
     );
 
     public enum State {
@@ -558,6 +558,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     IndexMetadata withMappingMetadata(MappingMetadata mapping) {
+        if (mapping() == mapping) {
+            return this;
+        }
         ImmutableOpenMap.Builder<String, MappingMetadata> mappingBuilder = ImmutableOpenMap.builder();
         mappingBuilder.put(MapperService.SINGLE_MAPPING_NAME, mapping);
 

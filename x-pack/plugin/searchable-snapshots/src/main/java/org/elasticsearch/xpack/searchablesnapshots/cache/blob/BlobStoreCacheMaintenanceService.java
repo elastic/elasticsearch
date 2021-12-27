@@ -27,8 +27,8 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -523,8 +523,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     assert knownSnapshots != null;
                     final Set<String> knownRepositories = existingRepositories;
                     assert knownRepositories != null;
-                    final Instant expirationTime = this.expirationTime;
-                    assert expirationTime != null;
+                    final Instant expirationTimeCopy = this.expirationTime;
+                    assert expirationTimeCopy != null;
 
                     Object[] lastSortValues = null;
                     for (SearchHit searchHit : searchHits) {
@@ -551,7 +551,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                             }
                             if (delete) {
                                 final Instant creationTime = getCreationTime(searchHit);
-                                if (creationTime.isAfter(expirationTime)) {
+                                if (creationTime.isAfter(expirationTimeCopy)) {
                                     logger.trace(
                                         "blob store cache entry with id [{}] was created recently, skipping deletion",
                                         searchHit.getId()

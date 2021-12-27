@@ -10,7 +10,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -149,12 +149,12 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
     }
 
     private static long toHistogramKeyToEpoch(Object key) {
-        if (key instanceof ZonedDateTime) {
-            return ((ZonedDateTime) key).toInstant().toEpochMilli();
-        } else if (key instanceof Double) {
-            return ((Double) key).longValue();
-        } else if (key instanceof Long) {
-            return (Long) key;
+        if (key instanceof ZonedDateTime zdt) {
+            return zdt.toInstant().toEpochMilli();
+        } else if (key instanceof Double doubleValue) {
+            return doubleValue.longValue();
+        } else if (key instanceof Long longValue) {
+            return longValue;
         } else {
             return -1L;
         }

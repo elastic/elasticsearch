@@ -12,9 +12,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -153,7 +153,7 @@ public class DataFrameAnalyticsManager {
     }
 
     private void createStatsIndexAndUpdateMappingsIfNecessary(
-        Client client,
+        Client clientToUse,
         ClusterState clusterState,
         TimeValue masterNodeTimeout,
         ActionListener<Boolean> listener
@@ -162,7 +162,7 @@ public class DataFrameAnalyticsManager {
             aBoolean -> ElasticsearchMappings.addDocMappingIfMissing(
                 MlStatsIndex.writeAlias(),
                 MlStatsIndex::wrappedMapping,
-                client,
+                clientToUse,
                 clusterState,
                 masterNodeTimeout,
                 listener
@@ -170,7 +170,13 @@ public class DataFrameAnalyticsManager {
             listener::onFailure
         );
 
-        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, expressionResolver, masterNodeTimeout, createIndexListener);
+        MlStatsIndex.createStatsIndexAndAliasIfNecessary(
+            clientToUse,
+            clusterState,
+            expressionResolver,
+            masterNodeTimeout,
+            createIndexListener
+        );
     }
 
     private void determineProgressAndResume(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {

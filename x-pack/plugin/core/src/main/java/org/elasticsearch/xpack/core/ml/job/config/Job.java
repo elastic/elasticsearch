@@ -1207,6 +1207,30 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 && modelSnapshotRetentionDays > DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS) {
                 dailyModelSnapshotRetentionAfterDays = DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS;
             }
+            if (analysisConfig.getModelPruneWindow() == null) {
+                long modelPruneWindowSeconds = analysisConfig.getBucketSpan().seconds() / 2 + AnalysisConfig.DEFAULT_MODEL_PRUNE_WINDOW
+                    .seconds();
+                modelPruneWindowSeconds -= (modelPruneWindowSeconds % analysisConfig.getBucketSpan().seconds());
+                if (modelPruneWindowSeconds < AnalysisConfig.DEFAULT_MODEL_PRUNE_WINDOW.seconds()) {
+                    modelPruneWindowSeconds += analysisConfig.getBucketSpan().seconds();
+                }
+                modelPruneWindowSeconds = Math.max(20 * analysisConfig.getBucketSpan().seconds(), modelPruneWindowSeconds);
+
+                AnalysisConfig.Builder analysisConfigBuilder = new AnalysisConfig.Builder(analysisConfig);
+                final long SECONDS_IN_A_DAY = 86400;
+                final long SECONDS_IN_AN_HOUR = 3600;
+                final long SECONDS_IN_A_MINUTE = 60;
+                if (modelPruneWindowSeconds % SECONDS_IN_A_DAY == 0) {
+                    analysisConfigBuilder.setModelPruneWindow(TimeValue.timeValueDays(modelPruneWindowSeconds / SECONDS_IN_A_DAY));
+                } else if (modelPruneWindowSeconds % SECONDS_IN_AN_HOUR == 0) {
+                    analysisConfigBuilder.setModelPruneWindow(TimeValue.timeValueHours(modelPruneWindowSeconds / SECONDS_IN_AN_HOUR));
+                } else if (modelPruneWindowSeconds % SECONDS_IN_A_MINUTE == 0) {
+                    analysisConfigBuilder.setModelPruneWindow(TimeValue.timeValueMinutes(modelPruneWindowSeconds / SECONDS_IN_A_MINUTE));
+                } else {
+                    analysisConfigBuilder.setModelPruneWindow(TimeValue.timeValueSeconds(modelPruneWindowSeconds));
+                }
+                this.setAnalysisConfig(analysisConfigBuilder);
+            }
         }
 
         /**

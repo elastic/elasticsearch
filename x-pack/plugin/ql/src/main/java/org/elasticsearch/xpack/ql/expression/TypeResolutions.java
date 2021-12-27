@@ -73,8 +73,8 @@ public final class TypeResolutions {
     }
 
     public static TypeResolution isExact(Expression e, String message) {
-        if (e instanceof FieldAttribute) {
-            EsField.Exact exact = ((FieldAttribute) e).getExactInfo();
+        if (e instanceof FieldAttribute fa) {
+            EsField.Exact exact = fa.getExactInfo();
             if (exact.hasExact() == false) {
                 return new TypeResolution(format(null, message, e.dataType().typeName(), exact.errorMsg()));
             }
@@ -83,8 +83,8 @@ public final class TypeResolutions {
     }
 
     public static TypeResolution isExact(Expression e, String operationName, ParamOrdinal paramOrd) {
-        if (e instanceof FieldAttribute) {
-            EsField.Exact exact = ((FieldAttribute) e).getExactInfo();
+        if (e instanceof FieldAttribute fa) {
+            EsField.Exact exact = fa.getExactInfo();
             if (exact.hasExact() == false) {
                 return new TypeResolution(
                     format(

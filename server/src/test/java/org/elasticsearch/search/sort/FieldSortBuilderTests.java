@@ -301,7 +301,9 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     }
 
     public void testUnknownOptionFails() throws IOException {
-        String json = "{ \"post_date\" : {\"reverse\" : true} },\n";
+        String json = """
+            { "post_date" : {"reverse" : true} },
+            """;
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             // need to skip until parser is located on second START_OBJECT

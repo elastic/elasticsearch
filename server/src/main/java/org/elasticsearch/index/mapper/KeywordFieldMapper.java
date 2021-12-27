@@ -422,7 +422,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();
-                    if (keywordValue.length() > ignoreAbove) {
+                    // changed character length verification to byte array length verification.
+                    // consistent with Lucene
+                    if (keywordValue.getBytes().length > ignoreAbove) {
                         return null;
                     }
 
@@ -598,7 +600,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
 
-        if (value.length() > ignoreAbove) {
+        // changed character length verification to byte array length verification.
+        // consistent with Lucene
+        if (value.getBytes().length > ignoreAbove) {
             context.addIgnoredField(name());
             return;
         }

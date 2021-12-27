@@ -8,8 +8,10 @@
 
 package org.elasticsearch.test;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -18,8 +20,11 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Date;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeable> extends AbstractWireSerializingTestCase<T> {
@@ -38,6 +43,27 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
             .assertEqualsConsumer(this::assertEqualInstances)
             .assertToXContentEquivalence(assertToXContentEquivalence())
             .test();
+    }
+
+    /**
+     * Calls {@link ToXContent#toXContent} on many threads and verifies that they produce the same result.
+     */
+    public final void testConcurrentToXContent() throws IOException, InterruptedException, ExecutionException {
+        T testInstance = createTestInstance();
+        ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
+        XContentType xContentType = randomFrom(XContentType.values());
+        boolean humanReadable = randomBoolean();
+        BytesRef firstTimeBytes = toXContent(testInstance, xContentType, params, humanReadable).toBytesRef();
+
+        concurrentTest(() -> {
+            try {
+                for (int r = 0; r < 500; r++) {
+                    assertEquals(firstTimeBytes, toXContent(testInstance, xContentType, params, humanReadable).toBytesRef());
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
     }
 
     /**

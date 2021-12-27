@@ -14,7 +14,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -53,6 +59,53 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
     }
 
     /**
+     * Calls {@link Object#equals} on equal objects on many threads and verifies they all return true.
+     */
+    public final void testConcurrentEquals() throws IOException, InterruptedException, ExecutionException {
+        T testInstance = createTestInstance();
+        T copy = copyInstance(testInstance);
+        concurrentTest(() -> {
+            for (int r = 0; r < 500; r++) {
+                assertEquals(testInstance, copy);
+            }
+        });
+    }
+
+    /**
+     * Call some test on many threads in parallel.
+     */
+    protected void concurrentTest(Runnable r) throws InterruptedException, ExecutionException {
+        int threads = 5;
+        int tasks = threads * 2;
+        ExecutorService exec = Executors.newFixedThreadPool(threads);
+        try {
+            List<Future<?>> results = new ArrayList<>();
+            for (int t = 0; t < tasks; t++) {
+                results.add(exec.submit(r));
+            }
+            for (Future<?> f : results) {
+                f.get();
+            }
+        } finally {
+            exec.shutdown();
+        }
+    }
+
+    /**
+     * Calls {@link Object#hashCode} on the same object on many threads and verifies they return the same result.
+     */
+    public final void testConcurrentHashCode() throws IOException, InterruptedException, ExecutionException {
+
+        T testInstance = createTestInstance();
+        int firstHashCode = testInstance.hashCode();
+        concurrentTest(() -> {
+            for (int r = 0; r < 500; r++) {
+                assertEquals(firstHashCode, testInstance.hashCode());
+            }
+        });
+    }
+
+    /**
      * Test serialization and deserialization of the test instance.
      */
     public final void testSerialization() throws IOException {
@@ -60,6 +113,22 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
             T testInstance = createTestInstance();
             assertSerialization(testInstance);
         }
+    }
+
+    /**
+     * Test serializing the same object on many threads always deserializes to equal instances.
+     */
+    public final void testConcurrentSerialization() throws IOException, InterruptedException, ExecutionException {
+        T testInstance = createTestInstance();
+        concurrentTest(() -> {
+            try {
+                for (int r = 0; r < 500; r++) {
+                    assertSerialization(testInstance);
+                }
+            } catch (IOException e) {
+                throw new AssertionError("error serializing", e);
+            }
+        });
     }
 
     /**

@@ -11,6 +11,7 @@ package org.elasticsearch.http;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -18,14 +19,13 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -37,6 +37,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
@@ -65,13 +66,13 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
     private NetworkService networkService;
     private ThreadPool threadPool;
-    private MockBigArrays bigArrays;
+    private Recycler<BytesRef> recycler;
 
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
-        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
     }
 
     @After
@@ -81,7 +82,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
         threadPool = null;
         networkService = null;
-        bigArrays = null;
+        recycler = null;
     }
 
     public void testHttpPublishPort() throws Exception {
@@ -157,7 +158,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
                 Settings.EMPTY,
                 networkService,
-                bigArrays,
+                recycler,
                 threadPool,
                 xContentRegistry(),
                 dispatcher,
@@ -258,7 +259,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         return new AbstractHttpServerTransport(
             Settings.EMPTY,
             networkService,
-            bigArrays,
+            recycler,
             threadPool,
             xContentRegistry(),
             new HttpServerTransport.Dispatcher() {
@@ -311,7 +312,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
                 Settings.EMPTY,
                 networkService,
-                bigArrays,
+                recycler,
                 threadPool,
                 xContentRegistry(),
                 new HttpServerTransport.Dispatcher() {
@@ -459,7 +460,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
+                recycler,
                 threadPool,
                 xContentRegistry(),
                 new HttpServerTransport.Dispatcher() {
@@ -519,7 +520,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
                 Settings.EMPTY,
                 networkService,
-                bigArrays,
+                recycler,
                 threadPool,
                 xContentRegistry(),
                 new HttpServerTransport.Dispatcher() {
@@ -595,7 +596,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
                 Settings.EMPTY,
                 networkService,
-                bigArrays,
+                recycler,
                 threadPool,
                 xContentRegistry(),
                 new HttpServerTransport.Dispatcher() {

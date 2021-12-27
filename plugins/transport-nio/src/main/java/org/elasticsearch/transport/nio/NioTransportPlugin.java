@@ -100,7 +100,6 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
             () -> new NioHttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
                 pageCacheRecycler,
                 threadPool,
                 xContentRegistry,

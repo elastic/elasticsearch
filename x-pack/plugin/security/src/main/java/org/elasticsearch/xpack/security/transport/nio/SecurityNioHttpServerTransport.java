@@ -66,17 +66,7 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
         NioGroupFactory nioGroupFactory,
         ClusterSettings clusterSettings
     ) {
-        super(
-            settings,
-            networkService,
-            bigArrays,
-            pageCacheRecycler,
-            threadPool,
-            xContentRegistry,
-            dispatcher,
-            nioGroupFactory,
-            clusterSettings
-        );
+        super(settings, networkService, pageCacheRecycler, threadPool, xContentRegistry, dispatcher, nioGroupFactory, clusterSettings);
         this.securityExceptionHandler = new SecurityHttpExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.ipFilter = ipFilter;
         this.sslEnabled = HTTP_SSL_ENABLED.get(settings);

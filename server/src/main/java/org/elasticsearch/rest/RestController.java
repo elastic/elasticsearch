@@ -18,7 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -628,7 +628,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
-        public BytesStreamOutput bytesOutput() {
+        public BytesStream bytesOutput() {
             return delegate.bytesOutput();
         }
 

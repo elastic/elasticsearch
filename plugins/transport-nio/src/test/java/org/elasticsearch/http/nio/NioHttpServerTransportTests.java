@@ -155,7 +155,6 @@ public class NioHttpServerTransportTests extends AbstractHttpServerTransportTest
             NioHttpServerTransport transport = new NioHttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
                 pageRecycler,
                 threadPool,
                 xContentRegistry(),
@@ -205,7 +204,6 @@ public class NioHttpServerTransportTests extends AbstractHttpServerTransportTest
             NioHttpServerTransport transport = new NioHttpServerTransport(
                 initialSettings,
                 networkService,
-                bigArrays,
                 pageRecycler,
                 threadPool,
                 xContentRegistry(),
@@ -224,7 +222,6 @@ public class NioHttpServerTransportTests extends AbstractHttpServerTransportTest
                 NioHttpServerTransport otherTransport = new NioHttpServerTransport(
                     settings,
                     networkService,
-                    bigArrays,
                     pageRecycler,
                     threadPool,
                     xContentRegistry(),
@@ -267,7 +264,6 @@ public class NioHttpServerTransportTests extends AbstractHttpServerTransportTest
             NioHttpServerTransport transport = new NioHttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
                 pageRecycler,
                 threadPool,
                 xContentRegistry(),
@@ -341,7 +337,6 @@ public class NioHttpServerTransportTests extends AbstractHttpServerTransportTest
             NioHttpServerTransport transport = new NioHttpServerTransport(
                 Settings.EMPTY,
                 networkService,
-                bigArrays,
                 pageRecycler,
                 threadPool,
                 xContentRegistry(),
@@ -407,7 +402,6 @@ public class NioHttpServerTransportTests extends AbstractHttpServerTransportTest
             NioHttpServerTransport transport = new NioHttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
                 pageRecycler,
                 threadPool,
                 xContentRegistry(),
@@ -469,7 +463,6 @@ public class NioHttpServerTransportTests extends AbstractHttpServerTransportTest
             NioHttpServerTransport transport = new NioHttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
                 pageRecycler,
                 threadPool,
                 xContentRegistry(),

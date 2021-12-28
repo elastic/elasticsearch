@@ -210,6 +210,8 @@ public class ShardStateAction {
      * Clears out {@link #remoteShardStateUpdateDeduplicator}. Called by
      * {@link org.elasticsearch.indices.cluster.IndicesClusterStateService} in case of a master failover to enable sending fresh requests
      * to the new master right away on master failover.
+     * This method is best effort in so far that it might clear out valid requests in edge cases during master failover. This is not an
+     * issue functionally and merely results in some unnecessary transport requests.
      */
     public void clearRemoteShardRequestDeduplicator() {
         remoteShardStateUpdateDeduplicator.clear();

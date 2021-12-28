@@ -389,7 +389,12 @@ public class ShardStateActionTests extends ESTestCase {
         int numListeners = between(1, 100);
         CountDownLatch latch = new CountDownLatch(numListeners);
         long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+        int expectedRequests = 1;
         for (int i = 0; i < numListeners; i++) {
+            if (rarely() && i > 0) {
+                expectedRequests++;
+                shardStateAction.clearRemoteShardRequestDeduplicator();
+            }
             shardStateAction.shardStarted(startedShard, primaryTerm, "started", ShardLongFieldRange.EMPTY, new ActionListener<>() {
                 @Override
                 public void onResponse(Void aVoid) {
@@ -403,8 +408,10 @@ public class ShardStateActionTests extends ESTestCase {
             });
         }
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
-        assertThat(capturedRequests, arrayWithSize(1));
-        transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
+        assertThat(capturedRequests, arrayWithSize(expectedRequests));
+        for (int i = 0; i < expectedRequests; i++) {
+            transport.handleResponse(capturedRequests[i].requestId, TransportResponse.Empty.INSTANCE);
+        }
         latch.await();
         assertThat(transport.capturedRequests(), arrayWithSize(0));
     }

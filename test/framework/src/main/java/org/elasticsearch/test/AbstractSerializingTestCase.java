@@ -49,9 +49,9 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
      * Calls {@link ToXContent#toXContent} on many threads and verifies that they produce the same result.
      */
     public final void testConcurrentToXContent() throws IOException, InterruptedException, ExecutionException {
-        T testInstance = createTestInstance();
-        ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         XContentType xContentType = randomFrom(XContentType.values());
+        T testInstance = createXContextTestInstance(xContentType);
+        ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         boolean humanReadable = randomBoolean();
         BytesRef firstTimeBytes = toXContent(testInstance, xContentType, params, humanReadable).toBytesRef();
 

@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -32,6 +33,11 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
     @Override
     protected TaskInfo createTestInstance() {
         return randomTaskInfo();
+    }
+
+    @Override
+    protected TaskInfo createXContextTestInstance(XContentType xContentType) {
+        return randomTaskInfo(randomNonNegativeLong());
     }
 
     @Override
@@ -227,13 +233,16 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
     }
 
     static TaskInfo randomTaskInfo() {
+        return randomTaskInfo(randomLong());
+    }
+
+    static TaskInfo randomTaskInfo(long runningTimeNanos) {
         TaskId taskId = randomTaskId();
         String type = randomAlphaOfLength(5);
         String action = randomAlphaOfLength(5);
         Task.Status status = randomBoolean() ? randomRawTaskStatus() : null;
         String description = randomBoolean() ? randomAlphaOfLength(5) : null;
         long startTime = randomLong();
-        long runningTimeNanos = randomLong();
         boolean cancellable = randomBoolean();
         boolean cancelled = cancellable && randomBoolean();
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();

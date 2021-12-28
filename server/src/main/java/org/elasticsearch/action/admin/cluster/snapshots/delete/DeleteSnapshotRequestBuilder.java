@@ -10,7 +10,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * Delete snapshot request builder

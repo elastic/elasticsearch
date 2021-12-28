@@ -23,8 +23,9 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.Retry;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
@@ -45,6 +46,7 @@ import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateScript;
+import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -177,20 +179,50 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
-        scrollSource = buildScrollableResultSource(backoffPolicy);
+        scrollSource = buildScrollableResultSource(
+            backoffPolicy,
+            prepareSearchRequest(mainRequest, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm)
+        );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
+    }
+
+    /**
+     * Prepares a search request to be used in a ScrollableHitSource.
+     * Preparation might set a sort order (if not set already) and disable scroll if max docs is small enough.
+     */
+    // Visible for testing
+    static <Request extends AbstractBulkByScrollRequest<Request>> SearchRequest prepareSearchRequest(
+        Request mainRequest,
+        boolean needsSourceDocumentVersions,
+        boolean needsSourceDocumentSeqNoAndPrimaryTerm
+    ) {
+        var preparedSearchRequest = new SearchRequest(mainRequest.getSearchRequest());
+
         /*
          * Default to sorting by doc. We can't do this in the request itself because it is normal to *add* to the sorts rather than replace
          * them and if we add _doc as the first sort by default then sorts will never work.... So we add it here, only if there isn't
          * another sort.
+         *
+         * This modifies the original request!
          */
-        final SearchSourceBuilder sourceBuilder = mainRequest.getSearchRequest().source();
+        final SearchSourceBuilder sourceBuilder = preparedSearchRequest.source();
         List<SortBuilder<?>> sorts = sourceBuilder.sorts();
         if (sorts == null || sorts.isEmpty()) {
             sourceBuilder.sort(fieldSort("_doc"));
         }
         sourceBuilder.version(needsSourceDocumentVersions);
         sourceBuilder.seqNoAndPrimaryTerm(needsSourceDocumentSeqNoAndPrimaryTerm);
+
+        /*
+         * Do not open scroll if max docs <= scroll size and not resuming on version conflicts
+         */
+        if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES
+            && mainRequest.getMaxDocs() <= preparedSearchRequest.source().size()
+            && mainRequest.isAbortOnVersionConflict()) {
+            preparedSearchRequest.scroll((Scroll) null);
+        }
+
+        return preparedSearchRequest;
     }
 
     /**
@@ -255,7 +287,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         return bulkRequest;
     }
 
-    protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
+    protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
         return new ClientScrollableHitSource(
             logger,
             backoffPolicy,
@@ -264,7 +296,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             this::onScrollResponse,
             this::finishHim,
             searchClient,
-            mainRequest.getSearchRequest()
+            searchRequest
         );
     }
 
@@ -478,6 +510,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 return;
             }
 
+            if (scrollSource.hasScroll() == false) {
+                // Index contains fewer matching docs than max_docs (found < max_docs <= scroll size)
+                refreshAndFinish(emptyList(), emptyList(), false);
+                return;
+            }
+
             onSuccess.run();
         } catch (Exception t) {
             finishHim(t);
@@ -499,7 +537,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
         } else {
             onScrollResponse(asyncResponse);
         }
-
     }
 
     private void recordFailure(Failure failure, List<Failure> failures) {

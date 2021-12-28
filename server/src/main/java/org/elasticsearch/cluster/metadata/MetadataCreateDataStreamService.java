@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -200,9 +201,11 @@ public class MetadataCreateDataStreamService {
                 "initialize_data_stream",
                 firstBackingIndexName,
                 firstBackingIndexName
-            ).dataStreamName(dataStreamName).systemDataStreamDescriptor(systemDataStreamDescriptor);
+            ).dataStreamName(dataStreamName).systemDataStreamDescriptor(systemDataStreamDescriptor).nameResolvedInstant(request.startTime);
 
-            if (isSystem == false) {
+            if (isSystem) {
+                createIndexRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
+            } else {
                 createIndexRequest.settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);
             }
 
@@ -228,7 +231,7 @@ public class MetadataCreateDataStreamService {
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
         List<Index> dsBackingIndices = backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList());
         dsBackingIndices.add(writeIndex.getIndex());
-        boolean hidden = isSystem ? false : template.getDataStreamTemplate().isHidden();
+        boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
         DataStream newDataStream = new DataStream(
             dataStreamName,
             timestampField,

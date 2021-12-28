@@ -107,12 +107,14 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
         Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
         LicensesMetadata newLicenseMetadata = createBasicLicenseFromExistingLicense(currentLicenseMetadata);
         mdBuilder.putCustom(LicensesMetadata.TYPE, newLicenseMetadata);
-        logger.info(
-            "Existing basic license has an expiration. Basic licenses no longer expire."
-                + "Regenerating license.\n\nOld license:\n {}\n\n New license:\n{}",
-            license,
-            newLicenseMetadata.getLicense()
-        );
+        logger.info("""
+            Existing basic license has an expiration. Basic licenses no longer expire.Regenerating license.
+
+            Old license:
+             {}
+
+             New license:
+            {}""", license, newLicenseMetadata.getLicense());
         return ClusterState.builder(currentState).metadata(mdBuilder).build();
     }
 

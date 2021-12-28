@@ -24,7 +24,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -460,8 +460,8 @@ public class CancellableTasksIT extends ESIntegTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, taskDescription(), parentTaskId, headers);
+        public Task createTask(long someId, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(someId, type, action, taskDescription(), parentTaskId, headers);
         }
 
         @Override

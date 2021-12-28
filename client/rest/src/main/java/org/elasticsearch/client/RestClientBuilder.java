@@ -20,14 +20,12 @@
 package org.elasticsearch.client;
 
 import org.apache.http.Header;
-import org.apache.http.HttpRequest;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.conn.SchemeIOSessionStrategy;
-import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.VersionInfo;
 
 import java.io.IOException;
@@ -55,7 +53,7 @@ public final class RestClientBuilder {
 
     static final String VERSION;
     static final String META_HEADER_NAME = "X-Elastic-Client-Meta";
-    private static final String META_HEADER_VALUE;
+    static final String META_HEADER_VALUE;
     private static final String USER_AGENT_HEADER_VALUE;
 
     private static final Header[] EMPTY_HEADERS = new Header[0];
@@ -286,7 +284,8 @@ public final class RestClientBuilder {
             failureListener,
             nodeSelector,
             strictDeprecationMode,
-            compressionEnabled
+            compressionEnabled,
+            metaHeaderEnabled
         );
         httpClient.start();
         return restClient;
@@ -314,14 +313,6 @@ public final class RestClientBuilder {
                 httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }
 
-            // Always add metadata header last so that it's not overwritten
-            httpClientBuilder.addInterceptorLast((HttpRequest request, HttpContext context) -> {
-                if (metaHeaderEnabled) {
-                    request.setHeader(META_HEADER_NAME, META_HEADER_VALUE);
-                } else {
-                    request.removeHeaders(META_HEADER_NAME);
-                }
-            });
             final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;
             return AccessController.doPrivileged((PrivilegedAction<CloseableHttpAsyncClient>) finalBuilder::build);
         } catch (NoSuchAlgorithmException e) {

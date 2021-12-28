@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -30,46 +29,28 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.MappingParserContext;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.RootObjectMapper;
-import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
-import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -366,7 +347,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             dataStream.getName(),
             newWriteIndexName,
             rolloverRequest.getCreateIndexRequest(),
-            null
+            null,
+            Instant.now()
         );
         for (String settingKey : settings.keySet()) {
             assertThat(settings.get(settingKey), equalTo(createIndexRequest.settings().get(settingKey)));
@@ -566,43 +548,11 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
-            Environment env = mock(Environment.class);
-            when(env.sharedDataFile()).thenReturn(null);
-            AllocationService allocationService = mock(AllocationService.class);
-            when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
-            IndicesService indicesService = mockIndicesServices();
-            IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-            when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
-
-            ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
-            MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
-                Settings.EMPTY,
-                clusterService,
-                indicesService,
-                allocationService,
+            MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
                 null,
-                shardLimitValidator,
-                env,
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 testThreadPool,
-                null,
-                EmptySystemIndices.INSTANCE,
-                false
-            );
-            MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
-                clusterService,
-                indicesService,
-                new AliasValidator(),
-                null,
+                Set.of(),
                 xContentRegistry()
-            );
-            MetadataRolloverService rolloverService = new MetadataRolloverService(
-                testThreadPool,
-                createIndexService,
-                indexAliasesService,
-                mockIndexNameExpressionResolver,
-                EmptySystemIndices.INSTANCE
             );
 
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
@@ -619,6 +569,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 newIndexName,
                 createIndexRequest,
                 metConditions,
+                Instant.now(),
                 randomBoolean(),
                 false
             );
@@ -666,69 +617,11 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
-            DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder(
-                "@timestamp",
-                DateFieldMapper.Resolution.MILLISECONDS,
-                null,
-                ScriptCompiler.NONE,
-                false,
-                Version.CURRENT
-            ).build(MapperBuilderContext.ROOT);
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
-            Environment env = mock(Environment.class);
-            when(env.sharedDataFile()).thenReturn(null);
-            AllocationService allocationService = mock(AllocationService.class);
-            when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
-            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc");
-            root.add(
-                new DateFieldMapper.Builder(
-                    dataStream.getTimeStampField().getName(),
-                    DateFieldMapper.Resolution.MILLISECONDS,
-                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-                    ScriptCompiler.NONE,
-                    true,
-                    Version.CURRENT
-                )
-            );
-            MetadataFieldMapper dtfm = getDataStreamTimestampFieldMapper();
-            Mapping mapping = new Mapping(
-                root.build(MapperBuilderContext.ROOT),
-                new MetadataFieldMapper[] { dtfm },
-                Collections.emptyMap()
-            );
-            MappingLookup mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of(), List.of());
-            IndicesService indicesService = mockIndicesServices(mappingLookup);
-            IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-            when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
-
-            ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
-            MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
-                Settings.EMPTY,
-                clusterService,
-                indicesService,
-                allocationService,
-                null,
-                shardLimitValidator,
-                env,
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
+                dataStream,
                 testThreadPool,
-                null,
-                EmptySystemIndices.INSTANCE,
-                false
-            );
-            MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
-                clusterService,
-                indicesService,
-                new AliasValidator(),
-                null,
+                Set.of(),
                 xContentRegistry()
-            );
-            MetadataRolloverService rolloverService = new MetadataRolloverService(
-                testThreadPool,
-                createIndexService,
-                indexAliasesService,
-                mockIndexNameExpressionResolver,
-                EmptySystemIndices.INSTANCE
             );
 
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
@@ -742,6 +635,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 null,
                 createIndexRequest,
                 metConditions,
+                Instant.now(),
                 randomBoolean(),
                 false
             );
@@ -827,6 +721,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             newIndexName,
             new CreateIndexRequest("_na_"),
             null,
+            Instant.now(),
             randomBoolean(),
             true
         );
@@ -851,6 +746,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 null,
                 new CreateIndexRequest("_na_"),
                 null,
+                Instant.now(),
                 randomBoolean(),
                 randomBoolean()
             )
@@ -871,39 +767,11 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
 
         ThreadPool testThreadPool = mock(ThreadPool.class);
-        ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
-        Environment env = mock(Environment.class);
-        AllocationService allocationService = mock(AllocationService.class);
-        IndicesService indicesService = mockIndicesServices();
-        IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-
-        MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
-            Settings.EMPTY,
-            clusterService,
-            indicesService,
-            allocationService,
-            null,
-            null,
-            env,
-            null,
+        MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
+            dataStream,
             testThreadPool,
-            null,
-            EmptySystemIndices.INSTANCE,
-            false
-        );
-        MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
-            clusterService,
-            indicesService,
-            new AliasValidator(),
-            null,
+            Set.of(),
             xContentRegistry()
-        );
-        MetadataRolloverService rolloverService = new MetadataRolloverService(
-            testThreadPool,
-            createIndexService,
-            indexAliasesService,
-            mockIndexNameExpressionResolver,
-            EmptySystemIndices.INSTANCE
         );
 
         MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
@@ -918,39 +786,12 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 null,
                 createIndexRequest,
                 metConditions,
+                Instant.now(),
                 false,
                 randomBoolean()
             )
         );
         assertThat(e.getMessage(), equalTo("no matching index template found for data stream [" + dataStream.getName() + "]"));
-    }
-
-    private IndicesService mockIndicesServices() throws Exception {
-        return mockIndicesServices(null);
-    }
-
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    private IndicesService mockIndicesServices(MappingLookup mappingLookup) throws Exception {
-        /*
-         * Throws Exception because Eclipse uses the lower bound for
-         * CheckedFunction's exception type so it thinks the "when" call
-         * can throw Exception. javac seems to be ok inferring something
-         * else.
-         */
-        IndicesService indicesService = mock(IndicesService.class);
-        when(indicesService.withTempIndexService(any(IndexMetadata.class), any(CheckedFunction.class))).then(invocationOnMock -> {
-            IndexService indexService = mock(IndexService.class);
-            IndexMetadata indexMetadata = (IndexMetadata) invocationOnMock.getArguments()[0];
-            when(indexService.index()).thenReturn(indexMetadata.getIndex());
-            MapperService mapperService = mock(MapperService.class);
-            when(indexService.mapperService()).thenReturn(mapperService);
-            when(mapperService.mappingLookup()).thenReturn(mappingLookup);
-            when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {
-            });
-            when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
-            return ((CheckedFunction<IndexService, ?, ?>) invocationOnMock.getArguments()[1]).apply(indexService);
-        });
-        return indicesService;
     }
 
     private static IndexMetadata createMetadata(String indexName) {
@@ -966,11 +807,4 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .build();
     }
 
-    private static MetadataFieldMapper getDataStreamTimestampFieldMapper() {
-        Map<String, Object> fieldsMapping = new HashMap<>();
-        fieldsMapping.put("type", DataStreamTimestampFieldMapper.NAME);
-        fieldsMapping.put("enabled", true);
-        MappingParserContext mockedParserContext = mock(MappingParserContext.class);
-        return DataStreamTimestampFieldMapper.PARSER.parse("field", fieldsMapping, mockedParserContext).build();
-    }
 }

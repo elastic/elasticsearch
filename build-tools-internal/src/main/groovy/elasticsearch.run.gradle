@@ -25,6 +25,8 @@ testClusters.register("runTask") {
       } else if (licenseType != 'basic') {
         throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
       }
+      // Not enabled by default in the build, otherwise all integration tests will download the databases from our geoip download service:
+      systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
       setting 'xpack.security.enabled', 'true'
       keystore 'bootstrap.password', 'password'
       user username: 'elastic-admin', password: 'elastic-password', role: 'superuser'

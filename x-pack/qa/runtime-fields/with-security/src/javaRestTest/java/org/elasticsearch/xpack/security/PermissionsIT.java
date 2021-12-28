@@ -65,34 +65,46 @@ public class PermissionsIT extends ESRestTestCase {
 
     public void testDLS() throws IOException {
         Request createIndex = new Request("PUT", "/dls");
-        createIndex.setJsonEntity(
-            "{\n"
-                + "    \"mappings\" : {\n"
-                + "        \"runtime\" : {\n"
-                + "            \"year\" : {\n"
-                + "              \"type\" : \"keyword\", \n"
-                + "              \"script\" : \"emit(doc['date'].value.substring(0,4))\"\n"
-                + "            }\n"
-                + "        },\n"
-                + "        \"properties\" : {\n"
-                + "            \"date\" : {\"type\" : \"keyword\"}\n"
-                + "        }\n"
-                + "    }\n"
-                + "}\n"
-        );
+        createIndex.setJsonEntity("""
+            {
+                "mappings" : {
+                    "runtime" : {
+                        "year" : {
+                          "type" : "keyword",\s
+                          "script" : "emit(doc['date'].value.substring(0,4))"
+                        }
+                    },
+                    "properties" : {
+                        "date" : {"type" : "keyword"}
+                    }
+                }
+            }
+            """);
         assertOK(adminClient().performRequest(createIndex));
 
         Request indexDoc1 = new Request("PUT", "/dls/_doc/1");
-        indexDoc1.setJsonEntity("{\n" + "    \"date\" : \"2009-11-15T14:12:12\"\n" + "}\n");
+        indexDoc1.setJsonEntity("""
+            {
+                "date" : "2009-11-15T14:12:12"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc1));
 
         Request indexDoc2 = new Request("PUT", "/dls/_doc/2");
-        indexDoc2.setJsonEntity("{\n" + "    \"date\" : \"2016-11-15T14:12:12\"\n" + "}\n");
+        indexDoc2.setJsonEntity("""
+            {
+                "date" : "2016-11-15T14:12:12"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc2));
 
         Request indexDoc3 = new Request("PUT", "/dls/_doc/3");
         indexDoc3.addParameter("refresh", "true");
-        indexDoc3.setJsonEntity("{\n" + "    \"date\" : \"2018-11-15T14:12:12\"\n" + "}\n");
+        indexDoc3.setJsonEntity("""
+            {
+                "date" : "2018-11-15T14:12:12"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc3));
 
         SearchRequest searchRequest = new SearchRequest("dls");
@@ -108,34 +120,46 @@ public class PermissionsIT extends ESRestTestCase {
 
     public void testFLSProtectsData() throws IOException {
         Request createIndex = new Request("PUT", "/fls");
-        createIndex.setJsonEntity(
-            "{\n"
-                + "    \"mappings\" : {\n"
-                + "        \"runtime\" : {\n"
-                + "            \"hidden_values_count\" : {\n"
-                + "              \"type\" : \"long\", \n"
-                + "              \"script\" : \"emit(doc['hidden'].size())\"\n"
-                + "            }\n"
-                + "        },\n"
-                + "        \"properties\" : {\n"
-                + "            \"hidden\" : {\"type\" : \"keyword\"}\n"
-                + "        }\n"
-                + "    }\n"
-                + "}\n"
-        );
+        createIndex.setJsonEntity("""
+            {
+                "mappings" : {
+                    "runtime" : {
+                        "hidden_values_count" : {
+                          "type" : "long",\s
+                          "script" : "emit(doc['hidden'].size())"
+                        }
+                    },
+                    "properties" : {
+                        "hidden" : {"type" : "keyword"}
+                    }
+                }
+            }
+            """);
         assertOK(adminClient().performRequest(createIndex));
 
         Request indexDoc1 = new Request("PUT", "/fls/_doc/1");
-        indexDoc1.setJsonEntity("{\n" + "    \"hidden\" : \"should not be read\"\n" + "}\n");
+        indexDoc1.setJsonEntity("""
+            {
+                "hidden" : "should not be read"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc1));
 
         Request indexDoc2 = new Request("PUT", "/fls/_doc/2");
-        indexDoc2.setJsonEntity("{\n" + "    \"hidden\" : \"should not be read\"\n" + "}\n");
+        indexDoc2.setJsonEntity("""
+            {
+                "hidden" : "should not be read"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc2));
 
         Request indexDoc3 = new Request("PUT", "/fls/_doc/3");
         indexDoc3.addParameter("refresh", "true");
-        indexDoc3.setJsonEntity("{\n" + "    \"hidden\" : \"should not be read\"\n" + "}\n");
+        indexDoc3.setJsonEntity("""
+            {
+                "hidden" : "should not be read"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc3));
 
         SearchRequest searchRequest = new SearchRequest("fls").source(new SearchSourceBuilder().docValueField("hidden_values_count"));
@@ -158,34 +182,46 @@ public class PermissionsIT extends ESRestTestCase {
 
     public void testFLSOnRuntimeField() throws IOException {
         Request createIndex = new Request("PUT", "/fls");
-        createIndex.setJsonEntity(
-            "{\n"
-                + "    \"mappings\" : {\n"
-                + "        \"runtime\" : {\n"
-                + "            \"year\" : {\n"
-                + "              \"type\" : \"keyword\", \n"
-                + "              \"script\" : \"emit(doc['date'].value.substring(0,4))\"\n"
-                + "            }\n"
-                + "        },\n"
-                + "        \"properties\" : {\n"
-                + "            \"date\" : {\"type\" : \"keyword\"}\n"
-                + "        }\n"
-                + "    }\n"
-                + "}\n"
-        );
+        createIndex.setJsonEntity("""
+            {
+                "mappings" : {
+                    "runtime" : {
+                        "year" : {
+                          "type" : "keyword",\s
+                          "script" : "emit(doc['date'].value.substring(0,4))"
+                        }
+                    },
+                    "properties" : {
+                        "date" : {"type" : "keyword"}
+                    }
+                }
+            }
+            """);
         assertOK(adminClient().performRequest(createIndex));
 
         Request indexDoc1 = new Request("PUT", "/fls/_doc/1");
-        indexDoc1.setJsonEntity("{\n" + "    \"date\" : \"2009-11-15T14:12:12\"\n" + "}\n");
+        indexDoc1.setJsonEntity("""
+            {
+                "date" : "2009-11-15T14:12:12"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc1));
 
         Request indexDoc2 = new Request("PUT", "/fls/_doc/2");
-        indexDoc2.setJsonEntity("{\n" + "    \"date\" : \"2016-11-15T14:12:12\"\n" + "}\n");
+        indexDoc2.setJsonEntity("""
+            {
+                "date" : "2016-11-15T14:12:12"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc2));
 
         Request indexDoc3 = new Request("PUT", "/fls/_doc/3");
         indexDoc3.addParameter("refresh", "true");
-        indexDoc3.setJsonEntity("{\n" + "    \"date\" : \"2018-11-15T14:12:12\"\n" + "}\n");
+        indexDoc3.setJsonEntity("""
+            {
+                "date" : "2018-11-15T14:12:12"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc3));
 
         // There is no FLS directly on runtime fields

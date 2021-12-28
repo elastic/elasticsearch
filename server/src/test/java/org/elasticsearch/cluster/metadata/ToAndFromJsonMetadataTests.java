@@ -183,8 +183,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
     }
 
-    private static final String MAPPING_SOURCE1 = "{\"mapping1\":{\"text1\":{\"type\":\"string\"}}}";
-    private static final String MAPPING_SOURCE2 = "{\"mapping2\":{\"text2\":{\"type\":\"string\"}}}";
+    private static final String MAPPING_SOURCE1 = """
+        {"mapping1":{"text1":{"type":"string"}}}""";
+    private static final String MAPPING_SOURCE2 = """
+        {"mapping2":{"text2":{"type":"string"}}}""";
     private static final String ALIAS_FILTER1 = "{\"field1\":\"value1\"}";
     private static final String ALIAS_FILTER2 = "{\"field2\":\"value2\"}";
 
@@ -203,57 +205,51 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(
-            "{\n"
-                + "  \"meta-data\" : {\n"
-                + "    \"version\" : 0,\n"
-                + "    \"cluster_uuid\" : \"clusterUUID\",\n"
-                + "    \"cluster_uuid_committed\" : false,\n"
-                + "    \"cluster_coordination\" : {\n"
-                + "      \"term\" : 1,\n"
-                + "      \"last_committed_config\" : [\n"
-                + "        \"commitedConfigurationNodeId\"\n"
-                + "      ],\n"
-                + "      \"last_accepted_config\" : [\n"
-                + "        \"acceptedConfigurationNodeId\"\n"
-                + "      ],\n"
-                + "      \"voting_config_exclusions\" : [\n"
-                + "        {\n"
-                + "          \"node_id\" : \"exlucdedNodeId\",\n"
-                + "          \"node_name\" : \"excludedNodeName\"\n"
-                + "        }\n"
-                + "      ]\n"
-                + "    },\n"
-                + "    \"settings\" : {\n"
-                + "      \"index.version.created\" : \""
-                + Version.CURRENT.id
-                + "\"\n"
-                + "    },\n"
-                + "    \"templates\" : {\n"
-                + "      \"template\" : {\n"
-                + "        \"order\" : 0,\n"
-                + "        \"index_patterns\" : [\n"
-                + "          \"pattern1\",\n"
-                + "          \"pattern2\"\n"
-                + "        ],\n"
-                + "        \"settings\" : {\n"
-                + "          \"index.version.created\" : \""
-                + Version.CURRENT.id
-                + "\"\n"
-                + "        },\n"
-                + "        \"mappings\" : {\n"
-                + "          \"key1\" : { }\n"
-                + "        },\n"
-                + "        \"aliases\" : { }\n"
-                + "      }\n"
-                + "    },\n"
-                + "    \"index-graveyard\" : {\n"
-                + "      \"tombstones\" : [ ]\n"
-                + "    }\n"
-                + "  }\n"
-                + "}",
-            Strings.toString(builder)
-        );
+        assertEquals("""
+            {
+              "meta-data" : {
+                "version" : 0,
+                "cluster_uuid" : "clusterUUID",
+                "cluster_uuid_committed" : false,
+                "cluster_coordination" : {
+                  "term" : 1,
+                  "last_committed_config" : [
+                    "commitedConfigurationNodeId"
+                  ],
+                  "last_accepted_config" : [
+                    "acceptedConfigurationNodeId"
+                  ],
+                  "voting_config_exclusions" : [
+                    {
+                      "node_id" : "exlucdedNodeId",
+                      "node_name" : "excludedNodeName"
+                    }
+                  ]
+                },
+                "settings" : {
+                  "index.version.created" : "%s"
+                },
+                "templates" : {
+                  "template" : {
+                    "order" : 0,
+                    "index_patterns" : [
+                      "pattern1",
+                      "pattern2"
+                    ],
+                    "settings" : {
+                      "index.version.created" : "%s"
+                    },
+                    "mappings" : {
+                      "key1" : { }
+                    },
+                    "aliases" : { }
+                  }
+                },
+                "index-graveyard" : {
+                  "tombstones" : [ ]
+                }
+              }
+            }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
 
     public void testToXContentAPI_SameTypeName() throws IOException {
@@ -296,63 +292,59 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(
-            "{\n"
-                + "  \"metadata\" : {\n"
-                + "    \"cluster_uuid\" : \"clusterUUID\",\n"
-                + "    \"cluster_uuid_committed\" : false,\n"
-                + "    \"cluster_coordination\" : {\n"
-                + "      \"term\" : 0,\n"
-                + "      \"last_committed_config\" : [ ],\n"
-                + "      \"last_accepted_config\" : [ ],\n"
-                + "      \"voting_config_exclusions\" : [ ]\n"
-                + "    },\n"
-                + "    \"templates\" : { },\n"
-                + "    \"indices\" : {\n"
-                + "      \"index\" : {\n"
-                + "        \"version\" : 2,\n"
-                + "        \"mapping_version\" : 1,\n"
-                + "        \"settings_version\" : 1,\n"
-                + "        \"aliases_version\" : 1,\n"
-                + "        \"routing_num_shards\" : 1,\n"
-                + "        \"state\" : \"open\",\n"
-                + "        \"settings\" : {\n"
-                + "          \"index\" : {\n"
-                + "            \"number_of_shards\" : \"1\",\n"
-                + "            \"number_of_replicas\" : \"2\",\n"
-                + "            \"version\" : {\n"
-                + "              \"created\" : \""
-                + Version.CURRENT.id
-                + "\"\n"
-                + "            }\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"mappings\" : {\n"
-                + "          \"type\" : {\n"
-                + "            \"key\" : \"value\"\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"aliases\" : [ ],\n"
-                + "        \"primary_terms\" : {\n"
-                + "          \"0\" : 1\n"
-                + "        },\n"
-                + "        \"in_sync_allocations\" : {\n"
-                + "          \"0\" : [ ]\n"
-                + "        },\n"
-                + "        \"rollover_info\" : { },\n"
-                + "        \"system\" : false,\n"
-                + "        \"timestamp_range\" : {\n"
-                + "          \"shards\" : [ ]\n"
-                + "        }\n"
-                + "      }\n"
-                + "    },\n"
-                + "    \"index-graveyard\" : {\n"
-                + "      \"tombstones\" : [ ]\n"
-                + "    }\n"
-                + "  }\n"
-                + "}",
-            Strings.toString(builder)
-        );
+        assertEquals("""
+            {
+              "metadata" : {
+                "cluster_uuid" : "clusterUUID",
+                "cluster_uuid_committed" : false,
+                "cluster_coordination" : {
+                  "term" : 0,
+                  "last_committed_config" : [ ],
+                  "last_accepted_config" : [ ],
+                  "voting_config_exclusions" : [ ]
+                },
+                "templates" : { },
+                "indices" : {
+                  "index" : {
+                    "version" : 2,
+                    "mapping_version" : 1,
+                    "settings_version" : 1,
+                    "aliases_version" : 1,
+                    "routing_num_shards" : 1,
+                    "state" : "open",
+                    "settings" : {
+                      "index" : {
+                        "number_of_shards" : "1",
+                        "number_of_replicas" : "2",
+                        "version" : {
+                          "created" : "%s"
+                        }
+                      }
+                    },
+                    "mappings" : {
+                      "type" : {
+                        "key" : "value"
+                      }
+                    },
+                    "aliases" : [ ],
+                    "primary_terms" : {
+                      "0" : 1
+                    },
+                    "in_sync_allocations" : {
+                      "0" : [ ]
+                    },
+                    "rollover_info" : { },
+                    "system" : false,
+                    "timestamp_range" : {
+                      "shards" : [ ]
+                    }
+                  }
+                },
+                "index-graveyard" : {
+                  "tombstones" : [ ]
+                }
+              }
+            }""".formatted(Version.CURRENT.id), Strings.toString(builder));
     }
 
     public void testToXContentGateway_FlatSettingFalse_ReduceMappingTrue() throws IOException {
@@ -370,59 +362,53 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(
-            "{\n"
-                + "  \"meta-data\" : {\n"
-                + "    \"version\" : 0,\n"
-                + "    \"cluster_uuid\" : \"clusterUUID\",\n"
-                + "    \"cluster_uuid_committed\" : false,\n"
-                + "    \"cluster_coordination\" : {\n"
-                + "      \"term\" : 1,\n"
-                + "      \"last_committed_config\" : [\n"
-                + "        \"commitedConfigurationNodeId\"\n"
-                + "      ],\n"
-                + "      \"last_accepted_config\" : [\n"
-                + "        \"acceptedConfigurationNodeId\"\n"
-                + "      ],\n"
-                + "      \"voting_config_exclusions\" : [\n"
-                + "        {\n"
-                + "          \"node_id\" : \"exlucdedNodeId\",\n"
-                + "          \"node_name\" : \"excludedNodeName\"\n"
-                + "        }\n"
-                + "      ]\n"
-                + "    },\n"
-                + "    \"settings\" : {\n"
-                + "      \"index.version.created\" : \""
-                + Version.CURRENT.id
-                + "\"\n"
-                + "    },\n"
-                + "    \"templates\" : {\n"
-                + "      \"template\" : {\n"
-                + "        \"order\" : 0,\n"
-                + "        \"index_patterns\" : [\n"
-                + "          \"pattern1\",\n"
-                + "          \"pattern2\"\n"
-                + "        ],\n"
-                + "        \"settings\" : {\n"
-                + "          \"index\" : {\n"
-                + "            \"version\" : {\n"
-                + "              \"created\" : \""
-                + Version.CURRENT.id
-                + "\"\n"
-                + "            }\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"mappings\" : { },\n"
-                + "        \"aliases\" : { }\n"
-                + "      }\n"
-                + "    },\n"
-                + "    \"index-graveyard\" : {\n"
-                + "      \"tombstones\" : [ ]\n"
-                + "    }\n"
-                + "  }\n"
-                + "}",
-            Strings.toString(builder)
-        );
+        assertEquals("""
+            {
+              "meta-data" : {
+                "version" : 0,
+                "cluster_uuid" : "clusterUUID",
+                "cluster_uuid_committed" : false,
+                "cluster_coordination" : {
+                  "term" : 1,
+                  "last_committed_config" : [
+                    "commitedConfigurationNodeId"
+                  ],
+                  "last_accepted_config" : [
+                    "acceptedConfigurationNodeId"
+                  ],
+                  "voting_config_exclusions" : [
+                    {
+                      "node_id" : "exlucdedNodeId",
+                      "node_name" : "excludedNodeName"
+                    }
+                  ]
+                },
+                "settings" : {
+                  "index.version.created" : "%s"
+                },
+                "templates" : {
+                  "template" : {
+                    "order" : 0,
+                    "index_patterns" : [
+                      "pattern1",
+                      "pattern2"
+                    ],
+                    "settings" : {
+                      "index" : {
+                        "version" : {
+                          "created" : "%s"
+                        }
+                      }
+                    },
+                    "mappings" : { },
+                    "aliases" : { }
+                  }
+                },
+                "index-graveyard" : {
+                  "tombstones" : [ ]
+                }
+              }
+            }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
 
     public void testToXContentAPI_FlatSettingTrue_ReduceMappingFalse() throws IOException {
@@ -441,96 +427,90 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(
-            "{\n"
-                + "  \"metadata\" : {\n"
-                + "    \"cluster_uuid\" : \"clusterUUID\",\n"
-                + "    \"cluster_uuid_committed\" : false,\n"
-                + "    \"cluster_coordination\" : {\n"
-                + "      \"term\" : 1,\n"
-                + "      \"last_committed_config\" : [\n"
-                + "        \"commitedConfigurationNodeId\"\n"
-                + "      ],\n"
-                + "      \"last_accepted_config\" : [\n"
-                + "        \"acceptedConfigurationNodeId\"\n"
-                + "      ],\n"
-                + "      \"voting_config_exclusions\" : [\n"
-                + "        {\n"
-                + "          \"node_id\" : \"exlucdedNodeId\",\n"
-                + "          \"node_name\" : \"excludedNodeName\"\n"
-                + "        }\n"
-                + "      ]\n"
-                + "    },\n"
-                + "    \"templates\" : {\n"
-                + "      \"template\" : {\n"
-                + "        \"order\" : 0,\n"
-                + "        \"index_patterns\" : [\n"
-                + "          \"pattern1\",\n"
-                + "          \"pattern2\"\n"
-                + "        ],\n"
-                + "        \"settings\" : {\n"
-                + "          \"index.version.created\" : \""
-                + Version.CURRENT.id
-                + "\"\n"
-                + "        },\n"
-                + "        \"mappings\" : {\n"
-                + "          \"key1\" : { }\n"
-                + "        },\n"
-                + "        \"aliases\" : { }\n"
-                + "      }\n"
-                + "    },\n"
-                + "    \"indices\" : {\n"
-                + "      \"index\" : {\n"
-                + "        \"version\" : 2,\n"
-                + "        \"mapping_version\" : 1,\n"
-                + "        \"settings_version\" : 1,\n"
-                + "        \"aliases_version\" : 1,\n"
-                + "        \"routing_num_shards\" : 1,\n"
-                + "        \"state\" : \"open\",\n"
-                + "        \"settings\" : {\n"
-                + "          \"index.number_of_replicas\" : \"2\",\n"
-                + "          \"index.number_of_shards\" : \"1\",\n"
-                + "          \"index.version.created\" : \""
-                + Version.CURRENT.id
-                + "\"\n"
-                + "        },\n"
-                + "        \"mappings\" : {\n"
-                + "          \"type\" : {\n"
-                + "            \"type1\" : {\n"
-                + "              \"key\" : \"value\"\n"
-                + "            }\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"aliases\" : [\n"
-                + "          \"alias\"\n"
-                + "        ],\n"
-                + "        \"primary_terms\" : {\n"
-                + "          \"0\" : 1\n"
-                + "        },\n"
-                + "        \"in_sync_allocations\" : {\n"
-                + "          \"0\" : [\n"
-                + "            \"allocationId\"\n"
-                + "          ]\n"
-                + "        },\n"
-                + "        \"rollover_info\" : {\n"
-                + "          \"rolloveAlias\" : {\n"
-                + "            \"met_conditions\" : { },\n"
-                + "            \"time\" : 1\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"system\" : false,\n"
-                + "        \"timestamp_range\" : {\n"
-                + "          \"shards\" : [ ]\n"
-                + "        }\n"
-                + "      }\n"
-                + "    },\n"
-                + "    \"index-graveyard\" : {\n"
-                + "      \"tombstones\" : [ ]\n"
-                + "    }\n"
-                + "  }\n"
-                + "}",
-            Strings.toString(builder)
-        );
+        assertEquals("""
+            {
+              "metadata" : {
+                "cluster_uuid" : "clusterUUID",
+                "cluster_uuid_committed" : false,
+                "cluster_coordination" : {
+                  "term" : 1,
+                  "last_committed_config" : [
+                    "commitedConfigurationNodeId"
+                  ],
+                  "last_accepted_config" : [
+                    "acceptedConfigurationNodeId"
+                  ],
+                  "voting_config_exclusions" : [
+                    {
+                      "node_id" : "exlucdedNodeId",
+                      "node_name" : "excludedNodeName"
+                    }
+                  ]
+                },
+                "templates" : {
+                  "template" : {
+                    "order" : 0,
+                    "index_patterns" : [
+                      "pattern1",
+                      "pattern2"
+                    ],
+                    "settings" : {
+                      "index.version.created" : "%s"
+                    },
+                    "mappings" : {
+                      "key1" : { }
+                    },
+                    "aliases" : { }
+                  }
+                },
+                "indices" : {
+                  "index" : {
+                    "version" : 2,
+                    "mapping_version" : 1,
+                    "settings_version" : 1,
+                    "aliases_version" : 1,
+                    "routing_num_shards" : 1,
+                    "state" : "open",
+                    "settings" : {
+                      "index.number_of_replicas" : "2",
+                      "index.number_of_shards" : "1",
+                      "index.version.created" : "%s"
+                    },
+                    "mappings" : {
+                      "type" : {
+                        "type1" : {
+                          "key" : "value"
+                        }
+                      }
+                    },
+                    "aliases" : [
+                      "alias"
+                    ],
+                    "primary_terms" : {
+                      "0" : 1
+                    },
+                    "in_sync_allocations" : {
+                      "0" : [
+                        "allocationId"
+                      ]
+                    },
+                    "rollover_info" : {
+                      "rolloveAlias" : {
+                        "met_conditions" : { },
+                        "time" : 1
+                      }
+                    },
+                    "system" : false,
+                    "timestamp_range" : {
+                      "shards" : [ ]
+                    }
+                  }
+                },
+                "index-graveyard" : {
+                  "tombstones" : [ ]
+                }
+              }
+            }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
 
     public void testToXContentAPI_FlatSettingFalse_ReduceMappingTrue() throws IOException {
@@ -549,102 +529,96 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(
-            "{\n"
-                + "  \"metadata\" : {\n"
-                + "    \"cluster_uuid\" : \"clusterUUID\",\n"
-                + "    \"cluster_uuid_committed\" : false,\n"
-                + "    \"cluster_coordination\" : {\n"
-                + "      \"term\" : 1,\n"
-                + "      \"last_committed_config\" : [\n"
-                + "        \"commitedConfigurationNodeId\"\n"
-                + "      ],\n"
-                + "      \"last_accepted_config\" : [\n"
-                + "        \"acceptedConfigurationNodeId\"\n"
-                + "      ],\n"
-                + "      \"voting_config_exclusions\" : [\n"
-                + "        {\n"
-                + "          \"node_id\" : \"exlucdedNodeId\",\n"
-                + "          \"node_name\" : \"excludedNodeName\"\n"
-                + "        }\n"
-                + "      ]\n"
-                + "    },\n"
-                + "    \"templates\" : {\n"
-                + "      \"template\" : {\n"
-                + "        \"order\" : 0,\n"
-                + "        \"index_patterns\" : [\n"
-                + "          \"pattern1\",\n"
-                + "          \"pattern2\"\n"
-                + "        ],\n"
-                + "        \"settings\" : {\n"
-                + "          \"index\" : {\n"
-                + "            \"version\" : {\n"
-                + "              \"created\" : \""
-                + Version.CURRENT.id
-                + "\"\n"
-                + "            }\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"mappings\" : { },\n"
-                + "        \"aliases\" : { }\n"
-                + "      }\n"
-                + "    },\n"
-                + "    \"indices\" : {\n"
-                + "      \"index\" : {\n"
-                + "        \"version\" : 2,\n"
-                + "        \"mapping_version\" : 1,\n"
-                + "        \"settings_version\" : 1,\n"
-                + "        \"aliases_version\" : 1,\n"
-                + "        \"routing_num_shards\" : 1,\n"
-                + "        \"state\" : \"open\",\n"
-                + "        \"settings\" : {\n"
-                + "          \"index\" : {\n"
-                + "            \"number_of_shards\" : \"1\",\n"
-                + "            \"number_of_replicas\" : \"2\",\n"
-                + "            \"version\" : {\n"
-                + "              \"created\" : \""
-                + Version.CURRENT.id
-                + "\"\n"
-                + "            }\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"mappings\" : {\n"
-                + "          \"type\" : {\n"
-                + "            \"type1\" : {\n"
-                + "              \"key\" : \"value\"\n"
-                + "            }\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"aliases\" : [\n"
-                + "          \"alias\"\n"
-                + "        ],\n"
-                + "        \"primary_terms\" : {\n"
-                + "          \"0\" : 1\n"
-                + "        },\n"
-                + "        \"in_sync_allocations\" : {\n"
-                + "          \"0\" : [\n"
-                + "            \"allocationId\"\n"
-                + "          ]\n"
-                + "        },\n"
-                + "        \"rollover_info\" : {\n"
-                + "          \"rolloveAlias\" : {\n"
-                + "            \"met_conditions\" : { },\n"
-                + "            \"time\" : 1\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"system\" : false,\n"
-                + "        \"timestamp_range\" : {\n"
-                + "          \"shards\" : [ ]\n"
-                + "        }\n"
-                + "      }\n"
-                + "    },\n"
-                + "    \"index-graveyard\" : {\n"
-                + "      \"tombstones\" : [ ]\n"
-                + "    }\n"
-                + "  }\n"
-                + "}",
-            Strings.toString(builder)
-        );
+        assertEquals("""
+            {
+              "metadata" : {
+                "cluster_uuid" : "clusterUUID",
+                "cluster_uuid_committed" : false,
+                "cluster_coordination" : {
+                  "term" : 1,
+                  "last_committed_config" : [
+                    "commitedConfigurationNodeId"
+                  ],
+                  "last_accepted_config" : [
+                    "acceptedConfigurationNodeId"
+                  ],
+                  "voting_config_exclusions" : [
+                    {
+                      "node_id" : "exlucdedNodeId",
+                      "node_name" : "excludedNodeName"
+                    }
+                  ]
+                },
+                "templates" : {
+                  "template" : {
+                    "order" : 0,
+                    "index_patterns" : [
+                      "pattern1",
+                      "pattern2"
+                    ],
+                    "settings" : {
+                      "index" : {
+                        "version" : {
+                          "created" : "%s"
+                        }
+                      }
+                    },
+                    "mappings" : { },
+                    "aliases" : { }
+                  }
+                },
+                "indices" : {
+                  "index" : {
+                    "version" : 2,
+                    "mapping_version" : 1,
+                    "settings_version" : 1,
+                    "aliases_version" : 1,
+                    "routing_num_shards" : 1,
+                    "state" : "open",
+                    "settings" : {
+                      "index" : {
+                        "number_of_shards" : "1",
+                        "number_of_replicas" : "2",
+                        "version" : {
+                          "created" : "%s"
+                        }
+                      }
+                    },
+                    "mappings" : {
+                      "type" : {
+                        "type1" : {
+                          "key" : "value"
+                        }
+                      }
+                    },
+                    "aliases" : [
+                      "alias"
+                    ],
+                    "primary_terms" : {
+                      "0" : 1
+                    },
+                    "in_sync_allocations" : {
+                      "0" : [
+                        "allocationId"
+                      ]
+                    },
+                    "rollover_info" : {
+                      "rolloveAlias" : {
+                        "met_conditions" : { },
+                        "time" : 1
+                      }
+                    },
+                    "system" : false,
+                    "timestamp_range" : {
+                      "shards" : [ ]
+                    }
+                  }
+                },
+                "index-graveyard" : {
+                  "tombstones" : [ ]
+                }
+              }
+            }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
 
     private Metadata buildMetadata() throws IOException {

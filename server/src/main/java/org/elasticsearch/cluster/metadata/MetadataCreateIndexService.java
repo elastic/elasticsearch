@@ -55,12 +55,13 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -127,7 +128,7 @@ public class MetadataCreateIndexService {
     private final SystemIndices systemIndices;
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
-    private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
+    private final Set<IndexSettingProvider> indexSettingProviders;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -141,7 +142,8 @@ public class MetadataCreateIndexService {
         final ThreadPool threadPool,
         final NamedXContentRegistry xContentRegistry,
         final SystemIndices systemIndices,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final IndexSettingProviders indexSettingProviders
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -155,19 +157,7 @@ public class MetadataCreateIndexService {
         this.systemIndices = systemIndices;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.shardLimitValidator = shardLimitValidator;
-    }
-
-    /**
-     * Add a provider to be invoked to get additional index settings prior to an index being created
-     */
-    public void addAdditionalIndexSettingProvider(IndexSettingProvider provider) {
-        if (provider == null) {
-            throw new IllegalArgumentException("provider must not be null");
-        }
-        if (indexSettingProviders.contains(provider)) {
-            throw new IllegalArgumentException("provider already added");
-        }
-        this.indexSettingProviders.add(provider);
+        this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
     }
 
     /**
@@ -566,7 +556,8 @@ public class MetadataCreateIndexService {
                 // shard id and the current timestamp
                 xContentRegistry,
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                systemIndices::isSystemName
             ),
             templates.stream().map(IndexTemplateMetadata::getName).collect(toList()),
             metadataTransformer
@@ -632,7 +623,8 @@ public class MetadataCreateIndexService {
                 xContentRegistry,
                 // the context is used ony for validation so it's fine to pass fake values for the shard id and the current timestamp
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                systemIndices::isSystemName
             ),
             Collections.singletonList(templateName),
             metadataTransformer
@@ -688,7 +680,8 @@ public class MetadataCreateIndexService {
                 aliasValidator,
                 xContentRegistry,
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                systemIndices::isSystemName
             ),
             List.of(),
             metadataTransformer
@@ -783,7 +776,8 @@ public class MetadataCreateIndexService {
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                systemIndices::isSystemName
             ),
             List.of(),
             metadataTransformer
@@ -864,7 +858,13 @@ public class MetadataCreateIndexService {
             // additionalIndexSettings map
             for (IndexSettingProvider provider : indexSettingProviders) {
                 additionalIndexSettings.put(
-                    provider.getAdditionalIndexSettings(request.index(), isDataStreamIndex, templateAndRequestSettings)
+                    provider.getAdditionalIndexSettings(
+                        request.index(),
+                        request.dataStreamName(),
+                        currentState.getMetadata(),
+                        request.getNameResolvedAt(),
+                        templateAndRequestSettings
+                    )
                 );
             }
 
@@ -1027,7 +1027,8 @@ public class MetadataCreateIndexService {
         AliasValidator aliasValidator,
         NamedXContentRegistry xContentRegistry,
         SearchExecutionContext searchExecutionContext,
-        Function<String, String> indexNameExpressionResolver
+        Function<String, String> indexNameExpressionResolver,
+        Predicate<String> systemNamePredicate
     ) {
 
         // Keep a separate set to facilitate searches when processing aliases from the template
@@ -1040,12 +1041,13 @@ public class MetadataCreateIndexService {
             if (Strings.hasLength(alias.filter())) {
                 aliasValidator.validateAliasFilter(alias.name(), alias.filter(), searchExecutionContext, xContentRegistry);
             }
+
             AliasMetadata aliasMetadata = AliasMetadata.builder(alias.name())
                 .filter(alias.filter())
                 .indexRouting(alias.indexRouting())
                 .searchRouting(alias.searchRouting())
                 .writeIndex(alias.writeIndex())
-                .isHidden(alias.isHidden())
+                .isHidden(systemNamePredicate.test(alias.name()) ? Boolean.TRUE : alias.isHidden())
                 .build();
             resolvedAliases.add(aliasMetadata);
             resolvedExpressions.add(new Alias(resolvedExpression));
@@ -1073,6 +1075,17 @@ public class MetadataCreateIndexService {
                 if (aliasMetadata.alias().contains("{index}")) {
                     String templatedAlias = aliasMetadata.alias().replace("{index}", index);
                     aliasMetadata = AliasMetadata.newAliasMetadata(aliasMetadata, templatedAlias);
+                }
+
+                // set system aliases from templates to hidden
+                if (systemNamePredicate.test(aliasMetadata.alias())) {
+                    aliasMetadata = AliasMetadata.builder(aliasMetadata.alias())
+                        .filter(aliasMetadata.filter())
+                        .indexRouting(aliasMetadata.indexRouting())
+                        .searchRouting(aliasMetadata.searchRouting())
+                        .writeIndex(aliasMetadata.writeIndex())
+                        .isHidden(true)
+                        .build();
                 }
 
                 aliasValidator.validateAliasMetadata(aliasMetadata, index, metadata);

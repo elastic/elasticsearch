@@ -12,7 +12,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -151,7 +151,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
             searchRequest,
             containsString(
                 "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
-                    + "{\"range\":{\"time\":{\"from\":1000,\"to\":2300,\"include_lower\":true,\"include_upper\":false,"
+                    + "{\"range\":{\"time\":{\"gte\":1000,\"lt\":2300,"
                     + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
             )
         );
@@ -201,7 +201,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
             searchRequest,
             containsString(
                 "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
-                    + "{\"range\":{\"time\":{\"from\":1000,\"to\":2300,\"include_lower\":true,\"include_upper\":false,"
+                    + "{\"range\":{\"time\":{\"gte\":1000,\"lt\":2300,"
                     + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
             )
         );
@@ -440,9 +440,9 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(capturedSearchRequests.size(), equalTo(2));
 
         String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
-        assertThat(searchRequest, containsString("\"from\":100000,\"to\":400000"));
+        assertThat(searchRequest, containsString("\"gte\":100000,\"lt\":400000"));
         searchRequest = capturedSearchRequests.get(1).toString().replaceAll("\\s", "");
-        assertThat(searchRequest, containsString("\"from\":200000,\"to\":400000"));
+        assertThat(searchRequest, containsString("\"gte\":200000,\"lt\":400000"));
     }
 
     public void testCancelGivenNextWasNeverCalled() {

@@ -287,7 +287,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             super(p);
             this.bigArrays = bigArrays;
             this.hll = hll;
-            capacity = (1 << p) / 4; // because ints take 4 bytes
+            this.capacity = (1 << p) / 4; // because ints take 4 bytes
             threshold = (int) (capacity * MAX_LOAD_FACTOR);
             mask = capacity - 1;
             sizes = bigArrays.newIntArray(initialBucketCount);

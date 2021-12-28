@@ -103,7 +103,7 @@ the resources available to handle the extra load that will result.
 
 `indices.recovery.max_concurrent_snapshot_file_downloads_per_node`::
 (<<cluster-update-settings,Dynamic>>, Expert) Number of snapshot file downloads requests
-execyted in parallel in the target node for all recoveries. Defaults to `25`.
+executed in parallel in the target node for all recoveries. Defaults to `25`.
 +
 Do not increase this setting without carefully verifying that your cluster has
 the resources available to handle the extra load that will result.

@@ -149,7 +149,7 @@ public class ShardStateActionTests extends ESTestCase {
         clusterService.close();
         transportService.close();
         super.tearDown();
-        assertThat(shardStateAction.remoteShardFailedCacheSize(), equalTo(0));
+        assertThat(shardStateAction.remoteShardRequestsInFlight(), equalTo(0));
     }
 
     @AfterClass
@@ -374,6 +374,33 @@ public class ShardStateActionTests extends ESTestCase {
                     }
                 }
             );
+        }
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+        transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
+        latch.await();
+        assertThat(transport.capturedRequests(), arrayWithSize(0));
+    }
+
+    public void testDeduplicateRemoteShardStarted() throws InterruptedException {
+        final String index = "test";
+        setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
+        ShardRouting startedShard = getRandomShardRouting(index);
+        int numListeners = between(1, 100);
+        CountDownLatch latch = new CountDownLatch(numListeners);
+        long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+        for (int i = 0; i < numListeners; i++) {
+            shardStateAction.shardStarted(startedShard, primaryTerm, "started", ShardLongFieldRange.EMPTY, new ActionListener<>() {
+                @Override
+                public void onResponse(Void aVoid) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    latch.countDown();
+                }
+            });
         }
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests, arrayWithSize(1));

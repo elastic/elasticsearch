@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,7 +60,11 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
     }
 
     /**
-     * Calls {@link Object#equals} on equal objects on many threads and verifies they all return true.
+     * Calls {@link Object#equals} on equal objects on many threads and verifies
+     * they all return true. Folks tend to assume this is true about
+     * {@link Object#equals} and it <strong>generally</strong> is. But some
+     * equals implementations violate this assumption and it's very surprising.
+     * This tries to fail when that assumption is violated. 
      */
     public final void testConcurrentEquals() throws IOException, InterruptedException, ExecutionException {
         T testInstance = createTestInstance();
@@ -92,7 +97,11 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
     }
 
     /**
-     * Calls {@link Object#hashCode} on the same object on many threads and verifies they return the same result.
+     * Calls {@link Object#hashCode} on the same object on many threads and
+     * verifies they return the same result. Folks tend to assume this is true
+     * about {@link Object#hashCode} and it <strong>generally</strong> is. But
+     * some hashCode implementations violate this assumption and it's very
+     * surprising. This tries to fail when that assumption is violated.
      */
     public final void testConcurrentHashCode() throws IOException, InterruptedException, ExecutionException {
 
@@ -116,7 +125,15 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
     }
 
     /**
-     * Test serializing the same object on many threads always deserializes to equal instances.
+     * Test serializing the same object on many threads always
+     * deserializes to equal instances. Folks tend to assume this is true
+     * about serialization and it <strong>generally</strong> is. But
+     * some implementations violate this assumption and it's very
+     * surprising. This tries to fail when that assumption is violated.
+     * <p>
+     * Async search can serialize responses concurrently with other
+     * operations like {@link ToXContent#toXContent}. This doesn't
+     * check that exactly, but it's close. 
      */
     public final void testConcurrentSerialization() throws IOException, InterruptedException, ExecutionException {
         T testInstance = createTestInstance();

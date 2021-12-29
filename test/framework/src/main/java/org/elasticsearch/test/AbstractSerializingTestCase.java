@@ -46,7 +46,11 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
     }
 
     /**
-     * Calls {@link ToXContent#toXContent} on many threads and verifies that they produce the same result.
+     * Calls {@link ToXContent#toXContent} on many threads and verifies that
+     * they produce the same result. Async search sometimes does this to
+     * aggregation responses and, in general, we think it's reasonable for
+     * everything that can convert itself to json to be able to do so
+     * concurrently.
      */
     public final void testConcurrentToXContent() throws IOException, InterruptedException, ExecutionException {
         XContentType xContentType = randomFrom(XContentType.values());

@@ -465,6 +465,13 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     protected abstract void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) throws IOException;
 
+    /**
+     * Calls {@link ToXContent#toXContent} on many threads and verifies that
+     * they produce the same result. Async search sometimes does this to
+     * aggregation responses and, in general, we think it's reasonable for
+     * everything that can convert itself to json to be able to do so
+     * concurrently.
+     */
     public final void testConcurrentToXContent() throws IOException, InterruptedException, ExecutionException {
         T testInstance = createTestInstanceForXContent();
         ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));

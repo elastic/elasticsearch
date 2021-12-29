@@ -17,3 +17,15 @@ api_key_admin_role:
 api_key_user_role:
   cluster:
     - manage_own_api_key
+
+_es_test_root:
+  cluster: [ "ALL" ]
+  indices:
+    - names: [ "*" ]
+      allow_restricted_indices: true
+      privileges: [ "ALL" ]
+  run_as: [ "*" ]
+  applications:
+    - application: "*"
+      privileges: [ "*" ]
+      resources: [ "*" ]

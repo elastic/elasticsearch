@@ -20,7 +20,7 @@ versions << [
   'pdfbox': '2.0.24',
   'poi'   : '4.1.2',
   'mime4j': '0.8.5',
-  'thumbnails4j': '1.0.0-SNAPSHOT'
+  'thumbnails4j': '1.0.0'
 ]
 
 repositories {
@@ -73,13 +73,31 @@ dependencies {
   // POIs dependency
   api 'com.zaxxer:SparseBitSet:1.2'
 
-  api ("co.elastic:thumbnails4j-xlsx:${versions.thumbnails4j}")
-  api ("co.elastic:thumbnails4j-xls:${versions.thumbnails4j}")
-  api ("co.elastic:thumbnails4j-pptx:${versions.thumbnails4j}")
-  api ("co.elastic:thumbnails4j-pdf:${versions.thumbnails4j}")
-  api ("co.elastic:thumbnails4j-image:${versions.thumbnails4j}")
-  api ("co.elastic:thumbnails4j-docx:${versions.thumbnails4j}")
-  api ("co.elastic:thumbnails4j-doc:${versions.thumbnails4j}")
+  // for thumbnails4j
+  api ("co.elastic.thumbnails4j:thumbnails4j-xlsx:${versions.thumbnails4j}")
+  api ("co.elastic.thumbnails4j:thumbnails4j-xls:${versions.thumbnails4j}")
+  api ("co.elastic.thumbnails4j:thumbnails4j-pptx:${versions.thumbnails4j}")
+  api ("co.elastic.thumbnails4j:thumbnails4j-pdf:${versions.thumbnails4j}")
+  api ("co.elastic.thumbnails4j:thumbnails4j-image:${versions.thumbnails4j}")
+  api ("co.elastic.thumbnails4j:thumbnails4j-docx:${versions.thumbnails4j}")
+  api ("co.elastic.thumbnails4j:thumbnails4j-doc:${versions.thumbnails4j}")
+
+  // transitives for thumbnails4j
+  api ("co.elastic.thumbnails4j:thumbnails4j-core:${versions.thumbnails4j}")
+  api ("com.github.virtuald:curvesapi:1.06")
+  api ("org.jvnet.staxex:stax-ex:1.8.1")
+  api ("com.sun.xml.fastinfoset:FastInfoset:1.2.16")
+  api ("fr.opensagres.xdocreport:fr.opensagres.xdocreport.converter.docx.xwpf:2.0.2")
+  api ("fr.opensagres.xdocreport:fr.opensagres.xdocreport.converter:2.0.2")
+  api ("fr.opensagres.xdocreport:fr.opensagres.xdocreport.core:2.0.2")
+  api ("fr.opensagres.xdocreport:fr.opensagres.poi.xwpf.converter.pdf:2.0.2")
+  api ("fr.opensagres.xdocreport:fr.opensagres.xdocreport.itext.extension:2.0.2")
+  api ("fr.opensagres.xdocreport:fr.opensagres.poi.xwpf.converter.xhtml:2.0.2")
+  api ("com.sun.istack:istack-commons-runtime:3.0.8")
+  api ("jakarta.xml.bind:jakarta.xml.bind-api:2.3.2")
+  api ("jakarta.activation:jakarta.activation-api:1.2.1")
+  api ("org.glassfish.jaxb:jaxb-runtime:2.3.2")
+  api ("org.glassfish.jaxb:txw2:2.3.2")
 }
 
 restResources {

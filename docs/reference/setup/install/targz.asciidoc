@@ -147,7 +147,7 @@ directory so that you do not delete important data later on.
 
 | conf
   | Generated TLS keys and certificates for the transport and HTTP layer.
-  | $ES_HOME/config/tls_auto_config_<timestamp>
+  | $ES_HOME/config/certs
  d|
 
 | data

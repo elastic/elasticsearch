@@ -16,7 +16,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public interface IpPrefixAggregationSupplier {
@@ -25,9 +24,9 @@ public interface IpPrefixAggregationSupplier {
         AggregatorFactories factories,
         ValuesSource valuesSource,
         DocValueFormat format,
-        long minDocCount,
-        List<IpPrefixAggregator.IpPrefix> prefixes,
         boolean keyed,
+        long minDocCount,
+        IpPrefixAggregator.IpPrefix ipPrefix,
         AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,

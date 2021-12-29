@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -30,57 +31,101 @@ import java.util.Objects;
 
 public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpPrefix, InternalIpPrefix.Bucket> {
 
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements IpPrefix.Bucket, KeyComparable<InternalIpPrefix.Bucket> {
+    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket
+        implements
+            IpPrefix.Bucket,
+            KeyComparable<InternalIpPrefix.Bucket> {
 
         private final transient DocValueFormat format;
-        private final transient boolean keyed;
-        private final String key;
-        private final BytesRef value;
+        private final BytesRef key;
+        private final boolean keyed;
+        private final boolean isIpv6;
+        private final int prefixLength;
+        private final boolean appendPrefixLength;
         private final long docCount;
         private final InternalAggregations aggregations;
 
         public Bucket(
             DocValueFormat format,
+            BytesRef key,
             boolean keyed,
-            String key,
-            BytesRef value,
+            boolean isIpv6,
+            int prefixLength,
+            boolean appendPrefixLength,
             long docCount,
             InternalAggregations aggregations
         ) {
             this.format = format;
+            this.key = key;
             this.keyed = keyed;
-            this.key = key != null ? key : DocValueFormat.IP.format(value);
-            this.value = value;
+            this.isIpv6 = isIpv6;
+            this.prefixLength = prefixLength;
+            this.appendPrefixLength = appendPrefixLength;
             this.docCount = docCount;
             this.aggregations = aggregations;
         }
 
-        private static InternalIpPrefix.Bucket createFromStream(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
-            String key = in.readString();
-            BytesRef value = in.readBytesRef();
-            long docCount = in.readLong();
-            InternalAggregations aggregations = InternalAggregations.readFrom(in);
-
-            return new InternalIpPrefix.Bucket(format, keyed, key, value, docCount, aggregations);
+        public Bucket(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
+            this.format = format;
+            this.keyed = keyed;
+            this.key = in.readBytesRef();
+            this.isIpv6 = in.readBoolean();
+            this.prefixLength = in.readVInt();
+            this.appendPrefixLength = in.readBoolean();
+            this.docCount = in.readLong();
+            this.aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            String key = DocValueFormat.IP.format(this.key);
+            if (appendPrefixLength) {
+                key = key + "/" + prefixLength;
+            }
             if (keyed) {
                 builder.startObject(key);
             } else {
                 builder.startObject();
-                builder.field(CommonFields.KEY.getPreferredName(), DocValueFormat.IP.format(this.value));
+                builder.field(CommonFields.KEY.getPreferredName(), key);
+            }
+            if (!isIpv6) {
+                builder.field("netmask", DocValueFormat.IP.format(netmask(prefixLength)));
             }
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
+            builder.field(IpPrefixAggregationBuilder.IS_IPV6_FIELD.getPreferredName(), isIpv6);
+            builder.field(IpPrefixAggregationBuilder.PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);
             aggregations.toXContentInternal(builder, params);
-            return builder.endObject();
+            builder.endObject();
+            return builder;
+        }
+
+        private static BytesRef netmask(int prefixLength) {
+            final BitSet bs = new BitSet(32);
+            bs.set(0, 32, false);
+            bs.set(32 - prefixLength, 32, true);
+            return new BytesRef(toBigEndian(toIpv4ByteArray(bs.toByteArray())));
+        }
+
+        private static byte[] toIpv4ByteArray(byte[] array) {
+            byte[] netmask = new byte[4];
+            System.arraycopy(array, 0, netmask, 0, array.length);
+            return netmask;
+        }
+
+        public static byte[] toBigEndian(byte[] array) {
+            byte[] result = new byte[array.length];
+            for (int i = 0; i < array.length; i++) {
+                result[array.length - i - 1] = array[i];
+            }
+            return result;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(key);
-            out.writeBytesRef(value);
+            out.writeBytesRef(key);
+            out.writeBoolean(isIpv6);
+            out.writeVInt(prefixLength);
+            out.writeBoolean(appendPrefixLength);
             out.writeLong(docCount);
             aggregations.writeTo(out);
         }
@@ -89,21 +134,25 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
             return format;
         }
 
-        public boolean isKeyed() {
-            return keyed;
-        }
-
-        public String getKey() {
+        public BytesRef getKey() {
             return key;
-        }
-
-        public BytesRef getValue() {
-            return value;
         }
 
         @Override
         public String getKeyAsString() {
-            return key;
+            return DocValueFormat.IP.format(key);
+        }
+
+        public boolean isIpv6() {
+            return isIpv6;
+        }
+
+        public int getPrefixLength() {
+            return prefixLength;
+        }
+
+        public boolean appendPrefixLength() {
+            return appendPrefixLength;
         }
 
         @Override
@@ -121,48 +170,52 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Bucket bucket = (Bucket) o;
-            return keyed == bucket.keyed && docCount == bucket.docCount &&
-                Objects.equals(format, bucket.format) && Objects.equals(value, bucket.value) &&
-                Objects.equals(aggregations, bucket.aggregations);
+            return isIpv6 == bucket.isIpv6
+                && prefixLength == bucket.prefixLength
+                && appendPrefixLength == bucket.appendPrefixLength
+                && docCount == bucket.docCount
+                && Objects.equals(format, bucket.format)
+                && Objects.equals(key, bucket.key)
+                && Objects.equals(aggregations, bucket.aggregations);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(format, keyed, value, docCount, aggregations);
+            return Objects.hash(format, key, isIpv6, prefixLength, appendPrefixLength, docCount, aggregations);
         }
 
         @Override
         public int compareKey(Bucket other) {
-            return this.value.compareTo(other.value);
+            return this.key.compareTo(other.key);
         }
     }
 
     protected final DocValueFormat format;
-    protected final long minDocCount;
     protected final boolean keyed;
+    protected final long minDocCount;
     private final List<InternalIpPrefix.Bucket> buckets;
 
     public InternalIpPrefix(
         String name,
         DocValueFormat format,
+        boolean keyed,
         long minDocCount,
         List<Bucket> buckets,
-        boolean keyed,
         Map<String, Object> metadata
     ) {
         super(name, metadata);
+        this.keyed = keyed;
         this.minDocCount = minDocCount;
         this.format = format;
-        this.keyed = keyed;
         this.buckets = buckets;
     }
 
     public InternalIpPrefix(StreamInput in) throws IOException {
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
-        minDocCount = in.readVLong();
         keyed = in.readBoolean();
-        buckets = in.readList(stream -> InternalIpPrefix.Bucket.createFromStream(stream, format, keyed));
+        minDocCount = in.readVLong();
+        buckets = in.readList(stream -> new Bucket(stream, format, keyed));
     }
 
     @Override
@@ -173,17 +226,24 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
-        out.writeVLong(minDocCount);
         out.writeBoolean(keyed);
+        out.writeVLong(minDocCount);
         out.writeList(buckets);
     }
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+        List<InternalIpPrefix.Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
+        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
+
+        return new InternalIpPrefix(getName(), format, keyed, minDocCount, reducedBuckets, metadata);
+    }
+
+    private List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(aggregations.size()) {
             @Override
             protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
-                return a.current().value.compareTo(b.current().value) < 0;
+                return a.current().key.compareTo(b.current().key) < 0;
             }
         };
         for (InternalAggregation aggregation : aggregations) {
@@ -197,25 +257,25 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
         if (pq.size() > 0) {
             // list of buckets coming from different shards that have the same value
             List<Bucket> currentBuckets = new ArrayList<>();
-            BytesRef value = pq.top().current().value;
+            BytesRef value = pq.top().current().key;
 
             do {
                 final IteratorAndCurrent<Bucket> top = pq.top();
-                if (!top.current().value.equals(value)) {
+                if (!top.current().key.equals(value)) {
                     final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
                     if (reduced.getDocCount() >= minDocCount) {
                         reducedBuckets.add(reduced);
                     }
                     currentBuckets.clear();
-                    value = top.current().value;
+                    value = top.current().key;
                 }
 
                 currentBuckets.add(top.current());
 
                 if (top.hasNext()) {
                     top.next();
-                    assert top.current().value.compareTo(value) > 0 :
-                        "shards must return data sorted by value [" + top.current().value + "] and [" + value + "]";
+                    assert top.current().key.compareTo(value) > 0
+                        : "shards must return data sorted by value [" + top.current().key + "] and [" + value + "]";
                     pq.updateTop();
                 } else {
                     pq.pop();
@@ -230,14 +290,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
             }
         }
 
-        return new InternalIpPrefix(
-            getName(),
-            format,
-            minDocCount,
-            reducedBuckets,
-            keyed,
-            metadata
-        );
+        return reducedBuckets;
     }
 
     @Override
@@ -260,12 +313,21 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
 
     @Override
     public InternalIpPrefix create(List<Bucket> buckets) {
-        return new InternalIpPrefix(name, format, minDocCount, buckets, keyed, metadata);
+        return new InternalIpPrefix(name, format, keyed, minDocCount, buckets, metadata);
     }
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-        return new Bucket(format, keyed, prototype.key, prototype.value, prototype.docCount, prototype.aggregations);
+        return new Bucket(
+            format,
+            prototype.key,
+            prototype.keyed,
+            prototype.isIpv6,
+            prototype.prefixLength,
+            prototype.appendPrefixLength,
+            prototype.docCount,
+            prototype.aggregations
+        );
     }
 
     @Override
@@ -290,11 +352,11 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
         InternalIpPrefix that = (InternalIpPrefix) o;
-        return minDocCount == that.minDocCount && keyed == that.keyed && Objects.equals(format, that.format) && Objects.equals(buckets, that.buckets);
+        return minDocCount == that.minDocCount && Objects.equals(format, that.format) && Objects.equals(buckets, that.buckets);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), format, minDocCount, keyed, buckets);
+        return Objects.hash(super.hashCode(), format, minDocCount, buckets);
     }
 }

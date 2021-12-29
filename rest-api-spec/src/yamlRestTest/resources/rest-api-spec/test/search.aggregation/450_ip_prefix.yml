@@ -1,0 +1,359 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              ipv4:
+                type: ip
+              ipv6:
+                type: ip
+              value:
+                type: long
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "ipv4": "192.168.1.10", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f10", "value": 10 }
+          - { "index": { } }
+          - { "ipv4": "192.168.1.12", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f12", "value": 20 }
+          - { "index": { } }
+          - { "ipv4": "192.168.1.33", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f33", "value": 40 }
+          - { "index": { } }
+          - { "ipv4": "192.168.1.10", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f10", "value": 20 }
+          - { "index": { } }
+          - { "ipv4": "192.168.1.33", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f33", "value": 70 }
+          - { "index": { } }
+          - { "ipv4": "192.168.2.41", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f41", "value": 20 }
+          - { "index": { } }
+          - { "ipv4": "192.168.2.10", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f10", "value": 30 }
+          - { "index": { } }
+          - { "ipv4": "192.168.2.23", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f23", "value": 50 }
+          - { "index": { } }
+          - { "ipv4": "192.168.2.41", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f41", "value": 60 }
+          - { "index": { } }
+          - { "ipv4": "192.168.2.10", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f10", "value": 10 }
+
+---
+"IPv4 prefix":
+  - skip:
+      version: " - 8.0.99"
+      reason: "added in 8.1.0"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            ip_prefix:
+              ip_prefix:
+                field: "ipv4"
+                is_ipv6: false
+                prefix_len: 24
+
+
+  - match: { hits.total.value: 10 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.ip_prefix.buckets: 2 }
+  - match: { aggregations.ip_prefix.buckets.0.key: "192.168.1.0" }
+  - match: { aggregations.ip_prefix.buckets.0.doc_count: 5 }
+  - is_false: aggregations.ip_prefix.buckets.0.is_ipv6
+  - match: { aggregations.ip_prefix.buckets.0.prefix_len: 24 }
+  - match: { aggregations.ip_prefix.buckets.0.netmask: "255.255.255.0" }
+  - match: { aggregations.ip_prefix.buckets.1.key: "192.168.2.0" }
+  - match: { aggregations.ip_prefix.buckets.1.doc_count: 5 }
+  - is_false: aggregations.ip_prefix.buckets.1.is_ipv6
+  - match: { aggregations.ip_prefix.buckets.1.prefix_len: 24 }
+  - match: { aggregations.ip_prefix.buckets.1.netmask: "255.255.255.0" }
+
+---
+"IPv4 short prefix":
+  - skip:
+      version: " - 8.0.99"
+      reason: "added in 8.1.0"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            first:
+              ip_prefix:
+                field: "ipv4"
+                is_ipv6: false
+                prefix_len: 13
+            second:
+              ip_prefix:
+                field: "ipv4"
+                is_ipv6: false
+                prefix_len: 6
+
+
+  - match: { hits.total.value: 10 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.first.buckets: 1 }
+  - match: { aggregations.first.buckets.0.key: "192.168.0.0" }
+  - match: { aggregations.first.buckets.0.doc_count: 10 }
+  - is_false: aggregations.first.buckets.0.is_ipv6
+  - match: { aggregations.first.buckets.0.prefix_len: 13 }
+  - match: { aggregations.first.buckets.0.netmask: "255.248.0.0" }
+  - length: { aggregations.second.buckets: 1 }
+  - match: { aggregations.second.buckets.0.key: "192.0.0.0" }
+  - match: { aggregations.second.buckets.0.doc_count: 10 }
+  - is_false: aggregations.second.buckets.0.is_ipv6
+  - match: { aggregations.second.buckets.0.prefix_len: 6 }
+  - match: { aggregations.second.buckets.0.netmask: "252.0.0.0" }
+
+---
+"IPv6 prefix":
+  - skip:
+      version: " - 8.0.99"
+      reason: "added in 8.1.0"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            ip_prefix:
+              ip_prefix:
+                field: "ipv6"
+                is_ipv6: true
+                prefix_len: 64
+
+
+  - match: { hits.total.value: 10 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.ip_prefix.buckets: 2 }
+  - match: { aggregations.ip_prefix.buckets.0.key: "2001:db8:a4f8:112a::" }
+  - match: { aggregations.ip_prefix.buckets.0.doc_count: 5 }
+  - is_true: aggregations.ip_prefix.buckets.0.is_ipv6
+  - match: { aggregations.ip_prefix.buckets.0.prefix_len: 64 }
+  - match: { aggregations.ip_prefix.buckets.0.netmask: null }
+  - match: { aggregations.ip_prefix.buckets.1.key: "2001:db8:a4f8:112c::" }
+  - match: { aggregations.ip_prefix.buckets.1.doc_count: 5 }
+  - is_true: aggregations.ip_prefix.buckets.1.is_ipv6
+  - match: { aggregations.ip_prefix.buckets.1.prefix_len: 64 }
+  - match: { aggregations.ip_prefix.buckets.1.netmask: null }
+
+---
+"Invalid IPv4 prefix":
+  - skip:
+      version: " - 8.0.99"
+      reason: "added in 8.1.0"
+  - do:
+      catch: /\[prefix_len\] must be in range \[0, 32\] for aggregation \[ip_prefix\]/
+      search:
+        body:
+          size: 0
+          aggs:
+            ip_prefix:
+              ip_prefix:
+                field: "ipv4"
+                is_ipv6: false
+                prefix_len: 44
+
+
+---
+"Invalid IPv6 prefix":
+  - skip:
+      version: " - 8.0.99"
+      reason: "added in 8.1.0"
+  - do:
+      catch: /\[prefix_len\] must be in range \[0, 128\] for aggregation \[ip_prefix\]/
+      search:
+        body:
+          size: 0
+          aggs:
+            ip_prefix:
+              ip_prefix:
+                field: "ipv6"
+                is_ipv6: true
+                prefix_len: 170
+
+---
+"IPv4 prefix sub aggregation":
+  - skip:
+      version: " - 8.0.99"
+      reason: "added in 8.1.0"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            top_ip_prefix:
+              ip_prefix:
+                field: "ipv4"
+                is_ipv6: false
+                prefix_len: 16
+              aggs:
+                sub_ip_prefix:
+                  ip_prefix:
+                    field: "ipv4"
+                    is_ipv6: false
+                    prefix_len: 24
+
+
+  - match: { hits.total.value: 10 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.top_ip_prefix.buckets: 1 }
+  - match: { aggregations.top_ip_prefix.buckets.0.key: "192.168.0.0" }
+  - match: { aggregations.top_ip_prefix.buckets.0.doc_count: 10 }
+  - is_false: aggregations.top_ip_prefix.buckets.0.is_ipv6
+  - match: { aggregations.top_ip_prefix.buckets.0.prefix_len: 16 }
+  - match: { aggregations.top_ip_prefix.buckets.0.netmask: "255.255.0.0" }
+  - match: { aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.0.key: "192.168.1.0" }
+  - match: { aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.0.doc_count: 5 }
+  - is_false: aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.0.is_ipv6
+  - match: { aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.0.prefix_len: 24 }
+  - match: { aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.0.netmask: "255.255.255.0" }
+  - match: { aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.1.key: "192.168.2.0" }
+  - match: { aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.1.doc_count: 5 }
+  - is_false: aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.1.is_ipv6
+  - match: { aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.1.prefix_len: 24 }
+  - match: { aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.1.netmask: "255.255.255.0" }
+
+---
+"IPv6 prefix sub aggregation":
+  - skip:
+      version: " - 8.0.99"
+      reason: "added in 8.1.0"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            top_ip_prefix:
+              ip_prefix:
+                field: "ipv6"
+                is_ipv6: true
+                prefix_len: 48
+              aggs:
+                sub_ip_prefix:
+                  ip_prefix:
+                    field: "ipv6"
+                    is_ipv6: true
+                    prefix_len: 64
+
+
+  - match: { hits.total.value: 10 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.top_ip_prefix.buckets: 1 }
+  - match: { aggregations.top_ip_prefix.buckets.0.key: "2001:db8:a4f8::" }
+  - match: { aggregations.top_ip_prefix.buckets.0.doc_count: 10 }
+  - is_true: aggregations.top_ip_prefix.buckets.0.is_ipv6
+  - match: { aggregations.top_ip_prefix.buckets.0.prefix_len: 48 }
+  - match: { aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.0.key: "2001:db8:a4f8:112a::" }
+  - match: { aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.0.doc_count: 5 }
+  - is_true: aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.0.is_ipv6
+  - match: { aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.0.prefix_len: 64 }
+  - match: { aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.0.netmask: null }
+  - match: { aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.1.key: "2001:db8:a4f8:112c::" }
+  - match: { aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.1.doc_count: 5 }
+  - is_true: aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.1.is_ipv6
+  - match: { aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.1.prefix_len: 64 }
+  - match: { aggregations.top_ip_prefix.buckets.0.sub_ip_prefix.buckets.1.netmask: null }
+
+---
+"IPv6 prefix metric sub aggregation":
+  - skip:
+      version: " - 8.0.99"
+      reason: "added in 8.1.0"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            ip_prefix:
+              ip_prefix:
+                field: "ipv6"
+                is_ipv6: true
+                prefix_len: 64
+              aggs:
+                sum:
+                  sum:
+                    field: value
+
+
+  - match: { hits.total.value: 10 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.ip_prefix.buckets: 2 }
+  - match: { aggregations.ip_prefix.buckets.0.key: "2001:db8:a4f8:112a::" }
+  - match: { aggregations.ip_prefix.buckets.0.doc_count: 5 }
+  - is_true: aggregations.ip_prefix.buckets.0.is_ipv6
+  - match: { aggregations.ip_prefix.buckets.0.prefix_len: 64 }
+  - match: { aggregations.ip_prefix.buckets.0.netmask: null }
+  - match: { aggregations.ip_prefix.buckets.0.sum.value: 160 }
+  - match: { aggregations.ip_prefix.buckets.1.key: "2001:db8:a4f8:112c::" }
+  - match: { aggregations.ip_prefix.buckets.1.doc_count: 5 }
+  - is_true: aggregations.ip_prefix.buckets.1.is_ipv6
+  - match: { aggregations.ip_prefix.buckets.1.prefix_len: 64 }
+  - match: { aggregations.ip_prefix.buckets.1.netmask: null }
+  - match: { aggregations.ip_prefix.buckets.1.sum.value: 170 }
+
+---
+"IPv4 prefix appended":
+  - skip:
+      version: " - 8.0.99"
+      reason: "added in 8.1.0"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            ip_prefix:
+              ip_prefix:
+                field: "ipv4"
+                is_ipv6: false
+                prefix_len: 24
+                append_prefix_len: true
+
+
+  - match: { hits.total.value: 10 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.ip_prefix.buckets: 2 }
+  - match: { aggregations.ip_prefix.buckets.0.key: "192.168.1.0/24" }
+  - match: { aggregations.ip_prefix.buckets.0.doc_count: 5 }
+  - is_false: aggregations.ip_prefix.buckets.0.is_ipv6
+  - match: { aggregations.ip_prefix.buckets.0.prefix_len: 24 }
+  - match: { aggregations.ip_prefix.buckets.0.netmask: "255.255.255.0" }
+  - match: { aggregations.ip_prefix.buckets.1.key: "192.168.2.0/24" }
+  - match: { aggregations.ip_prefix.buckets.1.doc_count: 5 }
+  - is_false: aggregations.ip_prefix.buckets.1.is_ipv6
+  - match: { aggregations.ip_prefix.buckets.1.prefix_len: 24 }
+  - match: { aggregations.ip_prefix.buckets.1.netmask: "255.255.255.0" }
+
+---
+"IPv6 prefix appended":
+  - skip:
+      version: " - 8.0.99"
+      reason: "added in 8.1.0"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            ip_prefix:
+              ip_prefix:
+                field: "ipv6"
+                is_ipv6: true
+                prefix_len: 64
+                append_prefix_len: true
+
+
+  - match: { hits.total.value: 10 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.ip_prefix.buckets: 2 }
+  - match: { aggregations.ip_prefix.buckets.0.key: "2001:db8:a4f8:112a::/64" }
+  - match: { aggregations.ip_prefix.buckets.0.doc_count: 5 }
+  - is_true: aggregations.ip_prefix.buckets.0.is_ipv6
+  - match: { aggregations.ip_prefix.buckets.0.prefix_len: 64 }
+  - match: { aggregations.ip_prefix.buckets.0.netmask: null }
+  - match: { aggregations.ip_prefix.buckets.1.key: "2001:db8:a4f8:112c::/64" }
+  - match: { aggregations.ip_prefix.buckets.1.doc_count: 5 }
+  - is_true: aggregations.ip_prefix.buckets.1.is_ipv6
+  - match: { aggregations.ip_prefix.buckets.1.prefix_len: 64 }
+  - match: { aggregations.ip_prefix.buckets.1.netmask: null }

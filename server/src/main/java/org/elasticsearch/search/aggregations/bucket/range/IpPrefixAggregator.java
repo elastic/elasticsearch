@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -31,136 +32,138 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public final class IpPrefixAggregator extends BucketsAggregator {
 
     public static class IpPrefix {
-        final String key;
         final boolean isIpv6;
-        final byte[] mask;
+        final int prefixLength;
+        final boolean appendPrefixLength;
+        final BytesRef mask;
 
-        public IpPrefix(
-            String key,
-            boolean isIpv6,
-            byte[] mask
-        ) {
-            this.key = key;
+        public IpPrefix(boolean isIpv6, int prefixLength, boolean appendPrefixLength, BytesRef mask) {
             this.isIpv6 = isIpv6;
+            this.prefixLength = prefixLength;
+            this.appendPrefixLength = appendPrefixLength;
             this.mask = mask;
-        }
-
-        public String getKey() {
-            return key;
         }
 
         public boolean isIpv6() {
             return isIpv6;
         }
 
-        public byte[] getMask() {
+        public int getPrefixLength() {
+            return prefixLength;
+        }
+
+        public boolean appendPrefixLength() {
+            return appendPrefixLength;
+        }
+
+        public BytesRef getMask() {
             return mask;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            IpPrefix ipPrefix = (IpPrefix) o;
+            return isIpv6 == ipPrefix.isIpv6
+                && prefixLength == ipPrefix.prefixLength
+                && appendPrefixLength == ipPrefix.appendPrefixLength
+                && Objects.equals(mask, ipPrefix.mask);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(isIpv6, prefixLength, appendPrefixLength, mask);
         }
     }
 
-    private final Comparator<IpPrefix> IP_PREFIX_COMPARATOR = ((Comparator<IpPrefix>) (ipA, ipB) -> Arrays.compare(ipA.mask, ipB.mask))
-        .thenComparing((ipA, ipB) -> Boolean.compare(ipA.isIpv6, ipB.isIpv6))
-        .thenComparing(Comparator.nullsLast(Comparator.comparing(IpPrefix::getKey)));
-
-    private final boolean keyed;
-    private final IpPrefix[] ipPrefixes;
-
     final ValuesSource.Bytes valuesSource;
     final DocValueFormat format;
-    private final long minDocCount;
-    private final BytesKeyedBucketOrds bucketOrds;
+    final long minDocCount;
+    final boolean keyed;
+    final BytesKeyedBucketOrds bucketOrds;
+    final IpPrefix ipPrefix;
 
     public IpPrefixAggregator(
         String name,
         AggregatorFactories factories,
         ValuesSource valuesSource,
         DocValueFormat format,
-        long minDocCount,
-        List<IpPrefix> ipPrefixes,
         boolean keyed,
+        long minDocCount,
+        IpPrefix ipPrefix,
         AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, context, parent, cardinality, metadata);
+        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.valuesSource = (ValuesSource.Bytes) valuesSource;
         this.format = format;
-        this.minDocCount = minDocCount;
         this.keyed = keyed;
+        this.minDocCount = minDocCount;
         this.bucketOrds = BytesKeyedBucketOrds.build(bigArrays(), cardinality);
-        this.ipPrefixes = ipPrefixes.toArray(new IpPrefix[0]);
-        Arrays.sort(this.ipPrefixes, IP_PREFIX_COMPARATOR);
+        this.ipPrefix = ipPrefix;
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(
-        LeafReaderContext ctx,
-        LeafBucketCollector sub
-    ) throws IOException {
-        return valuesSource == null ?
-            LeafBucketCollector.NO_OP_COLLECTOR : new IpPrefixLeafCollector(sub, valuesSource.bytesValues(ctx), ipPrefixes);
+    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        return valuesSource == null
+            ? LeafBucketCollector.NO_OP_COLLECTOR
+            : new IpPrefixLeafCollector(sub, valuesSource.bytesValues(ctx), ipPrefix);
     }
 
     private class IpPrefixLeafCollector extends LeafBucketCollectorBase {
-        private final IpPrefix[] ipPrefixes;
+        private final IpPrefix ipPrefix;
         private final LeafBucketCollector sub;
         private final SortedBinaryDocValues values;
 
-        public IpPrefixLeafCollector(
-            LeafBucketCollector sub,
-            SortedBinaryDocValues values,
-            IpPrefix[] ipPrefixes
-        ) {
+        public IpPrefixLeafCollector(LeafBucketCollector sub, SortedBinaryDocValues values, IpPrefix ipPrefix) {
             super(sub, values);
             this.sub = sub;
             this.values = values;
-            this.ipPrefixes = ipPrefixes;
-            for (int i = 1; i < ipPrefixes.length; ++i) {
-                if (IP_PREFIX_COMPARATOR.compare(ipPrefixes[i - 1], ipPrefixes[i]) > 0) {
-                    throw new IllegalArgumentException("Ip prefixes must be sorted");
-                }
-            }
+            this.ipPrefix = ipPrefix;
         }
 
         @Override
-        public void collect(
-            int doc,
-            long owningBucketOrd
-        ) throws IOException {
+        public void collect(int doc, long owningBucketOrd) throws IOException {
             if (values.advanceExact(doc)) {
                 int valuesCount = values.docValueCount();
 
                 byte[] previousSubnet = null;
                 for (int i = 0; i < valuesCount; ++i) {
-                    BytesRef ipAddress = values.nextValue();
-                    for (IpPrefix ipPrefix : ipPrefixes) {
-                        byte[] subnet = maskIpAddress(ipAddress.bytes, ipPrefix.mask);
-                        if (Arrays.equals(subnet, previousSubnet)) {
-                            continue;
-                        }
-                        long bucketOrd = bucketOrds.add(owningBucketOrd, new BytesRef(subnet));
-                        if (bucketOrd < 0) {
-                            bucketOrd = -1 - bucketOrd;
-                            collectExistingBucket(sub, doc, bucketOrd);
-                        } else {
-                            collectBucket(sub, doc, bucketOrd);
-                        }
-                        previousSubnet = subnet;
+                    BytesRef value = values.nextValue();
+                    byte[] ipAddress = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
+                    byte[] mask = Arrays.copyOfRange(
+                        ipPrefix.mask.bytes,
+                        ipPrefix.mask.offset,
+                        ipPrefix.mask.offset + ipPrefix.mask.length
+                    );
+                    byte[] subnet = maskIpAddress(ipAddress, mask);
+                    if (Arrays.equals(subnet, previousSubnet)) {
+                        continue;
                     }
+                    long bucketOrd = bucketOrds.add(owningBucketOrd, new BytesRef(subnet));
+                    if (bucketOrd < 0) {
+                        bucketOrd = -1 - bucketOrd;
+                        collectExistingBucket(sub, doc, bucketOrd);
+                    } else {
+                        collectBucket(sub, doc, bucketOrd);
+                    }
+                    previousSubnet = subnet;
                 }
             }
         }
 
         private byte[] maskIpAddress(byte[] ipAddress, byte[] subnetMask) {
-            //NOTE: ip addresses are always encoded to 16 bytes by IpFieldMapper
+            // NOTE: ip addresses are always encoded to 16 bytes by IpFieldMapper
             if (ipAddress.length != 16) {
                 throw new IllegalArgumentException("Invalid length for ip address [" + ipAddress.length + "]");
             }
@@ -184,11 +187,8 @@ public final class IpPrefixAggregator extends BucketsAggregator {
         }
     }
 
-
     @Override
-    public InternalAggregation[] buildAggregations(
-        long[] owningBucketOrds
-    ) throws IOException {
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         long totalOrdsToCollect = 0;
         final int[] bucketsInOrd = new int[owningBucketOrds.length];
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
@@ -230,9 +230,11 @@ public final class IpPrefixAggregator extends BucketsAggregator {
                 buckets.add(
                     new InternalIpPrefix.Bucket(
                         format,
-                        keyed,
-                        null, //ipAddress.toString(), //TODO: #57964 (use the key from the request)
                         BytesRef.deepCopyOf(ipAddress),
+                        keyed,
+                        ipPrefix.isIpv6,
+                        ipPrefix.prefixLength,
+                        ipPrefix.appendPrefixLength,
                         docCount,
                         subAggregationResults[b++]
                     )
@@ -241,20 +243,18 @@ public final class IpPrefixAggregator extends BucketsAggregator {
                 // NOTE: the aggregator is expected to return sorted results
                 CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
             }
-            results[ordIdx] = new InternalIpPrefix(name, format, minDocCount, buckets, keyed, metadata());
+            results[ordIdx] = new InternalIpPrefix(name, format, keyed, minDocCount, buckets, metadata());
         }
         return results;
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalIpPrefix(
-            name,
-            format,
-            minDocCount,
-            Collections.emptyList(),
-            keyed,
-            metadata()
-        );
+        return new InternalIpPrefix(name, format, keyed, minDocCount, Collections.emptyList(), metadata());
+    }
+
+    @Override
+    public void doClose() {
+        Releasables.close(bucketOrds);
     }
 }

@@ -19,22 +19,20 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class IpPrefixAggregatorFactory extends ValuesSourceAggregatorFactory {
-    private final long minDocCount;
     private final boolean keyed;
-    private final List<IpPrefixAggregator.IpPrefix> prefixes;
-    private final IpPrefixAggregationSupplier aggregationSupplier
-        ;
+    private final long minDocCount;
+    private final IpPrefixAggregator.IpPrefix ipPrefix;
+    private final IpPrefixAggregationSupplier aggregationSupplier;
 
     public IpPrefixAggregatorFactory(
         String name,
         ValuesSourceConfig config,
-        long minDocCount,
         boolean keyed,
-        List<IpPrefixAggregator.IpPrefix> prefixes,
+        long minDocCount,
+        IpPrefixAggregator.IpPrefix ipPrefix,
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
@@ -42,19 +40,14 @@ public class IpPrefixAggregatorFactory extends ValuesSourceAggregatorFactory {
         IpPrefixAggregationSupplier aggregationSupplier
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
-        this.minDocCount = minDocCount;
         this.keyed = keyed;
-        this.prefixes = prefixes;
+        this.minDocCount = minDocCount;
+        this.ipPrefix = ipPrefix;
         this.aggregationSupplier = aggregationSupplier;
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(
-            IpPrefixAggregationBuilder.REGISTRY_KEY,
-            CoreValuesSourceType.IP,
-            IpPrefixAggregator::new,
-            true
-        );
+        builder.register(IpPrefixAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.IP, IpPrefixAggregator::new, true);
     }
 
     @Override
@@ -64,9 +57,9 @@ public class IpPrefixAggregatorFactory extends ValuesSourceAggregatorFactory {
             factories,
             null,
             config.format(),
-            minDocCount,
-            prefixes,
             keyed,
+            minDocCount,
+            ipPrefix,
             context,
             parent,
             CardinalityUpperBound.NONE,
@@ -75,15 +68,16 @@ public class IpPrefixAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         return aggregationSupplier.build(
             name,
             factories,
             config.getValuesSource(),
             config.format(),
-            minDocCount,
-            prefixes,
             keyed,
+            minDocCount,
+            ipPrefix,
             context,
             parent,
             cardinality,

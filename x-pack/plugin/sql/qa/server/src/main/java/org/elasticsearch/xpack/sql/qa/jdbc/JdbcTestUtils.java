@@ -7,16 +7,10 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.sql.action.BasicFormatter;
-import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
 
 final class JdbcTestUtils {
 
@@ -95,36 +89,5 @@ final class JdbcTestUtils {
             }
         }
         return buffer;
-    }
-
-    public static void logLikeCLI(ResultSet rs, Logger logger) throws SQLException {
-        ResultSetMetaData metaData = rs.getMetaData();
-        int columns = metaData.getColumnCount();
-
-        List<ColumnInfo> cols = new ArrayList<>(columns);
-
-        for (int i = 1; i <= columns; i++) {
-            cols.add(
-                new ColumnInfo(
-                    metaData.getTableName(i),
-                    metaData.getColumnName(i),
-                    metaData.getColumnTypeName(i),
-                    metaData.getColumnDisplaySize(i)
-                )
-            );
-        }
-
-        List<List<Object>> data = new ArrayList<>();
-
-        while (rs.next()) {
-            List<Object> entry = new ArrayList<>(columns);
-            for (int i = 1; i <= columns; i++) {
-                entry.add(rs.getObject(i));
-            }
-            data.add(entry);
-        }
-
-        BasicFormatter formatter = new BasicFormatter(cols, data, CLI);
-        logger.info("\n" + formatter.formatWithHeader(cols, data));
     }
 }

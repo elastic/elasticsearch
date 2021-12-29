@@ -6,9 +6,22 @@
  * Side Public License, v 1.
  */
 
-package org.apache.lucene.index;
+package org.elasticsearch.index.engine;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.CodecReader;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterCodecReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
+import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.util.Bits;
@@ -41,8 +54,10 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
      * @param field the soft deletes field
      */
     public LazySoftDeletesDirectoryReaderWrapper(DirectoryReader in, String field) throws IOException {
-        super(in, new LazySoftDeletesSubReaderWrapper(field));
-        readerCacheHelper = in.getReaderCacheHelper() == null ? null : new DelegatingCacheHelper(in.getReaderCacheHelper());
+        super(in, new LazySoftDeletesSubReaderWrapper(in, field));
+        readerCacheHelper = in.getReaderCacheHelper() == null
+            ? null
+            : new DelegatingCacheHelper(in.getReaderCacheHelper(), getCacheKey(in, field));
     }
 
     @Override
@@ -57,10 +72,12 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
 
     private static class LazySoftDeletesSubReaderWrapper extends SubReaderWrapper {
         private final String field;
+        private final DirectoryReader in;
 
-        LazySoftDeletesSubReaderWrapper(String field) {
+        LazySoftDeletesSubReaderWrapper(DirectoryReader in, String field) {
             Objects.requireNonNull(field, "Field must not be null");
             this.field = field;
+            this.in = in;
         }
 
         @Override
@@ -78,13 +95,16 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
 
         @Override
         public LeafReader wrap(LeafReader reader) {
-            return LazySoftDeletesDirectoryReaderWrapper.wrap(reader, field);
+            try {
+                return LazySoftDeletesDirectoryReaderWrapper.wrap(reader, in, field);
+            } catch (IOException e) {
+                throw new IllegalStateException("Unable to wrap leaf reader", e);
+            }
         }
     }
 
-    static LeafReader wrap(LeafReader reader, String field) {
+    static LeafReader wrap(LeafReader reader, DirectoryReader in, String field) throws IOException {
         final SegmentReader segmentReader = Lucene.segmentReader(reader);
-        assert segmentReader.isNRT == false : "expected non-NRT reader";
         final SegmentCommitInfo segmentInfo = segmentReader.getSegmentInfo();
         final int numSoftDeletes = segmentInfo.getSoftDelCount();
         if (numSoftDeletes == 0) {
@@ -94,8 +114,8 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         final int numDocs = maxDoc - segmentInfo.getDelCount() - segmentInfo.getSoftDelCount();
         final LazyBits lazyBits = new LazyBits(maxDoc, field, reader, numSoftDeletes, numDocs);
         return reader instanceof CodecReader
-            ? new LazySoftDeletesFilterCodecReader((CodecReader) reader, lazyBits, numDocs)
-            : new LazySoftDeletesFilterLeafReader(reader, lazyBits, numDocs);
+            ? new LazySoftDeletesFilterCodecReader((CodecReader) reader, lazyBits, numDocs, in, field)
+            : new LazySoftDeletesFilterLeafReader(reader, lazyBits, numDocs, in, field);
     }
 
     public static final class LazySoftDeletesFilterLeafReader extends FilterLeafReader {
@@ -104,14 +124,15 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         private final int numDocs;
         private final CacheHelper readerCacheHelper;
 
-        public LazySoftDeletesFilterLeafReader(LeafReader reader, LazyBits bits, int numDocs) {
+        public LazySoftDeletesFilterLeafReader(LeafReader reader, LazyBits bits, int numDocs, DirectoryReader in, String field)
+            throws IOException {
             super(reader);
             this.reader = reader;
             this.bits = bits;
             this.numDocs = numDocs;
             this.readerCacheHelper = reader.getReaderCacheHelper() == null
                 ? null
-                : new DelegatingCacheHelper(reader.getReaderCacheHelper());
+                : new DelegatingCacheHelper(reader.getReaderCacheHelper(), getCacheKey(in, field));
         }
 
         @Override
@@ -141,14 +162,15 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         private final int numDocs;
         private final CacheHelper readerCacheHelper;
 
-        public LazySoftDeletesFilterCodecReader(CodecReader reader, LazyBits bits, int numDocs) {
+        public LazySoftDeletesFilterCodecReader(CodecReader reader, LazyBits bits, int numDocs, DirectoryReader in, String field)
+            throws IOException {
             super(reader);
             this.reader = reader;
             this.bits = bits;
             this.numDocs = numDocs;
             this.readerCacheHelper = reader.getReaderCacheHelper() == null
                 ? null
-                : new DelegatingCacheHelper(reader.getReaderCacheHelper());
+                : new DelegatingCacheHelper(reader.getReaderCacheHelper(), getCacheKey(in, field));
         }
 
         @Override
@@ -172,13 +194,7 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         }
     }
 
-    private static class DelegatingCacheHelper implements CacheHelper {
-        private final CacheHelper delegate;
-        private final CacheKey cacheKey = new CacheKey();
-
-        DelegatingCacheHelper(CacheHelper delegate) {
-            this.delegate = delegate;
-        }
+    private record DelegatingCacheHelper(CacheHelper delegate, CacheKey cacheKey) implements CacheHelper {
 
         @Override
         public CacheKey getKey() {
@@ -246,7 +262,7 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
                 bits = new FixedBitSet(maxDoc);
                 bits.set(0, maxDoc);
             }
-            int numComputedSoftDeletes = PendingSoftDeletes.applySoftDeletes(iterator, bits);
+            int numComputedSoftDeletes = applySoftDeletes(iterator, bits);
             assert numComputedSoftDeletes == numSoftDeletes
                 : "numComputedSoftDeletes: " + numComputedSoftDeletes + " expected: " + numSoftDeletes;
 
@@ -259,5 +275,27 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         public boolean initialized() {
             return materializedBits != null;
         }
+    }
+
+    private static CacheKey getCacheKey(DirectoryReader reader, String field) throws IOException {
+        SoftDeletesDirectoryReaderWrapper wrapper = new SoftDeletesDirectoryReaderWrapper(reader, field);
+        return wrapper.getReaderCacheHelper().getKey();
+    }
+
+    static int applySoftDeletes(DocIdSetIterator iterator, FixedBitSet bits) throws IOException {
+        assert iterator != null;
+        int newDeletes = 0;
+        int docID;
+
+        while ((docID = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            if (bits.get(docID)) { // doc is live - clear it
+                bits.clear(docID);
+                newDeletes++;
+                // now that we know we deleted it and we fully control the hard deletes we can do correct
+                // accounting
+                // below.
+            }
+        }
+        return newDeletes;
     }
 }

@@ -478,9 +478,16 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         BytesRef firstTimeBytes = toXContent(testInstance, xContentType, params, humanReadable).toBytesRef();
+
+        /*
+         * 500 rounds seems to consistently reproduce the issue on Nik's
+         * laptop. Larger numbers are going to be slower but more likely
+         * to reproduce the issue.
+         */
+        int rounds = scaledRandomIntBetween(300, 5000);
         concurrentTest(() -> {
             try {
-                for (int r = 0; r < 500; r++) {
+                for (int r = 0; r < rounds; r++) {
                     assertEquals(firstTimeBytes, toXContent(testInstance, xContentType, params, humanReadable).toBytesRef());
                 }
             } catch (IOException e) {

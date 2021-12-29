@@ -69,8 +69,15 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
     public final void testConcurrentEquals() throws IOException, InterruptedException, ExecutionException {
         T testInstance = createTestInstance();
         T copy = copyInstance(testInstance);
+
+        /*
+         * 500 rounds seems to consistently reproduce the issue on Nik's
+         * laptop. Larger numbers are going to be slower but more likely
+         * to reproduce the issue.
+         */
+        int rounds = scaledRandomIntBetween(300, 5000);
         concurrentTest(() -> {
-            for (int r = 0; r < 500; r++) {
+            for (int r = 0; r < rounds; r++) {
                 assertEquals(testInstance, copy);
             }
         });
@@ -104,11 +111,17 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * surprising. This tries to fail when that assumption is violated.
      */
     public final void testConcurrentHashCode() throws IOException, InterruptedException, ExecutionException {
-
         T testInstance = createTestInstance();
         int firstHashCode = testInstance.hashCode();
+
+        /*
+         * 500 rounds seems to consistently reproduce the issue on Nik's
+         * laptop. Larger numbers are going to be slower but more likely
+         * to reproduce the issue.
+         */
+        int rounds = scaledRandomIntBetween(300, 5000);
         concurrentTest(() -> {
-            for (int r = 0; r < 500; r++) {
+            for (int r = 0; r < rounds; r++) {
                 assertEquals(firstHashCode, testInstance.hashCode());
             }
         });
@@ -137,9 +150,16 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      */
     public final void testConcurrentSerialization() throws IOException, InterruptedException, ExecutionException {
         T testInstance = createTestInstance();
+
+        /*
+         * 500 rounds seems to consistently reproduce the issue on Nik's
+         * laptop. Larger numbers are going to be slower but more likely
+         * to reproduce the issue.
+         */
+        int rounds = scaledRandomIntBetween(300, 2000);
         concurrentTest(() -> {
             try {
-                for (int r = 0; r < 500; r++) {
+                for (int r = 0; r < rounds; r++) {
                     assertSerialization(testInstance);
                 }
             } catch (IOException e) {

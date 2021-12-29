@@ -67,7 +67,7 @@ The following describes the structure of an indices permissions entry:
 <5> Restricted indices are a special category of indices that are used
     internally to store configuration data and should not be directly accessed.
     Only internal system roles should normally grant privileges over the restricted indices.
-    **Toggling this flag is very discouraged because it could effectively grant unrestricted
+    **Toggling this flag is very strongly discouraged because it could effectively grant unrestricted
     operations on critical data, making the entire system unstable or leaking sensitive information.**
     If however, for administrative purposes, you need to create a role with privileges covering
     restricted indices, you must set this field to `true` (default is `false`), and then the

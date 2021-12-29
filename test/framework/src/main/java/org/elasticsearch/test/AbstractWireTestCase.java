@@ -64,7 +64,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * they all return true. Folks tend to assume this is true about
      * {@link Object#equals} and it <strong>generally</strong> is. But some
      * equals implementations violate this assumption and it's very surprising.
-     * This tries to fail when that assumption is violated. 
+     * This tries to fail when that assumption is violated.
      */
     public final void testConcurrentEquals() throws IOException, InterruptedException, ExecutionException {
         T testInstance = createTestInstance();
@@ -133,7 +133,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * <p>
      * Async search can serialize responses concurrently with other
      * operations like {@link ToXContent#toXContent}. This doesn't
-     * check that exactly, but it's close. 
+     * check that exactly, but it's close.
      */
     public final void testConcurrentSerialization() throws IOException, InterruptedException, ExecutionException {
         T testInstance = createTestInstance();

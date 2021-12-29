@@ -434,11 +434,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
         effectiveRoleDescriptors.set(null);
         assertEquals(Role.EMPTY, role);
-        verify(reservedRolesStore).accept(anySet(), anyActionListener());
-        verify(fileRolesStore).accept(anySet(), anyActionListener());
-        verify(fileRolesStore).roleDescriptors(eq(Collections.singleton(roleName)));
-        verify(nativeRolesStore).accept(anySet(), anyActionListener());
-        verify(nativeRolesStore).getRoleDescriptors(isASet(), anyActionListener());
+        verify(reservedRolesStore).accept(eq(Set.of(roleName)), anyActionListener());
+        verify(fileRolesStore).accept(eq(Set.of(roleName)), anyActionListener());
+        verify(fileRolesStore).roleDescriptors(eq(Set.of(roleName)));
+        verify(nativeRolesStore).accept(eq(Set.of(roleName)), anyActionListener());
+        verify(nativeRolesStore).getRoleDescriptors(eq(Set.of(roleName)), anyActionListener());
 
         final int numberOfTimesToCall = scaledRandomIntBetween(0, 32);
         final boolean getSuperuserRole = randomBoolean()
@@ -452,8 +452,17 @@ public class CompositeRolesStoreTests extends ESTestCase {
             final Role role1 = future.actionGet();
             if (getSuperuserRole) {
                 assertThat(role1.names(), arrayContaining("superuser"));
+                final Collection<RoleDescriptor> descriptors = effectiveRoleDescriptors.get();
+                assertThat(descriptors, hasSize(1));
+                assertThat(descriptors.iterator().next().getName(), is("superuser"));
+            } else {
+                assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
             }
-            assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
+        }
+        if (getSuperuserRole) {
+            verify(nativePrivilegeStore).getPrivileges(eq(Set.of("*")), eq(Set.of("*")), anyActionListener());
+            // We can't verify the contents of the Set here because the set is mutated inside the method
+            verify(reservedRolesStore, times(2)).accept(anySet(), anyActionListener());
         }
         verifyNoMoreInteractions(fileRolesStore, reservedRolesStore, nativeRolesStore, nativePrivilegeStore);
     }

@@ -133,8 +133,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
         @Override
         public void onFailure(Exception e) {
             logger.debug("Failed to create token", e);
-            if (e instanceof ActionRequestValidationException) {
-                ActionRequestValidationException validationException = (ActionRequestValidationException) e;
+            if (e instanceof ActionRequestValidationException validationException) {
                 final TokenRequestError error;
                 if (validationException.validationErrors().stream().anyMatch(s -> s.contains("grant_type"))) {
                     error = TokenRequestError.UNSUPPORTED_GRANT_TYPE;

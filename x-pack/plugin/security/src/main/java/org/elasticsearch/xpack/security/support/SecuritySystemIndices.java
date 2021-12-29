@@ -769,7 +769,7 @@ public class SecuritySystemIndices {
                                     builder.field("type", "keyword");
                                     builder.endObject();
 
-                                    builder.startObject("domain");
+                                    builder.startObject("node_name");
                                     builder.field("type", "keyword");
                                     builder.endObject();
                                 }

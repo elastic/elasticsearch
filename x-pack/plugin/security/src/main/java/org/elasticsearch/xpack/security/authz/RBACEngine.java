@@ -170,8 +170,7 @@ public class RBACEngine implements AuthorizationEngine {
     boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication) {
         final boolean actionAllowed = SAME_USER_PRIVILEGE.test(action);
         if (actionAllowed) {
-            if (request instanceof UserRequest) {
-                UserRequest userRequest = (UserRequest) request;
+            if (request instanceof UserRequest userRequest) {
                 String[] usernames = userRequest.usernames();
                 if (usernames == null || usernames.length != 1 || usernames[0] == null) {
                     assert false : "this role should only be used for actions to apply to a single user";
@@ -188,8 +187,7 @@ public class RBACEngine implements AuthorizationEngine {
                     || GetUserPrivilegesAction.NAME.equals(action)
                     || sameUsername == false : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
                 return sameUsername;
-            } else if (request instanceof GetApiKeyRequest) {
-                GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
+            } else if (request instanceof GetApiKeyRequest getApiKeyRequest) {
                 if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
                     assert authentication.getLookedUpBy() == null : "runAs not supported for api key authentication";
                     // if authenticated by API key then the request must also contain same API key id

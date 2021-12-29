@@ -84,7 +84,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         if (roleNames.isEmpty()) {
             assert false : "empty role names should have short circuited earlier";
             listener.onResponse(RolesRetrievalResult.EMPTY);
-        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
+        } else if (roleNames.equals(Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()))) {
             assert false : "superuser role should have short circuited earlier";
             listener.onResponse(RolesRetrievalResult.SUPERUSER);
         } else {
@@ -210,6 +210,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     }
 
     private void loadRoleDescriptorsAsync(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {
+        final boolean isSuperuserRetrieval = containsSuperuser(roleNames);
+
         final RolesRetrievalResult rolesResult = new RolesRetrievalResult();
         final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> asyncRoleProviders = roleProviders.getProviders();
         final ActionListener<RoleRetrievalResult> descriptorsListener = ContextPreservingActionListener.wrapPreservingContext(
@@ -239,11 +241,27 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                         roleNames.remove(descriptor.getName());
                     }
                 } else {
-                    logger.warn(new ParameterizedMessage("role retrieval failed from [{}]", rolesProvider), result.getFailure());
+                    logger.warn(
+                        new ParameterizedMessage("role [{}] retrieval failed from [{}]", roleNames, rolesProvider),
+                        result.getFailure()
+                    );
                     rolesResult.setFailure();
                 }
                 providerListener.onResponse(result);
-            }, providerListener::onFailure));
+            }, e -> {
+                // If we're resolving a set that includes the `superuser` role, then ignore failures for subsequent roles
+                if (isSuperuserRetrieval && containsSuperuser(roleNames) == false) {
+                    logger.warn(new ParameterizedMessage("role [{}] retrieval failed from [{}]", roleNames, rolesProvider), e);
+                    rolesResult.setFailure();
+                    providerListener.onResponse(null);
+                } else {
+                    providerListener.onFailure(e);
+                }
+            }));
         }, asyncRoleProviders, threadContext, Function.identity(), iterationPredicate).run();
+    }
+
+    private boolean containsSuperuser(Set<String> roleNames) {
+        return roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
     }
 }

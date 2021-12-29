@@ -55,7 +55,7 @@ public interface RoleReference {
         public RoleKey id() {
             if (roleNames.length == 0) {
                 return RoleKey.ROLE_KEY_EMPTY;
-            } else if (Arrays.asList(roleNames).contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
+            } else if (roleNames.length == 1 && ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName().equals(roleNames[0])) {
                 return RoleKey.ROLE_KEY_SUPERUSER;
             } else {
                 return new RoleKey(Set.copyOf(new HashSet<>(List.of(roleNames))), RoleKey.ROLES_STORE_SOURCE);

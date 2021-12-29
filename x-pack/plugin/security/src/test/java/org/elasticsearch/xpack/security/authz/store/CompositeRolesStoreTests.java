@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -319,6 +320,73 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertNotEquals(Role.EMPTY, roleFuture.actionGet());
         assertThat(effectiveRoleDescriptors.get(), containsInAnyOrder(noFlsDlsRole));
         effectiveRoleDescriptors.set(null);
+    }
+
+    public void testSuperuserIsEffectiveWhenOtherRolesUnavailable() {
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
+        when(fileRolesStore.roleDescriptors(anySet())).thenReturn(Collections.emptySet());
+
+        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(anySet(), anyActionListener());
+        doAnswer((invocationOnMock) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
+            final RuntimeException exception = new RuntimeException("Test - native roles unavailable");
+            if (randomBoolean()) {
+                callback.onFailure(exception);
+            } else {
+                callback.onResponse(RoleRetrievalResult.failure(exception));
+
+            }
+            return null;
+        }).when(nativeRolesStore).getRoleDescriptors(isASet(), anyActionListener());
+
+        final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
+        final NativePrivilegeStore nativePrivilegeStore = mock(NativePrivilegeStore.class);
+        doAnswer((invocationOnMock) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Collection<ApplicationPrivilegeDescriptor>> callback = (ActionListener<
+                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+            callback.onResponse(Collections.emptyList());
+            return null;
+        }).when(nativePrivilegeStore).getPrivileges(anySet(), anySet(), anyActionListener());
+
+        final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            fileRolesStore,
+            nativeRolesStore,
+            reservedRolesStore,
+            nativePrivilegeStore,
+            null,
+            null,
+            null,
+            null,
+            rds -> effectiveRoleDescriptors.set(rds)
+        );
+
+        final Set<String> roles = Set.of(randomAlphaOfLengthBetween(1, 6), "superuser", randomAlphaOfLengthBetween(7, 12));
+        PlainActionFuture<Role> future = new PlainActionFuture<>();
+        getRoleForRoleNames(compositeRolesStore, roles, future);
+
+        final Role role = future.actionGet();
+        assertThat(role.application().getApplicationNames(), containsInAnyOrder("*"));
+        assertThat(role.cluster().privileges(), containsInAnyOrder(ClusterPrivilegeResolver.ALL));
+        assertThat(role.indices().check(SearchAction.NAME), Matchers.is(true));
+        assertThat(role.indices().check(IndexAction.NAME), Matchers.is(true));
+
+        final Predicate<String> indexActionPredicate = Automatons.predicate(
+            role.indices().allowedActionsMatcher("index-" + randomAlphaOfLengthBetween(1, 12))
+        );
+        assertThat(indexActionPredicate.test(SearchAction.NAME), is(true));
+        assertThat(indexActionPredicate.test(IndexAction.NAME), is(true));
+
+        final Predicate<String> securityActionPredicate = Automatons.predicate(role.indices().allowedActionsMatcher(".security"));
+        assertThat(securityActionPredicate.test(SearchAction.NAME), is(true));
+        assertThat(securityActionPredicate.test(IndexAction.NAME), is(false));
+
+        assertThat(effectiveRoleDescriptors.get(), hasSize(1));
     }
 
     public void testNegativeLookupsAreCached() {

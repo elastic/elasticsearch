@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;

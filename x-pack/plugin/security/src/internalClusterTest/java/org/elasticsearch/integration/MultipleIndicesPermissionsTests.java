@@ -114,7 +114,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
               indices:
                 - names: 'b'
                   privileges: [all]
-            """.formatted(SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSource.UNRESTRICTED_ROLE_YML;
+            """.formatted(SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.UNRESTRICTED_ROLE_YML;
     }
 
     @Override

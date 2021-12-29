@@ -245,4 +245,7 @@ tasks.named('splitPackagesAudit').configure {
     // These are tricky because Lucene itself splits the index package,
     // but this should be fixed in Lucene 9
   ignoreClasses 'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper'
+    // It uses package private classes from Lucene, but we should back-port changes
+    // to Lucene and use official version.
+  ignoreClasses 'org.apache.lucene.search.ConcurrentTopScoreDocCollector'
 }

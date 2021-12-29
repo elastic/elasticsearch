@@ -283,6 +283,11 @@ public abstract class AggregationContext implements Releasable {
     public abstract boolean enableRewriteToFilterByFilter();
 
     /**
+     * Return true if any of the aggregations in this context is a time-series aggregation that requires an in-order execution.
+     */
+    public abstract boolean isInOrderExecutionRequired();
+
+    /**
      * Implementation of {@linkplain AggregationContext} for production usage
      * that wraps our ubiquitous {@link SearchExecutionContext} and anything else
      * specific to aggregations. Unit tests should generally avoid using this
@@ -303,6 +308,7 @@ public abstract class AggregationContext implements Releasable {
         private final Supplier<Boolean> isCancelled;
         private final Function<Query, Query> filterQuery;
         private final boolean enableRewriteToFilterByFilter;
+        private final boolean isInOrderExecutionRequired;
         private final AnalysisRegistry analysisRegistry;
 
         private final List<Aggregator> releaseMe = new ArrayList<>();
@@ -321,7 +327,8 @@ public abstract class AggregationContext implements Releasable {
             LongSupplier relativeTimeInMillis,
             Supplier<Boolean> isCancelled,
             Function<Query, Query> filterQuery,
-            boolean enableRewriteToFilterByFilter
+            boolean enableRewriteToFilterByFilter,
+            boolean isInOrderExecutionRequired
         ) {
             this.analysisRegistry = analysisRegistry;
             this.context = context;
@@ -354,6 +361,7 @@ public abstract class AggregationContext implements Releasable {
             this.isCancelled = isCancelled;
             this.filterQuery = filterQuery;
             this.enableRewriteToFilterByFilter = enableRewriteToFilterByFilter;
+            this.isInOrderExecutionRequired = isInOrderExecutionRequired;
         }
 
         @Override
@@ -529,6 +537,11 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public boolean enableRewriteToFilterByFilter() {
             return enableRewriteToFilterByFilter;
+        }
+
+        @Override
+        public boolean isInOrderExecutionRequired() {
+            return isInOrderExecutionRequired;
         }
 
         @Override

@@ -330,6 +330,18 @@ public class AggregatorFactories {
             return false;
         }
 
+        /**
+         * Return true if any of the factories can build a time-series aggregation that requires an in-order execution
+         */
+        public boolean isInOrderExecutionRequired() {
+            for (AggregationBuilder builder : aggregationBuilders) {
+                if (builder.isInOrderExecutionRequired()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public Builder addAggregator(AggregationBuilder factory) {
             if (names.add(factory.name) == false) {
                 throw new IllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");

@@ -355,6 +355,11 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
+        public boolean isInOrderExecutionRequired() {
+            return false;
+        }
+
+        @Override
         public void close() {
             List<Releasable> releaseMe = new ArrayList<>(this.releaseMe);
             releaseMe.add(preallocated);

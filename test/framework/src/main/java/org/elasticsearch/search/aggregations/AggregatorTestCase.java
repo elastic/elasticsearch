@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
@@ -20,6 +21,7 @@ import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -32,6 +34,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedSetSelector;
+import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
@@ -68,6 +74,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -88,6 +95,7 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -119,6 +127,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.timeseries.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
@@ -329,7 +338,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             () -> 0L,
             () -> false,
             q -> q,
-            true
+            true,
+            false
         );
         releasables.add(context);
         return context;
@@ -562,14 +572,22 @@ public abstract class AggregatorTestCase extends ESTestCase {
             for (ShardSearcher subSearcher : subSearchers) {
                 C a = createAggregator(builder, context);
                 a.preCollection();
-                Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
-                subSearcher.search(weight, a);
+                if (context.isInOrderExecutionRequired()) {
+                    new TimeSeriesIndexSearcher(subSearcher).search(rewritten, a);
+                } else {
+                    Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
+                    subSearcher.search(weight, a);
+                }
                 a.postCollection();
                 aggs.add(a.buildTopLevel());
             }
         } else {
             root.preCollection();
-            searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+            if (context.isInOrderExecutionRequired()) {
+                new TimeSeriesIndexSearcher(searcher).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+            } else {
+                searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+            }
             root.postCollection();
             aggs.add(root.buildTopLevel());
         }
@@ -635,8 +653,17 @@ public abstract class AggregatorTestCase extends ESTestCase {
         Consumer<V> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
+        boolean timeSeries = aggregationBuilder.isInOrderExecutionRequired();
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+            IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
+            if (timeSeries) {
+                Sort sort = new Sort(
+                    new SortedSetSortField(TimeSeriesIdFieldMapper.NAME, false, SortedSetSelector.Type.MAX),
+                    new SortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG)
+                );
+                config.setIndexSort(sort);
+            }
+            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config);
             buildIndex.accept(indexWriter);
             indexWriter.close();
 

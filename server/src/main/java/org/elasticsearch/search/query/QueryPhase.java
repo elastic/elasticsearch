@@ -30,6 +30,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
+import org.elasticsearch.search.aggregations.timeseries.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -230,7 +231,11 @@ public class QueryPhase {
         }
         QuerySearchResult queryResult = searchContext.queryResult();
         try {
-            searcher.search(query, queryCollector);
+            if (searchContext.aggregations() != null && searchContext.aggregations().factories().context().isInOrderExecutionRequired()) {
+                new TimeSeriesIndexSearcher(searcher).search(query, queryCollector);
+            } else {
+                searcher.search(query, queryCollector);
+            }
         } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
             queryResult.terminatedEarly(true);
         } catch (TimeExceededException e) {

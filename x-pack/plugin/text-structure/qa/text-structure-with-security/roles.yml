@@ -6,3 +6,15 @@ minimal:
     # This is always required because the REST client uses it to find the version of
     # Elasticsearch it's talking to
     - cluster:monitor/main
+
+_es_test_root:
+  cluster: [ "ALL" ]
+  indices:
+    - names: [ "*" ]
+      allow_restricted_indices: true
+      privileges: [ "ALL" ]
+  run_as: [ "*" ]
+  applications:
+    - application: "*"
+      privileges: [ "*" ]
+      resources: [ "*" ]

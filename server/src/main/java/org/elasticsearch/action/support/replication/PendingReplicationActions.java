@@ -100,6 +100,7 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
     public synchronized void close() {
         final List<RetryableAction<?>> toCancel = onGoingReplicationActions.values().stream().flatMap(Collection::stream).toList();
         onGoingReplicationActions.clear();
+
         cancelActions(toCancel, "Primary closed.");
     }
 

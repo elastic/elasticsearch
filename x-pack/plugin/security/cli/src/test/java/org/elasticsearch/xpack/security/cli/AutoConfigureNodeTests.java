@@ -240,8 +240,9 @@ public class AutoConfigureNodeTests extends ESTestCase {
             }
         }
 
-        KeyStore httpKeystore = KeyStoreUtil.readKeyStore(PathUtils.get(httpKeystorePath), "PKCS12", httpKeystorePassword.getChars());
-        return (X509Certificate) httpKeystore.getCertificate("http_local_node_key");
+        KeyStore httpKeystore = KeyStoreUtil.readKeyStore(configDir.resolve("config").resolve(httpKeystorePath), "PKCS12",
+            httpKeystorePassword.getChars());
+        return (X509Certificate) httpKeystore.getCertificate("http");
     }
 
     @SuppressForbidden(reason = "Uses File API because the commons io library does, which is useful for file manipulation")

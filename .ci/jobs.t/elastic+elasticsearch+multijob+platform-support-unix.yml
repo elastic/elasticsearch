@@ -17,7 +17,8 @@
             - "centos-6&&immutable"
             - "centos-7&&immutable"
             - "centos-8&&immutable"
-            - "amazon&&immutable"
+            # Disabled until we can update Log4jHotPatch
+            # - "amazon&&immutable"
             - "debian-8&&immutable"
             - "debian-9&&immutable"
             - "debian-10&&immutable"

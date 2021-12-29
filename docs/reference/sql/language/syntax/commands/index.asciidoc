@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[sql-commands]]
 === SQL Commands
 

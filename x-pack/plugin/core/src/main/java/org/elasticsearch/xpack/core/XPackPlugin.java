@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -37,10 +37,10 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
@@ -106,6 +106,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+@SuppressWarnings("HiddenField")
 public class XPackPlugin extends XPackClientPlugin
     implements
         ExtensiblePlugin,
@@ -158,8 +159,8 @@ public class XPackPlugin extends XPackClientPlugin
     private static final SetOnce<LicenseService> licenseService = new SetOnce<>();
     private static final SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
 
-    public XPackPlugin(final Settings settings, final Path configPath) {
-        super(settings);
+    public XPackPlugin(final Settings settings) {
+        super();
         // FIXME: The settings might be changed after this (e.g. from "additionalSettings" method in other plugins)
         // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
@@ -406,7 +407,7 @@ public class XPackPlugin extends XPackClientPlugin
         if (Files.exists(config) == false) {
             Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
             if (Files.exists(legacyConfig)) {
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.OTHER,
                     "config_file_path",
                     "Config file ["

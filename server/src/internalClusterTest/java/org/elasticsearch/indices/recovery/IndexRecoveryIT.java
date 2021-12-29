@@ -282,7 +282,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen(INDEX_NAME);
 
         final int numOfDocs = scaledRandomIntBetween(0, 200);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(INDEX_NAME, "_doc", client(), numOfDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer(INDEX_NAME, client(), numOfDocs)) {
             waitForDocs(numOfDocs, indexer);
         }
 

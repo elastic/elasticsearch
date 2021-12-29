@@ -11,7 +11,7 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -217,13 +217,13 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
                 .setActions(UpdateByQueryAction.NAME).get().getTasks();
             // Cancel a specific update-by-query request
             client.admin().cluster().prepareCancelTasks()
-                .setTaskId(taskId).get().getTasks();
+                .setTargetTaskId(taskId).get().getTasks();
             // end::update-by-query-cancel-task
         }
         {
             // tag::update-by-query-rethrottle
             new RethrottleRequestBuilder(client, RethrottleAction.INSTANCE)
-                .setTaskId(taskId)
+                .setTargetTaskId(taskId)
                 .setRequestsPerSecond(2.0f)
                 .get();
             // end::update-by-query-rethrottle

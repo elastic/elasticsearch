@@ -1,5 +1,3 @@
-package org.elasticsearch.painless;
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -7,6 +5,8 @@ package org.elasticsearch.painless;
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+
+package org.elasticsearch.painless;
 
 /** Currently just a dummy class for testing a few features not yet exposed by whitelist! */
 public class FeatureTestObject2 {

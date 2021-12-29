@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
@@ -42,6 +43,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     public static final String ALERTS_LEGACY_INDEX = ".siem-signals*";
     public static final String ALERTS_BACKING_INDEX = ".internal.alerts*";
     public static final String ALERTS_INDEX_ALIAS = ".alerts*";
+    public static final String PREVIEW_ALERTS_INDEX_ALIAS = ".preview.alerts*";
+    public static final String PREVIEW_ALERTS_BACKING_INDEX_ALIAS = ".internal.preview.alerts*";
 
     public static final RoleDescriptor SUPERUSER_ROLE_DESCRIPTOR = new RoleDescriptor(
         "superuser",
@@ -285,7 +288,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .indices(".ml-annotations*")
                             .privileges("view_index_metadata", "read", "write")
                             .build() },
-                    // TODO: remove Kibana privileges from ML backend roles in 8.0.0
+                    // This role also grants Kibana privileges related to ML.
+                    // This makes it completely clear to UI administrators that
+                    // if they grant the Elasticsearch backend role to a user then
+                    // they cannot expect Kibana privileges to stop that user from
+                    // accessing ML functionality - the user could switch to curl
+                    // or even Kibana dev console and call the ES endpoints directly
+                    // bypassing the Kibana privileges layer entirely.
                     new RoleDescriptor.ApplicationResourcePrivileges[] {
                         RoleDescriptor.ApplicationResourcePrivileges.builder()
                             .application("kibana-*")
@@ -313,7 +322,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .indices(".ml-annotations*")
                             .privileges("view_index_metadata", "read", "write")
                             .build() },
-                    // TODO: remove Kibana privileges from ML backend roles in 8.0.0
+                    // This role also grants Kibana privileges related to ML.
+                    // This makes it completely clear to UI administrators that
+                    // if they grant the Elasticsearch backend role to a user then
+                    // they cannot expect Kibana privileges to stop that user from
+                    // accessing ML functionality - the user could switch to curl
+                    // or even Kibana dev console and call the ES endpoints directly
+                    // bypassing the Kibana privileges layer entirely.
                     new RoleDescriptor.ApplicationResourcePrivileges[] {
                         RoleDescriptor.ApplicationResourcePrivileges.builder()
                             .application("kibana-*")
@@ -524,7 +539,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .privileges("read", "view_index_metadata")
                     .build(),
                 // Security
-                RoleDescriptor.IndicesPrivileges.builder().indices(".siem-signals-*").privileges("read", "view_index_metadata").build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".siem-signals-*").privileges("read", "view_index_metadata").build(),
+                // Alerts-as-data
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.ALERTS_INDEX_ALIAS, ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS)
+                    .privileges("read", "view_index_metadata")
+                    .build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
                     .application("kibana-.kibana")
@@ -557,6 +577,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".siem-signals-*", ".lists-*", ".items-*")
                     .privileges("read", "view_index_metadata", "write", "maintenance")
+                    .build(),
+                // Alerts-as-data
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(
+                        ReservedRolesStore.ALERTS_BACKING_INDEX,
+                        ReservedRolesStore.ALERTS_INDEX_ALIAS,
+                        ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_ALIAS,
+                        ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS
+                    )
+                    .privileges("read", "view_index_metadata", "write")
                     .build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
@@ -662,14 +692,43 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // "Alerts as data" public index aliases used in Security Solution, Observability, etc.
                 // Kibana system user uses them to read / write alerts.
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTS_INDEX_ALIAS).privileges("all").build(),
+                // "Alerts as data" public index alias used in Security Solution
+                // Kibana system user uses them to read / write alerts.
+                RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS).privileges("all").build(),
+                // "Alerts as data" internal backing indices used in Security Solution
+                // Kibana system user creates these indices; reads / writes to them via the aliases (see below).
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_ALIAS)
+                    .privileges("all")
+                    .build(),
                 // Endpoint / Fleet policy responses. Kibana requires read access to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-endpoint.policy-*").privileges("read").build(),
                 // Endpoint metrics. Kibana requires read access to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-endpoint.metrics-*").privileges("read").build(),
-                // Fleet package upgrade
+                // Fleet package install and upgrade
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-*", "synthetics-*", "traces-*", "/metrics-.*&~(metrics-endpoint\\.metadata_current_default)/")
+                    .indices(
+                        "logs-*",
+                        "synthetics-*",
+                        "traces-*",
+                        "/metrics-.*&~(metrics-endpoint\\.metadata_current_default)/",
+                        ".logs-endpoint.action.responses-*",
+                        ".logs-endpoint.diagnostic.collection-*",
+                        ".logs-endpoint.actions-*"
+                    )
                     .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
+                    .build(),
+                // Endpoint specific action responses. Kibana reads from these to display responses to the user.
+                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.action.responses-*").privileges("read").build(),
+                // Endpoint specific actions. Kibana reads and writes to this index to track new actions and display them.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".logs-endpoint.actions-*")
+                    .privileges("auto_configure", "read", "write")
+                    .build(),
+                // For ILM policy for APM & Endpoint packages that have delete action
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".logs-endpoint.diagnostic.collection-*", "traces-apm.sampled-*")
+                    .privileges(DeleteIndexAction.NAME)
                     .build(),
                 // For src/dest indices of the Endpoint package that ships a transform
                 RoleDescriptor.IndicesPrivileges.builder()

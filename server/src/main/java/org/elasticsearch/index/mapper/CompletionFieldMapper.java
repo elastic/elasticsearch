@@ -209,7 +209,7 @@ public class CompletionFieldMapper extends FieldMapper {
                         "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded"
                     );
                 } else {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.MAPPINGS,
                         "excessive_completion_contexts",
                         "You have defined more than ["

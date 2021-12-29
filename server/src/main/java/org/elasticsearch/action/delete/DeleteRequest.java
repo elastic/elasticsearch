@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,14 +32,14 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * A request to delete a document from an index based on its type and id. Best created using
- * {@link org.elasticsearch.client.Requests#deleteRequest(String)}.
+ * {@link org.elasticsearch.client.internal.Requests#deleteRequest(String)}.
  * <p>
  * The operation requires the {@link #index()} and {@link #id(String)} to
  * be set.
  *
  * @see DeleteResponse
- * @see org.elasticsearch.client.Client#delete(DeleteRequest)
- * @see org.elasticsearch.client.Requests#deleteRequest(String)
+ * @see org.elasticsearch.client.internal.Client#delete(DeleteRequest)
+ * @see org.elasticsearch.client.internal.Requests#deleteRequest(String)
  */
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     implements
@@ -230,6 +231,16 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public boolean isRequireAlias() {
         return false;
+    }
+
+    @Override
+    public void process() {
+        // Nothing to do
+    }
+
+    @Override
+    public int route(IndexRouting indexRouting) {
+        return indexRouting.deleteShard(id, routing);
     }
 
     @Override

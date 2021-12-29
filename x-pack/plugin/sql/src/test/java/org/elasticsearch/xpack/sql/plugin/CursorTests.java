@@ -10,7 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VE
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class CursorTests extends ESTestCase {
 
@@ -46,7 +46,7 @@ public class CursorTests extends ESTestCase {
         PlainActionFuture<Boolean> future = newFuture();
         cursor.clear(clientMock, future);
         assertFalse(future.actionGet());
-        verifyZeroInteractions(clientMock);
+        verifyNoMoreInteractions(clientMock);
     }
 
     @SuppressWarnings("unchecked")
@@ -61,7 +61,7 @@ public class CursorTests extends ESTestCase {
         ArgumentCaptor<ClearScrollRequest> request = ArgumentCaptor.forClass(ClearScrollRequest.class);
         verify(clientMock).clearScroll(request.capture(), any(ActionListener.class));
         assertEquals(Collections.singletonList(cursorString), request.getValue().getScrollIds());
-        verifyZeroInteractions(listenerMock);
+        verifyNoMoreInteractions(listenerMock);
     }
 
     private static SqlQueryResponse createRandomSqlResponse() {

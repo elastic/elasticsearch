@@ -218,7 +218,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
     }
 
     public void testAccountsRegularIndices() {
-        String mapping = "{\"properties\":{\"bar\":{\"type\":\"text\",\"analyzer\":\"german\"}}}";
+        String mapping = """
+            {"properties":{"bar":{"type":"text","analyzer":"german"}}}""";
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
@@ -234,7 +235,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
     }
 
     public void testIgnoreSystemIndices() {
-        String mapping = "{\"properties\":{\"bar\":{\"type\":\"text\",\"analyzer\":\"german\"}}}";
+        String mapping = """
+            {"properties":{"bar":{"type":"text","analyzer":"german"}}}""";
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)

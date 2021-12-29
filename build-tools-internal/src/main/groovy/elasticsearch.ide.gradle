@@ -121,7 +121,6 @@ if (providers.systemProperty('idea.active').forUseAtConfigurationTime().getOrNul
             vmParameters = [
               '-ea',
               '-Djava.locale.providers=SPI,COMPAT',
-              "--illegal-access=deny",
               // TODO: only open these for mockito when it is modularized
               '--add-opens=java.base/java.security.cert=ALL-UNNAMED',
               '--add-opens=java.base/java.nio.channels=ALL-UNNAMED',

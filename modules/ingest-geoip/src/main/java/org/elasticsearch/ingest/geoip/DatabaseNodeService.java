@@ -14,8 +14,8 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -110,7 +110,7 @@ public final class DatabaseNodeService implements Closeable {
         this.genericExecutor = genericExecutor;
     }
 
-    public void initialize(String nodeId, ResourceWatcherService resourceWatcher, IngestService ingestService) throws IOException {
+    public void initialize(String nodeId, ResourceWatcherService resourceWatcher, IngestService ingestServiceArg) throws IOException {
         configDatabases.initialize(resourceWatcher);
         geoipTmpDirectory = geoipTmpBaseDirectory.resolve(nodeId);
         Files.walkFileTree(geoipTmpDirectory, new FileVisitor<>() {
@@ -146,9 +146,9 @@ public final class DatabaseNodeService implements Closeable {
         if (Files.exists(geoipTmpDirectory) == false) {
             Files.createDirectories(geoipTmpDirectory);
         }
-        LOGGER.info("initialized database registry, using geoip-databases directory [{}]", geoipTmpDirectory);
-        ingestService.addIngestClusterStateListener(this::checkDatabases);
-        this.ingestService = ingestService;
+        LOGGER.debug("initialized database node service, using geoip-databases directory [{}]", geoipTmpDirectory);
+        ingestServiceArg.addIngestClusterStateListener(this::checkDatabases);
+        this.ingestService = ingestServiceArg;
     }
 
     public DatabaseReaderLazyLoader getDatabase(String name) {
@@ -261,7 +261,7 @@ public final class DatabaseNodeService implements Closeable {
         }
 
         final Path databaseTmpFile = Files.createFile(geoipTmpDirectory.resolve(databaseName + ".tmp"));
-        LOGGER.info("downloading geoip database [{}] to [{}]", databaseName, databaseTmpGzFile);
+        LOGGER.debug("downloading geoip database [{}] to [{}]", databaseName, databaseTmpGzFile);
         retrieveDatabase(
             databaseName,
             recordedMd5,
@@ -324,10 +324,11 @@ public final class DatabaseNodeService implements Closeable {
                 Predicate<GeoIpProcessor.DatabaseUnavailableProcessor> predicate = p -> databaseFileName.equals(p.getDatabaseName());
                 var ids = ingestService.getPipelineWithProcessorType(GeoIpProcessor.DatabaseUnavailableProcessor.class, predicate);
                 if (ids.isEmpty() == false) {
+                    LOGGER.debug("pipelines [{}] found to reload", ids);
                     for (var id : ids) {
                         try {
                             ingestService.reloadPipeline(id);
-                            LOGGER.debug(
+                            LOGGER.trace(
                                 "successfully reloaded pipeline [{}] after downloading of database [{}] for the first time",
                                 id,
                                 databaseFileName
@@ -343,9 +344,11 @@ public final class DatabaseNodeService implements Closeable {
                             );
                         }
                     }
+                } else {
+                    LOGGER.debug("no pipelines found to reload");
                 }
             }
-            LOGGER.info("successfully reloaded changed geoip database file [{}]", file);
+            LOGGER.info("successfully loaded geoip database file [{}]", file.getFileName());
         } catch (Exception e) {
             LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to update database [{}]", databaseFileName), e);
         }
@@ -354,7 +357,7 @@ public final class DatabaseNodeService implements Closeable {
     void removeStaleEntries(Collection<String> staleEntries) {
         for (String staleEntry : staleEntries) {
             try {
-                LOGGER.info("database [{}] no longer exists, cleaning up...", staleEntry);
+                LOGGER.debug("database [{}] no longer exists, cleaning up...", staleEntry);
                 DatabaseReaderLazyLoader existing = databases.remove(staleEntry);
                 assert existing != null;
                 existing.close(true);

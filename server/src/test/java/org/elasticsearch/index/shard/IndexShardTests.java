@@ -1315,7 +1315,8 @@ public class IndexShardTests extends IndexShardTestCase {
         );
 
         latch.await();
-        if (globalCheckpoint < maxSeqNo) {
+        long globalCheckpointOnPromotedReplica = Math.max(globalCheckpointOnReplica, globalCheckpoint);
+        if (globalCheckpointOnPromotedReplica < maxSeqNo) {
             assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNo));
         } else {
             assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNoOfUpdatesOrDeletesBeforeRollback));
@@ -1334,7 +1335,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
         assertThat(indexShard.seqNoStats().getMaxSeqNo(), equalTo(maxSeqNo));
         assertThat(getShardDocUIDs(indexShard), equalTo(docsBeforeRollback));
-        if (globalCheckpoint < maxSeqNo) {
+        if (globalCheckpointOnPromotedReplica < maxSeqNo) {
             assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNo));
         } else {
             assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNoOfUpdatesOrDeletesBeforeRollback));
@@ -2138,7 +2139,7 @@ public class IndexShardTests extends IndexShardTestCase {
             1,
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
             false,
-            new SourceToParse(shard.shardId().getIndexName(), "id", new BytesArray("{}"), XContentType.JSON)
+            new SourceToParse("id", new BytesArray("{}"), XContentType.JSON)
         );
         shard.applyIndexOperationOnReplica(
             3,
@@ -2146,7 +2147,7 @@ public class IndexShardTests extends IndexShardTestCase {
             3,
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
             false,
-            new SourceToParse(shard.shardId().getIndexName(), "id-3", new BytesArray("{}"), XContentType.JSON)
+            new SourceToParse("id-3", new BytesArray("{}"), XContentType.JSON)
         );
         // Flushing a new commit with local checkpoint=1 allows to skip the translog gen #1 in recovery.
         shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
@@ -2156,7 +2157,7 @@ public class IndexShardTests extends IndexShardTestCase {
             3,
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
             false,
-            new SourceToParse(shard.shardId().getIndexName(), "id-2", new BytesArray("{}"), XContentType.JSON)
+            new SourceToParse("id-2", new BytesArray("{}"), XContentType.JSON)
         );
         shard.applyIndexOperationOnReplica(
             5,
@@ -2164,7 +2165,7 @@ public class IndexShardTests extends IndexShardTestCase {
             1,
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
             false,
-            new SourceToParse(shard.shardId().getIndexName(), "id-5", new BytesArray("{}"), XContentType.JSON)
+            new SourceToParse("id-5", new BytesArray("{}"), XContentType.JSON)
         );
         shard.sync(); // advance local checkpoint
 
@@ -2304,7 +2305,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // start a replica shard and index the second doc
         final IndexShard otherShard = newStartedShard(false);
         updateMappings(otherShard, shard.indexSettings().getIndexMetadata());
-        SourceToParse sourceToParse = new SourceToParse(shard.shardId().getIndexName(), "1", new BytesArray("{}"), XContentType.JSON);
+        SourceToParse sourceToParse = new SourceToParse("1", new BytesArray("{}"), XContentType.JSON);
         otherShard.applyIndexOperationOnReplica(
             1,
             otherShard.getOperationPrimaryTerm(),
@@ -2438,7 +2439,7 @@ public class IndexShardTests extends IndexShardTestCase {
             1,
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
             false,
-            new SourceToParse(indexName, "doc-0", new BytesArray("{}"), XContentType.JSON)
+            new SourceToParse("doc-0", new BytesArray("{}"), XContentType.JSON)
         );
         flushShard(shard);
         shard.updateGlobalCheckpointOnReplica(0, "test"); // stick the global checkpoint here.
@@ -2448,7 +2449,7 @@ public class IndexShardTests extends IndexShardTestCase {
             1,
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
             false,
-            new SourceToParse(indexName, "doc-1", new BytesArray("{}"), XContentType.JSON)
+            new SourceToParse("doc-1", new BytesArray("{}"), XContentType.JSON)
         );
         flushShard(shard);
         assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1"));
@@ -2460,7 +2461,7 @@ public class IndexShardTests extends IndexShardTestCase {
             1,
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
             false,
-            new SourceToParse(indexName, "doc-2", new BytesArray("{}"), XContentType.JSON)
+            new SourceToParse("doc-2", new BytesArray("{}"), XContentType.JSON)
         );
         flushShard(shard);
         assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1", "doc-2"));
@@ -2643,11 +2644,8 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\", \"fielddata\": true }}}")
-            .settings(settings)
-            .primaryTerm(0, 1)
-            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text", "fielddata": true }}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard shard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, wrapper);
         recoverShardFromStore(shard);
         indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");
@@ -2781,11 +2779,8 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
-            .settings(settings)
-            .primaryTerm(0, 1)
-            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
 
@@ -2827,7 +2822,8 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("""
+                { "properties": { "foo":  { "type": "text"}}}""")
             .settings(settings)
             .primaryTerm(0, randomLongBetween(1, Long.MAX_VALUE))
             .build();
@@ -2909,11 +2905,8 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
-            .settings(settings)
-            .primaryTerm(0, 1)
-            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
 
@@ -2959,11 +2952,8 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
-            .settings(settings)
-            .primaryTerm(0, 1)
-            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
 
@@ -3108,7 +3098,8 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         assertThat(requestedMappingUpdates, hasKey("_doc"));
-        assertThat(requestedMappingUpdates.get("_doc").source().string(), equalTo("{\"properties\":{\"foo\":{\"type\":\"text\"}}}"));
+        assertThat(requestedMappingUpdates.get("_doc").source().string(), equalTo("""
+            {"properties":{"foo":{"type":"text"}}}"""));
 
         closeShards(sourceShard, targetShard);
     }
@@ -3668,12 +3659,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 if (ids.add(id) == false) { // this is an update
                     indexShard.advanceMaxSeqNoOfUpdatesOrDeletes(i);
                 }
-                SourceToParse sourceToParse = new SourceToParse(
-                    indexShard.shardId().getIndexName(),
-                    id,
-                    new BytesArray("{}"),
-                    XContentType.JSON
-                );
+                SourceToParse sourceToParse = new SourceToParse(id, new BytesArray("{}"), XContentType.JSON);
                 indexShard.applyIndexOperationOnReplica(
                     i,
                     indexShard.getOperationPrimaryTerm(),
@@ -3705,11 +3691,8 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
-            .settings(settings)
-            .primaryTerm(0, 1)
-            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
@@ -3755,11 +3738,8 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
-            .settings(settings)
-            .primaryTerm(0, 1)
-            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
@@ -3829,11 +3809,8 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
-            .settings(settings)
-            .primaryTerm(0, 1)
-            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
@@ -4368,7 +4345,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(shard.shardId.getIndexName(), Long.toString(i), new BytesArray("{}"), XContentType.JSON)
+                new SourceToParse(Long.toString(i), new BytesArray("{}"), XContentType.JSON)
             );
             shard.updateGlobalCheckpointOnReplica(shard.getLocalCheckpoint(), "test");
             if (randomInt(100) < 10) {

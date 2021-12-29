@@ -91,7 +91,7 @@ public class FunctionScoreTests extends ESTestCase {
             return new LeafFieldData() {
 
                 @Override
-                public DocValuesField getScriptField(String name) {
+                public DocValuesField<?> getScriptField(String name) {
                     throw new UnsupportedOperationException(UNSUPPORTED);
                 }
 
@@ -209,7 +209,7 @@ public class FunctionScoreTests extends ESTestCase {
                 }
 
                 @Override
-                public DocValuesField getScriptField(String name) {
+                public DocValuesField<?> getScriptField(String name) {
                     throw new UnsupportedOperationException(UNSUPPORTED);
                 }
 

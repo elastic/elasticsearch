@@ -20,7 +20,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -173,18 +172,17 @@ public class SourceLookup implements Map<String, Object> {
         if (source != null) {
             return XContentMapValues.extractRawValues(path, source);
         }
-        FilterPath[] filterPaths = FilterPath.compile(Set.of(path));
         if (sourceAsBytes != null) {
             return XContentMapValues.extractRawValues(
                 path,
-                XContentHelper.convertToMap(sourceAsBytes, false, null, filterPaths, null).v2()
+                XContentHelper.convertToMap(sourceAsBytes, false, null, Set.of(path), null).v2()
             );
         }
         try {
             FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
             fieldReader.accept(docId, sourceFieldVisitor);
             BytesReference source = sourceFieldVisitor.source();
-            return XContentMapValues.extractRawValues(path, XContentHelper.convertToMap(source, false, null, filterPaths, null).v2());
+            return XContentMapValues.extractRawValues(path, XContentHelper.convertToMap(source, false, null, Set.of(path), null).v2());
         } catch (Exception e) {
             throw new ElasticsearchParseException("failed to parse / load source", e);
         }

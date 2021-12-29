@@ -61,7 +61,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
         true,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope,
-        Setting.Property.Deprecated
+        Setting.Property.DeprecatedWarning
     );
 
     /**
@@ -73,7 +73,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope,
-        Setting.Property.Deprecated
+        Setting.Property.DeprecatedWarning
     );
 
     /**
@@ -85,7 +85,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
         MIN_INTERVAL,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope,
-        Setting.Property.Deprecated
+        Setting.Property.DeprecatedWarning
     );
 
     /** State of the monitoring service, either started or stopped **/
@@ -127,13 +127,13 @@ public class MonitoringService extends AbstractLifecycleComponent {
         HttpExporter.loadSettings(settings);
     }
 
-    void setElasticsearchCollectionEnabled(final boolean enabled) {
-        this.elasticsearchCollectionEnabled = enabled;
+    void setElasticsearchCollectionEnabled(final boolean collectionEnabled) {
+        this.elasticsearchCollectionEnabled = collectionEnabled;
         scheduleExecution();
     }
 
-    void setMonitoringActive(final boolean enabled) {
-        this.enabled = enabled;
+    void setMonitoringActive(final boolean monitoringActive) {
+        this.enabled = monitoringActive;
         scheduleExecution();
     }
 

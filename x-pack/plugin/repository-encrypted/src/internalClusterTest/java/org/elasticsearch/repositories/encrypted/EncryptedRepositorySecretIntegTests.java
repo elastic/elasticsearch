@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.ArgumentMatchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -317,7 +317,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         ).repository(repositoryName);
         encryptedRepository.licenseStateSupplier = () -> {
             MockLicenseState mockLicenseState = mock(MockLicenseState.class);
-            when(mockLicenseState.isAllowed(anyObject())).thenReturn(false);
+            when(mockLicenseState.isAllowed(any())).thenReturn(false);
             return mockLicenseState;
         };
 

@@ -100,7 +100,7 @@ public class RestIndexActionTests extends RestActionTestCase {
             .withPath("/some_index/some_type/some_id")
             .build();
         dispatchRequest(deprecatedRequest);
-        assertWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testCreateWithTypeInPath() {
@@ -110,7 +110,7 @@ public class RestIndexActionTests extends RestActionTestCase {
             .withPath("/some_index/some_type/some_id/_create")
             .build();
         dispatchRequest(deprecatedRequest);
-        assertWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testAutoIdWithType() {
@@ -120,6 +120,6 @@ public class RestIndexActionTests extends RestActionTestCase {
             .withPath("/some_index/some_type/")
             .build();
         dispatchRequest(deprecatedRequest);
-        assertWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

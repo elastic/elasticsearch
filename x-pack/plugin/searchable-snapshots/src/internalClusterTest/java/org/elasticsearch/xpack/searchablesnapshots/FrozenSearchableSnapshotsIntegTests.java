@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots;
 
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
@@ -21,7 +20,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -270,12 +269,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             final ByteBuffersDirectory inMemoryDir = (ByteBuffersDirectory) unwrappedDir;
             assertThat(inMemoryDir.listAll(), arrayWithSize(1));
 
-            final String segmentsFileName = SegmentInfos.getLastCommitSegmentsFileName(inMemoryDir);
-            assertThat("Fail to find segment file name directory for " + shardRouting.toString(), segmentsFileName, notNullValue());
-            final long extraSegmentFileSize = inMemoryDir.fileLength(segmentsFileName);
-
-            assertThat(shardRouting.toString(), store.getTotalDataSetSize().getBytes(), equalTo(originalSize + extraSegmentFileSize));
-            totalExpectedSize += extraSegmentFileSize;
+            assertThat(shardRouting.toString(), store.getTotalDataSetSize().getBytes(), equalTo(originalSize));
         }
 
         final StoreStats store = indicesStatsResponse.getTotal().getStore();
@@ -309,7 +303,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         // TODO: fix
         // assertSearchableSnapshotStats(restoredIndexName, true, nonCachedExtensions);
         ensureGreen(restoredIndexName);
-        assertShardFolders(restoredIndexName, true);
+        assertBusy(() -> assertShardFolders(restoredIndexName, true));
 
         assertThat(
             client().admin()

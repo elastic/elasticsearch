@@ -31,6 +31,7 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -73,6 +74,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -84,6 +86,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE;
@@ -787,7 +790,6 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         assertDocumentsAreEqual(indexName, numDocs.get());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79455")
     public void testSeqNoBasedRecoveryIsUsedAfterPrimaryFailOver() throws Exception {
         List<String> dataNodes = internalCluster().startDataOnlyNodes(3);
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -914,7 +916,6 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79420")
     public void testRecoveryUsingSnapshotsPermitIsReturnedAfterFailureOrCancellation() throws Exception {
         executeRecoveryWithSnapshotFileDownloadThrottled(
             (
@@ -930,7 +931,12 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                     client().admin()
                         .indices()
                         .prepareUpdateSettings(indexRecoveredFromSnapshot1)
-                        .setSettings(Settings.builder().put("index.routing.allocation.require._name", targetNode))
+                        .setSettings(
+                            Settings.builder()
+                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                                .put("index.routing.allocation.require._name", (String) null)
+                                .put("index.routing.allocation.include._name", sourceNode + "," + targetNode)
+                        )
                         .get()
                 );
 
@@ -963,6 +969,16 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
                     targetMockTransportService.clearAllRules();
                     channelRef.get().sendResponse(new IOException("unable to clean files"));
+                    PeerRecoveryTargetService peerRecoveryTargetService = internalCluster().getInstance(
+                        PeerRecoveryTargetService.class,
+                        targetNode
+                    );
+                    assertBusy(() -> {
+                        // Wait until the current RecoveryTarget releases the snapshot download permit
+                        try (Releasable snapshotDownloadPermit = peerRecoveryTargetService.tryAcquireSnapshotDownloadPermits()) {
+                            assertThat(snapshotDownloadPermit, is(notNullValue()));
+                        }
+                    });
                 }
 
                 String indexRecoveredFromSnapshot2 = indices.get(1);
@@ -1140,10 +1156,11 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                     indexName,
                     Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                         .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
                         .put("index.routing.allocation.require._name", dataNodes.get(0))
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), 0)
                         .build()
                 );
                 indices.add(indexName);
@@ -1391,8 +1408,10 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         assertThat(indexRecoveries, notNullValue());
 
         List<RecoveryState> peerRecoveries = indexRecoveries.stream()
+            .filter(recoveryState -> recoveryState.getStage() == RecoveryState.Stage.DONE)
             .filter(recoveryState -> recoveryState.getRecoverySource().equals(RecoverySource.PeerRecoverySource.INSTANCE))
             .filter(recoveryState -> recoveryState.getShardId().getId() == shardId)
+            .sorted(Comparator.comparingLong(o -> o.getTimer().stopTime()))
             .collect(Collectors.toList());
 
         assertThat(peerRecoveries, is(not(empty())));

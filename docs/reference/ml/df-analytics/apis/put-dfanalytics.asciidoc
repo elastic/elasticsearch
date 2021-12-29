@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[put-dfanalytics]]
 = Create {dfanalytics-jobs} API
 [subs="attributes"]
@@ -657,7 +656,7 @@ PUT _ml/data_frame/analytics/loganalytics
   }
 }
 --------------------------------------------------
-// TEST[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/79931"]
+// TEST[setup:setup_logdata]
 
 
 The API returns the following result:
@@ -692,7 +691,7 @@ The API returns the following result:
 }
 ----
 // TESTRESPONSE[s/1562265491319/$body.$_path/]
-// TESTRESPONSE[s/"version" : "8.0.0"/"version" : $body.version/]
+// TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]
 
 
 [[ml-put-dfanalytics-example-r]]

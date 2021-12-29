@@ -57,7 +57,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
     }
 
     public static BertTokenization createDefault() {
-        return new BertTokenization(null, null, null, Truncate.FIRST);
+        return new BertTokenization(null, null, null, Tokenization.DEFAULT_TRUNCATION);
     }
 
     protected final boolean doLowerCase;

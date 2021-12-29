@@ -28,12 +28,12 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
 
     @Override
     protected UnfollowAction createTestInstance() {
-        return new UnfollowAction();
+        return UnfollowAction.INSTANCE;
     }
 
     @Override
     protected Reader<UnfollowAction> instanceReader() {
-        return UnfollowAction::new;
+        return in -> UnfollowAction.INSTANCE;
     }
 
     public void testToSteps() {
@@ -88,5 +88,11 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
         assertThat(eighthStep.getColor(), is(ClusterHealthStatus.YELLOW));
         assertThat(eighthStep.getKey(), equalTo(expectedEighthStepKey));
         assertThat(eighthStep.getNextStepKey(), equalTo(nextStepKey));
+    }
+
+    @Override
+    protected void assertEqualInstances(UnfollowAction expectedInstance, UnfollowAction newInstance) {
+        assertThat(newInstance, equalTo(expectedInstance));
+        assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
     }
 }

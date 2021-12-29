@@ -19,11 +19,11 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.security.authz.privilege.ManageOwnApiKeyClusterPrivilege.API_KEY_ID_KEY;
 import static org.hamcrest.Matchers.is;
 
 public class AuthenticationTests extends ESTestCase {
@@ -126,10 +126,10 @@ public class AuthenticationTests extends ESTestCase {
         );
         final Authentication authentication = new Authentication(user, authRealm, lookupRealm);
 
-        if (authRealmIsForServiceAccount && lookupRealm == null) {
-            assertThat(authentication.isServiceAccount(), is(true));
+        if (authRealmIsForServiceAccount) {
+            assertThat(authentication.isAuthenticatedWithServiceAccount(), is(true));
         } else {
-            assertThat(authentication.isServiceAccount(), is(false));
+            assertThat(authentication.isAuthenticatedWithServiceAccount(), is(false));
         }
     }
 
@@ -205,13 +205,16 @@ public class AuthenticationTests extends ESTestCase {
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId) {
         final RealmRef apiKeyRealm = new RealmRef("_es_api_key", "_es_api_key", randomAlphaOfLengthBetween(3, 8));
+        final HashMap<String, Object> metadata = new HashMap<>();
+        metadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
+        metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
         return new Authentication(
             user,
             apiKeyRealm,
             null,
             VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT),
             AuthenticationType.API_KEY,
-            Map.of(API_KEY_ID_KEY, apiKeyId)
+            metadata
         );
     }
 

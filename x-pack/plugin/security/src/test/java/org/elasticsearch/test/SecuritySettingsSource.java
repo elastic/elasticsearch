@@ -98,13 +98,14 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         + TEST_SUPERUSER
         + "\n";
 
-    public static final String CONFIG_ROLE_ALLOW_ALL = TEST_ROLE
-        + ":\n"
-        + "  cluster: [ ALL ]\n"
-        + "  indices:\n"
-        + "    - names: '*'\n"
-        + "      allow_restricted_indices: true\n"
-        + "      privileges: [ ALL ]\n";
+    public static final String CONFIG_ROLE_ALLOW_ALL = """
+        %s:
+          cluster: [ ALL ]
+          indices:
+            - names: '*'
+              allow_restricted_indices: true
+              privileges: [ ALL ]
+        """.formatted(TEST_ROLE);
 
     private final Path parentFolder;
     private final String subfolderPrefix;
@@ -163,6 +164,8 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
             .put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), randomBoolean())
             .put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), randomBoolean())
             .put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), randomBoolean())
+            .put(LoggingAuditTrail.EMIT_CLUSTER_NAME_SETTING.getKey(), randomBoolean())
+            .put(LoggingAuditTrail.EMIT_CLUSTER_UUID_SETTING.getKey(), randomBoolean())
             .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".file.order", 0)
             .put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".index.order", "1")
             .put("xpack.license.self_generated.type", "trial");

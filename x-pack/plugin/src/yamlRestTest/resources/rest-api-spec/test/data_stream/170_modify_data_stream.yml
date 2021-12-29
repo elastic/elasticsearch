@@ -79,7 +79,7 @@
         name: "data-stream-for-modification"
   - match: { data_streams.0.name: data-stream-for-modification }
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
-  - match: { data_streams.0.generation: 3 }
+  - match: { data_streams.0.generation: 4 }
   - length: { data_streams.0.indices: 2 }
   - match: { data_streams.0.indices.0.index_name: $first_index }
   - match: { data_streams.0.indices.1.index_name: $write_index }

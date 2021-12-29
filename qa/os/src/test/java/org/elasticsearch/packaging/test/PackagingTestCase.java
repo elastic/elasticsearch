@@ -126,12 +126,12 @@ public abstract class PackagingTestCase extends Assert {
     // the java installation already installed on the system
     protected static final String systemJavaHome;
     static {
-        Shell sh = new Shell();
+        Shell initShell = new Shell();
         if (Platforms.WINDOWS) {
-            systemJavaHome = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+            systemJavaHome = initShell.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
         } else {
             assert Platforms.LINUX || Platforms.DARWIN;
-            systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+            systemJavaHome = initShell.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         }
     }
 

@@ -1,7 +1,3 @@
-package org.elasticsearch.painless;
-
-import java.util.Collections;
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -9,6 +5,10 @@ import java.util.Collections;
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+
+package org.elasticsearch.painless;
+
+import java.util.Collections;
 
 /** tests for throw/try/catch in painless */
 public class TryCatchTests extends ScriptTestCase {

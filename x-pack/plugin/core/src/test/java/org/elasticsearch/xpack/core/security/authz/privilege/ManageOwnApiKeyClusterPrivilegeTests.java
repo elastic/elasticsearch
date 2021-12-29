@@ -17,9 +17,11 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
@@ -33,12 +35,10 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
             .build();
 
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
-        final Authentication authentication = createMockAuthentication(
-            "joe",
-            "_es_api_key",
-            AuthenticationType.API_KEY,
-            Map.of("_security_api_key_id", apiKeyId)
-        );
+        final HashMap<String, Object> metadata = new HashMap<>();
+        metadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
+        metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomAlphaOfLengthBetween(1, 16));
+        final Authentication authentication = createMockAuthentication("joe", "_es_api_key", AuthenticationType.API_KEY, metadata);
         final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
         final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
 
@@ -52,12 +52,10 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
             .build();
 
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
-        final Authentication authentication = createMockAuthentication(
-            "joe",
-            "_es_api_key",
-            AuthenticationType.API_KEY,
-            Map.of("_security_api_key_id", randomAlphaOfLength(7))
-        );
+        final HashMap<String, Object> metadata = new HashMap<>();
+        metadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLength(7));
+        metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
+        final Authentication authentication = createMockAuthentication("joe", "_es_api_key", AuthenticationType.API_KEY, metadata);
         final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
         final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
 

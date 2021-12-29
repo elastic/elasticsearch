@@ -36,3 +36,4 @@ teardown:
   - match: { roles.0:  "superuser" }
   - match: { full_name: "Authenticate User" }
   - match: { authentication_type: "realm" }
+  - match: { api_key: null }

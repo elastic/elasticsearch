@@ -229,14 +229,6 @@ setup:
         allow_no_match: true
   - match: { count: 0 }
 
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      ml.get_job_stats:
-        job_id: "missing-*"
-        allow_no_jobs: true
-  - match: { count: 0 }
-
 ---
 "Test get job stats given pattern and not allow_no_match":
   - skip:
@@ -248,14 +240,6 @@ setup:
       ml.get_job_stats:
         job_id: "missing-*"
         allow_no_match: false
-
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      catch: missing
-      ml.get_job_stats:
-        job_id: "missing-*"
-        allow_no_jobs: false
 
 ---
 "Test reading v54 data counts and model size stats":

@@ -51,7 +51,6 @@ import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateR
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -61,7 +60,6 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class WatcherLifeCycleServiceTests extends ESTestCase {
@@ -98,11 +96,11 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         when(watcherService.validate(clusterState)).thenReturn(true);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, previousClusterState));
-        verifyZeroInteractions(watcherService);
+        verifyNoMoreInteractions(watcherService);
 
         // Trying to start a second time, but that should have no effect.
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, previousClusterState));
-        verifyZeroInteractions(watcherService);
+        verifyNoMoreInteractions(watcherService);
     }
 
     public void testStartWithStateNotRecoveredBlock() {
@@ -112,7 +110,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .nodes(nodes)
             .build();
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
-        verifyZeroInteractions(watcherService);
+        verifyNoMoreInteractions(watcherService);
     }
 
     public void testShutdown() {
@@ -131,7 +129,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         reset(watcherService);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
-        verifyZeroInteractions(watcherService);
+        verifyNoMoreInteractions(watcherService);
     }
 
     public void testManualStartStop() {
@@ -176,12 +174,12 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         reset(watcherService);
         when(watcherService.validate(clusterState)).thenReturn(true);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, stoppedClusterState));
-        verify(watcherService, times(1)).start(eq(clusterState), anyObject());
+        verify(watcherService, times(1)).start(eq(clusterState), any());
 
         // no change, keep going
         reset(watcherService);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
-        verifyZeroInteractions(watcherService);
+        verifyNoMoreInteractions(watcherService);
     }
 
     public void testNoLocalShards() {
@@ -246,7 +244,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         // no further invocations should happen if the cluster state does not change in regard to local shards
         reset(watcherService);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithoutLocalShards, clusterStateWithoutLocalShards));
-        verifyZeroInteractions(watcherService);
+        verifyNoMoreInteractions(watcherService);
     }
 
     public void testReplicaWasAddedOrRemoved() {
@@ -388,7 +386,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .build();
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", currentState, previousState));
-        verify(watcherService, times(0)).pauseExecution(anyObject());
+        verify(watcherService, times(0)).pauseExecution(any());
         verify(watcherService, times(0)).reload(any(), any());
     }
 
@@ -426,11 +424,11 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         // now remove watches index, and ensure that pausing is only called once, no matter how often called (i.e. each CS update)
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithoutWatcherIndex, clusterStateWithWatcherIndex));
-        verify(watcherService, times(1)).pauseExecution(anyObject());
+        verify(watcherService, times(1)).pauseExecution(any());
 
         reset(watcherService);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithoutWatcherIndex, clusterStateWithWatcherIndex));
-        verifyZeroInteractions(watcherService);
+        verifyNoMoreInteractions(watcherService);
     }
 
     public void testWatcherServiceDoesNotStartIfIndexTemplatesAreMissing() throws Exception {
@@ -445,7 +443,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         when(watcherService.validate(eq(state))).thenReturn(true);
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", state, state));
-        verify(watcherService, times(0)).start(any(ClusterState.class), anyObject());
+        verify(watcherService, times(0)).start(any(ClusterState.class), any());
     }
 
     public void testWatcherStopsWhenMasterNodeIsMissing() {
@@ -554,11 +552,11 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .build();
 
         // initialize the previous state, so all the allocation ids are loaded
-        when(watcherService.validate(anyObject())).thenReturn(true);
+        when(watcherService.validate(any())).thenReturn(true);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("whatever", previousState, currentState));
 
         reset(watcherService);
-        when(watcherService.validate(anyObject())).thenReturn(true);
+        when(watcherService.validate(any())).thenReturn(true);
         ClusterChangedEvent event = new ClusterChangedEvent("whatever", currentState, previousState);
         lifeCycleService.clusterChanged(event);
         verify(watcherService).reload(eq(event.state()), anyString());

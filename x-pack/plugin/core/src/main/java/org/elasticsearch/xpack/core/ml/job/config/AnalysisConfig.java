@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -76,6 +75,8 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
 
     // The minimum number of buckets considered acceptable for the model_prune_window field
     public static final long MINIMUM_MODEL_PRUNE_WINDOW_BUCKETS = 2;
+
+    public static final TimeValue DEFAULT_MODEL_PRUNE_WINDOW = TimeValue.timeValueDays(30);
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<AnalysisConfig.Builder, Void> createParser(boolean ignoreUnknownFields) {
@@ -174,11 +175,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         influencers = Collections.unmodifiableList(in.readStringList());
 
         multivariateByFields = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
-            modelPruneWindow = in.readOptionalTimeValue();
-        } else {
-            modelPruneWindow = null;
-        }
+        modelPruneWindow = in.readOptionalTimeValue();
     }
 
     @Override
@@ -200,9 +197,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
 
         out.writeOptionalBoolean(multivariateByFields);
 
-        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
-            out.writeOptionalTimeValue(modelPruneWindow);
-        }
+        out.writeOptionalTimeValue(modelPruneWindow);
     }
 
     /**

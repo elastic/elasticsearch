@@ -148,18 +148,13 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         }
         {
             // should fail, because leader has a field with the same name mapped as keyword and follower as text
-            IndexMetadata leaderIMD = createIMD(
-                "index1",
-                State.OPEN,
-                "{\"properties\": {\"field\": {\"type\": \"keyword\"}}}",
-                5,
-                Settings.EMPTY,
-                null
-            );
+            IndexMetadata leaderIMD = createIMD("index1", State.OPEN, """
+                {"properties": {"field": {"type": "keyword"}}}""", 5, Settings.EMPTY, null);
             IndexMetadata followIMD = createIMD(
                 "index2",
                 State.OPEN,
-                "{\"properties\": {\"field\": {\"type\": \"text\"}}}",
+                """
+                    {"properties": {"field": {"type": "text"}}}""",
                 5,
                 Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true).build(),
                 customMetadata
@@ -171,7 +166,8 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         }
         {
             // should fail because of non whitelisted settings not the same between leader and follow index
-            String mapping = "{\"properties\": {\"field\": {\"type\": \"text\", \"analyzer\": \"my_analyzer\"}}}";
+            String mapping = """
+                {"properties": {"field": {"type": "text", "analyzer": "my_analyzer"}}}""";
             IndexMetadata leaderIMD = createIMD(
                 "index1",
                 State.OPEN,
@@ -196,15 +192,11 @@ public class TransportResumeFollowActionTests extends ESTestCase {
                 customMetadata
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
-            assertThat(
-                e.getMessage(),
-                equalTo(
-                    "the leader index settings [{\"index.analysis.analyzer.my_analyzer.tokenizer\""
-                        + ":\"whitespace\",\"index.analysis.analyzer.my_analyzer.type\":\"custom\",\"index.number_of_shards\":\"5\"}] "
-                        + "and follower index settings [{\"index.analysis.analyzer.my_analyzer.tokenizer\":\"standard\","
-                        + "\"index.analysis.analyzer.my_analyzer.type\":\"custom\",\"index.number_of_shards\":\"5\"}] must be identical"
-                )
-            );
+            assertThat(e.getMessage(), equalTo("""
+                the leader index settings [{"index.analysis.analyzer.my_analyzer.tokenizer":"whitespace",\
+                "index.analysis.analyzer.my_analyzer.type":"custom","index.number_of_shards":"5"}] and follower index settings \
+                [{"index.analysis.analyzer.my_analyzer.tokenizer":"standard","index.analysis.analyzer.my_analyzer.type":"custom",\
+                "index.number_of_shards":"5"}] must be identical"""));
         }
         {
             // should fail because the following index does not have the following_index settings
@@ -245,7 +237,8 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         }
         {
             // should succeed, index settings are identical
-            String mapping = "{\"properties\": {\"field\": {\"type\": \"text\", \"analyzer\": \"my_analyzer\"}}}";
+            String mapping = """
+                {"properties": {"field": {"type": "text", "analyzer": "my_analyzer"}}}""";
             IndexMetadata leaderIMD = createIMD(
                 "index1",
                 State.OPEN,
@@ -280,7 +273,8 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         }
         {
             // should succeed despite whitelisted settings being different
-            String mapping = "{\"properties\": {\"field\": {\"type\": \"text\", \"analyzer\": \"my_analyzer\"}}}";
+            String mapping = """
+                {"properties": {"field": {"type": "text", "analyzer": "my_analyzer"}}}""";
             IndexMetadata leaderIMD = createIMD(
                 "index1",
                 State.OPEN,
@@ -332,6 +326,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         replicatedSettings.add(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         replicatedSettings.add(IndexSettings.MAX_NGRAM_DIFF_SETTING);
         replicatedSettings.add(IndexSettings.MAX_SHINGLE_DIFF_SETTING);
+        replicatedSettings.add(IndexSettings.TIME_SERIES_END_TIME);
 
         for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
             if (setting.isDynamic()) {

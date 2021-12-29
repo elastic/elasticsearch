@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[xpack-ccr]]
 == {ccr-cap}
 With {ccr}, you can replicate indices across clusters to:

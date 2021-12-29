@@ -19,6 +19,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
@@ -28,10 +29,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -194,7 +193,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         final String executorName = isOnlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
-        threadPool.executor(executorName).execute(new ActionRunnable<>(releasingListener) {
+        threadPool.executor(Names.WRITE).execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() {
                 doInternalExecute(task, bulkRequest, executorName, releasingListener);
@@ -349,6 +348,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     static void prohibitAppendWritesInBackingIndices(DocWriteRequest<?> writeRequest, Metadata metadata) {
+        DocWriteRequest.OpType opType = writeRequest.opType();
+        if ((opType == OpType.CREATE || opType == OpType.INDEX) == false) {
+            // op type not create or index, then bail early
+            return;
+        }
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(writeRequest.index());
         if (indexAbstraction == null) {
             return;
@@ -366,7 +370,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         // so checking if write op is append-only and if so fail.
         // (Updates and deletes are allowed to target a backing index)
 
-        DocWriteRequest.OpType opType = writeRequest.opType();
         // CREATE op_type is considered append-only and
         // INDEX op_type is considered append-only when no if_primary_term and if_seq_no is specified.
         // (the latter maybe an update, but at this stage we can't determine that. In order to determine
@@ -508,7 +511,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, i, metadata)) {
                     continue;
                 }
-                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices, metadata)) {
+                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices)) {
                     continue;
                 }
                 Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
@@ -525,46 +528,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
                     }
 
-                    IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
+                    prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
+                    prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
+                    docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
+                    docWriteRequest.process();
 
-                    int shardId;
-                    switch (docWriteRequest.opType()) {
-                        case CREATE:
-                        case INDEX:
-                            prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
-                            prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
-                            IndexRequest indexRequest = (IndexRequest) docWriteRequest;
-                            final IndexMetadata indexMetadata = metadata.index(concreteIndex);
-                            MappingMetadata mappingMd = indexMetadata.mapping();
-                            Version indexCreated = indexMetadata.getCreationVersion();
-                            indexRequest.resolveRouting(metadata);
-                            indexRequest.process(indexCreated, mappingMd, concreteIndex.getName());
-                            shardId = indexRouting.indexShard(
-                                docWriteRequest.id(),
-                                docWriteRequest.routing(),
-                                indexRequest.getContentType(),
-                                indexRequest.source()
-                            );
-                            break;
-                        case UPDATE:
-                            TransportUpdateAction.resolveAndValidateRouting(
-                                metadata,
-                                concreteIndex.getName(),
-                                (UpdateRequest) docWriteRequest
-                            );
-                            shardId = indexRouting.updateShard(docWriteRequest.id(), docWriteRequest.routing());
-                            break;
-                        case DELETE:
-                            docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
-                            // check if routing is required, if so, throw error if routing wasn't specified
-                            if (docWriteRequest.routing() == null && metadata.routingRequired(concreteIndex.getName())) {
-                                throw new RoutingMissingException(concreteIndex.getName(), docWriteRequest.id());
-                            }
-                            shardId = indexRouting.deleteShard(docWriteRequest.id(), docWriteRequest.routing());
-                            break;
-                        default:
-                            throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
-                    }
+                    IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
+                    int shardId = docWriteRequest.route(indexRouting);
                     List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
                         new ShardId(concreteIndex, shardId),
                         shard -> new ArrayList<>()
@@ -621,7 +591,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     public void onFailure(Exception e) {
                         // create failures for all relevant requests
                         for (BulkItemRequest request : requests) {
-                            final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
+                            final String indexName = request.index();
                             DocWriteRequest<?> docWriteRequest = request.request();
                             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
                             responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
@@ -708,29 +678,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return false;
         }
 
-        private boolean addFailureIfIndexIsUnavailable(
-            DocWriteRequest<?> request,
-            int idx,
-            final ConcreteIndices concreteIndices,
-            final Metadata metadata
-        ) {
+        private boolean addFailureIfIndexIsUnavailable(DocWriteRequest<?> request, int idx, final ConcreteIndices concreteIndices) {
             IndexNotFoundException cannotCreate = indicesThatCannotBeCreated.get(request.index());
             if (cannotCreate != null) {
                 addFailure(request, idx, cannotCreate);
                 return true;
             }
-            Index concreteIndex = concreteIndices.getConcreteIndex(request.index());
-            if (concreteIndex == null) {
-                try {
-                    concreteIndex = concreteIndices.resolveIfAbsent(request);
-                } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
-                    addFailure(request, idx, ex);
-                    return true;
-                }
-            }
-            IndexMetadata indexMetadata = metadata.getIndexSafe(concreteIndex);
-            if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
-                addFailure(request, idx, new IndexClosedException(concreteIndex));
+            try {
+                assert request.indicesOptions().forbidClosedIndices() : "only open indices can be resolved";
+                Index concreteIndex = concreteIndices.resolveIfAbsent(request);
+                assert concreteIndex != null;
+            } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
+                addFailure(request, idx, ex);
                 return true;
             }
             return false;
@@ -766,10 +725,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ConcreteIndices(ClusterState state, IndexNameExpressionResolver indexNameExpressionResolver) {
             this.state = state;
             this.indexNameExpressionResolver = indexNameExpressionResolver;
-        }
-
-        Index getConcreteIndex(String indexOrAlias) {
-            return indices.get(indexOrAlias);
         }
 
         Index resolveIfAbsent(DocWriteRequest<?> request) {
@@ -834,27 +789,27 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // (this will happen if pre-processing all items in the bulk failed)
                         actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
                     } else {
+                        ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
+                            @Override
+                            protected void doRun() {
+                                doInternalExecute(task, bulkRequest, executorName, actionListener);
+                            }
+
+                            @Override
+                            public boolean isForceExecution() {
+                                // If we fork back to a write thread we **not** should fail, because tp queue is full.
+                                // (Otherwise the work done during ingest will be lost)
+                                // It is okay to force execution here. Throttling of write requests happens prior to
+                                // ingest when a node receives a bulk request.
+                                return true;
+                            }
+                        };
                         // If a processor went async and returned a response on a different thread then
                         // before we continue the bulk request we should fork back on a write thread:
                         if (originalThread == Thread.currentThread()) {
-                            assert Thread.currentThread().getName().contains(executorName);
-                            doInternalExecute(task, bulkRequest, executorName, actionListener);
+                            threadPool.executor(Names.SAME).execute(runnable);
                         } else {
-                            threadPool.executor(executorName).execute(new ActionRunnable<>(actionListener) {
-                                @Override
-                                protected void doRun() {
-                                    doInternalExecute(task, bulkRequest, executorName, actionListener);
-                                }
-
-                                @Override
-                                public boolean isForceExecution() {
-                                    // If we fork back to a write thread we **not** should fail, because tp queue is full.
-                                    // (Otherwise the work done during ingest will be lost)
-                                    // It is okay to force execution here. Throttling of write requests happens prior to
-                                    // ingest when a node receives a bulk request.
-                                    return true;
-                                }
-                            });
+                            threadPool.executor(executorName).execute(runnable);
                         }
                     }
                 }

@@ -10,13 +10,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
+
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -125,7 +127,10 @@ public final class AnomalyDetectorsIndex {
     }
 
     public static String wrappedResultsMapping() {
-        return "{\n\"_doc\" : " + resultsMapping() + "\n}";
+        return String.format(Locale.ROOT, """
+            {
+            "_doc" : %s
+            }""", resultsMapping());
     }
 
     public static String resultsMapping() {

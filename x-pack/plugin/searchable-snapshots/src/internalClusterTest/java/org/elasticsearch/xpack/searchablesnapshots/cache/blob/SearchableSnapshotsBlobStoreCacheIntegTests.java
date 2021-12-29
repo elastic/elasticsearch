@@ -12,8 +12,8 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -83,11 +83,11 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         builder.put(CacheService.SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), blobCacheMaxLength);
 
         // Frozen (shared cache) cache should be large enough to not cause direct reads
-        builder.put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(128));
+        builder.put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(128));
         // Align ranges to match the blob cache max length
-        builder.put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), blobCacheMaxLength);
+        builder.put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), blobCacheMaxLength);
         builder.put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), blobCacheMaxLength);
-        builder.put(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), blobCacheMaxLength);
+        builder.put(FrozenCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), blobCacheMaxLength);
         cacheSettings = builder.build();
     }
 

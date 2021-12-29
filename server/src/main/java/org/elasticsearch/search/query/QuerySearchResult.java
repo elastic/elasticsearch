@@ -377,7 +377,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // we do not know that it is being sent over transport, but this at least protects all writes from happening, including sending.
-        assert aggregations == null || aggregations.isSerialized() == false : "cannot send serialized version since it will leak";
+        if (aggregations != null && aggregations.isSerialized()) {
+            throw new IllegalStateException("cannot send serialized version since it will leak");
+        }
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeBoolean(isNull);
         }

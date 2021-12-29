@@ -13,6 +13,7 @@ import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -42,19 +43,18 @@ public class GrantApiKeyRequestTests extends ESTestCase {
         final String apiKeyMetadataString = apiKeyMetadata == null
             ? ""
             : ",\"metadata\":" + XContentTestUtils.convertToXContent(apiKeyMetadata, XContentType.JSON).utf8ToString();
-        assertThat(
-            output,
-            equalTo(
-                "{"
-                    + "\"grant_type\":\"password\","
-                    + "\"username\":\"kamala.khan\","
-                    + "\"password\":\"JerseyGirl!\","
-                    + "\"api_key\":{\"name\":\"api-key\",\"role_descriptors\":{}"
-                    + apiKeyMetadataString
-                    + "}"
-                    + "}"
-            )
-        );
+        assertThat(output, equalTo(XContentHelper.stripWhitespace("""
+            {
+              "grant_type": "password",
+              "username": "kamala.khan",
+              "password": "JerseyGirl!",
+              "api_key": {
+                "name": "api-key",
+                "role_descriptors": {}
+                %s
+              }
+            }
+            """.formatted(apiKeyMetadataString))));
     }
 
     public void testEqualsHashCode() {

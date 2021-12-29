@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -222,6 +223,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         this.nodeId = nodeId.intern();
         this.ephemeralId = ephemeralId.intern();
         this.hostName = hostName.intern();
+        assert Strings.hasText(hostAddress);
         this.hostAddress = hostAddress.intern();
         this.address = address;
         if (version == null) {

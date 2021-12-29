@@ -47,10 +47,6 @@ import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIG
 public abstract class AbstractJobPersistentTasksExecutor<Params extends PersistentTaskParams> extends PersistentTasksExecutor<Params> {
 
     private static final Logger logger = LogManager.getLogger(AbstractJobPersistentTasksExecutor.class);
-    public static final PersistentTasksCustomMetadata.Assignment AWAITING_MIGRATION = new PersistentTasksCustomMetadata.Assignment(
-        null,
-        "job cannot be assigned until it has been migrated."
-    );
 
     public static List<String> verifyIndicesPrimaryShardsAreActive(
         ClusterState clusterState,
@@ -145,8 +141,8 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
                             JOB_AUDIT_REQUIRES_MORE_MEMORY_TO_RUN,
                             ByteSizeValue.ofBytes(memoryTracker.getJobMemoryRequirement(getTaskName(), jobId)),
                             ByteSizeValue.ofBytes(capacityAndFreeMemory.v2()),
-                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getTier()),
-                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getNode())
+                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getTierMlNativeMemoryRequirement()),
+                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getNodeMlNativeMemoryRequirement())
                         )
                     );
                     auditedJobCapacity.put(getUniqueId(jobId), capacityAndFreeMemory.v2());

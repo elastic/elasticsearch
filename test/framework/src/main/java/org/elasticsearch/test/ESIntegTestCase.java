@@ -51,12 +51,12 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterModule;
@@ -1147,7 +1147,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 final Metadata loadedMetadata;
                 try (
                     XContentParser parser = createParser(
-                        ElasticsearchNodeCommand.namedXContentRegistry,
+                        parserConfig().withRegistry(ElasticsearchNodeCommand.namedXContentRegistry),
                         SmileXContent.smileXContent,
                         originalBytes
                     )
@@ -1188,7 +1188,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 final IndexMetadata loadedIndexMetadata;
                 try (
                     XContentParser parser = createParser(
-                        ElasticsearchNodeCommand.namedXContentRegistry,
+                        parserConfig().withRegistry(ElasticsearchNodeCommand.namedXContentRegistry),
                         SmileXContent.smileXContent,
                         originalBytes
                     )

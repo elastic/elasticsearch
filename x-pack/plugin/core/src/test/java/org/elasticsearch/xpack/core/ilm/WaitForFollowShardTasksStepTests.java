@@ -168,7 +168,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         assertThat(conditionMetHolder[0], is(true));
         assertThat(informationContextHolder[0], nullValue());
         assertThat(exceptionHolder[0], nullValue());
-        Mockito.verifyZeroInteractions(client);
+        Mockito.verifyNoMoreInteractions(client);
     }
 
     private static ShardFollowNodeTaskStatus createShardFollowTaskStatus(int shardId, long leaderGCP, long followerGCP) {

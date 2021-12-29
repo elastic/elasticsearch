@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.cluster.metadata;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -147,7 +147,6 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     public void testMigrateIlmPolicyFOrPhaseWithDeactivatedMigrateAction() {
         ShrinkAction shrinkAction = new ShrinkAction(2, null);
         AllocateAction warmAllocateAction = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
-        MigrateAction deactivatedMigrateAction = new MigrateAction(false);
 
         LifecyclePolicy policy = new LifecyclePolicy(
             lifecycleName,
@@ -161,8 +160,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                         shrinkAction,
                         warmAllocateAction.getWriteableName(),
                         warmAllocateAction,
-                        deactivatedMigrateAction.getWriteableName(),
-                        deactivatedMigrateAction
+                        MigrateAction.DISABLED.getWriteableName(),
+                        MigrateAction.DISABLED
                     )
                 )
             )
@@ -921,51 +920,49 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     private String getWarmPhaseDef() {
-        return "{\n"
-            + "        \"policy\" : \""
-            + lifecycleName
-            + "\",\n"
-            + "        \"phase_definition\" : {\n"
-            + "          \"min_age\" : \"0m\",\n"
-            + "          \"actions\" : {\n"
-            + "            \"allocate\" : {\n"
-            + "              \"number_of_replicas\" : \"0\",\n"
-            + "              \"require\" : {\n"
-            + "                \"data\": \"cold\"\n"
-            + "              }\n"
-            + "            },\n"
-            + "            \"set_priority\": {\n"
-            + "              \"priority\": 100 \n"
-            + "            },\n"
-            + "            \"shrink\": {\n"
-            + "              \"number_of_shards\": 2 \n"
-            + "            }\n"
-            + "          }\n"
-            + "        },\n"
-            + "        \"version\" : 1,\n"
-            + "        \"modified_date_in_millis\" : 1578521007076\n"
-            + "      }";
+        return """
+            {
+              "policy": "%s",
+              "phase_definition": {
+                "min_age": "0m",
+                "actions": {
+                  "allocate": {
+                    "number_of_replicas": "0",
+                    "require": {
+                      "data": "cold"
+                    }
+                  },
+                  "set_priority": {
+                    "priority": 100
+                  },
+                  "shrink": {
+                    "number_of_shards": 2
+                  }
+                }
+              },
+              "version": 1,
+              "modified_date_in_millis": 1578521007076
+            }""".formatted(lifecycleName);
     }
 
     private String getColdPhaseDefinition() {
-        return "{\n"
-            + "        \"policy\" : \""
-            + lifecycleName
-            + "\",\n"
-            + "        \"phase_definition\" : {\n"
-            + "          \"min_age\" : \"0m\",\n"
-            + "          \"actions\" : {\n"
-            + "            \"allocate\" : {\n"
-            + "              \"number_of_replicas\" : \"0\",\n"
-            + "              \"require\" : {\n"
-            + "                \"data\": \"cold\"\n"
-            + "              }\n"
-            + "            }\n"
-            + "          }\n"
-            + "        },\n"
-            + "        \"version\" : 1,\n"
-            + "        \"modified_date_in_millis\" : 1578521007076\n"
-            + "      }";
+        return """
+            {
+              "policy": "%s",
+              "phase_definition": {
+                "min_age": "0m",
+                "actions": {
+                  "allocate": {
+                    "number_of_replicas": "0",
+                    "require": {
+                      "data": "cold"
+                    }
+                  }
+                }
+              },
+              "version": 1,
+              "modified_date_in_millis": 1578521007076
+            }""".formatted(lifecycleName);
     }
 
     @SuppressWarnings("unchecked")

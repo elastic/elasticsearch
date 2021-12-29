@@ -85,7 +85,13 @@ public class TrainedModelCRUDIT extends MlSingleNodeTestCase {
         assertThat(((IndexLocation) config.getLocation()).getIndexName(), equalTo(InferenceIndexConstants.nativeDefinitionStore()));
         client().execute(
             PutTrainedModelDefinitionPartAction.INSTANCE,
-            new PutTrainedModelDefinitionPartAction.Request(modelId, new BytesArray(BASE_64_ENCODED_MODEL), 0, RAW_MODEL_SIZE, 1)
+            new PutTrainedModelDefinitionPartAction.Request(
+                modelId,
+                new BytesArray(Base64.getDecoder().decode(BASE_64_ENCODED_MODEL)),
+                0,
+                RAW_MODEL_SIZE,
+                1
+            )
         ).actionGet();
 
         assertThat(

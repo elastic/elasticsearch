@@ -22,7 +22,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -132,7 +132,10 @@ public class JobResultsPersister {
             return this;
         }
 
-        private void persistBucketInfluencersStandalone(String jobId, List<BucketInfluencer> bucketInfluencers) {
+        private void persistBucketInfluencersStandalone(
+            @SuppressWarnings("HiddenField") String jobId,
+            List<BucketInfluencer> bucketInfluencers
+        ) {
             if (bucketInfluencers != null && bucketInfluencers.isEmpty() == false) {
                 for (BucketInfluencer bucketInfluencer : bucketInfluencers) {
                     String id = bucketInfluencer.getId();
@@ -508,7 +511,7 @@ public class JobResultsPersister {
         }
 
         BulkResponse persist(Supplier<Boolean> shouldRetry, boolean requireAlias) {
-            logCall(indexName);
+            logCall();
             try {
                 return resultsPersisterService.indexWithRetry(
                     jobId,
@@ -533,7 +536,7 @@ public class JobResultsPersister {
         }
 
         void persist(ActionListener<IndexResponse> listener, boolean requireAlias) {
-            logCall(indexName);
+            logCall();
 
             try (XContentBuilder content = toXContentBuilder(object, params)) {
                 IndexRequest indexRequest = new IndexRequest(indexName).id(id)
@@ -549,7 +552,7 @@ public class JobResultsPersister {
             }
         }
 
-        private void logCall(String indexName) {
+        private void logCall() {
             if (logger.isTraceEnabled()) {
                 if (id != null) {
                     logger.trace("[{}] ES API CALL: to index {} with ID [{}]", jobId, indexName, id);

@@ -52,6 +52,7 @@ public class LdapServerDebugLogging {
     }
 
     public void configure(InMemoryDirectoryServerConfig config) {
+        targetLogger.info("Configuring debug logging for LDAP server [{}]", config);
         config.setLDAPDebugLogHandler(logHandler);
     }
 

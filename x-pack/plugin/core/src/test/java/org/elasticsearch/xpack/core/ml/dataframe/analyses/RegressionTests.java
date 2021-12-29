@@ -120,41 +120,9 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
             instance.getRandomizeSeed(),
             instance.getLossFunction(),
             instance.getLossFunctionParameter(),
-            version.onOrAfter(Version.V_7_10_0) ? instance.getFeatureProcessors() : Collections.emptyList(),
+            instance.getFeatureProcessors(),
             instance.getEarlyStoppingEnabled()
         );
-    }
-
-    @Override
-    protected void assertOnBWCObject(Regression bwcSerializedObject, Regression testInstance, Version version) {
-        if (version.onOrAfter(Version.V_7_6_0)) {
-            super.assertOnBWCObject(bwcSerializedObject, testInstance, version);
-            return;
-        }
-
-        Regression newBwc = new Regression(
-            bwcSerializedObject.getDependentVariable(),
-            bwcSerializedObject.getBoostedTreeParams(),
-            bwcSerializedObject.getPredictionFieldName(),
-            bwcSerializedObject.getTrainingPercent(),
-            42L,
-            bwcSerializedObject.getLossFunction(),
-            bwcSerializedObject.getLossFunctionParameter(),
-            bwcSerializedObject.getFeatureProcessors(),
-            bwcSerializedObject.getEarlyStoppingEnabled()
-        );
-        Regression newInstance = new Regression(
-            testInstance.getDependentVariable(),
-            testInstance.getBoostedTreeParams(),
-            testInstance.getPredictionFieldName(),
-            testInstance.getTrainingPercent(),
-            42L,
-            testInstance.getLossFunction(),
-            testInstance.getLossFunctionParameter(),
-            testInstance.getFeatureProcessors(),
-            testInstance.getEarlyStoppingEnabled()
-        );
-        super.assertOnBWCObject(newBwc, newInstance, version);
     }
 
     @Override
@@ -168,42 +136,42 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
     }
 
     public void testDeserialization() throws IOException {
-        String toDeserialize = "{\n"
-            + "      \"dependent_variable\": \"FlightDelayMin\",\n"
-            + "      \"feature_processors\": [\n"
-            + "        {\n"
-            + "          \"one_hot_encoding\": {\n"
-            + "            \"field\": \"OriginWeather\",\n"
-            + "            \"hot_map\": {\n"
-            + "              \"sunny_col\": \"Sunny\",\n"
-            + "              \"clear_col\": \"Clear\",\n"
-            + "              \"rainy_col\": \"Rain\"\n"
-            + "            }\n"
-            + "          }\n"
-            + "        },\n"
-            + "        {\n"
-            + "          \"one_hot_encoding\": {\n"
-            + "            \"field\": \"DestWeather\",\n"
-            + "            \"hot_map\": {\n"
-            + "              \"dest_sunny_col\": \"Sunny\",\n"
-            + "              \"dest_clear_col\": \"Clear\",\n"
-            + "              \"dest_rainy_col\": \"Rain\"\n"
-            + "            }\n"
-            + "          }\n"
-            + "        },\n"
-            + "        {\n"
-            + "          \"frequency_encoding\": {\n"
-            + "            \"field\": \"OriginWeather\",\n"
-            + "            \"feature_name\": \"mean\",\n"
-            + "            \"frequency_map\": {\n"
-            + "              \"Sunny\": 0.8,\n"
-            + "              \"Rain\": 0.2\n"
-            + "            }\n"
-            + "          }\n"
-            + "        }\n"
-            + "      ]\n"
-            + "    }"
-            + "";
+        String toDeserialize = """
+            {
+                  "dependent_variable": "FlightDelayMin",
+                  "feature_processors": [
+                    {
+                      "one_hot_encoding": {
+                        "field": "OriginWeather",
+                        "hot_map": {
+                          "sunny_col": "Sunny",
+                          "clear_col": "Clear",
+                          "rainy_col": "Rain"
+                        }
+                      }
+                    },
+                    {
+                      "one_hot_encoding": {
+                        "field": "DestWeather",
+                        "hot_map": {
+                          "dest_sunny_col": "Sunny",
+                          "dest_clear_col": "Clear",
+                          "dest_rainy_col": "Rain"
+                        }
+                      }
+                    },
+                    {
+                      "frequency_encoding": {
+                        "field": "OriginWeather",
+                        "feature_name": "mean",
+                        "frequency_map": {
+                          "Sunny": 0.8,
+                          "Rain": 0.2
+                        }
+                      }
+                    }
+                  ]
+                }""";
 
         try (
             XContentParser parser = XContentHelper.createParser(

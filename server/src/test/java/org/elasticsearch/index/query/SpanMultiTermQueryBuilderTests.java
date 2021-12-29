@@ -14,7 +14,6 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.SpanMatchNoDocsQuery;
 import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -220,19 +220,20 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"span_multi\" : {\n"
-            + "    \"match\" : {\n"
-            + "      \"prefix\" : {\n"
-            + "        \"user\" : {\n"
-            + "          \"value\" : \"ki\",\n"
-            + "          \"boost\" : 1.08\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "span_multi" : {
+                "match" : {
+                  "prefix" : {
+                    "user" : {
+                      "value" : "ki",
+                      "boost" : 1.08
+                    }
+                  }
+                },
+                "boost" : 1.0
+              }
+            }""";
 
         SpanMultiTermQueryBuilder parsed = (SpanMultiTermQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

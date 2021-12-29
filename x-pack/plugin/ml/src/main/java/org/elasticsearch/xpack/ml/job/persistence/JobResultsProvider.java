@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -39,8 +38,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -217,8 +216,8 @@ public class JobResultsProvider {
                         Exception e = itemResponse.getFailure();
                         // There's a further complication, which is that msearch doesn't translate a
                         // closed index cluster block exception into a friendlier index closed exception
-                        if (e instanceof ClusterBlockException) {
-                            for (ClusterBlock block : ((ClusterBlockException) e).blocks()) {
+                        if (e instanceof ClusterBlockException cbe) {
+                            for (ClusterBlock block : cbe.blocks()) {
                                 if ("index closed".equals(block.description())) {
                                     SearchRequest searchRequest = msearch.request().requests().get(i);
                                     // Don't wrap the original exception, because then it would be the root cause
@@ -759,7 +758,7 @@ public class JobResultsProvider {
         BucketsQueryBuilder query,
         Consumer<QueryPage<Bucket>> handler,
         Consumer<Exception> errorHandler,
-        Client client
+        @SuppressWarnings("HiddenField") Client client
     ) throws ResourceNotFoundException {
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
@@ -1247,7 +1246,7 @@ public class JobResultsProvider {
         // Also, if no jobs have been opened since the previous versions, the .ml-anomalies-* index may not have
         // the `min_version`.
         if (sortField.equals(ModelSnapshot.MIN_VERSION.getPreferredName())) {
-            sb.missing(Version.fromString("6.3.0")).unmappedType("keyword");
+            sb.missing("6.3.0").unmappedType("keyword");
         }
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
@@ -1259,16 +1258,14 @@ public class JobResultsProvider {
             size
         );
 
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().sort(sb)
+            .query(finalQuery)
+            .from(from)
+            .size(size)
+            .trackTotalHits(true)
+            .fetchSource(REMOVE_QUANTILES_FROM_SOURCE);
         SearchRequest searchRequest = new SearchRequest(indexName);
-        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(searchRequest.indicesOptions()));
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.sort(sb);
-        sourceBuilder.query(finalQuery);
-        sourceBuilder.from(from);
-        sourceBuilder.size(size);
-        sourceBuilder.trackTotalHits(true);
-        sourceBuilder.fetchSource(REMOVE_QUANTILES_FROM_SOURCE);
-        searchRequest.source(sourceBuilder);
+        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(searchRequest.indicesOptions())).source(sourceBuilder);
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             ML_ORIGIN,

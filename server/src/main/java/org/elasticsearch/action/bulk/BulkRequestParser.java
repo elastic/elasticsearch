@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.bulk;
 
+import com.fasterxml.jackson.core.io.JsonEOFException;
+
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -22,15 +24,16 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -42,6 +45,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
  */
 public final class BulkRequestParser {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(BulkRequestParser.class);
+    private static final Set<String> SUPPORTED_ACTIONS = Set.of("create", "index", "update", "delete");
+    private static final String STRICT_ACTION_PARSING_WARNING_KEY = "bulk_request_strict_action_parsing";
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");
@@ -61,7 +66,10 @@ public final class BulkRequestParser {
     // TODO: Remove this parameter once the BulkMonitoring endpoint has been removed
     // for CompatibleApi V7 this means to deprecate on type, for V8+ it means to throw an error
     private final boolean deprecateOrErrorOnType;
-    private RestApiVersion restApiVersion;
+    /**
+     * Configuration for {@link XContentParser}.
+     */
+    private final XContentParserConfiguration config;
 
     /**
      * Create a new parser.
@@ -71,7 +79,8 @@ public final class BulkRequestParser {
      */
     public BulkRequestParser(boolean deprecateOrErrorOnType, RestApiVersion restApiVersion) {
         this.deprecateOrErrorOnType = deprecateOrErrorOnType;
-        this.restApiVersion = restApiVersion;
+        this.config = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
+            .withRestApiVersion(restApiVersion);
     }
 
     private static int findNextMarker(byte marker, int from, BytesReference data) {
@@ -141,7 +150,7 @@ public final class BulkRequestParser {
             line++;
 
             // now parse the action
-            try (XContentParser parser = createParser(data, xContent, from, nextMarker, restApiVersion)) {
+            try (XContentParser parser = createParser(xContent, data, from, nextMarker)) {
                 // move pointers
                 from = nextMarker + 1;
 
@@ -175,6 +184,14 @@ public final class BulkRequestParser {
                     );
                 }
                 String action = parser.currentName();
+                if (SUPPORTED_ACTIONS.contains(action) == false) {
+                    deprecationLogger.compatibleCritical(
+                        STRICT_ACTION_PARSING_WARNING_KEY,
+                        "Unsupported action: [{}]. Supported values are [create], [delete], [index], and [update]. "
+                            + "Unsupported actions are currently accepted but will be rejected in a future version.",
+                        action
+                    );
+                }
 
                 String index = defaultIndex;
                 String type = null;
@@ -288,6 +305,7 @@ public final class BulkRequestParser {
                             + "]"
                     );
                 }
+                checkBulkActionIsProperlyClosed(parser);
 
                 if ("delete".equals(action)) {
                     if (dynamicTemplates.isEmpty() == false) {
@@ -379,9 +397,8 @@ public final class BulkRequestParser {
                             .routing(routing);
                         try (
                             XContentParser sliceParser = createParser(
-                                sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType),
                                 xContent,
-                                restApiVersion
+                                sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType)
                             )
                         ) {
                             updateRequest.fromXContent(sliceParser);
@@ -403,64 +420,62 @@ public final class BulkRequestParser {
         }
     }
 
-    private static XContentParser createParser(BytesReference data, XContent xContent, RestApiVersion restApiVersion) throws IOException {
-        if (data.hasArray()) {
-            return parseBytesArray(xContent, data, 0, data.length(), restApiVersion);
-        } else {
-            return xContent.createParserForCompatibility(
-                NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE,
-                data.streamInput(),
-                restApiVersion
+    private void checkBulkActionIsProperlyClosed(XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        try {
+            token = parser.nextToken();
+        } catch (JsonEOFException ignore) {
+            deprecationLogger.compatibleCritical(
+                STRICT_ACTION_PARSING_WARNING_KEY,
+                "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted but will be "
+                    + "rejected in a future version."
             );
+            return;
+        }
+        if (token != XContentParser.Token.END_OBJECT) {
+            deprecationLogger.compatibleCritical(
+                STRICT_ACTION_PARSING_WARNING_KEY,
+                "A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in a "
+                    + "future version."
+            );
+            return;
+        }
+        if (parser.nextToken() != null) {
+            deprecationLogger.compatibleCritical(
+                STRICT_ACTION_PARSING_WARNING_KEY,
+                "A bulk action contained trailing data after the closing brace. This is currently ignored but will be rejected in a "
+                    + "future version."
+            );
+        }
+    }
+
+    private XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
+        if (data.hasArray()) {
+            return parseBytesArray(xContent, data, 0, data.length());
+        } else {
+            return xContent.createParser(config, data.streamInput());
         }
     }
 
     // Create an efficient parser of the given bytes, trying to directly parse a byte array if possible and falling back to stream wrapping
     // otherwise.
-    private static XContentParser createParser(
-        BytesReference data,
-        XContent xContent,
-        int from,
-        int nextMarker,
-        RestApiVersion restApiVersion
-    ) throws IOException {
+    private XContentParser createParser(XContent xContent, BytesReference data, int from, int nextMarker) throws IOException {
         if (data.hasArray()) {
-            return parseBytesArray(xContent, data, from, nextMarker, restApiVersion);
+            return parseBytesArray(xContent, data, from, nextMarker);
         } else {
             final int length = nextMarker - from;
             final BytesReference slice = data.slice(from, length);
             if (slice.hasArray()) {
-                return parseBytesArray(xContent, slice, 0, length, restApiVersion);
+                return parseBytesArray(xContent, slice, 0, length);
             } else {
-                // EMPTY is safe here because we never call namedObject
-                return xContent.createParserForCompatibility(
-                    NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE,
-                    slice.streamInput(),
-                    restApiVersion
-                );
+                return xContent.createParser(config, slice.streamInput());
             }
         }
     }
 
-    private static XContentParser parseBytesArray(
-        XContent xContent,
-        BytesReference array,
-        int from,
-        int nextMarker,
-        RestApiVersion restApiVersion
-    ) throws IOException {
+    private XContentParser parseBytesArray(XContent xContent, BytesReference array, int from, int nextMarker) throws IOException {
         assert array.hasArray();
         final int offset = array.arrayOffset();
-        // EMPTY is safe here because we never call namedObject
-        return xContent.createParserForCompatibility(
-            NamedXContentRegistry.EMPTY,
-            LoggingDeprecationHandler.INSTANCE,
-            array.array(),
-            offset + from,
-            nextMarker - from,
-            restApiVersion
-        );
+        return xContent.createParser(config, array.array(), offset + from, nextMarker - from);
     }
 }

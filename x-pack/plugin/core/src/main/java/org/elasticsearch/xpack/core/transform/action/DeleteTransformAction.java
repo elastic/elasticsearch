@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -42,11 +41,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-                force = in.readBoolean();
-            } else {
-                force = false;
-            }
+            force = in.readBoolean();
         }
 
         public String getId() {
@@ -61,9 +56,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
-            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-                out.writeBoolean(force);
-            }
+            out.writeBoolean(force);
         }
 
         @Override

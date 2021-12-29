@@ -7,16 +7,16 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
-import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
-import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD;
 
 public class TextClassificationProcessor implements NlpTask.Processor {
 
@@ -41,11 +40,6 @@ public class TextClassificationProcessor implements NlpTask.Processor {
         // negative values are a special case of asking for ALL classes. Since we require the output size to equal the classLabel size
         // This is a nice way of setting the value
         this.numTopClasses = config.getNumTopClasses() < 0 ? this.classLabels.length : config.getNumTopClasses();
-        validate();
-    }
-
-    private void validate() {
-        // validation occurs in TextClassificationConfig
     }
 
     @Override
@@ -60,8 +54,7 @@ public class TextClassificationProcessor implements NlpTask.Processor {
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
-        if (config instanceof TextClassificationConfig) {
-            TextClassificationConfig textClassificationConfig = (TextClassificationConfig) config;
+        if (config instanceof TextClassificationConfig textClassificationConfig) {
             return (tokenization, pytorchResult) -> processResult(
                 tokenization,
                 pytorchResult,
@@ -83,20 +76,21 @@ public class TextClassificationProcessor implements NlpTask.Processor {
 
     static InferenceResults processResult(
         TokenizationResult tokenization,
-        PyTorchResult pyTorchResult,
+        PyTorchInferenceResult pyTorchResult,
         int numTopClasses,
         List<String> labels,
         String resultsField
     ) {
         if (pyTorchResult.getInferenceResult().length < 1) {
-            return new WarningInferenceResults("Text classification result has no data");
+            throw new ElasticsearchStatusException("Text classification result has no data", RestStatus.INTERNAL_SERVER_ERROR);
         }
 
         // TODO only the first entry in the batch result is verified and
         // checked. Implement for all in batch
         if (pyTorchResult.getInferenceResult()[0][0].length != labels.size()) {
-            return new WarningInferenceResults(
+            throw new ElasticsearchStatusException(
                 "Expected exactly [{}] values in text classification result; got [{}]",
+                RestStatus.INTERNAL_SERVER_ERROR,
                 labels.size(),
                 pyTorchResult.getInferenceResult()[0][0].length
             );
@@ -109,20 +103,15 @@ public class TextClassificationProcessor implements NlpTask.Processor {
             .mapToInt(i -> i)
             .toArray();
 
-        return new ClassificationInferenceResults(
-            sortedIndices[0],
+        return new NlpClassificationInferenceResults(
             labels.get(sortedIndices[0]),
             Arrays.stream(sortedIndices)
                 .mapToObj(i -> new TopClassEntry(labels.get(i), normalizedScores[i]))
                 .limit(numTopClasses)
                 .collect(Collectors.toList()),
-            List.of(),
-            DEFAULT_TOP_CLASSES_RESULTS_FIELD,
             Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
-            PredictionFieldType.STRING,
-            0,
             normalizedScores[sortedIndices[0]],
-            null
+            tokenization.anyTruncated()
         );
     }
 }

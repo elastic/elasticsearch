@@ -26,7 +26,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -362,7 +362,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> tokenResponseFuture.actionGet());
         assertThat(e.getMessage(), containsString("could not decode base64 kerberos ticket"));
         // The code flow should stop after above failure and never reach authenticationService
-        Mockito.verifyZeroInteractions(authenticationService);
+        Mockito.verifyNoMoreInteractions(authenticationService);
     }
 
     public void testServiceAccountCannotCreateOAuthToken() throws Exception {

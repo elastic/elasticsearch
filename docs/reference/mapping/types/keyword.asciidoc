@@ -1,4 +1,3 @@
-[testenv="basic"]
 [[keyword]]
 === Keyword type family
 ++++
@@ -147,22 +146,30 @@ The following parameters are accepted by `keyword` fields:
     when building a query for this field.
     Accepts `true` or `false` (default).
 
-// tag::dimension[]
 `time_series_dimension`::
-experimental:[]
-(Optional, Boolean) For internal use by Elastic only. Marks the field as a time
-series dimension. Defaults to `false`.
 +
+--
+experimental:[]
+(Optional, Boolean)
+
+.For internal use by Elastic only.
+[%collapsible]
+====
+// tag::dimension[]
+Marks the field as a time series dimension. Defaults to `false`.
+
 The <<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
 index setting limits the number of dimensions in an index.
-+
+
 Dimension fields have the following constraints:
-+
+
 * The `doc_values` and `index` mapping parameters must be `true`.
 * Field values cannot be an <<array,array or multi-value>>.
 // end::dimension[]
 * Field values cannot be larger than 1024 bytes.
 * The field cannot use a <<normalizer,`normalizer`>>.
+====
+--
 
 include::constant-keyword.asciidoc[]
 

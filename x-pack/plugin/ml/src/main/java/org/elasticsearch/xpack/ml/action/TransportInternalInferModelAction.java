@@ -6,19 +6,18 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
@@ -29,7 +28,6 @@ import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Request;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
@@ -76,15 +74,18 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
             responseBuilder.setLicensed(true);
-            doInfer(request, responseBuilder, listener);
+            doInfer(task, request, responseBuilder, listener);
         } else {
             trainedModelProvider.getTrainedModel(
                 request.getModelId(),
                 GetTrainedModelsAction.Includes.empty(),
                 ActionListener.wrap(trainedModelConfig -> {
-                    responseBuilder.setLicensed(licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()));
-                    if (licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()) || request.isPreviouslyLicensed()) {
-                        doInfer(request, responseBuilder, listener);
+                    // Since we just checked MachineLearningField.ML_API_FEATURE.check(licenseState) and that check failed
+                    // That means we don't have a plat+ license. The only licenses for trained models are basic (free) and plat.
+                    boolean allowed = trainedModelConfig.getLicenseLevel() == License.OperationMode.BASIC;
+                    responseBuilder.setLicensed(allowed);
+                    if (allowed || request.isPreviouslyLicensed()) {
+                        doInfer(task, request, responseBuilder, listener);
                     } else {
                         listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
                     }
@@ -93,9 +94,9 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         }
     }
 
-    private void doInfer(Request request, Response.Builder responseBuilder, ActionListener<Response> listener) {
+    private void doInfer(Task task, Request request, Response.Builder responseBuilder, ActionListener<Response> listener) {
         if (isAllocatedModel(request.getModelId())) {
-            inferAgainstAllocatedModel(request, responseBuilder, listener);
+            inferAgainstAllocatedModel(task, request, responseBuilder, listener);
         } else {
             getModelAndInfer(request, responseBuilder, listener);
         }
@@ -134,7 +135,12 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         modelLoadingService.getModelForPipeline(request.getModelId(), getModelListener);
     }
 
-    private void inferAgainstAllocatedModel(Request request, Response.Builder responseBuilder, ActionListener<Response> listener) {
+    private void inferAgainstAllocatedModel(
+        Task task,
+        Request request,
+        Response.Builder responseBuilder,
+        ActionListener<Response> listener
+    ) {
         TypedChainTaskExecutor<InferenceResults> typedChainTaskExecutor = new TypedChainTaskExecutor<>(
             client.threadPool().executor(ThreadPool.Names.SAME),
             // run through all tasks
@@ -146,6 +152,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             .forEach(
                 stringObjectMap -> typedChainTaskExecutor.add(
                     chainedTask -> inferSingleDocAgainstAllocatedModel(
+                        task,
                         request.getModelId(),
                         request.getUpdate(),
                         stringObjectMap,
@@ -165,34 +172,26 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     }
 
     private void inferSingleDocAgainstAllocatedModel(
+        Task task,
         String modelId,
         InferenceConfigUpdate inferenceConfigUpdate,
         Map<String, Object> doc,
         ActionListener<InferenceResults> listener
     ) {
+        TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        InferTrainedModelDeploymentAction.Request request = new InferTrainedModelDeploymentAction.Request(
+            modelId,
+            inferenceConfigUpdate,
+            Collections.singletonList(doc),
+            TimeValue.MAX_VALUE
+        );
+        request.setParentTask(taskId);
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
             InferTrainedModelDeploymentAction.INSTANCE,
-            new InferTrainedModelDeploymentAction.Request(
-                modelId,
-                inferenceConfigUpdate,
-                Collections.singletonList(doc),
-                TimeValue.MAX_VALUE
-            ),
-            ActionListener.wrap(r -> listener.onResponse(r.getResults()), e -> {
-                Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
-                if (unwrapped instanceof ElasticsearchStatusException) {
-                    ElasticsearchStatusException ex = (ElasticsearchStatusException) unwrapped;
-                    if (ex.status().equals(RestStatus.TOO_MANY_REQUESTS)) {
-                        listener.onFailure(ex);
-                    } else {
-                        listener.onResponse(new WarningInferenceResults(ex.getMessage()));
-                    }
-                } else {
-                    listener.onResponse(new WarningInferenceResults(e.getMessage()));
-                }
-            })
+            request,
+            ActionListener.wrap(r -> listener.onResponse(r.getResults()), listener::onFailure)
         );
     }
 }

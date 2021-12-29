@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
@@ -401,21 +402,34 @@ public class IndexRoutingTests extends ESTestCase {
         }
     }
 
+    public void testRequiredRouting() {
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(2)
+                .numberOfReplicas(1)
+                .putMapping("{\"_routing\":{\"required\": true}}")
+                .build()
+        );
+        Exception e = expectThrows(RoutingMissingException.class, () -> shardIdFromSimple(indexRouting, "id", null));
+        assertThat(e.getMessage(), equalTo("routing is required for [test]/[id]"));
+    }
+
     /**
      * Extract a shardId from a "simple" {@link IndexRouting} using a randomly
      * chosen method. All of the random methods <strong>should</strong> return
      * the same results.
      */
-    private int shardIdFromSimple(IndexRouting indexRouting, String key, @Nullable String routing) {
+    private int shardIdFromSimple(IndexRouting indexRouting, String id, @Nullable String routing) {
         switch (between(0, 3)) {
             case 0:
-                return indexRouting.indexShard(key, routing, null, null);
+                return indexRouting.indexShard(id, routing, null, null);
             case 1:
-                return indexRouting.updateShard(key, routing);
+                return indexRouting.updateShard(id, routing);
             case 2:
-                return indexRouting.deleteShard(key, routing);
+                return indexRouting.deleteShard(id, routing);
             case 3:
-                return indexRouting.getShard(key, routing);
+                return indexRouting.getShard(id, routing);
             default:
                 throw new AssertionError("invalid option");
         }

@@ -23,6 +23,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
@@ -97,14 +98,14 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             .fieldType();
         ifdService.clear();
         fd = ifdService.getForField(floatMapper, "test", () -> { throw new UnsupportedOperationException(); });
-        assertTrue(fd instanceof SortedNumericIndexFieldData);
+        assertTrue(fd instanceof SortedDoublesIndexFieldData);
 
         final MappedFieldType doubleMapper = new NumberFieldMapper.Builder("double", DOUBLE, ScriptCompiler.NONE, false, true).build(
             context
         ).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper, "test", () -> { throw new UnsupportedOperationException(); });
-        assertTrue(fd instanceof SortedNumericIndexFieldData);
+        assertTrue(fd instanceof SortedDoublesIndexFieldData);
     }
 
     public void testGetForFieldRuntimeField() {

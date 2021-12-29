@@ -15,7 +15,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -58,7 +59,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
@@ -101,7 +101,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final AnomalyDetectionAuditor auditor;
-    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
     private final NamedXContentRegistry xContentRegistry;
     private final boolean remoteClusterClient;
 
@@ -138,7 +137,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         this.jobConfigProvider = jobConfigProvider;
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.auditor = auditor;
-        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.xContentRegistry = xContentRegistry;
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
     }
@@ -193,16 +191,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             return;
         }
 
-        if (migrationEligibilityCheck.datafeedIsEligibleForMigration(request.getParams().getDatafeedId(), state)) {
-            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("start datafeed", request.getParams().getDatafeedId()));
-            return;
-        }
-
         AtomicReference<DatafeedConfig> datafeedConfigHolder = new AtomicReference<>();
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
 
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> waitForTaskListener =
-            new ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
                     waitForDatafeedStarted(persistentTask.getId(), params, listener);
@@ -227,7 +220,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             if (remoteIndices.isEmpty() == false) {
                 final RemoteClusterLicenseChecker remoteClusterLicenseChecker = new RemoteClusterLicenseChecker(
                     client,
-                    XPackLicenseState::isMachineLearningAllowedForOperationMode
+                    MachineLearningField.ML_API_FEATURE
                 );
                 remoteClusterLicenseChecker.checkRemoteClusterLicenses(
                     RemoteClusterLicenseChecker.remoteClusterAliases(
@@ -259,7 +252,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                 remoteAliases,
                                 (cn) -> remoteClusterService.getConnection(cn).getVersion()
                             );
-                            createDataExtractor(job, datafeedConfigHolder.get(), params, waitForTaskListener);
+                            createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
                         }
                     },
                         e -> listener.onFailure(
@@ -272,7 +265,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     )
                 );
             } else {
-                createDataExtractor(job, datafeedConfigHolder.get(), params, waitForTaskListener);
+                createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
             }
         };
 
@@ -351,13 +344,14 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
     /** Creates {@link DataExtractorFactory} solely for the purpose of validation i.e. verifying that it can be created. */
     private void createDataExtractor(
+        Task task,
         Job job,
         DatafeedConfig datafeed,
         StartDatafeedAction.DatafeedParams params,
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> listener
     ) {
         DataExtractorFactory.create(
-            client,
+            new ParentTaskAssigningClient(client, clusterService.localNode(), task),
             datafeed,
             job,
             xContentRegistry,
@@ -425,31 +419,28 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        persistentTasksService.sendRemoveRequest(
-            persistentTask.getId(),
-            new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
-                @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
-                    // We succeeded in cancelling the persistent task, but the
-                    // problem that caused us to cancel it is the overall result
-                    listener.onFailure(exception);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error(
-                        "["
-                            + persistentTask.getParams().getDatafeedId()
-                            + "] Failed to cancel persistent task that could "
-                            + "not be assigned due to ["
-                            + exception.getMessage()
-                            + "]",
-                        e
-                    );
-                    listener.onFailure(exception);
-                }
+        persistentTasksService.sendRemoveRequest(persistentTask.getId(), new ActionListener<>() {
+            @Override
+            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+                // We succeeded in cancelling the persistent task, but the
+                // problem that caused us to cancel it is the overall result
+                listener.onFailure(exception);
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(
+                    "["
+                        + persistentTask.getParams().getDatafeedId()
+                        + "] Failed to cancel persistent task that could "
+                        + "not be assigned due to ["
+                        + exception.getMessage()
+                        + "]",
+                    e
+                );
+                listener.onFailure(exception);
+            }
+        });
     }
 
     private ElasticsearchStatusException createUnlicensedError(
@@ -461,11 +452,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             "cannot start datafeed [%s] as it is configured to use indices on remote cluster [%s] that is not licensed for ml; %s",
             datafeedId,
             licenseCheck.remoteClusterLicenseInfo().clusterAlias(),
-            RemoteClusterLicenseChecker.buildErrorMessage(
-                "ml",
-                licenseCheck.remoteClusterLicenseInfo(),
-                RemoteClusterLicenseChecker::isAllowedByLicense
-            )
+            RemoteClusterLicenseChecker.buildErrorMessage(MachineLearningField.ML_API_FEATURE, licenseCheck.remoteClusterLicenseInfo())
         );
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }

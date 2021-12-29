@@ -45,7 +45,7 @@ public class RestCountActionTests extends RestActionTestCase {
             .build();
 
         dispatchRequest(request);
-        assertWarnings(RestCountAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestCountAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeParameter() {
@@ -59,6 +59,6 @@ public class RestCountActionTests extends RestActionTestCase {
             .build();
 
         dispatchRequest(request);
-        assertWarnings(RestCountAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestCountAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

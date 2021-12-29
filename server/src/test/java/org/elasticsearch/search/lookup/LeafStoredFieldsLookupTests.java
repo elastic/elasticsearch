@@ -18,7 +18,7 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -32,7 +32,7 @@ public class LeafStoredFieldsLookupTests extends ESTestCase {
         MappedFieldType fieldType = mock(MappedFieldType.class);
         when(fieldType.name()).thenReturn("field");
         // Add 10 when valueForDisplay is called so it is easy to be sure it *was* called
-        when(fieldType.valueForDisplay(anyObject())).then(invocation -> (Double) invocation.getArguments()[0] + 10);
+        when(fieldType.valueForDisplay(any())).then(invocation -> (Double) invocation.getArguments()[0] + 10);
 
         FieldInfo mockFieldInfo = new FieldInfo(
             "field",

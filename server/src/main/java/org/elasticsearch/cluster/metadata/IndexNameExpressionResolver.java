@@ -437,7 +437,7 @@ public class IndexNameExpressionResolver {
 
         if (resolvedSystemIndices.isEmpty() == false) {
             Collections.sort(resolvedSystemIndices);
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.API,
                 "open_system_index_access",
                 "this request accesses system indices: {}, but in a future major version, direct access to system "
@@ -591,7 +591,7 @@ public class IndexNameExpressionResolver {
      */
     public boolean hasIndexAbstraction(String indexAbstraction, ClusterState state) {
         String resolvedAliasOrIndex = DateMathExpressionResolver.resolveExpression(indexAbstraction);
-        return state.metadata().getIndicesLookup().containsKey(resolvedAliasOrIndex);
+        return state.metadata().hasIndexAbstraction(resolvedAliasOrIndex);
     }
 
     /**

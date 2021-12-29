@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -68,7 +68,7 @@ public class DocumentPermissionsTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), client, () -> nowInMillis);
+        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), writableRegistry(), client, () -> nowInMillis);
         QueryBuilder queryBuilder1 = new TermsQueryBuilder("field", "val1", "val2");
         DocumentPermissions.failIfQueryUsesClient(queryBuilder1, context);
 

@@ -207,7 +207,7 @@ public class HistogramFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public DocValuesField getScriptField(String name) {
+                        public DocValuesField<?> getScriptField(String name) {
                             throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not " + "support scripts");
                         }
 

@@ -75,7 +75,6 @@ public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJob
             ActionListener.wrap(
                 jobs -> datafeedManager.getDatafeedsByJobIds(
                     jobs.stream().map(Job.Builder::getId).collect(Collectors.toSet()),
-                    state,
                     ActionListener.wrap(
                         dfsByJobId -> listener.onResponse(new GetJobsAction.Response(new QueryPage<>(jobs.stream().map(jb -> {
                             Optional.ofNullable(dfsByJobId.get(jb.getId())).ifPresent(jb::setDatafeed);

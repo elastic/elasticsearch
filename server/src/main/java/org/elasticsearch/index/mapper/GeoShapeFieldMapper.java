@@ -90,7 +90,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         @Override
         public GeoShapeFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
-                DEPRECATION_LOGGER.critical(
+                DEPRECATION_LOGGER.warn(
                     DeprecationCategory.MAPPINGS,
                     "geo_shape_multifields",
                     "Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future"
@@ -101,7 +101,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
                 coerce.get().value(),
                 ignoreZValue.get().value()
             );
-            GeoShapeParser geoShapeParser = new GeoShapeParser(geometryParser);
+            GeoShapeParser geoShapeParser = new GeoShapeParser(geometryParser, orientation.get().value());
             GeoShapeFieldType ft = new GeoShapeFieldType(
                 context.buildFullName(name),
                 indexed.get(),
@@ -114,7 +114,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
                 ft,
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
-                new GeoShapeIndexer(orientation.get().value().getAsBoolean(), context.buildFullName(name)),
+                new GeoShapeIndexer(orientation.get().value(), context.buildFullName(name)),
                 geoShapeParser,
                 this
             );
@@ -202,7 +202,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         if (geometry == null) {
             return;
         }
-        context.doc().addAll(indexer.indexShape(indexer.prepareForIndexing(geometry)));
+        context.doc().addAll(indexer.indexShape(geometry));
         context.addToFieldNames(fieldType().name());
     }
 

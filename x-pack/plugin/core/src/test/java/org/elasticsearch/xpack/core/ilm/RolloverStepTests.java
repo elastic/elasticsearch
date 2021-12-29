@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
 
@@ -156,9 +156,9 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             .build();
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(firstGenerationIndex, clusterState, null, f));
 
-        verifyZeroInteractions(client);
-        verifyZeroInteractions(adminClient);
-        verifyZeroInteractions(indicesClient);
+        verifyNoMoreInteractions(client);
+        verifyNoMoreInteractions(adminClient);
+        verifyNoMoreInteractions(indicesClient);
     }
 
     private void mockClientRolloverCall(String rolloverTarget) {

@@ -92,7 +92,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                             + "removed. Please remove it from your mappings and templates."
                     );
                 } else {
-                    deprecationLogger.critical(DeprecationCategory.TEMPLATES, "field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
+                    deprecationLogger.warn(DeprecationCategory.TEMPLATES, "field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
                 }
             }
             return new FieldNamesFieldMapper(enabled.getValue(), indexVersionCreated);
@@ -145,7 +145,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             if (isEnabled() == false) {
                 throw new IllegalStateException("Cannot run [exists] queries if the [_field_names] field is disabled");
             }
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.MAPPINGS,
                 "terms_query_on_field_names",
                 "terms query on the _field_names field is deprecated and will be removed, use exists query instead"

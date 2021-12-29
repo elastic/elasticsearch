@@ -130,6 +130,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -146,6 +147,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -222,7 +224,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class AuthorizationServiceTests extends ESTestCase {
@@ -267,12 +268,18 @@ public class AuthorizationServiceTests extends ESTestCase {
         }).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), anyActionListener());
 
         final Map<Set<String>, Role> roleCache = new HashMap<>();
+        final AnonymousUser anonymousUser = mock(AnonymousUser.class);
+        when(anonymousUser.enabled()).thenReturn(false);
+        doAnswer(i -> {
+            i.callRealMethod();
+            return null;
+        }).when(rolesStore).getRoles(any(Authentication.class), anyActionListener());
         doAnswer((i) -> {
-            ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[2];
-            User user = (User) i.getArguments()[0];
+            ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[1];
+            User user = ((Subject) i.getArguments()[0]).getUser();
             buildRole(user, privilegesStore, fieldPermissionsCache, roleCache, callback);
             return null;
-        }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), anyActionListener());
+        }).when(rolesStore).getRole(any(Subject.class), anyActionListener());
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         operatorPrivilegesService = mock(OperatorPrivileges.OperatorPrivilegesService.class);
         authorizationService = new AuthorizationService(
@@ -876,21 +883,38 @@ public class AuthorizationServiceTests extends ESTestCase {
         mockEmptyMetadata();
 
         final User serviceUser = new User(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8));
+        final User finalUser;
+        final boolean isRunAs = randomBoolean();
+        // If testing run-as, randomize whether the service account actually has the run-as permission
+        // This makes a difference in the auditing logs (runAsDenied vs accessDenied)
+        final boolean canRunAs = isRunAs && randomBoolean();
+        if (isRunAs) {
+            finalUser = new User(new User(randomAlphaOfLengthBetween(3, 8)), serviceUser);
+        } else {
+            finalUser = serviceUser;
+        }
         final Authentication authentication = new Authentication(
-            serviceUser,
+            finalUser,
             new RealmRef("_service_account", "_service_account", randomAlphaOfLengthBetween(3, 8)),
-            null,
+            isRunAs ? new RealmRef(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8)) : null,
             Version.CURRENT,
             Authentication.AuthenticationType.TOKEN,
             Map.of()
         );
-        Mockito.reset(rolesStore);
+        final Role role;
+        if (canRunAs) {
+            role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "can_run_as")
+                .runAs(new Privilege(finalUser.principal(), finalUser.principal()))
+                .build();
+        } else {
+            role = Role.EMPTY;
+        }
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[2];
-            listener.onResponse(Role.EMPTY);
+            ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[1];
+            listener.onResponse(role);
             return null;
-        }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), anyActionListener());
+        }).when(rolesStore).getRole(any(Subject.class), anyActionListener());
 
         ElasticsearchSecurityException securityException = expectThrows(
             ElasticsearchSecurityException.class,
@@ -898,10 +922,22 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         assertThat(
             securityException,
-            throwableWithMessage(containsString("[" + action + "] is unauthorized" + " for user [" + serviceUser.principal() + "],"))
+            throwableWithMessage(
+                containsString("[" + action + "] is unauthorized" + " for " + "service account" + " [" + serviceUser.principal() + "]")
+            )
         );
+        if (isRunAs) {
+            assertThat(securityException, throwableWithMessage(containsString("run as [" + finalUser.principal() + "] with roles [")));
+        }
         assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
-        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(Role.EMPTY.names()));
+        if (isRunAs && false == canRunAs) {
+            verify(auditTrail).runAsDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
+        } else {
+            if (canRunAs) {
+                verify(auditTrail).runAsGranted(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
+            }
+            verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
+        }
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -1069,12 +1105,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         this.setFakeOriginatingAction = false;
         authorize(authentication, SearchAction.NAME, searchRequest, true, () -> {
-            verify(rolesStore).getRoles(Mockito.same(user), Mockito.same(authentication), Mockito.any());
+            verify(rolesStore).getRoles(Mockito.same(authentication), Mockito.any());
             IndicesAccessControl iac = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             // Within the action handler, execute a child action (the query phase of search)
             authorize(authentication, SearchTransportService.QUERY_ACTION_NAME, shardRequest, false, () -> {
                 // This child action triggers a second interaction with the role store (which is cached)
-                verify(rolesStore, times(2)).getRoles(Mockito.same(user), Mockito.same(authentication), Mockito.any());
+                verify(rolesStore, times(2)).getRoles(Mockito.same(authentication), Mockito.any());
                 // But it does not create a new IndicesAccessControl
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), sameInstance(iac));
             });
@@ -2770,7 +2806,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             "user1"
         );
         // The operator related exception is verified in the authorize(...) call
-        verifyZeroInteractions(auditTrail);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testAuthorizedIndiciesTimeChecker() throws Exception {

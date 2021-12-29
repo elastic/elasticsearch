@@ -73,9 +73,9 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
         if (shouldGenerateNewBasicLicense(currentLicense)) {
             License selfGeneratedLicense = generateBasicLicense(currentState);
             if (request.isAcknowledged() == false && currentLicense != null) {
-                Map<String, String[]> ackMessages = LicenseService.getAckMessages(selfGeneratedLicense, currentLicense);
-                if (ackMessages.isEmpty() == false) {
-                    this.ackMessages.set(ackMessages);
+                Map<String, String[]> ackMessageMap = LicenseService.getAckMessages(selfGeneratedLicense, currentLicense);
+                if (ackMessageMap.isEmpty() == false) {
+                    this.ackMessages.set(ackMessageMap);
                     return currentState;
                 }
             }

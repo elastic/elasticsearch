@@ -165,7 +165,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
                 Script.DEFAULT_SCRIPT_LANG,
                 new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> true), Collections.emptyMap())
             ),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS)
+            new HashMap<>(ScriptModule.CORE_CONTEXTS),
+            () -> 1L
         );
         RuntimeException exception = new RuntimeException("fail");
         TestProcessor failProcessor = new TestProcessor("fail", "test", null, exception);
@@ -253,7 +254,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
                 Script.DEFAULT_SCRIPT_LANG,
                 new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> false), Collections.emptyMap())
             ),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS)
+            new HashMap<>(ScriptModule.CORE_CONTEXTS),
+            () -> 1L
         );
 
         CompoundProcessor compoundProcessor = new CompoundProcessor(
@@ -380,7 +382,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
                 Script.DEFAULT_SCRIPT_LANG,
                 new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> true), Collections.emptyMap())
             ),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS)
+            new HashMap<>(ScriptModule.CORE_CONTEXTS),
+            () -> 1L
         );
 
         Pipeline pipeline1 = new Pipeline(
@@ -479,7 +482,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
                 Script.DEFAULT_SCRIPT_LANG,
                 new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> false), Collections.emptyMap())
             ),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS)
+            new HashMap<>(ScriptModule.CORE_CONTEXTS),
+            () -> 1L
         );
 
         Pipeline pipeline1 = new Pipeline(

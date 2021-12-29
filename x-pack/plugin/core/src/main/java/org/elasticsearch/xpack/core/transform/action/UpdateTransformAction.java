@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -20,7 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionPre78;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 
@@ -56,8 +54,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             this.setTimeout(timeout);
         }
 
-        // use fromStreamWithBWC, this can be changed back to public after BWC is not required anymore
-        private Request(StreamInput in) throws IOException {
+        public Request(StreamInput in) throws IOException {
             super(in);
             this.update = new TransformConfigUpdate(in);
             this.id = in.readString();
@@ -65,14 +62,6 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             if (in.readBoolean()) {
                 this.config = new TransformConfig(in);
             }
-        }
-
-        public static Request fromStreamWithBWC(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-                return new Request(in);
-            }
-            UpdateTransformActionPre78.Request r = new UpdateTransformActionPre78.Request(in);
-            return new Request(r.getUpdate(), r.getId(), r.isDeferValidation(), r.timeout());
         }
 
         public static Request fromXContent(
@@ -137,22 +126,16 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-                super.writeTo(out);
-                update.writeTo(out);
-                out.writeString(id);
-                out.writeBoolean(deferValidation);
-                if (config == null) {
-                    out.writeBoolean(false);
-                } else {
-                    out.writeBoolean(true);
-                    config.writeTo(out);
-                }
-                return;
+            super.writeTo(out);
+            update.writeTo(out);
+            out.writeString(id);
+            out.writeBoolean(deferValidation);
+            if (config == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                config.writeTo(out);
             }
-
-            UpdateTransformActionPre78.Request r = new UpdateTransformActionPre78.Request(update, id, deferValidation);
-            r.writeTo(out);
         }
 
         @Override
@@ -190,18 +173,9 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             this.config = config;
         }
 
-        // use fromStreamWithBWC, this can be changed back to public after BWC is not required anymore
-        private Response(StreamInput in) throws IOException {
+        public Response(StreamInput in) throws IOException {
             super(in);
             this.config = new TransformConfig(in);
-        }
-
-        public static Response fromStreamWithBWC(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-                return new Response(in);
-            }
-            UpdateTransformActionPre78.Response r = new UpdateTransformActionPre78.Response(in);
-            return new Response(r.getConfig());
         }
 
         public TransformConfig getConfig() {
@@ -210,14 +184,8 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-                super.writeTo(out);
-                config.writeTo(out);
-                return;
-            }
-
-            UpdateTransformActionPre78.Response r = new UpdateTransformActionPre78.Response(config);
-            r.writeTo(out);
+            super.writeTo(out);
+            config.writeTo(out);
         }
 
         @Override

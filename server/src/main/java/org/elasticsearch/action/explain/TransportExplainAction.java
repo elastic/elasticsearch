@@ -11,7 +11,6 @@ package org.elasticsearch.action.explain;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -85,10 +84,6 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(state, request.request().index());
         final AliasFilter aliasFilter = searchService.buildAliasFilter(state, request.concreteIndex(), indicesAndAliases);
         request.request().filteringAlias(aliasFilter);
-        // Fail fast on the node that received the request.
-        if (request.request().routing() == null && state.getMetadata().routingRequired(request.concreteIndex())) {
-            throw new RoutingMissingException(request.concreteIndex(), request.request().id());
-        }
     }
 
     @Override

@@ -100,8 +100,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         private static void verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(DirectoryReader reader) {
-            if (reader instanceof FilterDirectoryReader) {
-                FilterDirectoryReader filterDirectoryReader = (FilterDirectoryReader) reader;
+            if (reader instanceof FilterDirectoryReader filterDirectoryReader) {
                 if (filterDirectoryReader instanceof FieldSubsetDirectoryReader) {
                     throw new IllegalArgumentException(
                         LoggerMessageFormat.format("Can't wrap [{}] twice", FieldSubsetDirectoryReader.class)
@@ -188,8 +187,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 if (filteredValue.isEmpty() == false) {
                     filtered.put(key, filteredValue);
                 }
-            } else if (value instanceof Iterable) {
-                Iterable<?> iterableValue = (Iterable<?>) value;
+            } else if (value instanceof Iterable<?> iterableValue) {
                 List<Object> filteredValue = filter(iterableValue, includeAutomaton, state);
                 if (filteredValue.isEmpty() == false) {
                     filtered.put(key, filteredValue);

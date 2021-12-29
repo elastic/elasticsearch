@@ -26,7 +26,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -72,7 +72,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class DestinationIndexTests extends ESTestCase {
@@ -380,7 +379,7 @@ public class DestinationIndexTests extends ESTestCase {
             equalTo("A field that matches the dest.results_field [ml] already exists; please set a different results_field")
         );
 
-        verifyZeroInteractions(client);
+        verifyNoMoreInteractions(client);
     }
 
     public void testReadMetadata_GivenNoMeta() {

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.engine;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.apache.logging.log4j.Level;
@@ -411,11 +409,11 @@ public class InternalEngineTests extends EngineTestCase {
 
             final SegmentsStats stats1 = engine.segmentsStats(true, false);
             assertThat(stats1.getFiles().size(), greaterThan(0));
-            for (ObjectObjectCursor<String, SegmentsStats.FileStats> fileStats : stats1.getFiles()) {
-                assertThat(fileStats.value.getTotal(), greaterThan(0L));
-                assertThat(fileStats.value.getCount(), greaterThan(0L));
-                assertThat(fileStats.value.getMin(), greaterThan(0L));
-                assertThat(fileStats.value.getMax(), greaterThan(0L));
+            for (Map.Entry<String, SegmentsStats.FileStats> fileStats : stats1.getFiles().entrySet()) {
+                assertThat(fileStats.getValue().getTotal(), greaterThan(0L));
+                assertThat(fileStats.getValue().getCount(), greaterThan(0L));
+                assertThat(fileStats.getValue().getMin(), greaterThan(0L));
+                assertThat(fileStats.getValue().getMax(), greaterThan(0L));
             }
 
             ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
@@ -423,8 +421,8 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test");
 
             final SegmentsStats stats2 = engine.segmentsStats(true, false);
-            for (ObjectCursor<String> cursor : stats1.getFiles().keys()) {
-                final String extension = cursor.value;
+            for (Map.Entry<String, SegmentsStats.FileStats> cursor : stats1.getFiles().entrySet()) {
+                final String extension = cursor.getKey();
                 assertThat(stats2.getFiles().get(extension).getTotal(), greaterThan((stats1.getFiles().get(extension).getTotal())));
                 assertThat(stats2.getFiles().get(extension).getCount(), greaterThan((stats1.getFiles().get(extension).getCount())));
                 assertThat(stats2.getFiles().get(extension).getMin(), greaterThan((0L)));

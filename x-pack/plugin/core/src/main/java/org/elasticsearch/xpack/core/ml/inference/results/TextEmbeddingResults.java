@@ -13,23 +13,24 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class TextEmbeddingResults implements InferenceResults {
+public class TextEmbeddingResults extends NlpInferenceResults {
 
     public static final String NAME = "text_embedding_result";
 
     private final String resultsField;
     private final double[] inference;
 
-    public TextEmbeddingResults(String resultsField, double[] inference) {
+    public TextEmbeddingResults(String resultsField, double[] inference, boolean isTruncated) {
+        super(isTruncated);
         this.inference = inference;
         this.resultsField = resultsField;
     }
 
     public TextEmbeddingResults(StreamInput in) throws IOException {
+        super(in);
         inference = in.readDoubleArray();
         resultsField = in.readString();
     }
@@ -43,8 +44,8 @@ public class TextEmbeddingResults implements InferenceResults {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.field(resultsField, inference);
+    void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        builder.field(resultsField, inference);
     }
 
     @Override
@@ -53,16 +54,14 @@ public class TextEmbeddingResults implements InferenceResults {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    void doWriteTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(inference);
         out.writeString(resultsField);
     }
 
     @Override
-    public Map<String, Object> asMap() {
-        Map<String, Object> map = new LinkedHashMap<>();
+    void addMapFields(Map<String, Object> map) {
         map.put(resultsField, inference);
-        return map;
     }
 
     @Override
@@ -74,12 +73,13 @@ public class TextEmbeddingResults implements InferenceResults {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
         TextEmbeddingResults that = (TextEmbeddingResults) o;
-        return Arrays.equals(inference, that.inference) && Objects.equals(resultsField, that.resultsField);
+        return Objects.equals(resultsField, that.resultsField) && Arrays.equals(inference, that.inference);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(inference), resultsField);
+        return Objects.hash(super.hashCode(), resultsField, Arrays.hashCode(inference));
     }
 }

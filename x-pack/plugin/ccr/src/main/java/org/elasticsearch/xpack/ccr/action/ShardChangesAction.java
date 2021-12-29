@@ -170,6 +170,11 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         }
 
         @Override
+        public String getDescription() {
+            return "shardId[" + shardId + "]";
+        }
+
+        @Override
         public boolean equals(final Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;

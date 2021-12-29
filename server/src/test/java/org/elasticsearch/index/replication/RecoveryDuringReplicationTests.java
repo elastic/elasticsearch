@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -133,7 +132,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 1,
                 randomNonNegativeLong(),
                 false,
-                new SourceToParse("index", "replica", new BytesArray("{}"), XContentType.JSON)
+                new SourceToParse("replica", new BytesArray("{}"), XContentType.JSON)
             );
             shards.promoteReplicaToPrimary(promotedReplica).get();
             oldPrimary.close("demoted", randomBoolean());
@@ -147,7 +146,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 promotedReplica.applyIndexOperationOnPrimary(
                     Versions.MATCH_ANY,
                     VersionType.INTERNAL,
-                    new SourceToParse("index", "primary", new BytesArray("{}"), XContentType.JSON),
+                    new SourceToParse("primary", new BytesArray("{}"), XContentType.JSON),
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
                     0,
                     IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
@@ -330,7 +329,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     }
 
     public void testResyncAfterPrimaryPromotion() throws Exception {
-        String mappings = "{ \"_doc\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";
+        String mappings = """
+            { "_doc": { "properties": { "f": { "type": "keyword"} }}}""";
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(2, mappings))) {
             shards.startAll();
             int initialDocs = randomInt(10);
@@ -611,7 +611,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             List<IndexRequest> replicationRequests = new ArrayList<>();
             for (int numDocs = between(1, 10), i = 0; i < numDocs; i++) {
                 final IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
-                indexRequest.process(Version.CURRENT, null, index.getName());
+                indexRequest.process();
                 final IndexRequest copyRequest;
                 if (randomBoolean()) {
                     copyRequest = copyIndexRequest(indexRequest);

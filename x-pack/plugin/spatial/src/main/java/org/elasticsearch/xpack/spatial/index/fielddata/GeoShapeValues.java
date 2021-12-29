@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeographyValidator;
@@ -83,7 +84,7 @@ public abstract class GeoShapeValues {
     /** thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using
      * the Geo decoder */
     public static class GeoShapeValue implements ToXContentFragment {
-        private static final GeoShapeIndexer MISSING_GEOSHAPE_INDEXER = new GeoShapeIndexer(true, "missing");
+        private static final GeoShapeIndexer MISSING_GEOSHAPE_INDEXER = new GeoShapeIndexer(Orientation.CCW, "missing");
         private final GeometryDocValueReader reader;
         private final BoundingBox boundingBox;
         private final Tile2DVisitor tile2DVisitor;
@@ -140,9 +141,7 @@ public abstract class GeoShapeValues {
 
         public static GeoShapeValue missing(String missing) {
             try {
-                final Geometry geometry = MISSING_GEOSHAPE_INDEXER.prepareForIndexing(
-                    WellKnownText.fromWKT(GeographyValidator.instance(true), true, missing)
-                );
+                final Geometry geometry = WellKnownText.fromWKT(GeographyValidator.instance(true), true, missing);
                 final BinaryGeoShapeDocValuesField field = new BinaryGeoShapeDocValuesField("missing");
                 field.add(MISSING_GEOSHAPE_INDEXER.indexShape(geometry), geometry);
                 final GeoShapeValue value = new GeoShapeValue();

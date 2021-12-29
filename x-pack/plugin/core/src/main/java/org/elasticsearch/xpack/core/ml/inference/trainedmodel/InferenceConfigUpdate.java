@@ -22,8 +22,6 @@ public interface InferenceConfigUpdate extends NamedWriteable {
 
     InferenceConfig apply(InferenceConfig originalConfig);
 
-    InferenceConfig toConfig();
-
     boolean isSupported(InferenceConfig config);
 
     String getResultsField();

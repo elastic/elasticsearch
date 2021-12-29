@@ -45,7 +45,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class TransportGrantApiKeyActionTests extends ESTestCase {
 
@@ -157,7 +157,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         final ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, future::actionGet);
         assertThat(exception, throwableWithMessage("authentication failed for testing"));
 
-        verifyZeroInteractions(apiKeyGenerator);
+        verifyNoMoreInteractions(apiKeyGenerator);
     }
 
     public void testGrantApiKeyWithAccessToken() throws Exception {
@@ -178,7 +178,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         action.doExecute(null, request, future);
 
         assertThat(future.actionGet(), sameInstance(response));
-        verifyZeroInteractions(authenticationService);
+        verifyNoMoreInteractions(authenticationService);
     }
 
     public void testGrantApiKeyWithInvalidatedAccessToken() throws Exception {
@@ -201,8 +201,8 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         final ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, future::actionGet);
         assertThat(exception, throwableWithMessage("token expired"));
 
-        verifyZeroInteractions(authenticationService);
-        verifyZeroInteractions(apiKeyGenerator);
+        verifyNoMoreInteractions(authenticationService);
+        verifyNoMoreInteractions(apiKeyGenerator);
     }
 
     private Authentication buildAuthentication(String username) {

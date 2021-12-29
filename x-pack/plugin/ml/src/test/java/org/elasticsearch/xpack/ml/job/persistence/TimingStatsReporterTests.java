@@ -24,7 +24,6 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class TimingStatsReporterTests extends ESTestCase {
 
@@ -44,7 +43,7 @@ public class TimingStatsReporterTests extends ESTestCase {
         TimingStatsReporter reporter = createReporter(stats);
         assertThat(reporter.getCurrentTimingStats(), equalTo(stats));
 
-        verifyZeroInteractions(bulkResultsPersister);
+        verifyNoMoreInteractions(bulkResultsPersister);
     }
 
     public void testReporting() {
@@ -92,7 +91,7 @@ public class TimingStatsReporterTests extends ESTestCase {
         TimingStatsReporter reporter = createReporter(new TimingStats(JOB_ID));
         reporter.finishReporting();
 
-        verifyZeroInteractions(bulkResultsPersister);
+        verifyNoMoreInteractions(bulkResultsPersister);
     }
 
     public void testFinishReporting_WithChange() {

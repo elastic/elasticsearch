@@ -211,7 +211,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
                     aliasName,
                     String.join(", ", inferiorIndexNames)
                 );
-                deprecationLogger.critical(DeprecationCategory.SECURITY, "index_permissions_on_alias", logMessage);
+                deprecationLogger.warn(DeprecationCategory.SECURITY, "index_permissions_on_alias", logMessage);
             }
         }
     }

@@ -1,5 +1,5 @@
 /*
-x * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0 and the Server Side Public License, v 1; you may not use this file except
  * in compliance with, at your election, the Elastic License 2.0 or the Server
@@ -301,7 +301,9 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     }
 
     public void testUnknownOptionFails() throws IOException {
-        String json = "{ \"post_date\" : {\"reverse\" : true} },\n";
+        String json = """
+            { "post_date" : {"reverse" : true} },
+            """;
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             // need to skip until parser is located on second START_OBJECT

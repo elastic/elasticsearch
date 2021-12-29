@@ -21,3 +21,6 @@ testClusters.configureEach {
   keystore 'custom.secured', 'password'
 }
 
+dependencies {
+  yamlRestTestRuntimeOnly "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+}

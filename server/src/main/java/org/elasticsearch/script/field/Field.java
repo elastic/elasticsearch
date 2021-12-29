@@ -9,7 +9,7 @@
 package org.elasticsearch.script.field;
 
 /** A field in a document accessible via scripting. */
-public interface Field {
+public interface Field<T> extends Iterable<T> {
 
     /** Returns the name of this field. */
     String getName();

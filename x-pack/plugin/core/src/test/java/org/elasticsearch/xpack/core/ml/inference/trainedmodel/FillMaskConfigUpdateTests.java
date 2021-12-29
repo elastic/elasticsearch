@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -23,14 +26,20 @@ import static org.hamcrest.Matchers.equalTo;
 public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<FillMaskConfigUpdate> {
 
     public void testFromMap() {
-        FillMaskConfigUpdate expected = new FillMaskConfigUpdate(3, "ml-results");
+        FillMaskConfigUpdate expected = new FillMaskConfigUpdate(3, "ml-results", new BertTokenizationUpdate(Tokenization.Truncate.FIRST));
         Map<String, Object> config = new HashMap<>() {
             {
                 put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
                 put(NlpConfig.NUM_TOP_CLASSES.getPreferredName(), 3);
+                Map<String, Object> truncate = new HashMap<>();
+                truncate.put("truncate", "first");
+                Map<String, Object> bert = new HashMap<>();
+                bert.put("bert", truncate);
+                put("tokenization", bert);
             }
         };
-        assertThat(FillMaskConfigUpdate.fromMap(config), equalTo(expected));
+        var pp = FillMaskConfigUpdate.fromMap(config);
+        assertThat(pp, equalTo(expected));
     }
 
     public void testFromMapWithUnknownField() {
@@ -46,6 +55,12 @@ public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<
 
         assertFalse(
             new FillMaskConfigUpdate.Builder().setResultsField("foo")
+                .build()
+                .isNoop(new FillMaskConfig.Builder().setResultsField("bar").build())
+        );
+
+        assertFalse(
+            new FillMaskConfigUpdate.Builder().setTokenizationUpdate(new BertTokenizationUpdate(Tokenization.Truncate.SECOND))
                 .build()
                 .isNoop(new FillMaskConfig.Builder().setResultsField("bar").build())
         );
@@ -70,6 +85,20 @@ public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<
                 new FillMaskConfigUpdate.Builder().setNumTopClasses(originalConfig.getNumTopClasses() + 1).build().apply(originalConfig)
             )
         );
+
+        Tokenization.Truncate truncate = randomFrom(Tokenization.Truncate.values());
+        Tokenization tokenization = new BertTokenization(
+            originalConfig.getTokenization().doLowerCase(),
+            originalConfig.getTokenization().withSpecialTokens(),
+            originalConfig.getTokenization().maxSequenceLength(),
+            truncate
+        );
+        assertThat(
+            new FillMaskConfig.Builder(originalConfig).setTokenization(tokenization).build(),
+            equalTo(
+                new FillMaskConfigUpdate.Builder().setTokenizationUpdate(new BertTokenizationUpdate(truncate)).build().apply(originalConfig)
+            )
+        );
     }
 
     @Override
@@ -91,11 +120,27 @@ public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<
         if (randomBoolean()) {
             builder.setResultsField(randomAlphaOfLength(8));
         }
+        if (randomBoolean()) {
+            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values())));
+        }
         return builder.build();
     }
 
     @Override
     protected FillMaskConfigUpdate mutateInstanceForVersion(FillMaskConfigUpdate instance, Version version) {
+        if (version.before(Version.V_8_1_0)) {
+            return new FillMaskConfigUpdate(instance.getNumTopClasses(), instance.getResultsField(), null);
+        }
         return instance;
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
     }
 }

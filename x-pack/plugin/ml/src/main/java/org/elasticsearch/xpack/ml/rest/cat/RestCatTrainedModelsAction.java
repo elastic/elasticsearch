@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.rest.cat;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -266,7 +266,7 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             // Trained Model Info
             table.addCell(config.getModelId());
             table.addCell(config.getCreatedBy());
-            table.addCell(ByteSizeValue.ofBytes(config.getEstimatedHeapMemory()));
+            table.addCell(ByteSizeValue.ofBytes(config.getModelSize()));
             table.addCell(config.getEstimatedOperations());
             table.addCell(config.getLicenseLevel());
             table.addCell(config.getCreateTime());

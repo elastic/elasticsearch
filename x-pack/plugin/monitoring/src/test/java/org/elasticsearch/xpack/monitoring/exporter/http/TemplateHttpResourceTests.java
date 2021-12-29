@@ -18,7 +18,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 /**
  * Tests {@link TemplateHttpResource}.
@@ -28,10 +28,52 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
     private final String templateName = ".my_template";
 
     // the internal representation has the type, the external representation should not
-    private final String templateValueInternal = "{\"order\":0,\"index_patterns\":[\".xyz-*\"],\"settings\":{},\"mappings\":{\"_doc\""
-        + ":{\"properties\":{\"one\":{\"properties\":{\"two\":{\"properties\":{\"name\":{\"type\":\"keyword\"}}}}}}}},\"aliases\":{}}";
-    private final String templateValueExternal = "{\"order\":0,\"index_patterns\":[\".xyz-*\"],\"settings\":{},\"mappings\""
-        + ":{\"properties\":{\"one\":{\"properties\":{\"two\":{\"properties\":{\"name\":{\"type\":\"keyword\"}}}}}}},\"aliases\":{}}";
+    private final String templateValueInternal = """
+        {
+          "order": 0,
+          "index_patterns": [ ".xyz-*" ],
+          "settings": {},
+          "mappings": {
+            "_doc": {
+              "properties": {
+                "one": {
+                  "properties": {
+                    "two": {
+                      "properties": {
+                        "name": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "aliases": {}
+        }""";
+    private final String templateValueExternal = """
+        {
+          "order": 0,
+          "index_patterns": [ ".xyz-*" ],
+          "settings": {},
+          "mappings": {
+            "properties": {
+              "one": {
+                "properties": {
+                  "two": {
+                    "properties": {
+                      "name": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "aliases": {}
+        }""";
     private final Supplier<String> template = () -> templateValueInternal;
     private final int minimumVersion = Math.min(MonitoringTemplateUtils.LAST_UPDATED_VERSION, Version.CURRENT.id);
 
@@ -71,7 +113,7 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
         RestClient mockClient = mock(RestClient.class);
         SetOnce<HttpResource.ResourcePublishResult> result = new SetOnce<>();
         resource.doPublish(mockClient, ActionListener.wrap(result::set, e -> { throw new RuntimeException("Unexpected exception", e); }));
-        verifyZeroInteractions(mockClient); // Should not have used the client at all.
+        verifyNoMoreInteractions(mockClient); // Should not have used the client at all.
         HttpResource.ResourcePublishResult resourcePublishResult = result.get();
         assertThat(resourcePublishResult, notNullValue());
         assertThat(resourcePublishResult.getResourceState(), notNullValue());

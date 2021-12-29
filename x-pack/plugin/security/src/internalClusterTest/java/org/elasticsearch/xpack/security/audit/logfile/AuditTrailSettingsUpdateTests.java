@@ -26,7 +26,10 @@ import java.util.List;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -130,26 +133,60 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         updateSettings(settingsBuilder.build());
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), startsWith("node_"));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_ID_FIELD_NAME), is(true));
-        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(nullValue()));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is("127.0.0.1"));
         settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), false);
         updateSettings(settingsBuilder.build());
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), startsWith("node_"));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_ID_FIELD_NAME), is(true));
-        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(false));
-        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(nullValue()));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is(nullValue()));
         settingsBuilder.put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), false);
         updateSettings(settingsBuilder.build());
-        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_NAME_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), is(nullValue()));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_ID_FIELD_NAME), is(true));
-        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(false));
-        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(nullValue()));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is(nullValue()));
         settingsBuilder.put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), false);
         updateSettings(settingsBuilder.build());
-        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_NAME_FIELD_NAME), is(false));
-        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_ID_FIELD_NAME), is(false));
-        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(false));
-        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), is(nullValue()));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_ID_FIELD_NAME), is(nullValue()));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(nullValue()));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is(nullValue()));
+    }
+
+    public void testDynamicClusterSettings() {
+        final LoggingAuditTrail loggingAuditTrail = (LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
+            .iterator()
+            .next()
+            .getAuditTrails()
+            .iterator()
+            .next();
+
+        final Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(LoggingAuditTrail.EMIT_CLUSTER_NAME_SETTING.getKey(), true);
+        settingsBuilder.put(LoggingAuditTrail.EMIT_CLUSTER_UUID_SETTING.getKey(), true);
+        updateSettings(settingsBuilder.build());
+        final String clusterName = loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.CLUSTER_NAME_FIELD_NAME);
+        final String clusterUuid = loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.CLUSTER_UUID_FIELD_NAME);
+        assertThat(clusterName, not(emptyOrNullString()));
+        assertThat(clusterUuid, not(emptyOrNullString()));
+
+        settingsBuilder.put(LoggingAuditTrail.EMIT_CLUSTER_NAME_SETTING.getKey(), false);
+        updateSettings(settingsBuilder.build());
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.CLUSTER_NAME_FIELD_NAME), is(nullValue()));
+
+        settingsBuilder.put(LoggingAuditTrail.EMIT_CLUSTER_NAME_SETTING.getKey(), true);
+        updateSettings(settingsBuilder.build());
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.CLUSTER_NAME_FIELD_NAME), is(clusterName));
+
+        settingsBuilder.put(LoggingAuditTrail.EMIT_CLUSTER_UUID_SETTING.getKey(), false);
+        updateSettings(settingsBuilder.build());
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.CLUSTER_UUID_FIELD_NAME), is(nullValue()));
+
+        settingsBuilder.put(LoggingAuditTrail.EMIT_CLUSTER_UUID_SETTING.getKey(), true);
+        updateSettings(settingsBuilder.build());
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.CLUSTER_UUID_FIELD_NAME), is(clusterUuid));
     }
 
     public void testDynamicRequestBodySettings() {

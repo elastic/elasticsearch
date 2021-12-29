@@ -29,11 +29,11 @@ public class MockResponse {
     }
 
     /**
-     * @param statusCode The status code to be returned if the response is sent by the webserver, defaults to 200
+     * @param responseCode The status code to be returned if the response is sent by the webserver, defaults to 200
      * @return The updated mock response
      */
-    public MockResponse setResponseCode(int statusCode) {
-        this.statusCode = statusCode;
+    public MockResponse setResponseCode(int responseCode) {
+        this.statusCode = responseCode;
         return this;
     }
 

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -177,14 +176,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             for (int i = 0; i < size; i++) {
                 this.docs.add(in.readMap());
             }
-            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                this.generatedDestIndexSettings = new TransformDestIndexSettings(in);
-            } else if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                Map<String, Object> objectMap = in.readMap();
-                this.generatedDestIndexSettings = new TransformDestIndexSettings(objectMap, null, null);
-            } else {
-                this.generatedDestIndexSettings = new TransformDestIndexSettings(null, null, null);
-            }
+            this.generatedDestIndexSettings = new TransformDestIndexSettings(in);
         }
 
         public List<Map<String, Object>> getDocs() {
@@ -201,11 +193,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             for (Map<String, Object> doc : docs) {
                 out.writeMapWithConsistentOrder(doc);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                generatedDestIndexSettings.writeTo(out);
-            } else if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                out.writeMap(generatedDestIndexSettings.getMappings());
-            }
+            generatedDestIndexSettings.writeTo(out);
         }
 
         @Override

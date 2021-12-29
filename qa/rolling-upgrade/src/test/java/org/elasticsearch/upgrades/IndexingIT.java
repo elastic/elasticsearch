@@ -7,17 +7,17 @@
  */
 package org.elasticsearch.upgrades;
 
-import io.github.nik9000.mapmatcher.ListMatcher;
-
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -29,10 +29,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
-import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
-import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -135,12 +135,13 @@ public class IndexingIT extends AbstractRollingTestCase {
 
     public void testAutoIdWithOpTypeCreate() throws IOException {
         final String indexName = "auto_id_and_op_type_create_index";
-        StringBuilder b = new StringBuilder();
-        b.append("{\"create\": {\"_index\": \"").append(indexName).append("\"}}\n");
-        b.append("{\"f1\": \"v\"}\n");
+        String b = """
+            {"create": {"_index": "%s"}}
+            {"f1": "v"}
+            """.formatted(indexName);
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
-        bulk.setJsonEntity(b.toString());
+        bulk.setJsonEntity(b);
 
         switch (CLUSTER_TYPE) {
             case OLD:
@@ -201,7 +202,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                 Request index = new Request("POST", "/" + indexName + "/_doc/");
                 XContentBuilder doc = XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
-                    .field("date", "2015-01-01T12:10:30.123Z")
+                    .field("date", "2015-01-01T12:10:30.123456789Z")
                     .field("date_nanos", "2015-01-01T12:10:30.123456789Z")
                     .endObject();
                 index.addParameter("refresh", "true");
@@ -258,7 +259,7 @@ public class IndexingIT extends AbstractRollingTestCase {
     }
 
     public void testTsdb() throws IOException {
-        assumeTrue("tsdb added in 8.0.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
+        assumeTrue("sort by _tsid added in 8.1.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_1_0));
 
         StringBuilder bulk = new StringBuilder();
         switch (CLUSTER_TYPE) {
@@ -322,6 +323,8 @@ public class IndexingIT extends AbstractRollingTestCase {
         indexSpec.startObject("settings").startObject("index");
         indexSpec.field("mode", "time_series");
         indexSpec.array("routing_path", new String[] { "dim" });
+        indexSpec.field("time_series.start_time", 1L);
+        indexSpec.field("time_series.end_time", DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
         indexSpec.endObject().endObject();
         createIndex.setJsonEntity(Strings.toString(indexSpec.endObject()));
         client().performRequest(createIndex);
@@ -331,10 +334,10 @@ public class IndexingIT extends AbstractRollingTestCase {
         long delta = TimeUnit.SECONDS.toMillis(20);
         double value = (timeStart - TSDB_TIMES[0]) / TimeUnit.SECONDS.toMillis(20) * rate;
         for (long t = timeStart; t < timeEnd; t += delta) {
-            bulk.append("{\"index\": {\"_index\": \"tsdb\"}}\n");
-            bulk.append("{\"@timestamp\": ").append(t);
-            bulk.append(", \"dim\": \"").append(dim).append("\"");
-            bulk.append(", \"value\": ").append(value).append("}\n");
+            bulk.append("""
+                {"index": {"_index": "tsdb"}}
+                {"@timestamp": %s, "dim": "%s", "value": %s}
+                """.formatted(t, dim, value));
             value += rate;
         }
     }
@@ -343,20 +346,9 @@ public class IndexingIT extends AbstractRollingTestCase {
         Request request = new Request("POST", "/tsdb/_search");
         request.addParameter("size", "0");
         XContentBuilder body = JsonXContent.contentBuilder().startObject();
-        // TODO replace tsid runtime field with real tsid
-        body.startObject("runtime_mappings");
-        {
-            body.startObject("tsid");
-            {
-                body.field("type", "keyword");
-                body.field("script", "emit('dim:' + doc['dim'].value)");
-            }
-            body.endObject();
-        }
-        body.endObject();
         body.startObject("aggs").startObject("tsids");
         {
-            body.startObject("terms").field("field", "tsid").endObject();
+            body.startObject("terms").field("field", "_tsid").endObject();
             body.startObject("aggs").startObject("avg");
             {
                 body.startObject("avg").field("field", "value").endObject();
@@ -367,8 +359,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         request.setJsonEntity(Strings.toString(body.endObject()));
         ListMatcher tsidsExpected = matchesList();
         for (int d = 0; d < expected.length; d++) {
-            // Object key = Map.of("dim", TSDB_DIMS.get(d)); TODO use this once tsid is real
-            Object key = "dim:" + TSDB_DIMS.get(d);
+            Object key = Map.of("dim", TSDB_DIMS.get(d));
             tsidsExpected = tsidsExpected.item(matchesMap().extraOk().entry("key", key).entry("avg", Map.of("value", expected[d])));
         }
         assertMap(

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-preview-datafeed]]
 = Preview {dfeeds} API
 

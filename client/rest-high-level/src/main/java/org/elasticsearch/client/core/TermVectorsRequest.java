@@ -156,36 +156,36 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
     /**
      * Sets whether to request term positions
      */
-    public void setPositions(boolean requestPositions) {
-        this.requestPositions = requestPositions;
+    public void setPositions(boolean positions) {
+        this.requestPositions = positions;
     }
 
     /**
      * Sets whether to request term payloads
      */
-    public void setPayloads(boolean requestPayloads) {
-        this.requestPayloads = requestPayloads;
+    public void setPayloads(boolean payloads) {
+        this.requestPayloads = payloads;
     }
 
     /**
      * Sets whether to request term offsets
      */
-    public void setOffsets(boolean requestOffsets) {
-        this.requestOffsets = requestOffsets;
+    public void setOffsets(boolean offsets) {
+        this.requestOffsets = offsets;
     }
 
     /**
      * Sets whether to request field statistics
      */
-    public void setFieldStatistics(boolean requestFieldStatistics) {
-        this.requestFieldStatistics = requestFieldStatistics;
+    public void setFieldStatistics(boolean fieldStatistics) {
+        this.requestFieldStatistics = fieldStatistics;
     }
 
     /**
      * Sets whether to request term statistics
      */
-    public void setTermStatistics(boolean requestTermStatistics) {
-        this.requestTermStatistics = requestTermStatistics;
+    public void setTermStatistics(boolean termStatistics) {
+        this.requestTermStatistics = termStatistics;
     }
 
     /**

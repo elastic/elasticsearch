@@ -132,6 +132,14 @@ documentation for more information.
     that are allowed to be compiled. Defaults to `150/5m`,
     meaning 150 every 5 minutes.
 
+If the cluster regularly hits the given `max_compilation_rate`, it's possible the
+script cache is undersized, use <<cluster-nodes-stats,Nodes Stats>> to inspect
+the number of recent cache evictions, `script.cache_evictions_history` and
+compilations `script.compilations_history`.  If there are a large
+number of recent cache evictions or compilations, the script cache may be
+undersized, consider doubling the size of the script cache via the setting
+`script.cache.max_size`.
+
 [[regex-circuit-breaker]]
 [discrete]
 ==== Regex circuit breaker

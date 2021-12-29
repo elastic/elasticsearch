@@ -105,9 +105,8 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             Source source = source(ctx.ORDER(), endContext);
             List<Order> order = visitList(this, ctx.orderBy(), Order.class);
 
-            if (plan instanceof Limit) {
+            if (plan instanceof Limit limit) {
                 // Limit from TOP clauses must be the parent of the OrderBy clause
-                Limit limit = (Limit) plan;
                 plan = limit.replaceChild(new OrderBy(source, limit.child(), order));
             } else {
                 plan = new OrderBy(source, plan, order);

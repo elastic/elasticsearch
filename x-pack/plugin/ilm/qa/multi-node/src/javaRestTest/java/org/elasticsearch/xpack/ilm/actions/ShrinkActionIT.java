@@ -196,25 +196,16 @@ public class ShrinkActionIT extends ESRestTestCase {
 
         // and a template
         Request createTemplateRequest = new Request("PUT", "_template/" + index);
-        createTemplateRequest.setJsonEntity(
-            "{"
-                + "\"index_patterns\": [\""
-                + index
-                + "-*\"], \n"
-                + "  \"settings\": {\n"
-                + "    \"number_of_shards\": "
-                + numShards
-                + ",\n"
-                + "    \"number_of_replicas\": 0,\n"
-                + "    \"index.lifecycle.name\": \""
-                + policy
-                + "\", \n"
-                + "    \"index.lifecycle.rollover_alias\": \""
-                + alias
-                + "\"\n"
-                + "  }\n"
-                + "}"
-        );
+        createTemplateRequest.setJsonEntity("""
+            {
+              "index_patterns": ["%s-*"],
+              "settings": {
+                "number_of_shards": %s,
+                "number_of_replicas": 0,
+                "index.lifecycle.name": "%s",
+                "index.lifecycle.rollover_alias": "%s"
+              }
+            }""".formatted(index, numShards, policy, alias));
         createTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createTemplateRequest);
 
@@ -248,9 +239,12 @@ public class ShrinkActionIT extends ESRestTestCase {
 
         // unallocate all index shards
         Request setAllocationToMissingAttribute = new Request("PUT", "/" + index + "/_settings");
-        setAllocationToMissingAttribute.setJsonEntity(
-            "{\n" + "  \"settings\": {\n" + "    \"index.routing.allocation.include.rack\": \"bogus_rack\"" + "  }\n" + "}"
-        );
+        setAllocationToMissingAttribute.setJsonEntity("""
+            {
+              "settings": {
+                "index.routing.allocation.include.rack": "bogus_rack"
+              }
+            }""");
         client().performRequest(setAllocationToMissingAttribute);
 
         ensureHealth(index, (request) -> {
@@ -261,7 +255,7 @@ public class ShrinkActionIT extends ESRestTestCase {
 
         // assign the policy that'll attempt to shrink the index (disabling the migrate action as it'll otherwise wait for
         // all shards to be active and we want that to happen as part of the shrink action)
-        MigrateAction migrateAction = new MigrateAction(false);
+        MigrateAction migrateAction = MigrateAction.DISABLED;
         ShrinkAction shrinkAction = new ShrinkAction(expectedFinalShards, null);
         Phase phase = new Phase(
             "warm",
@@ -292,9 +286,11 @@ public class ShrinkActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS));
 
         Request resetAllocationForIndex = new Request("PUT", "/" + index + "/_settings");
-        resetAllocationForIndex.setJsonEntity(
-            "{\n" + "  \"settings\": {\n" + "    \"index.routing.allocation.include.rack\": null" + "  }\n" + "}"
-        );
+        resetAllocationForIndex.setJsonEntity("""
+            {
+              "settings": {
+                "index.routing.allocation.include.rack": null  }
+            }""");
         client().performRequest(resetAllocationForIndex);
 
         String shrunkenIndex = waitAndGetShrinkIndexName(client(), index);

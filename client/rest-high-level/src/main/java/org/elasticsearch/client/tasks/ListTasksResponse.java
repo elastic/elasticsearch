@@ -40,18 +40,18 @@ public class ListTasksResponse {
     }
 
     private List<TaskGroup> buildTaskGroups() {
-        Map<TaskId, TaskGroup.Builder> taskGroups = new HashMap<>();
+        Map<TaskId, TaskGroup.Builder> taskIdToBuilderMap = new HashMap<>();
         List<TaskGroup.Builder> topLevelTasks = new ArrayList<>();
         // First populate all tasks
         for (TaskInfo taskInfo : this.tasks) {
-            taskGroups.put(taskInfo.getTaskId(), TaskGroup.builder(taskInfo));
+            taskIdToBuilderMap.put(taskInfo.getTaskId(), TaskGroup.builder(taskInfo));
         }
 
         // Now go through all task group builders and add children to their parents
-        for (TaskGroup.Builder taskGroup : taskGroups.values()) {
+        for (TaskGroup.Builder taskGroup : taskIdToBuilderMap.values()) {
             TaskId parentTaskId = taskGroup.getTaskInfo().getParentTaskId();
             if (parentTaskId != null) {
-                TaskGroup.Builder parentTask = taskGroups.get(parentTaskId);
+                TaskGroup.Builder parentTask = taskIdToBuilderMap.get(parentTaskId);
                 if (parentTask != null) {
                     // we found parent in the list of tasks - add it to the parent list
                     parentTask.addGroup(taskGroup);

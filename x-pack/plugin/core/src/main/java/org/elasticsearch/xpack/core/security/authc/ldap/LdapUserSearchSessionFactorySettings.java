@@ -26,7 +26,7 @@ public final class LdapUserSearchSessionFactorySettings {
             LdapUserSearchSessionFactorySettings.DEFAULT_USERNAME_ATTRIBUTE,
             Function.identity(),
             Setting.Property.NodeScope,
-            Setting.Property.Deprecated
+            Setting.Property.DeprecatedWarning
         )
     );
 

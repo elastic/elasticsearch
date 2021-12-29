@@ -12,7 +12,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -21,13 +20,13 @@ import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -288,7 +287,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         if (type.hasContextMappings() && contextBytes != null) {
             Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = parseContextBytes(
                 contextBytes,
-                context.getXContentRegistry(),
+                context.getParserConfig(),
                 type.getContextMappings()
             );
             suggestionContext.setQueryContexts(queryContexts);
@@ -301,17 +300,10 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
 
     static Map<String, List<ContextMapping.InternalQueryContext>> parseContextBytes(
         BytesReference contextBytes,
-        NamedXContentRegistry xContentRegistry,
+        XContentParserConfiguration parserConfig,
         ContextMappings contextMappings
     ) throws IOException {
-        try (
-            XContentParser contextParser = XContentHelper.createParser(
-                xContentRegistry,
-                LoggingDeprecationHandler.INSTANCE,
-                contextBytes,
-                CONTEXT_BYTES_XCONTENT_TYPE
-            )
-        ) {
+        try (XContentParser contextParser = XContentHelper.createParser(parserConfig, contextBytes, CONTEXT_BYTES_XCONTENT_TYPE)) {
             contextParser.nextToken();
             Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = new HashMap<>(contextMappings.size());
             assert contextParser.currentToken() == XContentParser.Token.START_OBJECT;

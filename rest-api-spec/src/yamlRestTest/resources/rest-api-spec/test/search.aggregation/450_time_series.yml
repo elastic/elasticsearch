@@ -1,4 +1,8 @@
 setup:
+  - skip:
+        version: " - 8.1.0"
+        reason: Suipport for time_series aggs was added in 8.1.0
+
   - do:
       indices.create:
         index: tsdb

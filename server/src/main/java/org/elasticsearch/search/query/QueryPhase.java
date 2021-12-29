@@ -231,7 +231,7 @@ public class QueryPhase {
         }
         QuerySearchResult queryResult = searchContext.queryResult();
         try {
-            if (searchContext.aggregations() != null && searchContext.aggregations().factories().context().isInOrderExecutionRequired()) {
+            if (searchContext.isInOrderExecutionRequired()) {
                 new TimeSeriesIndexSearcher(searcher).search(query, queryCollector);
             } else {
                 searcher.search(query, queryCollector);

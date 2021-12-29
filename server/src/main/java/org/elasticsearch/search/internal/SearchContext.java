@@ -370,4 +370,15 @@ public abstract class SearchContext implements Releasable {
     }
 
     public abstract ReaderContext readerContext();
+
+    /**
+     * Return true if any of the aggregations in this context is a time-series aggregation that requires an in-order execution.
+     */
+    public boolean isInOrderExecutionRequired() {
+        if (aggregations() != null && aggregations().factories().context() != null) {
+            return aggregations().factories().context().isInOrderExecutionRequired();
+        } else {
+            return false;
+        }
+    }
 }

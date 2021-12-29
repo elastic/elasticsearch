@@ -130,9 +130,12 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
             this.reader = reader;
             this.bits = bits;
             this.numDocs = numDocs;
-            this.readerCacheHelper = reader.getReaderCacheHelper() == null
+
+            CacheKey cacheKey = getCacheKey(in, field);
+
+            this.readerCacheHelper = (reader.getReaderCacheHelper() == null || cacheKey == null)
                 ? null
-                : new DelegatingCacheHelper(reader.getReaderCacheHelper(), getCacheKey(in, field));
+                : new DelegatingCacheHelper(reader.getReaderCacheHelper(), cacheKey);
         }
 
         @Override
@@ -168,9 +171,12 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
             this.reader = reader;
             this.bits = bits;
             this.numDocs = numDocs;
-            this.readerCacheHelper = reader.getReaderCacheHelper() == null
+
+            CacheKey cacheKey = getCacheKey(in, field);
+
+            this.readerCacheHelper = (reader.getReaderCacheHelper() == null || cacheKey == null)
                 ? null
-                : new DelegatingCacheHelper(reader.getReaderCacheHelper(), getCacheKey(in, field));
+                : new DelegatingCacheHelper(reader.getReaderCacheHelper(), cacheKey);
         }
 
         @Override
@@ -279,7 +285,7 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
 
     private static CacheKey getCacheKey(DirectoryReader reader, String field) throws IOException {
         SoftDeletesDirectoryReaderWrapper wrapper = new SoftDeletesDirectoryReaderWrapper(reader, field);
-        return wrapper.getReaderCacheHelper().getKey();
+        return (wrapper.getReaderCacheHelper() == null) ? null : wrapper.getReaderCacheHelper().getKey();
     }
 
     static int applySoftDeletes(DocIdSetIterator iterator, FixedBitSet bits) throws IOException {

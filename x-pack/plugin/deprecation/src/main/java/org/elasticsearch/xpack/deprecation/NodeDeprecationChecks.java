@@ -208,13 +208,14 @@ class NodeDeprecationChecks {
         if (XPackSettings.SECURITY_ENABLED.exists(settings) == false
             && (licenseState.getOperationMode().equals(License.OperationMode.BASIC)
                 || licenseState.getOperationMode().equals(License.OperationMode.TRIAL))) {
-            String details = "Security will no longer be disabled by default for Trial licenses in 8.0. The [xpack.security.enabled] "
-                + "setting will always default to \"true\". See https://ela.st/es-deprecation-7-security-minimal-setup to secure your "
-                + "cluster. To explicitly disable security, set [xpack.security.enabled] to \"false\" (not recommended).";
+            String details = "Elasticsearch Security features will no longer be implicitly disabled in 8.0. The [xpack.security.enabled] "
+                + "setting will always default to \"true\", and other required security settings must be explicitly set in the configuration. "
+                + "See https://ela.st/es-deprecation-7-security-basic-setup to secure your cluster. "
+                + "To explicitly disable security, set [xpack.security.enabled] to \"false\" (not recommended).";
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
-                "Security is enabled by default for all licenses",
-                "https://ela.st/es-deprecation-7-implicitly-disabled-security",
+                "Security features are enabled by default for all licenses in versions 8.0 and later",
+                "https://ela.st/es-deprecation-7-security-basic-setup",
                 details,
                 false,
                 null

@@ -33,11 +33,15 @@ public class DiskIoBufferPool {
         }
     });
 
+    public static final DiskIoBufferPool INSTANCE = new DiskIoBufferPool();
+
+    protected DiskIoBufferPool() {}
+
     /**
      * @return thread-local cached direct byte buffer if we are on a thread that supports caching direct buffers or null otherwise
      */
     @Nullable
-    public static ByteBuffer maybeGetDirectIOBuffer() {
+    public ByteBuffer maybeGetDirectIOBuffer() {
         ByteBuffer ioBuffer = ioBufferPool.get();
         if (ioBuffer == EMPTY_BUFFER) {
             return null;

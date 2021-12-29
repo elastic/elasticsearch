@@ -35,6 +35,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -143,6 +144,18 @@ import static org.mockito.Mockito.when;
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class TranslogTests extends ESTestCase {
 
+    public static final DiskIoBufferPool RANDOMIZING_IO_BUFFERS = new DiskIoBufferPool() {
+        @Override
+        public ByteBuffer maybeGetDirectIOBuffer() {
+            final String currentThreadName = Thread.currentThread().getName();
+            try {
+                Thread.currentThread().setName(randomBoolean() ? "[" + ThreadPool.Names.WRITE + "] thread" : "not-a-write-thread");
+                return super.maybeGetDirectIOBuffer();
+            } finally {
+                Thread.currentThread().setName(currentThreadName);
+            }
+        }
+    };
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
 
     protected Translog translog;
@@ -262,7 +275,7 @@ public class TranslogTests extends ESTestCase {
         );
 
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings);
-        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize);
+        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize, RANDOMIZING_IO_BUFFERS);
     }
 
     private Location addToTranslogAndList(Translog translog, List<Translog.Operation> list, Translog.Operation op) throws IOException {
@@ -1368,7 +1381,8 @@ public class TranslogTests extends ESTestCase {
             temp.getTranslogPath(),
             temp.getIndexSettings(),
             temp.getBigArrays(),
-            new ByteSizeValue(1, ByteSizeUnit.KB)
+            new ByteSizeValue(1, ByteSizeUnit.KB),
+            RANDOMIZING_IO_BUFFERS
         );
 
         final Set<Long> persistedSeqNos = new HashSet<>();
@@ -2295,9 +2309,6 @@ public class TranslogTests extends ESTestCase {
             this.writtenOperations = writtenOperations;
             this.seqNoGenerator = seqNoGenerator;
             this.threadExceptions = threadExceptions;
-            if (randomBoolean()) {
-                setName("[" + ThreadPool.Names.WRITE + "]" + getName());
-            }
         }
 
         @Override
@@ -3875,9 +3886,6 @@ public class TranslogTests extends ESTestCase {
                         }
                     }
                 });
-                if (randomBoolean()) {
-                    threads[t].setName("[" + ThreadPool.Names.WRITE + "]" + threads[t].getName());
-                }
                 threads[t].start();
             }
             for (Thread thread : threads) {

@@ -82,6 +82,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
 
+    private final DiskIoBufferPool diskIoBufferPool;
+
     private TranslogWriter(
         final ShardId shardId,
         final Checkpoint initialCheckpoint,
@@ -95,7 +97,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         TranslogHeader header,
         final TragicExceptionHolder tragedy,
         final LongConsumer persistedSequenceNumberConsumer,
-        final BigArrays bigArrays
+        final BigArrays bigArrays,
+        final DiskIoBufferPool diskIoBufferPool
     ) throws IOException {
         super(initialCheckpoint.generation, channel, path, header);
         assert initialCheckpoint.offset == channel.position()
@@ -119,6 +122,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
         this.bigArrays = bigArrays;
+        this.diskIoBufferPool = diskIoBufferPool;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
         this.tragedy = tragedy;
     }
@@ -137,7 +141,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final long primaryTerm,
         TragicExceptionHolder tragedy,
         final LongConsumer persistedSequenceNumberConsumer,
-        final BigArrays bigArrays
+        final BigArrays bigArrays,
+        DiskIoBufferPool diskIoBufferPool
     ) throws IOException {
         final Path checkpointFile = file.getParent().resolve(Translog.CHECKPOINT_FILE_NAME);
 
@@ -178,7 +183,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 header,
                 tragedy,
                 persistedSequenceNumberConsumer,
-                bigArrays
+                bigArrays,
+                diskIoBufferPool
             );
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
@@ -533,7 +539,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             if (length == 0) {
                 return;
             }
-            ByteBuffer ioBuffer = DiskIoBufferPool.maybeGetDirectIOBuffer();
+            ByteBuffer ioBuffer = diskIoBufferPool.maybeGetDirectIOBuffer();
             if (ioBuffer == null) {
                 // not using a direct buffer for writes from the current thread so just write without copying to the io buffer
                 BytesRefIterator iterator = toWrite.iterator();

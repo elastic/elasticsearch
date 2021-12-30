@@ -27,7 +27,6 @@ dependencies {
   api "org.jline:jline-style:${jlineVersion}"
 
   api xpackProject('plugin:sql:sql-client')
-  api xpackProject('plugin:sql:sql-action')
   api project(":libs:elasticsearch-cli")
   api project(':libs:elasticsearch-x-content')
   runtimeOnly "net.java.dev.jna:jna:${versions.jna}"

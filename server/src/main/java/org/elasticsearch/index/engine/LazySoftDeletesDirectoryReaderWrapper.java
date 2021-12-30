@@ -55,9 +55,10 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
      */
     public LazySoftDeletesDirectoryReaderWrapper(DirectoryReader in, String field) throws IOException {
         super(in, new LazySoftDeletesSubReaderWrapper(in, field));
+
         readerCacheHelper = in.getReaderCacheHelper() == null
             ? null
-            : new DelegatingCacheHelper(in.getReaderCacheHelper(), getCacheKey(in, field));
+            : new DelegatingCacheHelper(in.getReaderCacheHelper(), createCacheKey(in));
     }
 
     @Override
@@ -96,14 +97,14 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         @Override
         public LeafReader wrap(LeafReader reader) {
             try {
-                return LazySoftDeletesDirectoryReaderWrapper.wrap(reader, in, field);
+                return LazySoftDeletesDirectoryReaderWrapper.wrap(reader, field, in);
             } catch (IOException e) {
                 throw new IllegalStateException("Unable to wrap leaf reader", e);
             }
         }
     }
 
-    static LeafReader wrap(LeafReader reader, DirectoryReader in, String field) throws IOException {
+    static LeafReader wrap(LeafReader reader, String field, DirectoryReader in) throws IOException {
         final SegmentReader segmentReader = Lucene.segmentReader(reader);
         final SegmentCommitInfo segmentInfo = segmentReader.getSegmentInfo();
         final int numSoftDeletes = segmentInfo.getSoftDelCount();
@@ -114,8 +115,8 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         final int numDocs = maxDoc - segmentInfo.getDelCount() - segmentInfo.getSoftDelCount();
         final LazyBits lazyBits = new LazyBits(maxDoc, field, reader, numSoftDeletes, numDocs);
         return reader instanceof CodecReader
-            ? new LazySoftDeletesFilterCodecReader((CodecReader) reader, lazyBits, numDocs, in, field)
-            : new LazySoftDeletesFilterLeafReader(reader, lazyBits, numDocs, in, field);
+            ? new LazySoftDeletesFilterCodecReader((CodecReader) reader, lazyBits, numDocs, in)
+            : new LazySoftDeletesFilterLeafReader(reader, lazyBits, numDocs, in);
     }
 
     public static final class LazySoftDeletesFilterLeafReader extends FilterLeafReader {
@@ -124,14 +125,13 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         private final int numDocs;
         private final CacheHelper readerCacheHelper;
 
-        public LazySoftDeletesFilterLeafReader(LeafReader reader, LazyBits bits, int numDocs, DirectoryReader in, String field)
-            throws IOException {
+        public LazySoftDeletesFilterLeafReader(LeafReader reader, LazyBits bits, int numDocs, DirectoryReader in) throws IOException {
             super(reader);
             this.reader = reader;
             this.bits = bits;
             this.numDocs = numDocs;
 
-            CacheKey cacheKey = getCacheKey(in, field);
+            CacheKey cacheKey = createCacheKey(in);
 
             this.readerCacheHelper = (reader.getReaderCacheHelper() == null || cacheKey == null)
                 ? null
@@ -165,14 +165,13 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         private final int numDocs;
         private final CacheHelper readerCacheHelper;
 
-        public LazySoftDeletesFilterCodecReader(CodecReader reader, LazyBits bits, int numDocs, DirectoryReader in, String field)
-            throws IOException {
+        public LazySoftDeletesFilterCodecReader(CodecReader reader, LazyBits bits, int numDocs, DirectoryReader in) throws IOException {
             super(reader);
             this.reader = reader;
             this.bits = bits;
             this.numDocs = numDocs;
 
-            CacheKey cacheKey = getCacheKey(in, field);
+            CacheKey cacheKey = createCacheKey(in);
 
             this.readerCacheHelper = (reader.getReaderCacheHelper() == null || cacheKey == null)
                 ? null
@@ -201,7 +200,6 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
     }
 
     private record DelegatingCacheHelper(CacheHelper delegate, CacheKey cacheKey) implements CacheHelper {
-
         @Override
         public CacheKey getKey() {
             return cacheKey;
@@ -210,7 +208,8 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         @Override
         public void addClosedListener(ClosedListener listener) {
             // here we wrap the listener and call it with our cache key
-            // this is important since this key will be used to cache the reader and otherwise we won't free caches etc.
+            // this is important since this key will be used to cache the reader and otherwise we won't
+            // free caches etc.
             delegate.addClosedListener(unused -> listener.onClose(cacheKey));
         }
     }
@@ -283,11 +282,6 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         }
     }
 
-    private static CacheKey getCacheKey(DirectoryReader reader, String field) throws IOException {
-        SoftDeletesDirectoryReaderWrapper wrapper = new SoftDeletesDirectoryReaderWrapper(reader, field);
-        return (wrapper.getReaderCacheHelper() == null) ? null : wrapper.getReaderCacheHelper().getKey();
-    }
-
     static int applySoftDeletes(DocIdSetIterator iterator, FixedBitSet bits) throws IOException {
         assert iterator != null;
         int newDeletes = 0;
@@ -303,5 +297,16 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
             }
         }
         return newDeletes;
+    }
+
+    static CacheKey createCacheKey(DirectoryReader in) {
+        try (DirectoryReader clone = DirectoryReader.open(in.directory())) {
+            if (clone.getReaderCacheHelper() == null) {
+                return null;
+            }
+            return clone.getReaderCacheHelper().getKey();
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to clone directory", e);
+        }
     }
 }

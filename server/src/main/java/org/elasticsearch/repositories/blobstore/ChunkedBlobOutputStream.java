@@ -8,7 +8,7 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.BigArraysStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Releasables;
 
@@ -44,7 +44,7 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
     /**
      * Current write buffer.
      */
-    protected ReleasableBytesStreamOutput buffer;
+    protected BigArraysStreamOutput buffer;
 
     /**
      * Set to true once no more calls to {@link #write} are expected and the blob has been received by {@link #write} in full so that
@@ -68,7 +68,7 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
             throw new IllegalArgumentException("maximum buffer size must be positive");
         }
         this.maxBytesToBuffer = maxBytesToBuffer;
-        buffer = new ReleasableBytesStreamOutput(bigArrays);
+        buffer = new BigArraysStreamOutput(bigArrays);
     }
 
     @Override
@@ -122,7 +122,7 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
         if (successful) {
             buffer = null;
         } else {
-            buffer = new ReleasableBytesStreamOutput(bigArrays);
+            buffer = new BigArraysStreamOutput(bigArrays);
         }
     }
 

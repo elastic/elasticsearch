@@ -25,7 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.BigArraysStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
@@ -621,7 +621,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             final SingleUseKey singleUseNonceAndDEK = singleUseDEKSupplier.get();
             final BytesReference dekIdBytes = getDEKBytes(singleUseNonceAndDEK);
             try (
-                ReleasableBytesStreamOutput tmp = new ReleasableBytesStreamOutput(
+                BigArraysStreamOutput tmp = new BigArraysStreamOutput(
                     Math.toIntExact(getEncryptedBlobByteLength(bytes.length())),
                     bigArrays
                 )
@@ -641,7 +641,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             CheckedConsumer<OutputStream, IOException> writer
         ) throws IOException {
             // TODO: this is just a stop-gap solution for until we have an encrypted output stream wrapper
-            try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays)) {
+            try (BigArraysStreamOutput out = new BigArraysStreamOutput(bigArrays)) {
                 writer.accept(out);
                 if (atomic) {
                     writeBlobAtomic(blobName, out.bytes(), failIfAlreadyExists);

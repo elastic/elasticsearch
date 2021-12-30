@@ -13,7 +13,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
@@ -569,7 +568,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             assertEquals(0, new BytesArray(slice.toBytesRef()).compareTo(slice));
 
             final int crazyLength = length + randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 8));
-            ReleasableBytesStreamOutput crazyStream = new ReleasableBytesStreamOutput(length, bigarrays);
+            BytesStreamOutput crazyStream = new BytesStreamOutput(length);
             final int offset = randomIntBetween(0, crazyLength - length);
             for (int j = 0; j < offset; j++) {
                 crazyStream.writeByte((byte) random().nextInt(1 << 8));

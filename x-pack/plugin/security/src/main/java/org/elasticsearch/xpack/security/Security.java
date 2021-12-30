@@ -1466,7 +1466,7 @@ public class Security extends Plugin
             () -> new SecurityNetty4HttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
+                pageCacheRecycler,
                 ipFilter.get(),
                 getSslService(),
                 threadPool,
@@ -1481,7 +1481,6 @@ public class Security extends Plugin
             () -> new SecurityNioHttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
                 pageCacheRecycler,
                 threadPool,
                 xContentRegistry,

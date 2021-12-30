@@ -13,22 +13,19 @@ import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
 
 public class Netty4UtilsTests extends ESTestCase {
 
     private static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
-    private final BigArrays bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), CircuitBreaker.REQUEST);
 
     public void testToChannelBufferWithEmptyRef() throws IOException {
         ByteBuf buffer = Netty4Utils.toByteBuf(getRandomizedBytesReference(0));
@@ -69,7 +66,7 @@ public class Netty4UtilsTests extends ESTestCase {
 
     private BytesReference getRandomizedBytesReference(int length) throws IOException {
         // we know bytes stream output always creates a paged bytes reference, we use it to create randomized content
-        ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(length, bigarrays);
+        ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(length, BytesRefRecycler.NON_RECYCLING_INSTANCE);
         for (int i = 0; i < length; i++) {
             out.writeByte((byte) random().nextInt(1 << 8));
         }

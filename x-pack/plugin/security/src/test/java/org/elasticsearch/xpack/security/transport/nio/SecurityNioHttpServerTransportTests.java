@@ -10,7 +10,6 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -75,7 +74,6 @@ public class SecurityNioHttpServerTransportTests extends AbstractHttpServerTrans
         SecurityNioHttpServerTransport transport = new SecurityNioHttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
             mock(PageCacheRecycler.class),
             mock(ThreadPool.class),
             xContentRegistry(),
@@ -107,7 +105,6 @@ public class SecurityNioHttpServerTransportTests extends AbstractHttpServerTrans
         SecurityNioHttpServerTransport transport = new SecurityNioHttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
             mock(PageCacheRecycler.class),
             mock(ThreadPool.class),
             xContentRegistry(),
@@ -139,7 +136,6 @@ public class SecurityNioHttpServerTransportTests extends AbstractHttpServerTrans
         SecurityNioHttpServerTransport transport = new SecurityNioHttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
             mock(PageCacheRecycler.class),
             mock(ThreadPool.class),
             xContentRegistry(),
@@ -171,7 +167,6 @@ public class SecurityNioHttpServerTransportTests extends AbstractHttpServerTrans
         SecurityNioHttpServerTransport transport = new SecurityNioHttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
             mock(PageCacheRecycler.class),
             mock(ThreadPool.class),
             xContentRegistry(),
@@ -198,7 +193,6 @@ public class SecurityNioHttpServerTransportTests extends AbstractHttpServerTrans
         SecurityNioHttpServerTransport transport = new SecurityNioHttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
             mock(PageCacheRecycler.class),
             mock(ThreadPool.class),
             xContentRegistry(),
@@ -224,7 +218,6 @@ public class SecurityNioHttpServerTransportTests extends AbstractHttpServerTrans
         transport = new SecurityNioHttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
             mock(PageCacheRecycler.class),
             mock(ThreadPool.class),
             xContentRegistry(),
@@ -259,7 +252,6 @@ public class SecurityNioHttpServerTransportTests extends AbstractHttpServerTrans
         SecurityNioHttpServerTransport transport = new SecurityNioHttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
             mock(PageCacheRecycler.class),
             mock(ThreadPool.class),
             xContentRegistry(),

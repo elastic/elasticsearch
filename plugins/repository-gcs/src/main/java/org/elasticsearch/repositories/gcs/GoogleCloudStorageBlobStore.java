@@ -33,7 +33,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.BigArraysStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -307,7 +307,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             // we start out by buffering the write to a buffer, if it exceeds the large blob threshold we start a resumable upload, flush
             // the buffer to it and keep writing to the resumable upload. If we never exceed the large blob threshold we just write the
             // buffer via a standard blob write
-            try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(bigArrays)) {
+            try (BigArraysStreamOutput buffer = new BigArraysStreamOutput(bigArrays)) {
                 final AtomicReference<WriteChannel> channelRef = new AtomicReference<>();
                 writer.accept(new OutputStream() {
 

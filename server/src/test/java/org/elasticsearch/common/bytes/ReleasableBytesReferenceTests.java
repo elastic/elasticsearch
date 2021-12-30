@@ -11,6 +11,7 @@ package org.elasticsearch.common.bytes;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -58,7 +59,7 @@ public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCas
             for (int i = 0; i < length;) {
                 int remaining = length - i;
                 int sliceLength = randomIntBetween(1, remaining);
-                ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(sliceLength, bigarrays);
+                ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(sliceLength, BytesRefRecycler.NON_RECYCLING_INSTANCE);
                 for (int j = 0; j < sliceLength; j++) {
                     out.writeByte((byte) random().nextInt(1 << 8));
                 }

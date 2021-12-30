@@ -16,8 +16,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.EOFException;
@@ -49,12 +54,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-/**
- * Tests for {@link StreamOutput}.
- */
-public class BytesStreamsTests extends ESTestCase {
+public class BigArraysStreamOutputTests extends ESTestCase {
+
     public void testEmpty() throws Exception {
-        BytesStreamOutput out = new BytesStreamOutput();
+        BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
 
         // test empty stream to array
         assertEquals(0, out.size());
@@ -64,7 +67,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testSingleByte() throws Exception {
-        BytesStreamOutput out = new BytesStreamOutput();
+        BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
         assertEquals(0, out.size());
 
         int expectedSize = 1;
@@ -79,7 +82,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testSingleShortPage() throws Exception {
-        BytesStreamOutput out = new BytesStreamOutput();
+        BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
 
         int expectedSize = 10;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
@@ -96,7 +99,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testIllegalBulkWrite() throws Exception {
-        BytesStreamOutput out = new BytesStreamOutput();
+        BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
 
         // bulk-write with wrong args
         expectThrows(IllegalArgumentException.class, () -> out.writeBytes(new byte[] {}, 0, 1));
@@ -104,7 +107,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testSingleShortPageBulkWrite() throws Exception {
-        BytesStreamOutput out = new BytesStreamOutput();
+        BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
 
         // first bulk-write empty array: should not change anything
         int expectedSize = 0;
@@ -124,7 +127,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testSingleFullPageBulkWrite() throws Exception {
-        BytesStreamOutput out = new BytesStreamOutput();
+        BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
 
         int expectedSize = PageCacheRecycler.BYTE_PAGE_SIZE;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
@@ -139,7 +142,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testSingleFullPageBulkWriteWithOffset() throws Exception {
-        BytesStreamOutput out = new BytesStreamOutput();
+        BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
 
         int initialOffset = 10;
         int additionalLength = PageCacheRecycler.BYTE_PAGE_SIZE;
@@ -158,7 +161,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testSingleFullPageBulkWriteWithOffsetCrossover() throws Exception {
-        BytesStreamOutput out = new BytesStreamOutput();
+        BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
 
         int initialOffset = 10;
         int additionalLength = PageCacheRecycler.BYTE_PAGE_SIZE * 2;
@@ -177,7 +180,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testSingleFullPage() throws Exception {
-        BytesStreamOutput out = new BytesStreamOutput();
+        BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
 
         int expectedSize = PageCacheRecycler.BYTE_PAGE_SIZE;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
@@ -194,7 +197,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testOneFullOneShortPage() throws Exception {
-        BytesStreamOutput out = new BytesStreamOutput();
+        BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
 
         int expectedSize = PageCacheRecycler.BYTE_PAGE_SIZE + 10;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
@@ -211,7 +214,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testTwoFullOneShortPage() throws Exception {
-        BytesStreamOutput out = new BytesStreamOutput();
+        BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
 
         int expectedSize = (PageCacheRecycler.BYTE_PAGE_SIZE * 2) + 1;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
@@ -228,7 +231,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testSeek() throws Exception {
-        BytesStreamOutput out = new BytesStreamOutput();
+        BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
 
         int position = 0;
         assertEquals(position, out.position());
@@ -241,13 +244,13 @@ public class BytesStreamsTests extends ESTestCase {
         assertEquals(position, BytesReference.toBytes(out.bytes()).length);
 
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> out.seek(Integer.MAX_VALUE + 1L));
-        assertEquals("BytesStreamOutput cannot hold more than 2GB of data", iae.getMessage());
+        assertEquals("BigArraysStreamOutput cannot hold more than 2GB of data", iae.getMessage());
 
         out.close();
     }
 
     public void testSkip() throws Exception {
-        BytesStreamOutput out = new BytesStreamOutput();
+        BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
 
         int position = 0;
         assertEquals(position, out.position());
@@ -257,14 +260,14 @@ public class BytesStreamsTests extends ESTestCase {
         assertEquals(position + forward, out.position());
 
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> out.skip(Integer.MAX_VALUE - 50));
-        assertEquals("BytesStreamOutput cannot hold more than 2GB of data", iae.getMessage());
+        assertEquals("BigArraysStreamOutput cannot hold more than 2GB of data", iae.getMessage());
 
         out.close();
     }
 
     public void testSimpleStreams() throws Exception {
         assumeTrue("requires a 64-bit JRE ... ?!", Constants.JRE_IS_64BIT);
-        BytesStreamOutput out = new BytesStreamOutput();
+        BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
         out.writeBoolean(false);
         out.writeByte((byte) 1);
         out.writeShort((short) -1);
@@ -352,7 +355,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testNamedWriteable() throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
+        try (BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE)) {
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
                 Collections.singletonList(
                     new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new)
@@ -386,7 +389,7 @@ public class BytesStreamsTests extends ESTestCase {
             expected.add(new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
         }
 
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
+        try (BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE)) {
             out.writeNamedWriteableList(expected);
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)) {
                 assertEquals(expected, in.readNamedWriteableList(BaseNamedWriteable.class));
@@ -396,7 +399,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testNamedWriteableNotSupportedWithoutWrapping() throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
+        try (BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE)) {
             TestNamedWriteable testNamedWriteable = new TestNamedWriteable("test1", "test2");
             out.writeNamedWriteable(testNamedWriteable);
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
@@ -406,7 +409,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testNamedWriteableReaderReturnsNull() throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
+        try (BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE)) {
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
                 Collections.singletonList(
                     new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, (StreamInput in) -> null)
@@ -427,7 +430,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testOptionalWriteableReaderReturnsNull() throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
+        try (BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE)) {
             out.writeOptionalWriteable(new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
             IOException e = expectThrows(IOException.class, () -> in.readOptionalWriteable((StreamInput ignored) -> null));
@@ -436,7 +439,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testWriteableReaderReturnsWrongName() throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
+        try (BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE)) {
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
                 Collections.singletonList(
                     new NamedWriteableRegistry.Entry(
@@ -476,7 +479,7 @@ public class BytesStreamsTests extends ESTestCase {
             expected.add(new TestWriteable(randomBoolean()));
         }
 
-        final BytesStreamOutput out = new BytesStreamOutput();
+        final BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
         out.writeList(expected);
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
@@ -502,7 +505,7 @@ public class BytesStreamsTests extends ESTestCase {
             expected.put(randomAlphaOfLength(2), randomAlphaOfLength(5));
         }
 
-        final BytesStreamOutput out = new BytesStreamOutput();
+        final BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
         out.writeMap(expected, StreamOutput::writeString, StreamOutput::writeString);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         final Map<String, String> loaded = in.readMap(StreamInput::readString, StreamInput::readString);
@@ -519,7 +522,7 @@ public class BytesStreamsTests extends ESTestCase {
         }
 
         final ImmutableOpenMap<String, String> expected = expectedBuilder.build();
-        final BytesStreamOutput out = new BytesStreamOutput();
+        final BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
         out.writeMap(expected, StreamOutput::writeString, StreamOutput::writeString);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         final ImmutableOpenMap<String, String> loaded = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
@@ -535,7 +538,7 @@ public class BytesStreamsTests extends ESTestCase {
         }
 
         final ImmutableOpenMap<TestWriteable, TestWriteable> expected = expectedBuilder.build();
-        final BytesStreamOutput out = new BytesStreamOutput();
+        final BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
         out.writeMap(expected);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableMap(TestWriteable::new, TestWriteable::new);
@@ -558,7 +561,7 @@ public class BytesStreamsTests extends ESTestCase {
             expected.put(randomAlphaOfLength(2), list);
         }
 
-        final BytesStreamOutput out = new BytesStreamOutput();
+        final BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
         out.writeMapOfLists(expected, StreamOutput::writeString, StreamOutput::writeString);
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
@@ -639,7 +642,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testReadWriteGeoPoint() throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
+        try (BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE)) {
             GeoPoint geoPoint = new GeoPoint(randomDouble(), randomDouble());
             out.writeGenericValue(geoPoint);
             StreamInput wrap = out.bytes().streamInput();
@@ -647,7 +650,7 @@ public class BytesStreamsTests extends ESTestCase {
             assertEquals(point, geoPoint);
         }
 
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
+        try (BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE)) {
             GeoPoint geoPoint = new GeoPoint(randomDouble(), randomDouble());
             out.writeGeoPoint(geoPoint);
             StreamInput wrap = out.bytes().streamInput();
@@ -700,7 +703,10 @@ public class BytesStreamsTests extends ESTestCase {
 
         assertNotEquals(mapKeys, reverseMapKeys);
 
-        try (BytesStreamOutput output = new BytesStreamOutput(); BytesStreamOutput reverseMapOutput = new BytesStreamOutput()) {
+        try (
+            BigArraysStreamOutput output = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
+            BigArraysStreamOutput reverseMapOutput = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE)
+        ) {
             output.writeMapWithConsistentOrder(map);
             reverseMapOutput.writeMapWithConsistentOrder(reverseMap);
 
@@ -715,7 +721,7 @@ public class BytesStreamsTests extends ESTestCase {
             () -> randomAlphaOfLength(5),
             () -> randomAlphaOfLength(5)
         );
-        try (BytesStreamOutput streamOut = new BytesStreamOutput()) {
+        try (BigArraysStreamOutput streamOut = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE)) {
             streamOut.writeMapWithConsistentOrder(streamOutMap);
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(streamOut.bytes()));
             Map<String, Object> streamInMap = in.readMap();
@@ -724,7 +730,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testWriteMapWithConsistentOrderWithLinkedHashMapShouldThrowAssertError() throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
+        try (BigArraysStreamOutput output = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE)) {
             Map<String, Object> map = new LinkedHashMap<>();
             Throwable e = expectThrows(AssertionError.class, () -> output.writeMapWithConsistentOrder(map));
             assertEquals(AssertionError.class, e.getClass());
@@ -741,7 +747,7 @@ public class BytesStreamsTests extends ESTestCase {
         for (int iter = 0; iter < iters; iter++) {
             List<String> strings = new ArrayList<>();
             int numStrings = randomIntBetween(100, 1000);
-            BytesStreamOutput output = new BytesStreamOutput(0);
+            BigArraysStreamOutput output = new BigArraysStreamOutput(0, BigArrays.NON_RECYCLING_INSTANCE);
             for (int i = 0; i < numStrings; i++) {
                 String s = randomRealisticUnicodeOfLengthBetween(0, 2048);
                 strings.add(s);
@@ -765,7 +771,7 @@ public class BytesStreamsTests extends ESTestCase {
         assertEquals(2, deseretLetter.length());
         String largeString = IntStream.range(0, 2048).mapToObj(s -> deseretLetter).collect(Collectors.joining("")).trim();
         assertEquals("expands to 4 bytes", 4, new BytesRef(deseretLetter).length);
-        try (BytesStreamOutput output = new BytesStreamOutput(0)) {
+        try (BigArraysStreamOutput output = new BigArraysStreamOutput(0, BigArrays.NON_RECYCLING_INSTANCE)) {
             output.writeString(largeString);
             try (StreamInput streamInput = output.bytes().streamInput()) {
                 assertEquals(largeString, streamInput.readString());
@@ -774,7 +780,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testReadTooLargeArraySize() throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput(0)) {
+        try (BigArraysStreamOutput output = new BigArraysStreamOutput(0, BigArrays.NON_RECYCLING_INSTANCE)) {
             output.writeVInt(10);
             for (int i = 0; i < 10; i++) {
                 output.writeInt(i);
@@ -795,7 +801,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testReadCorruptedArraySize() throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput(0)) {
+        try (BigArraysStreamOutput output = new BigArraysStreamOutput(0, BigArrays.NON_RECYCLING_INSTANCE)) {
             output.writeVInt(10);
             for (int i = 0; i < 10; i++) {
                 output.writeInt(i);
@@ -817,7 +823,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testReadNegativeArraySize() throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput(0)) {
+        try (BigArraysStreamOutput output = new BigArraysStreamOutput(0, BigArrays.NON_RECYCLING_INSTANCE)) {
             output.writeVInt(10);
             for (int i = 0; i < 10; i++) {
                 output.writeInt(i);
@@ -840,10 +846,10 @@ public class BytesStreamsTests extends ESTestCase {
 
     public void testVInt() throws IOException {
         final int value = randomInt();
-        BytesStreamOutput output = new BytesStreamOutput();
+        BigArraysStreamOutput output = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
         output.writeVInt(value);
 
-        BytesStreamOutput simple = new BytesStreamOutput();
+        BigArraysStreamOutput simple = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
         int i = value;
         while ((i & ~0x7F) != 0) {
             simple.writeByte(((byte) ((i & 0x7f) | 0x80)));
@@ -860,14 +866,14 @@ public class BytesStreamsTests extends ESTestCase {
         final long value = randomLong();
         {
             // Read works for positive and negative numbers
-            BytesStreamOutput output = new BytesStreamOutput();
+            BigArraysStreamOutput output = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
             output.writeVLongNoCheck(value); // Use NoCheck variant so we can write negative numbers
             StreamInput input = output.bytes().streamInput();
             assertEquals(value, input.readVLong());
         }
         if (value < 0) {
             // Write doesn't work for negative numbers
-            BytesStreamOutput output = new BytesStreamOutput();
+            BigArraysStreamOutput output = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
             Exception e = expectThrows(IllegalStateException.class, () -> output.writeVLong(value));
             assertEquals("Negative longs unsupported, use writeLong or writeZLong for negative numbers [" + value + "]", e.getMessage());
         }
@@ -881,7 +887,7 @@ public class BytesStreamsTests extends ESTestCase {
 
     public void testEnum() throws IOException {
         TestEnum value = randomFrom(TestEnum.values());
-        BytesStreamOutput output = new BytesStreamOutput();
+        BigArraysStreamOutput output = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
         output.writeEnum(value);
         StreamInput input = output.bytes().streamInput();
         assertEquals(value, input.readEnum(TestEnum.class));
@@ -889,7 +895,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testInvalidEnum() throws IOException {
-        BytesStreamOutput output = new BytesStreamOutput();
+        BigArraysStreamOutput output = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
         int randomNumber = randomInt();
         boolean validEnum = randomNumber >= 0 && randomNumber < TestEnum.values().length;
         output.writeVInt(randomNumber);
@@ -904,7 +910,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     private static void assertEqualityAfterSerialize(TimeValue value, int expectedSize) throws IOException {
-        BytesStreamOutput out = new BytesStreamOutput();
+        BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
         out.writeTimeValue(value);
         assertEquals(expectedSize, out.size());
 
@@ -923,7 +929,7 @@ public class BytesStreamsTests extends ESTestCase {
         assertEqualityAfterSerialize(TimeValue.timeValueSeconds(30), 2);
 
         final TimeValue timeValue = new TimeValue(randomIntBetween(0, 1024), randomFrom(TimeUnit.values()));
-        BytesStreamOutput out = new BytesStreamOutput();
+        BigArraysStreamOutput out = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
         out.writeZLong(timeValue.duration());
         assertEqualityAfterSerialize(timeValue, 1 + out.bytes().length());
     }
@@ -933,12 +939,12 @@ public class BytesStreamsTests extends ESTestCase {
         AlreadyClosedException ace = new AlreadyClosedException("closed", rootEx);
         rootEx.addSuppressed(ace); // circular reference
 
-        BytesStreamOutput testOut = new BytesStreamOutput();
+        BigArraysStreamOutput testOut = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
         AssertionError error = expectThrows(AssertionError.class, () -> testOut.writeException(rootEx));
         assertThat(error.getMessage(), containsString("too many nested exceptions"));
         assertThat(error.getCause(), equalTo(rootEx));
 
-        BytesStreamOutput prodOut = new BytesStreamOutput() {
+        BigArraysStreamOutput prodOut = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE) {
             @Override
             boolean failOnTooManyNestedExceptions(Throwable throwable) {
                 assertThat(throwable, sameInstance(rootEx));
@@ -951,5 +957,23 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(newEx, instanceOf(IOException.class));
         assertThat(newEx.getMessage(), equalTo("disk broken"));
         assertArrayEquals(newEx.getStackTrace(), rootEx.getStackTrace());
+    }
+
+    public void testRelease() throws Exception {
+        MockBigArrays mockBigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        try (BigArraysStreamOutput output = getRandomReleasableBytesStreamOutput(mockBigArrays)) {
+            output.writeBoolean(randomBoolean());
+        }
+        MockBigArrays.ensureAllArraysAreReleased();
+    }
+
+    private BigArraysStreamOutput getRandomReleasableBytesStreamOutput(MockBigArrays mockBigArrays) throws IOException {
+        BigArraysStreamOutput output = new BigArraysStreamOutput(mockBigArrays);
+        if (randomBoolean()) {
+            for (int i = 0; i < scaledRandomIntBetween(1, 32); i++) {
+                output.write(randomByte());
+            }
+        }
+        return output;
     }
 }

@@ -84,11 +84,7 @@ public class Cli extends Command {
      * Build the CLI.
      */
     public Cli(CliTerminal cliTerminal) {
-        // rewire / replace LoggingAwareCommand / CommandLoggingConfigurator::configureLoggingWithoutConfig
-        super("Elasticsearch SQL CLI", new Runnable() {
-            @Override
-            public void run() {}
-        });
+        super("Elasticsearch SQL CLI", () -> {});
 
         this.cliTerminal = cliTerminal;
         parser.acceptsAll(Arrays.asList("d", "debug"), "Enable debug logging");

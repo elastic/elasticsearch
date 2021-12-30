@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -110,6 +111,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     // the list of translog readers is guaranteed to be in order of translog generation
     private final List<TranslogReader> readers = new ArrayList<>();
     private final BigArrays bigArrays;
+    private final DiskIoBufferPool diskIoBufferPool;
     protected final ReleasableLock readLock;
     protected final ReleasableLock writeLock;
     private final Path location;
@@ -159,6 +161,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         this.deletionPolicy = deletionPolicy;
         this.translogUUID = translogUUID;
         bigArrays = config.getBigArrays();
+        diskIoBufferPool = config.getDiskIoBufferPool();
         ReadWriteLock rwl = new ReentrantReadWriteLock();
         readLock = new ReleasableLock(rwl.readLock());
         writeLock = new ReleasableLock(rwl.writeLock());
@@ -549,7 +552,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 primaryTermSupplier.getAsLong(),
                 tragedy,
                 persistedSequenceNumberConsumer,
-                bigArrays
+                bigArrays,
+                diskIoBufferPool
             );
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
@@ -1972,7 +1976,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             primaryTerm,
             new TragicExceptionHolder(),
             seqNo -> { throw new UnsupportedOperationException(); },
-            BigArrays.NON_RECYCLING_INSTANCE
+            BigArrays.NON_RECYCLING_INSTANCE,
+            DiskIoBufferPool.INSTANCE
         );
         writer.close();
         return uuid;

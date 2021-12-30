@@ -139,23 +139,19 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(successful, indexResponse.getShardInfo().getSuccessful());
         assertEquals(forcedRefresh, indexResponse.forcedRefresh());
         assertEquals(
-            "IndexResponse[index="
-                + shardId.getIndexName()
-                + ",id="
-                + id
-                + ",version="
-                + version
-                + ",result="
-                + (created ? "created" : "updated")
-                + ",seqNo="
-                + SequenceNumbers.UNASSIGNED_SEQ_NO
-                + ",primaryTerm="
-                + 0
-                + ",shards={\"total\":"
-                + total
-                + ",\"successful\":"
-                + successful
-                + ",\"failed\":0}]",
+            """
+                IndexResponse[index=%s,id=%s,version=%s,result=%s,seqNo=%s,primaryTerm=%s,shards=\
+                {"total":%s,"successful":%s,"failed":0}]\
+                """.formatted(
+                shardId.getIndexName(),
+                id,
+                version,
+                created ? "created" : "updated",
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                0,
+                total,
+                successful
+            ),
             indexResponse.toString()
         );
     }
@@ -253,7 +249,9 @@ public class IndexRequestTests extends ESTestCase {
         request.source(source, XContentType.JSON);
         assertEquals("index {[index][null], source[" + source + "]}", request.toString());
 
-        source = "{\"name\":\"" + randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING) + "\"}";
+        source = """
+            {"name":"%s"}
+            """.formatted(randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING));
         request.source(source, XContentType.JSON);
         int actualBytes = source.getBytes("UTF-8").length;
         assertEquals(

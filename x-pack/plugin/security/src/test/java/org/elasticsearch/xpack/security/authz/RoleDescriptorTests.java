@@ -132,26 +132,65 @@ public class RoleDescriptorTests extends ESTestCase {
         assertEquals(0, rd.getIndicesPrivileges().length);
         assertArrayEquals(Strings.EMPTY_ARRAY, rd.getRunAs());
 
-        q = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"]}";
+        q = """
+            {
+              "cluster": [ "a", "b" ],
+              "run_as": [ "m", "n" ]
+            }""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
         assertEquals(0, rd.getIndicesPrivileges().length);
         assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
 
-        q = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"index\": [{\"names\": \"idx1\", \"privileges\": [\"p1\", "
-            + "\"p2\"]}, {\"names\": \"idx2\", \"allow_restricted_indices\": true, \"privileges\": [\"p3\"], \"field_security\": "
-            + "{\"grant\": [\"f1\", \"f2\"]}}, {\"names\": "
-            + "\"idx2\", \"allow_restricted_indices\": false,"
-            + "\"privileges\": [\"p3\"], \"field_security\": {\"grant\": [\"f1\", \"f2\"]}, \"query\": {\"match_all\": {}} }]}";
+        q = """
+            {
+              "cluster": [ "a", "b" ],
+              "run_as": [ "m", "n" ],
+              "index": [
+                {
+                  "names": "idx1",
+                  "privileges": [ "p1", "p2" ]
+                },
+                {
+                  "names": "idx2",
+                  "allow_restricted_indices": true,
+                  "privileges": [ "p3" ],
+                  "field_security": {
+                    "grant": [ "f1", "f2" ]
+                  }
+                },
+                {
+                  "names": "idx2",
+                  "allow_restricted_indices": false,
+                  "privileges": [ "p3" ],
+                  "field_security": {
+                    "grant": [ "f1", "f2" ]
+                  },
+                  "query": {
+                    "match_all": {}
+                  }
+                }
+              ]
+            }""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
         assertEquals(3, rd.getIndicesPrivileges().length);
         assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
 
-        q = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"index\": [{\"names\": [\"idx1\",\"idx2\"], \"privileges\": "
-            + "[\"p1\", \"p2\"], \"allow_restricted_indices\": true}]}";
+        q = """
+            {
+              "cluster": [ "a", "b" ],
+              "run_as": [ "m", "n" ],
+              "index": [
+                {
+                  "names": [ "idx1", "idx2" ],
+                  "privileges": [ "p1", "p2" ],
+                  "allow_restricted_indices": true
+                }
+              ]
+            }""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
@@ -161,7 +200,8 @@ public class RoleDescriptorTests extends ESTestCase {
         assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
         assertNull(rd.getIndicesPrivileges()[0].getQuery());
 
-        q = "{\"cluster\":[\"a\", \"b\"], \"metadata\":{\"foo\":\"bar\"}}";
+        q = """
+            {"cluster":["a", "b"], "metadata":{"foo":"bar"}}""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
@@ -171,14 +211,37 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(rd.getMetadata().size(), is(1));
         assertThat(rd.getMetadata().get("foo"), is("bar"));
 
-        q = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"],"
-            + " \"index\": [{\"names\": [\"idx1\",\"idx2\"], \"allow_restricted_indices\": false, \"privileges\": [\"p1\", \"p2\"]}],"
-            + " \"applications\": ["
-            + "     {\"resources\": [\"object-123\",\"object-456\"], \"privileges\":[\"read\", \"delete\"], \"application\":\"app1\"},"
-            + "     {\"resources\": [\"*\"], \"privileges\":[\"admin\"], \"application\":\"app2\" }"
-            + " ],"
-            + " \"global\": { \"application\": { \"manage\": { \"applications\" : [ \"kibana\", \"logstash\" ] } } }"
-            + "}";
+        q = """
+            {
+              "cluster": [ "a", "b" ],
+              "run_as": [ "m", "n" ],
+              "index": [
+                {
+                  "names": [ "idx1", "idx2" ],
+                  "allow_restricted_indices": false,
+                  "privileges": [ "p1", "p2" ]
+                }
+              ],
+              "applications": [
+                {
+                  "resources": [ "object-123", "object-456" ],
+                  "privileges": [ "read", "delete" ],
+                  "application": "app1"
+                },
+                {
+                  "resources": [ "*" ],
+                  "privileges": [ "admin" ],
+                  "application": "app2"
+                }
+              ],
+              "global": {
+                "application": {
+                  "manage": {
+                    "applications": [ "kibana", "logstash" ]
+                  }
+                }
+              }
+            }""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertThat(rd.getName(), equalTo("test"));
         assertThat(rd.getClusterPrivileges(), arrayContaining("a", "b"));
@@ -204,7 +267,8 @@ public class RoleDescriptorTests extends ESTestCase {
             containsInAnyOrder("kibana", "logstash")
         );
 
-        q = "{\"applications\": [{\"application\": \"myapp\", \"resources\": [\"*\"], \"privileges\": [\"login\" ]}] }";
+        q = """
+            {"applications": [{"application": "myapp", "resources": ["*"], "privileges": ["login" ]}] }""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertThat(rd.getName(), equalTo("test"));
         assertThat(rd.getClusterPrivileges(), emptyArray());
@@ -215,8 +279,8 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(rd.getApplicationPrivileges()[0].getApplication(), equalTo("myapp"));
         assertThat(rd.getConditionalClusterPrivileges(), Matchers.arrayWithSize(0));
 
-        final String badJson =
-            "{\"applications\":[{\"not_supported\": true, \"resources\": [\"*\"], \"privileges\": [\"my-app:login\" ]}] }";
+        final String badJson = """
+            {"applications":[{"not_supported": true, "resources": ["*"], "privileges": ["my-app:login" ]}] }""";
         final IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(badJson), false, XContentType.JSON)
@@ -243,8 +307,18 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testParseEmptyQuery() throws Exception {
-        String json = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"index\": [{\"names\": [\"idx1\",\"idx2\"], "
-            + "\"privileges\": [\"p1\", \"p2\"], \"query\": \"\"}]}";
+        String json = """
+            {
+                "cluster": [ "a", "b" ],
+                "run_as": [ "m", "n" ],
+                "index": [
+                  {
+                    "names": [ "idx1", "idx2" ],
+                    "privileges": [ "p1", "p2" ],
+                    "query": ""
+                  }
+                ]
+              }""";
         RoleDescriptor rd = RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
@@ -255,8 +329,18 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testParseNullQuery() throws Exception {
-        String json = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"index\": [{\"names\": [\"idx1\",\"idx2\"], "
-            + "\"privileges\": [\"p1\", \"p2\"], \"query\": null}]}";
+        String json = """
+            {
+              "cluster": [ "a", "b" ],
+              "run_as": [ "m", "n" ],
+              "index": [
+                {
+                  "names": [ "idx1", "idx2" ],
+                  "privileges": [ "p1", "p2" ],
+                  "query": null
+                }
+              ]
+            }""";
         RoleDescriptor rd = RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
@@ -267,8 +351,18 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testParseEmptyQueryUsingDeprecatedIndicesField() throws Exception {
-        String json = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"indices\": [{\"names\": [\"idx1\",\"idx2\"], "
-            + "\"privileges\": [\"p1\", \"p2\"], \"query\": \"\"}]}";
+        String json = """
+            {
+              "cluster": [ "a", "b" ],
+              "run_as": [ "m", "n" ],
+              "indices": [
+                {
+                  "names": [ "idx1", "idx2" ],
+                  "privileges": [ "p1", "p2" ],
+                  "query": ""
+                }
+              ]
+            }""";
         RoleDescriptor rd = RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
@@ -302,12 +396,19 @@ public class RoleDescriptorTests extends ESTestCase {
         final String grant = grantAll ? "\"*\"" : "\"f1\",\"f2\"";
         final String except = grantAll ? "\"_fx\",\"f8\"" : "\"f1\"";
 
-        final String json = "{ \"indices\": [{\"names\": [\"idx1\",\"idx2\"], \"privileges\": [\"p1\", \"p2\"], \"field_security\" : { "
-            + "\"grant\" : ["
-            + grant
-            + "], \"except\" : ["
-            + except
-            + "] } }] }";
+        final String json = """
+            {
+              "indices": [
+                {
+                  "names": [ "idx1", "idx2" ],
+                  "privileges": [ "p1", "p2" ],
+                  "field_security": {
+                    "grant": [ %s ],
+                    "except": [ %s ]
+                  }
+                }
+              ]
+            }""".formatted(grant, except);
         final RoleDescriptor rd = RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON);
         assertEquals("test", rd.getName());
         assertEquals(1, rd.getIndicesPrivileges().length);
@@ -320,8 +421,19 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testParseIndicesPrivilegesFailsWhenExceptFieldsAreNotSubsetOfGrantedFields() {
-        final String json = "{ \"indices\": [{\"names\": [\"idx1\",\"idx2\"], \"privileges\": [\"p1\", \"p2\"], \"field_security\" : { "
-            + "\"grant\" : [\"f1\",\"f2\"], \"except\" : [\"f3\"] } }] }";
+        final String json = """
+            {
+              "indices": [
+                {
+                  "names": [ "idx1", "idx2" ],
+                  "privileges": [ "p1", "p2" ],
+                  "field_security": {
+                    "grant": [ "f1", "f2" ],
+                    "except": [ "f3" ]
+                  }
+                }
+              ]
+            }""";
         final ElasticsearchParseException epe = expectThrows(
             ElasticsearchParseException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON)

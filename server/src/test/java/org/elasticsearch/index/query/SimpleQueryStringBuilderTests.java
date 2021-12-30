@@ -250,7 +250,12 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     public void testDefaultFieldParsing() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
-        String contentString = "{\n" + "    \"simple_query_string\" : {\n" + "      \"query\" : \"" + query + "\"" + "    }\n" + "}";
+        String contentString = """
+            {
+              "simple_query_string": {
+                "query": "%s"
+              }
+            }""".formatted(query);
         SimpleQueryStringBuilder queryBuilder = (SimpleQueryStringBuilder) parseQuery(contentString);
         assertThat(queryBuilder.value(), equalTo(query));
         assertThat(queryBuilder.fields(), notNullValue());
@@ -359,23 +364,24 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"simple_query_string\" : {\n"
-            + "    \"query\" : \"\\\"fried eggs\\\" +(eggplant | potato) -frittata\",\n"
-            + "    \"fields\" : [ \"body^5.0\" ],\n"
-            + "    \"analyzer\" : \"snowball\",\n"
-            + "    \"flags\" : -1,\n"
-            + "    \"default_operator\" : \"and\",\n"
-            + "    \"lenient\" : false,\n"
-            + "    \"analyze_wildcard\" : false,\n"
-            + "    \"quote_field_suffix\" : \".quote\",\n"
-            + "    \"auto_generate_synonyms_phrase_query\" : true,\n"
-            + "    \"fuzzy_prefix_length\" : 1,\n"
-            + "    \"fuzzy_max_expansions\" : 5,\n"
-            + "    \"fuzzy_transpositions\" : false,\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "simple_query_string" : {
+                "query" : "\\"fried eggs\\" +(eggplant | potato) -frittata",
+                "fields" : [ "body^5.0" ],
+                "analyzer" : "snowball",
+                "flags" : -1,
+                "default_operator" : "and",
+                "lenient" : false,
+                "analyze_wildcard" : false,
+                "quote_field_suffix" : ".quote",
+                "auto_generate_synonyms_phrase_query" : true,
+                "fuzzy_prefix_length" : 1,
+                "fuzzy_max_expansions" : 5,
+                "fuzzy_transpositions" : false,
+                "boost" : 1.0
+              }
+            }""";
 
         SimpleQueryStringBuilder parsed = (SimpleQueryStringBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

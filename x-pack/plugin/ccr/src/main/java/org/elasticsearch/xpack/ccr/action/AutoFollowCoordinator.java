@@ -15,7 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -241,8 +241,10 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
     }
 
     void updateAutoFollowers(ClusterState followerClusterState) {
-        final AutoFollowMetadata autoFollowMetadata = followerClusterState.getMetadata().custom(AutoFollowMetadata.TYPE);
-        if (autoFollowMetadata == null) {
+        final AutoFollowMetadata autoFollowMetadata = followerClusterState.getMetadata()
+            .custom(AutoFollowMetadata.TYPE, AutoFollowMetadata.EMPTY);
+
+        if (autoFollowMetadata.getPatterns().isEmpty() && this.autoFollowers.isEmpty()) {
             return;
         }
 

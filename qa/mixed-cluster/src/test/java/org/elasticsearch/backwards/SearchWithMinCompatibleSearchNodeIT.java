@@ -84,19 +84,11 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
                     responseException.getResponse().getStatusLine().getStatusCode(),
                     equalTo(RestStatus.INTERNAL_SERVER_ERROR.getStatus())
                 );
-                assertThat(
-                    responseException.getMessage(),
-                    containsString("{\"error\":{\"root_cause\":[],\"type\":\"search_phase_execution_exception\"")
-                );
-                assertThat(
-                    responseException.getMessage(),
-                    containsString(
-                        "caused_by\":{\"type\":\"version_mismatch_exception\","
-                            + "\"reason\":\"One of the shards is incompatible with the required minimum version ["
-                            + newVersion
-                            + "]\""
-                    )
-                );
+                assertThat(responseException.getMessage(), containsString("""
+                    {"error":{"root_cause":[],"type":"search_phase_execution_exception\""""));
+                assertThat(responseException.getMessage(), containsString("""
+                    caused_by":{"type":"version_mismatch_exception",\
+                    "reason":"One of the shards is incompatible with the required minimum version [%s]\"""".formatted(newVersion)));
             });
         }
     }
@@ -109,7 +101,8 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
                 "POST",
                 index + "/_search?min_compatible_shard_node=" + bwcVersion + "&ccs_minimize_roundtrips=false"
             );
-            oldVersionRequest.setJsonEntity("{\"query\":{\"match_all\":{}},\"_source\":false}");
+            oldVersionRequest.setJsonEntity("""
+                {"query":{"match_all":{}},"_source":false}""");
             assertBusy(() -> {
                 assertWithBwcVersionCheck(() -> {
                     Response response = client.performRequest(oldVersionRequest);
@@ -143,10 +136,9 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
                         responseException.getResponse().getStatusLine().getStatusCode(),
                         equalTo(RestStatus.BAD_REQUEST.getStatus())
                     );
-                    assertThat(
-                        responseException.getMessage(),
-                        containsString("{\"error\":{\"root_cause\":[{\"type\":\"action_request_validation_exception\"")
-                    );
+                    assertThat(responseException.getMessage(), containsString("""
+                        {"error":{"root_cause":[{"type":"action_request_validation_exception"\
+                        """));
                     assertThat(
                         responseException.getMessage(),
                         containsString(

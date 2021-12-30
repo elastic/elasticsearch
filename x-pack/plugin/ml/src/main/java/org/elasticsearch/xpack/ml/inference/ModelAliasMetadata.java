@@ -161,6 +161,12 @@ public class ModelAliasMetadata implements Metadata.Custom {
         public void writeTo(StreamOutput out) throws IOException {
             modelAliasesDiff.writeTo(out);
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_13_0;
+        }
+
     }
 
     public static class ModelAliasEntry extends AbstractDiffable<ModelAliasEntry> implements ToXContentObject {

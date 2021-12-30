@@ -390,6 +390,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         nodes.all(node -> node.user(userSpec));
     }
 
+    @Override
+    public void securityRoles(File rolesYml) {
+        nodes.all(node -> node.securityRoles(rolesYml));
+    }
+
     private void writeUnicastHostsFiles() {
         String unicastUris = nodes.stream().flatMap(node -> node.getAllTransportPortURI().stream()).collect(Collectors.joining("\n"));
         nodes.forEach(node -> {

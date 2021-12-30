@@ -482,10 +482,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             closeWithTragicEvent(ex);
                             throw ex;
                         }
+                        assert channel.position() == checkpointToSync.offset;
                     }
                     // now do the actual fsync outside of the synchronized block such that
                     // we can continue writing to the buffer etc.
                     try {
+                        assert lastSyncedCheckpoint.offset != checkpointToSync.offset || toWrite.length() == 0;
                         if (lastSyncedCheckpoint.offset != checkpointToSync.offset) {
                             channel.force(false);
                         }
@@ -545,7 +547,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 BytesRefIterator iterator = toWrite.iterator();
                 BytesRef current;
                 while ((current = iterator.next()) != null) {
-                    Channels.writeToChannel(ByteBuffer.wrap(current.bytes, current.offset, current.length), channel);
+                    Channels.writeToChannel(current.bytes, current.offset, current.length, channel);
                 }
                 return;
             }

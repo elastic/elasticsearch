@@ -434,7 +434,7 @@ public class DockerTests extends PackagingTestCase {
         copyFromContainer(installation.config("elasticsearch.yml"), tempDir.resolve("elasticsearch.yml"));
         copyFromContainer(installation.config("elasticsearch.keystore"), tempDir.resolve("elasticsearch.keystore"));
         copyFromContainer(installation.config("log4j2.properties"), tempDir.resolve("log4j2.properties"));
-        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_*\"");
+        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"certs\"");
         final String autoConfigurationDirName = autoConfigurationDir.getFileName().toString();
         copyFromContainer(autoConfigurationDir, tempDir.resolve(autoConfigurationDirName));
 
@@ -530,7 +530,7 @@ public class DockerTests extends PackagingTestCase {
         copyFromContainer(installation.config("jvm.options"), tempEsConfigDir);
         copyFromContainer(installation.config("elasticsearch.keystore"), tempEsConfigDir);
         copyFromContainer(installation.config("log4j2.properties"), tempEsConfigDir);
-        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_*\"");
+        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"certs\"");
         assertThat(autoConfigurationDir, notNullValue());
         final String autoConfigurationDirName = autoConfigurationDir.getFileName().toString();
         copyFromContainer(autoConfigurationDir, tempEsConfigDir.resolve(autoConfigurationDirName));

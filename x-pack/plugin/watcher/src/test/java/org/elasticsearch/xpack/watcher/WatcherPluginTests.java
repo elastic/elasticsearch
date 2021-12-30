@@ -53,7 +53,6 @@ public class WatcherPluginTests extends ESTestCase {
             emptyMap(),
             emptyMap(),
             emptyMap(),
-            emptyMap(),
             emptyMap()
         );
         IndexModule indexModule = new IndexModule(

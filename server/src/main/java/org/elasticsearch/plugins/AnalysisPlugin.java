@@ -68,13 +68,9 @@ public interface AnalysisPlugin {
     }
 
     /**
-     * Override to add additional {@link TokenFilter}s. See {@link #requiresAnalysisSettings(AnalysisProvider)}
-     * how to on get the configuration from the index.
+     * Override to add additional {@link TokenFilter}s using the stable plugin API. See
+     * {@link #requiresAnalysisSettings(AnalysisProvider)} how to on get the configuration from the index.
      */
-    default Map<String, AnalysisProvider<AnalysisIteratorFactory>> getIterators() {
-        return emptyMap();
-    }
-
     default Map<String, AnalysisProvider<AnalysisIteratorFactory>> getFilterIterators() {
         return emptyMap();
     }

@@ -15,7 +15,6 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -30,12 +29,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisPipeline;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerComponents;
 import org.elasticsearch.index.analysis.AnalyzerComponentsProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.DetailedPipelineAnalysisPackage;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -54,9 +51,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 
 import static org.elasticsearch.index.analysis.AnalysisUtil.createStackedTokenStream;
 import static org.elasticsearch.index.analysis.AnalysisUtil.extractExtendedAttributes;
@@ -139,34 +134,6 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     ) throws IOException {
 
         IndexSettings settings = indexService == null ? null : indexService.getIndexSettings();
-
-        AnalysisPipeline pipeline = analysisRegistry.buildAnalyzerPipeline(
-            settings,
-            request.tokenizer(),
-            request.charFilters(),
-            request.tokenFilters()
-        );
-
-        if (pipeline != null && false) {
-            if (request.explain()) {
-                DetailedPipelineAnalysisPackage detailedAnalysis = pipeline.details(
-                    request.field(),
-                    request.text(),
-                    maxTokenCount,
-                    request.attributes()
-                );
-
-                return new AnalyzeAction.Response(
-                    null,
-                    new AnalyzeAction.DetailAnalyzeResponse(
-                        detailedAnalysis.getCharFilters().toArray(new AnalyzeAction.CharFilteredText[0]),
-                        detailedAnalysis.getTokenizer(),
-                        detailedAnalysis.getTokenFilters().toArray(new AnalyzeAction.AnalyzeTokenList[0])
-                    ));
-            }
-
-            return new AnalyzeAction.Response(pipeline.process(request.field(), request.text(), maxTokenCount), null);
-        }
 
         // First, we check to see if the request requires a custom analyzer. If so, then we
         // need to build it and then close it after use.

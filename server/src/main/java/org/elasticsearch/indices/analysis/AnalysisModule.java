@@ -41,6 +41,7 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.analysis.AnalysisIteratorFactory;
+import org.elasticsearch.plugins.analysis.StableNormalizerFactory;
 import org.elasticsearch.plugins.analysis.StableTokenFilterFactory;
 
 import java.io.IOException;
@@ -79,7 +80,6 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = setupTokenizers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = setupNormalizers(plugins);
-        NamedRegistry<AnalysisProvider<AnalysisIteratorFactory>> iterators = setupAnalysisIterators(plugins);
 
         Map<String, PreConfiguredCharFilter> preConfiguredCharFilters = setupPreConfiguredCharFilters(plugins);
         Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters = setupPreConfiguredTokenFilters(plugins);
@@ -93,7 +93,6 @@ public final class AnalysisModule {
             tokenizers.getRegistry(),
             analyzers.getRegistry(),
             normalizers.getRegistry(),
-            iterators.getRegistry(),
             preConfiguredCharFilters,
             preConfiguredTokenFilters,
             preConfiguredTokenizers,
@@ -163,14 +162,21 @@ public final class AnalysisModule {
 
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
 
+        // Loop the plugins for token filters that are exposed as portable iterators
         for (AnalysisPlugin plugin : plugins) {
             Map<String, AnalysisProvider<AnalysisIteratorFactory>> filterIterators = plugin.getFilterIterators();
             for (Map.Entry<String, AnalysisProvider<AnalysisIteratorFactory>> entry : filterIterators.entrySet()) {
                 String filterName = entry.getKey();
                 AnalysisProvider<AnalysisIteratorFactory> filterFactory = entry.getValue();
                 AnalysisProvider<TokenFilterFactory> tokenFilterFactory = requiresAnalysisSettings(
-                    (indexSettings, env, name, settings) ->
-                        new StableTokenFilterFactory(indexSettings, env, name, settings, filterFactory.get(indexSettings, env, name, settings))
+                    (indexSettings, env, name, settings) -> {
+                        AnalysisIteratorFactory factory = filterFactory.get(indexSettings, env, name, settings);
+                        if (factory.isNormalizer()) {
+                            return new StableNormalizerFactory(indexSettings, env, name, settings, factory);
+                        } else {
+                            return new StableTokenFilterFactory(indexSettings, env, name, settings, factory);
+                        }
+                    }
                 );
 
                 tokenFilters.register(filterName, tokenFilterFactory);
@@ -272,6 +278,28 @@ public final class AnalysisModule {
 
         // Somehow you need to wrap each plugin tokenizer into wrappedtokenizer. Likely you'll need custom tokenizer factory
 
+        // Loop the plugins for token filters that are exposed as portable iterators
+        /*
+        for (AnalysisPlugin plugin : plugins) {
+            Map<String, AnalysisProvider<AnalysisIteratorFactory>> filterIterators = plugin.getTokenizerIterators();
+            for (Map.Entry<String, AnalysisProvider<AnalysisIteratorFactory>> entry : filterIterators.entrySet()) {
+                String filterName = entry.getKey();
+                AnalysisProvider<AnalysisIteratorFactory> filterFactory = entry.getValue();
+                AnalysisProvider<TokenizerFactory> tokenFilterFactory = requiresAnalysisSettings(
+                    (indexSettings, env, name, settings) -> {
+                        AnalysisIteratorFactory factory = filterFactory.get(indexSettings, env, name, settings);
+                        if (factory.isNormalizer()) {
+                            return new StableNormalizerFactory(indexSettings, env, name, settings, factory);
+                        } else {
+                            return new StableTokenFilterFactory(indexSettings, env, name, settings, factory);
+                        }
+                    }
+                );
+
+                tokenizers.register(filterName, tokenFilterFactory);
+            }
+        }*/
+
         return tokenizers;
     }
 
@@ -292,12 +320,6 @@ public final class AnalysisModule {
         normalizers.register("lowercase", LowercaseNormalizerProvider::new);
         // TODO: pluggability?
         return normalizers;
-    }
-
-    private NamedRegistry<AnalysisProvider<AnalysisIteratorFactory>> setupAnalysisIterators(List<AnalysisPlugin> plugins) {
-        NamedRegistry<AnalysisProvider<AnalysisIteratorFactory>> iterators = new NamedRegistry<>("analysisIterators");
-        iterators.extractAndRegister(plugins, AnalysisPlugin::getIterators);
-        return iterators;
     }
 
     /**

@@ -8,18 +8,15 @@
 
 package org.elasticsearch.plugins.analysis;
 
-import java.util.List;
-
 public interface AnalysisIteratorFactory {
     String name();
-
-    default PortableAnalyzeIterator newInstance(List<AnalyzeToken> tokens, AnalyzeState prevState) {
-        return null;
+    default boolean isNormalizer() {
+        return false;
     }
+
     default PortableAnalyzeIterator newInstance(String text, AnalyzeState prevState) {
         return null;
     }
-
     default PortableAnalyzeIterator newInstance(ESTokenStream esTokenStream) {
         return null;
     };

@@ -300,7 +300,6 @@ public class SecurityTests extends ESTestCase {
             emptyMap(),
             emptyMap(),
             emptyMap(),
-            emptyMap(),
             emptyMap()
         );
         IndexModule indexModule = new IndexModule(

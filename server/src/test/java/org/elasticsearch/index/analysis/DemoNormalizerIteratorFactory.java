@@ -8,41 +8,27 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.no.NorwegianNormalizationFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.analysis.*;
 
-import java.util.List;
-
 public class DemoNormalizerIteratorFactory extends AbstractAnalysisIteratorFactory {
-
-    private final Analyzer analyzer;
 
     public DemoNormalizerIteratorFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new Analyzer() {
-            @Override
-            protected TokenStreamComponents createComponents(String fieldName) {
-                Tokenizer tokenizer = new KeywordTokenizer();
-                TokenStream tokenStream = new NorwegianNormalizationFilter(tokenizer);
-
-                return new TokenStreamComponents(tokenizer, tokenStream);
-            }
-        };
     }
 
     @Override
-    public PortableAnalyzeIterator newInstance(List<AnalyzeToken> tokens, AnalyzeState prevState) {
-        return new StableLuceneNormalizerIterator(
-            analyzer,
-            tokens,
-            prevState,
-            new AnalyzeSettings(100, 1));
+    public PortableAnalyzeIterator newInstance(ESTokenStream esTokenStream) {
+        return new StableLuceneFilterIterator(
+            new NorwegianNormalizationFilter(new DelegatingTokenStream(esTokenStream)),
+            new AnalyzeState(-1, 0));
+    }
+
+    @Override
+    public boolean isNormalizer() {
+        return true;
     }
 }

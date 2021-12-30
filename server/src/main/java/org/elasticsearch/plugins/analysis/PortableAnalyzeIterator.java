@@ -14,6 +14,5 @@ public interface PortableAnalyzeIterator extends Closeable {
     AnalyzeToken reset();
     AnalyzeToken next();
     AnalyzeToken end();
-    void close();
     AnalyzeState state();
 }

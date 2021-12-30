@@ -6,56 +6,66 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugins.analysis;
 
-import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
 
-public class PipelineTokenizer extends Tokenizer {
+public class DelegatingTokenStream extends TokenStream {
+    private final ESTokenStream tokenStream;
+
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
     private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
     private final PositionIncrementAttribute posIncrAtt = addAttribute(PositionIncrementAttribute.class);
     private final TypeAttribute typeAtt = addAttribute(TypeAttribute.class);
     private final PositionLengthAttribute posLenAtt = addAttribute(PositionLengthAttribute.class);
 
-    private final List<AnalyzeAction.AnalyzeToken> tokens;
-    private Iterator<AnalyzeAction.AnalyzeToken> tokenIterator;
-
-    public PipelineTokenizer(List<AnalyzeAction.AnalyzeToken> tokens) {
-        this.tokens = tokens;
-        this.tokenIterator = tokens.listIterator();
-    }
-
-    @Override
-    public void reset() throws IOException {
-        tokenIterator = tokens.listIterator();
+    public DelegatingTokenStream(ESTokenStream tokenStream) {
+        this.tokenStream = tokenStream;
     }
 
     @Override
     public final boolean incrementToken() throws IOException {
         clearAttributes();
 
-        if (tokenIterator.hasNext() == false) {
+        AnalyzeToken currentToken = tokenStream.incrementToken();
+
+        if (currentToken == null) {
             return false;
         }
+        setState(currentToken);
+        return true;
+    }
 
-        AnalyzeAction.AnalyzeToken currentToken = tokenIterator.next();
-
-        posIncrAtt.setPositionIncrement(1);
+    private void setState(AnalyzeToken currentToken) {
+        posIncrAtt.setPositionIncrement(currentToken.getPosition());
         offsetAtt.setOffset(currentToken.getStartOffset(), currentToken.getEndOffset());
         typeAtt.setType(currentToken.getType());
         posLenAtt.setPositionLength(currentToken.getPositionLength());
         termAtt.setEmpty().append(currentToken.getTerm());
+    }
 
-        return true;
+    @Override
+    public void reset() throws IOException {
+        super.reset();
+        setState(tokenStream.reset());
+    }
+
+    @Override
+    public void end() throws IOException {
+        super.end();
+        setState(tokenStream.end());
+    }
+
+    @Override
+    public void close() throws IOException {
+        super.close();
+        tokenStream.close();
     }
 }

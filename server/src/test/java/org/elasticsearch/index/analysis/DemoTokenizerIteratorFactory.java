@@ -44,7 +44,6 @@ public class DemoTokenizerIteratorFactory extends AbstractAnalysisIteratorFactor
     public PortableAnalyzeIterator newInstance(String text, AnalyzeState prevState) {
         return new StableLuceneFilterIterator(
             analyzer.tokenStream(null, text),
-            prevState,
-            new AnalyzeSettings(100, 1));
+            prevState);
     }
 }

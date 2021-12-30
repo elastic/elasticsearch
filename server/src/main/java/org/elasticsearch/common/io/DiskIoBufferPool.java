@@ -25,7 +25,8 @@ public class DiskIoBufferPool {
     // placeholder to cache the fact that a thread does not work with cached direct IO buffers in #ioBufferPool
     private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
 
-    private static final ThreadLocal<ByteBuffer> ioBufferPool = ThreadLocal.withInitial(() -> {
+    // protected for testing
+    protected static final ThreadLocal<ByteBuffer> ioBufferPool = ThreadLocal.withInitial(() -> {
         if (isWriteOrFlushThread()) {
             return ByteBuffer.allocateDirect(BUFFER_SIZE);
         } else {

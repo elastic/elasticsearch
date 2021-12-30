@@ -147,10 +147,19 @@ public class TranslogTests extends ESTestCase {
     public static final DiskIoBufferPool RANDOMIZING_IO_BUFFERS = new DiskIoBufferPool() {
         @Override
         public ByteBuffer maybeGetDirectIOBuffer() {
+            // null out thread-local to be able to test that the correct buffer is used when called repeatedly from the same thread
+            ioBufferPool.remove();
             final String currentThreadName = Thread.currentThread().getName();
             try {
-                Thread.currentThread().setName(randomBoolean() ? "[" + ThreadPool.Names.WRITE + "] thread" : "not-a-write-thread");
-                return super.maybeGetDirectIOBuffer();
+                final boolean useWriteThread = randomBoolean();
+                Thread.currentThread().setName(useWriteThread ? "[" + ThreadPool.Names.WRITE + "] thread" : "not-a-write-thread");
+                final ByteBuffer buffer = super.maybeGetDirectIOBuffer();
+                if (useWriteThread) {
+                    assertTrue(buffer.isDirect());
+                } else {
+                    assertNull(buffer);
+                }
+                return buffer;
             } finally {
                 Thread.currentThread().setName(currentThreadName);
             }

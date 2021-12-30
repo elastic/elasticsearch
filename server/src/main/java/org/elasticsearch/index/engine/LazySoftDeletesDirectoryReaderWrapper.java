@@ -131,7 +131,7 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
             this.bits = bits;
             this.numDocs = numDocs;
 
-            CacheKey cacheKey = createCacheKey(in);
+            CacheKey cacheKey = (reader.getReaderCacheHelper() == null) ? null : createCacheKey(in);
 
             this.readerCacheHelper = (reader.getReaderCacheHelper() == null || cacheKey == null)
                 ? null
@@ -171,7 +171,7 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
             this.bits = bits;
             this.numDocs = numDocs;
 
-            CacheKey cacheKey = createCacheKey(in);
+            CacheKey cacheKey = (reader.getReaderCacheHelper() == null) ? null : createCacheKey(in);
 
             this.readerCacheHelper = (reader.getReaderCacheHelper() == null || cacheKey == null)
                 ? null

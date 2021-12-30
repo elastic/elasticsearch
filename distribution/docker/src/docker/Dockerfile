@@ -191,7 +191,9 @@ RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
 
 <% } else if (docker_base == "default" || docker_base == "cloud") { %>
 
-RUN <%= retry.loop(
+# Change default shell to bash, then install required packages with retries.
+RUN yes no | dpkg-reconfigure dash && \\
+    <%= retry.loop(
     package_manager,
       "export DEBIAN_FRONTEND=noninteractive && \n" +
       "      ${package_manager} update && \n" +
@@ -315,7 +317,7 @@ ENTRYPOINT ["/bin/tini", "--"]
 CMD ["/app/elasticsearch.sh"]
 # Generate a stub command that will be overwritten at runtime
 RUN mkdir /app && \\
-    echo '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
+    echo -e '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
     chmod 0555 /app/elasticsearch.sh
 
 <% } else { %>

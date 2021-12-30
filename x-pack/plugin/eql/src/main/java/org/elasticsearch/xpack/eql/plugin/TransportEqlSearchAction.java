@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -306,9 +306,9 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
 
     private static Exception qualifyException(Exception e, String[] indices, String clusterAlias) {
         Exception finalException = e;
-        // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+        // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
         if (e instanceof RemoteTransportException && e.getCause() instanceof IndexNotFoundException infe) {
-            // @formatter:on
+            // end::noformat
             if (infe.getIndex() != null) {
                 String qualifiedIndex;
                 String exceptionIndexName = infe.getIndex().getName();

@@ -20,6 +20,7 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.elasticsearch.packaging.util.docker.DockerRun;
+import org.elasticsearch.packaging.util.docker.DockerShell;
 import org.elasticsearch.packaging.util.docker.MockServer;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -433,7 +434,7 @@ public class DockerTests extends PackagingTestCase {
         copyFromContainer(installation.config("elasticsearch.yml"), tempDir.resolve("elasticsearch.yml"));
         copyFromContainer(installation.config("elasticsearch.keystore"), tempDir.resolve("elasticsearch.keystore"));
         copyFromContainer(installation.config("log4j2.properties"), tempDir.resolve("log4j2.properties"));
-        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_*\"");
+        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"certs\"");
         final String autoConfigurationDirName = autoConfigurationDir.getFileName().toString();
         copyFromContainer(autoConfigurationDir, tempDir.resolve(autoConfigurationDirName));
 
@@ -529,7 +530,7 @@ public class DockerTests extends PackagingTestCase {
         copyFromContainer(installation.config("jvm.options"), tempEsConfigDir);
         copyFromContainer(installation.config("elasticsearch.keystore"), tempEsConfigDir);
         copyFromContainer(installation.config("log4j2.properties"), tempEsConfigDir);
-        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_*\"");
+        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"certs\"");
         assertThat(autoConfigurationDir, notNullValue());
         final String autoConfigurationDirName = autoConfigurationDir.getFileName().toString();
         copyFromContainer(autoConfigurationDir, tempEsConfigDir.resolve(autoConfigurationDirName));
@@ -1158,6 +1159,19 @@ public class DockerTests extends PackagingTestCase {
             assertThat(imageHealthcheck, contains("CMD-SHELL", "curl -I -f --max-time 5 http://localhost:9200 || exit 1"));
         } else {
             assertThat(imageHealthcheck, nullValue());
+        }
+    }
+
+    /**
+     * Ensure that the default shell in the image is {@code bash}, since some alternatives e.g. {@code dash}
+     * are stricter about environment variable names.
+     */
+    public void test170DefaultShellIsBash() {
+        final Result result = DockerShell.executeCommand("/bin/sh", "-c", "echo $SHELL");
+        if (result.isSuccess()) {
+            assertThat(result.stdout, equalTo("/bin/bash"));
+        } else {
+            throw new RuntimeException("Command failed: " + result.stderr);
         }
     }
 

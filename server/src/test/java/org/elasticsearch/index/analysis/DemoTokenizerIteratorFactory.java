@@ -26,24 +26,15 @@ import static org.apache.lucene.analysis.BaseTokenStreamTestCase.newAttributeFac
 
 public class DemoTokenizerIteratorFactory extends AbstractAnalysisIteratorFactory {
 
-    private final Analyzer analyzer;
-
     public DemoTokenizerIteratorFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new Analyzer() {
-            @Override
-            protected TokenStreamComponents createComponents(String fieldName) {
-                Tokenizer tokenizer = new UAX29URLEmailTokenizer(newAttributeFactory());
-
-                return new TokenStreamComponents(tokenizer);
-            }
-        };
     }
 
     @Override
-    public PortableAnalyzeIterator newInstance(String text, AnalyzeState prevState) {
-        return new StableLuceneFilterIterator(
-            analyzer.tokenStream(null, text),
-            prevState);
+    public PortableAnalyzeIterator newInstance(ReaderProvider readerProvider) {
+        return new StableLuceneTokenizerIterator(
+            new UAX29URLEmailTokenizer(newAttributeFactory()),
+            new AnalyzeState(-1, 0),
+            readerProvider);
     }
 }

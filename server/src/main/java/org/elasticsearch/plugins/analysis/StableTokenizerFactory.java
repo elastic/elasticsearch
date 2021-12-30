@@ -13,14 +13,23 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
+import org.elasticsearch.index.analysis.PluginIteratorStream;
 
 public class StableTokenizerFactory extends AbstractTokenizerFactory {
-    public StableTokenizerFactory(IndexSettings indexSettings, Environment environment, Settings settings, String name) {
+    private final AnalysisIteratorFactory factory;
+
+    public StableTokenizerFactory(
+        IndexSettings indexSettings, Environment environment, String name, Settings settings, AnalysisIteratorFactory factory) {
         super(indexSettings, settings, name);
+        this.factory = factory;
     }
 
     @Override
     public Tokenizer create() {
-        return null;
+        PluginIteratorStream tokenizer = new PluginIteratorStream();
+        PortableAnalyzeIterator iterator = factory.newInstance(tokenizer);
+        tokenizer.setIterator(iterator);
+
+        return tokenizer;
     }
 }

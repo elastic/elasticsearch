@@ -8,16 +8,8 @@
 
 package org.elasticsearch.plugins.analysis;
 
-public interface AnalysisIteratorFactory {
-    String name();
-    default boolean isNormalizer() {
-        return false;
-    }
+import java.io.Reader;
 
-    default PortableAnalyzeIterator newInstance(ReaderProvider readerProvider) {
-        return null;
-    }
-    default PortableAnalyzeIterator newInstance(ESTokenStream esTokenStream) {
-        return null;
-    };
+public interface ReaderProvider {
+    Reader getReader();
 }

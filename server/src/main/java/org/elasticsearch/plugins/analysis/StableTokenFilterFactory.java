@@ -18,7 +18,8 @@ import org.elasticsearch.index.analysis.PluginIteratorStream;
 public class StableTokenFilterFactory extends AbstractTokenFilterFactory {
     private final AnalysisIteratorFactory factory;
 
-    public StableTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings, AnalysisIteratorFactory factory) {
+    public StableTokenFilterFactory(
+        IndexSettings indexSettings, Environment environment, String name, Settings settings, AnalysisIteratorFactory factory) {
         super(indexSettings, name, settings);
         this.factory = factory;
     }

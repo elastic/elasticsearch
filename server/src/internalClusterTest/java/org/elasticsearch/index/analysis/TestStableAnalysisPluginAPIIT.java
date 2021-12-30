@@ -297,7 +297,7 @@ public class TestStableAnalysisPluginAPIIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareCreate(index));
 
-        for (String filter : List.of("uax_url_email")) {
+        for (String filter : List.of("demo_tokenizer_stable", "uax_url_email")) {
             for (AnalysisTestcases testcase : tokenizerTestcases) {
                 AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index)
                     .tokenizer(filter)

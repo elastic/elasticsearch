@@ -13,12 +13,12 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 
 public class StableLuceneFilterIterator implements PortableAnalyzeIterator {
-    private final Object stream;
-    private final Object term;
-    private final Object posIncr;
-    private final Object offset;
-    private final Object type;
-    private final Object posLen;
+    protected final Object stream;
+    protected final Object term;
+    protected final Object posIncr;
+    protected final Object offset;
+    protected final Object type;
+    protected final Object posLen;
 
     private final MethodHandle mhEnd;
     private final MethodHandle mhReset;

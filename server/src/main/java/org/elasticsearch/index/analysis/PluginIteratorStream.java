@@ -12,17 +12,23 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.*;
 import org.elasticsearch.plugins.analysis.AnalyzeToken;
 import org.elasticsearch.plugins.analysis.PortableAnalyzeIterator;
+import org.elasticsearch.plugins.analysis.ReaderProvider;
 
 import java.io.IOException;
+import java.io.Reader;
 
-public class PluginIteratorStream extends Tokenizer {
+public class PluginIteratorStream extends Tokenizer implements ReaderProvider {
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
     private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
     private final PositionIncrementAttribute posIncrAtt = addAttribute(PositionIncrementAttribute.class);
     private final TypeAttribute typeAtt = addAttribute(TypeAttribute.class);
     private final PositionLengthAttribute posLenAtt = addAttribute(PositionLengthAttribute.class);
 
-    private final PortableAnalyzeIterator iterator;
+    private PortableAnalyzeIterator iterator;
+
+    public PluginIteratorStream() {
+        this.iterator = null;
+    }
 
     public PluginIteratorStream(PortableAnalyzeIterator iterator) {
         this.iterator = iterator;
@@ -65,5 +71,14 @@ public class PluginIteratorStream extends Tokenizer {
         typeAtt.setType(currentToken.getType());
         posLenAtt.setPositionLength(currentToken.getPositionLength());
         termAtt.setEmpty().append(currentToken.getTerm());
+    }
+
+    @Override
+    public Reader getReader() {
+        return this.input;
+    }
+
+    public void setIterator(PortableAnalyzeIterator iterator) {
+        this.iterator = iterator;
     }
 }

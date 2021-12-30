@@ -43,6 +43,7 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.analysis.AnalysisIteratorFactory;
 import org.elasticsearch.plugins.analysis.StableNormalizerFactory;
 import org.elasticsearch.plugins.analysis.StableTokenFilterFactory;
+import org.elasticsearch.plugins.analysis.StableTokenizerFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -278,27 +279,21 @@ public final class AnalysisModule {
 
         // Somehow you need to wrap each plugin tokenizer into wrappedtokenizer. Likely you'll need custom tokenizer factory
 
-        // Loop the plugins for token filters that are exposed as portable iterators
-        /*
+        // Loop the plugins for tokenizers that are exposed as portable iterators
         for (AnalysisPlugin plugin : plugins) {
             Map<String, AnalysisProvider<AnalysisIteratorFactory>> filterIterators = plugin.getTokenizerIterators();
             for (Map.Entry<String, AnalysisProvider<AnalysisIteratorFactory>> entry : filterIterators.entrySet()) {
                 String filterName = entry.getKey();
                 AnalysisProvider<AnalysisIteratorFactory> filterFactory = entry.getValue();
                 AnalysisProvider<TokenizerFactory> tokenFilterFactory = requiresAnalysisSettings(
-                    (indexSettings, env, name, settings) -> {
-                        AnalysisIteratorFactory factory = filterFactory.get(indexSettings, env, name, settings);
-                        if (factory.isNormalizer()) {
-                            return new StableNormalizerFactory(indexSettings, env, name, settings, factory);
-                        } else {
-                            return new StableTokenFilterFactory(indexSettings, env, name, settings, factory);
-                        }
-                    }
+                    (indexSettings, env, name, settings) ->
+                        new StableTokenizerFactory(
+                            indexSettings, env, name, settings, filterFactory.get(indexSettings, env, name, settings))
                 );
 
                 tokenizers.register(filterName, tokenFilterFactory);
             }
-        }*/
+        }
 
         return tokenizers;
     }

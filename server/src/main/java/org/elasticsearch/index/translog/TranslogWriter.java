@@ -478,11 +478,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         try {
                             // Write ops will release operations.
                             writeAndReleaseOps(toWrite);
+                            assert channel.position() == checkpointToSync.offset;
                         } catch (final Exception ex) {
                             closeWithTragicEvent(ex);
                             throw ex;
                         }
-                        assert channel.position() == checkpointToSync.offset;
                     }
                     // now do the actual fsync outside of the synchronized block such that
                     // we can continue writing to the buffer etc.

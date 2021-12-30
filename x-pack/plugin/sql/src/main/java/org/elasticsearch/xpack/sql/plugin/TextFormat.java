@@ -28,8 +28,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEXT;
 import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption.TEXT;
 
 /**
  * Templating class for displaying SQL responses in text formats.

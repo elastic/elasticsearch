@@ -89,6 +89,35 @@
                             }
                           }
                         },
+                        "events": {
+                          "properties": {
+                            "duration_in_millis": {
+                              "type": "long"
+                            },
+                            "filtered": {
+                              "type": "long"
+                            },
+                            "in": {
+                              "type": "long"
+                            },
+                            "out": {
+                              "type": "long"
+                            },
+                            "queue_push_duration_in_millis": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "reloads": {
+                          "properties": {
+                            "failures": {
+                              "type": "long"
+                            },
+                            "successes": {
+                              "type": "long"
+                            }
+                          }
+                        },
                         "vertices": {
                           "type": "nested",
                           "properties": {
@@ -101,7 +130,7 @@
                               "ignore_above": 1024
                             },
                             "queue_push_duration_in_millis": {
-                              "type": "float"
+                              "type": "long"
                             },
                             "events_in": {
                               "type": "long"
@@ -111,6 +140,17 @@
                             },
                             "duration_in_millis": {
                               "type": "long"
+                            },
+                            "long_counters": {
+                              "type": "nested",
+                              "properties": {
+                                "name": {
+                                    "type": "keyword"
+                                },
+                                "value": {
+                                    "type": "long"
+                                }
+                              }
                             }
                           }
                         }

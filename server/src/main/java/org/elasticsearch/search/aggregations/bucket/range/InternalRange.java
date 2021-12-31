@@ -173,11 +173,11 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             out.writeString(key);
             out.writeDouble(from);
             if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
-                out.writeDouble(originalFrom);
+                out.writeOptionalDouble(originalFrom);
             }
             out.writeDouble(to);
             if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
-                out.writeDouble(originalTo);
+                out.writeOptionalDouble(originalTo);
             }
             out.writeVLong(docCount);
             aggregations.writeTo(out);
@@ -278,17 +278,17 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         for (int i = 0; i < size; i++) {
             String key = in.readString();
             double from = in.readDouble();
-            double originalFrom = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readDouble() : from;
+            Double originalFrom = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalDouble() : Double.valueOf(from);
             double to = in.readDouble();
-            double originalTo = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readDouble() : to;
+            Double originalTo = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalDouble() : Double.valueOf(to);
             long docCount = in.readVLong();
             ranges.add(
                 getFactory().createBucket(
                     key,
                     from,
-                    originalFrom,
+                    originalFrom != null ? originalFrom : Double.NEGATIVE_INFINITY,
                     to,
-                    originalTo,
+                    originalTo != null ? originalTo : Double.POSITIVE_INFINITY,
                     docCount,
                     InternalAggregations.readFrom(in),
                     keyed,

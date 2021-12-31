@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.sql.proto.core.TimeValue;
 
 import java.time.ZoneId;
 
 /**
  * Sql protocol defaults and end-points shared between JDBC and REST protocol implementations
  */
-public final class Protocol {
+public class CoreProtocol {
     /**
      * The attribute names used in the protocol request/response objects.
      */
@@ -73,8 +73,8 @@ public final class Protocol {
 
     public static final TimeValue DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT = null;
     public static final Boolean DEFAULT_KEEP_ON_COMPLETION = false;
-    public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
-    public static TimeValue MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1);
+    public static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
+    public static final TimeValue MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1);
 
     /*
      * URL parameters

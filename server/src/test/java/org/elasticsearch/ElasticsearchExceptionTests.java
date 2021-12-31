@@ -14,7 +14,7 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.client.transport.NoNodeAvailableException;
+import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;

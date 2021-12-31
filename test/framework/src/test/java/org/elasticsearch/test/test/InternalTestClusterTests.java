@@ -8,7 +8,7 @@
 package org.elasticsearch.test.test;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;

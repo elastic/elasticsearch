@@ -558,6 +558,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     IndexMetadata withMappingMetadata(MappingMetadata mapping) {
+        if (mapping() == mapping) {
+            return this;
+        }
         ImmutableOpenMap.Builder<String, MappingMetadata> mappingBuilder = ImmutableOpenMap.builder();
         mappingBuilder.put(MapperService.SINGLE_MAPPING_NAME, mapping);
 

@@ -15,7 +15,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.SecureString;

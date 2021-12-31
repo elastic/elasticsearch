@@ -17,16 +17,15 @@ dependencies {
   api(xpackProject('plugin:sql:sql-proto')) {
     transitive = false
   }
-  api(project(':libs:elasticsearch-x-content')) {
-    transitive = false
-  }
+  api project(':libs:elasticsearch-x-content')
   api(project(':libs:elasticsearch-geo')) {
     transitive = false
   }
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
   runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   testImplementation project(":test:framework")
-testImplementation(testArtifact(project(xpackModule('core'))))}
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'

@@ -10,7 +10,6 @@ package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.core.UpperCaseFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.NamedRegistry;
@@ -169,16 +168,14 @@ public final class AnalysisModule {
             for (Map.Entry<String, AnalysisProvider<AnalysisIteratorFactory>> entry : filterIterators.entrySet()) {
                 String filterName = entry.getKey();
                 AnalysisProvider<AnalysisIteratorFactory> filterFactory = entry.getValue();
-                AnalysisProvider<TokenFilterFactory> tokenFilterFactory = requiresAnalysisSettings(
-                    (indexSettings, env, name, settings) -> {
-                        AnalysisIteratorFactory factory = filterFactory.get(indexSettings, env, name, settings);
-                        if (factory.isNormalizer()) {
-                            return new StableNormalizerFactory(indexSettings, env, name, settings, factory);
-                        } else {
-                            return new StableTokenFilterFactory(indexSettings, env, name, settings, factory);
-                        }
+                AnalysisProvider<TokenFilterFactory> tokenFilterFactory = requiresAnalysisSettings((indexSettings, env, name, settings) -> {
+                    AnalysisIteratorFactory factory = filterFactory.get(indexSettings, env, name, settings);
+                    if (factory.isNormalizer()) {
+                        return new StableNormalizerFactory(indexSettings, env, name, settings, factory);
+                    } else {
+                        return new StableTokenFilterFactory(indexSettings, env, name, settings, factory);
                     }
-                );
+                });
 
                 tokenFilters.register(filterName, tokenFilterFactory);
             }
@@ -286,9 +283,13 @@ public final class AnalysisModule {
                 String filterName = entry.getKey();
                 AnalysisProvider<AnalysisIteratorFactory> filterFactory = entry.getValue();
                 AnalysisProvider<TokenizerFactory> tokenFilterFactory = requiresAnalysisSettings(
-                    (indexSettings, env, name, settings) ->
-                        new StableTokenizerFactory(
-                            indexSettings, env, name, settings, filterFactory.get(indexSettings, env, name, settings))
+                    (indexSettings, env, name, settings) -> new StableTokenizerFactory(
+                        indexSettings,
+                        env,
+                        name,
+                        settings,
+                        filterFactory.get(indexSettings, env, name, settings)
+                    )
                 );
 
                 tokenizers.register(filterName, tokenFilterFactory);

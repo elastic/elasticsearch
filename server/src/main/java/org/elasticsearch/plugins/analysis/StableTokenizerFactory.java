@@ -19,7 +19,12 @@ public class StableTokenizerFactory extends AbstractTokenizerFactory {
     private final AnalysisIteratorFactory factory;
 
     public StableTokenizerFactory(
-        IndexSettings indexSettings, Environment environment, String name, Settings settings, AnalysisIteratorFactory factory) {
+        IndexSettings indexSettings,
+        Environment environment,
+        String name,
+        Settings settings,
+        AnalysisIteratorFactory factory
+    ) {
         super(indexSettings, settings, name);
         this.factory = factory;
     }

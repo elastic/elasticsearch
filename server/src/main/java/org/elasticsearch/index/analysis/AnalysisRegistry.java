@@ -210,43 +210,6 @@ public final class AnalysisRegistry implements Closeable {
         return build(indexSettings, analyzerFactories, normalizerFactories, tokenizerFactories, charFilterFactories, tokenFilterFactories);
     }
 
-    private TokenFilterFactory buildTokenFilterFactory(
-        IndexSettings indexSettings,
-        boolean normalizer,
-        NameOrDefinition nod,
-        TokenizerFactory tokenizerFactory,
-        List<CharFilterFactory> charFilterFactories,
-        List<TokenFilterFactory> tokenFilterFactories
-        ) throws IOException {
-        TokenFilterFactory tff = getComponentFactory(
-            indexSettings,
-            nod,
-            "filter",
-            this::getTokenFilterProvider,
-            prebuiltAnalysis::getTokenFilterFactory,
-            this::getTokenFilterProvider
-        );
-        if (normalizer && tff instanceof NormalizingTokenFilterFactory == false) {
-            throw new IllegalArgumentException("Custom normalizer may not use filter [" + tff.name() + "]");
-        }
-        tff = tff.getChainAwareTokenFilterFactory(tokenizerFactory, charFilterFactories, tokenFilterFactories, name -> {
-            try {
-                return getComponentFactory(
-                    indexSettings,
-                    new NameOrDefinition(name),
-                    "filter",
-                    this::getTokenFilterProvider,
-                    prebuiltAnalysis::getTokenFilterFactory,
-                    this::getTokenFilterProvider
-                );
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        });
-
-        return tff;
-    }
-
     /**
      * Creates a custom analyzer from a collection of {@link NameOrDefinition} specifications for each component
      *
@@ -284,14 +247,31 @@ public final class AnalysisRegistry implements Closeable {
 
         List<TokenFilterFactory> tokenFilterFactories = new ArrayList<>();
         for (NameOrDefinition nod : tokenFilters) {
-            TokenFilterFactory tff = buildTokenFilterFactory(
+            TokenFilterFactory tff = getComponentFactory(
                 indexSettings,
-                normalizer,
                 nod,
-                tokenizerFactory,
-                charFilterFactories,
-                tokenFilterFactories
+                "filter",
+                this::getTokenFilterProvider,
+                prebuiltAnalysis::getTokenFilterFactory,
+                this::getTokenFilterProvider
             );
+            if (normalizer && tff instanceof NormalizingTokenFilterFactory == false) {
+                throw new IllegalArgumentException("Custom normalizer may not use filter [" + tff.name() + "]");
+            }
+            tff = tff.getChainAwareTokenFilterFactory(tokenizerFactory, charFilterFactories, tokenFilterFactories, name -> {
+                try {
+                    return getComponentFactory(
+                        indexSettings,
+                        new NameOrDefinition(name),
+                        "filter",
+                        this::getTokenFilterProvider,
+                        prebuiltAnalysis::getTokenFilterFactory,
+                        this::getTokenFilterProvider
+                    );
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
             tokenFilterFactories.add(tff);
         }
 
@@ -689,7 +669,7 @@ public final class AnalysisRegistry implements Closeable {
         return new IndexAnalyzers(analyzers, normalizers, whitespaceNormalizers);
     }
 
-    public static NamedAnalyzer produceAnalyzer(
+    private static NamedAnalyzer produceAnalyzer(
         String name,
         AnalyzerProvider<?> analyzerFactory,
         Map<String, TokenFilterFactory> tokenFilters,

@@ -9,7 +9,11 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.tokenattributes.*;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
+import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.elasticsearch.plugins.analysis.AnalyzeToken;
 import org.elasticsearch.plugins.analysis.PortableAnalyzeIterator;
 import org.elasticsearch.plugins.analysis.ReaderProvider;

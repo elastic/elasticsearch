@@ -12,7 +12,11 @@ import org.apache.lucene.analysis.no.NorwegianNormalizationFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.plugins.analysis.*;
+import org.elasticsearch.plugins.analysis.AbstractAnalysisIteratorFactory;
+import org.elasticsearch.plugins.analysis.DelegatingTokenStream;
+import org.elasticsearch.plugins.analysis.ESTokenStream;
+import org.elasticsearch.plugins.analysis.PortableAnalyzeIterator;
+import org.elasticsearch.plugins.analysis.StableLuceneFilterIterator;
 
 public class DemoNormalizerIteratorFactory extends AbstractAnalysisIteratorFactory {
 
@@ -22,9 +26,7 @@ public class DemoNormalizerIteratorFactory extends AbstractAnalysisIteratorFacto
 
     @Override
     public PortableAnalyzeIterator newInstance(ESTokenStream esTokenStream) {
-        return new StableLuceneFilterIterator(
-            new NorwegianNormalizationFilter(new DelegatingTokenStream(esTokenStream)),
-            new AnalyzeState(-1, 0));
+        return new StableLuceneFilterIterator(new NorwegianNormalizationFilter(new DelegatingTokenStream(esTokenStream)));
     }
 
     @Override

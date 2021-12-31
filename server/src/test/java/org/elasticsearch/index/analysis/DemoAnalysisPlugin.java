@@ -26,26 +26,17 @@ import java.util.Map;
 public class DemoAnalysisPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
-        return Map.of(
-            "demo_filter_legacy", DemoTokenFilterFactory::new,
-            "demo_normalizer_legacy", DemoNormalizerFactory::new
-        );
+        return Map.of("demo_filter_legacy", DemoTokenFilterFactory::new, "demo_normalizer_legacy", DemoNormalizerFactory::new);
     }
-
 
     @Override
     public Map<String, AnalysisModule.AnalysisProvider<AnalysisIteratorFactory>> getFilterIterators() {
-        return Map.of(
-            "demo_filter_stable", DemoFilterIteratorFactory::new,
-            "demo_normalizer_stable", DemoNormalizerIteratorFactory::new
-        );
+        return Map.of("demo_filter_stable", DemoFilterIteratorFactory::new, "demo_normalizer_stable", DemoNormalizerIteratorFactory::new);
     }
 
     @Override
     public Map<String, AnalysisModule.AnalysisProvider<AnalysisIteratorFactory>> getTokenizerIterators() {
-        return Map.of(
-            "demo_tokenizer_stable", DemoTokenizerIteratorFactory::new
-        );
+        return Map.of("demo_tokenizer_stable", DemoTokenizerIteratorFactory::new);
     }
 
     @Override

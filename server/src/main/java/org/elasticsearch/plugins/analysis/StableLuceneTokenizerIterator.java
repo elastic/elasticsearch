@@ -8,18 +8,21 @@
 
 package org.elasticsearch.plugins.analysis;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.Reader;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 
+@SuppressForbidden(reason = "using method handles required for multiple class loaders")
 public class StableLuceneTokenizerIterator extends StableLuceneFilterIterator {
     private final ReaderProvider readerProvider;
 
     private final MethodHandle mhSetReader;
 
-    public StableLuceneTokenizerIterator(Object stream, AnalyzeState prevState, ReaderProvider provider) {
-        super(stream, prevState);
+    public StableLuceneTokenizerIterator(Object stream, ReaderProvider provider) {
+        super(stream);
         StablePluginAPIUtil.ensureClassCompatibility(stream.getClass(), "org.apache.lucene.analysis.Tokenizer");
 
         this.readerProvider = provider;
@@ -28,8 +31,7 @@ public class StableLuceneTokenizerIterator extends StableLuceneFilterIterator {
 
         try {
             Class<?> tokenizerClass = StablePluginAPIUtil.lookupClass(stream, "org.apache.lucene.analysis.Tokenizer");
-            mhSetReader = lookup.findVirtual(
-                tokenizerClass, "setReader", MethodType.methodType(void.class, Reader.class));
+            mhSetReader = lookup.findVirtual(tokenizerClass, "setReader", MethodType.methodType(void.class, Reader.class));
         } catch (Throwable x) {
             throw new IllegalArgumentException("Incompatible Lucene library provided", x);
         }

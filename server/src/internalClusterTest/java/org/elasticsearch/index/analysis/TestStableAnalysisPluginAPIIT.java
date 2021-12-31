@@ -22,128 +22,50 @@ import static org.hamcrest.Matchers.equalTo;
 public class TestStableAnalysisPluginAPIIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(
-            DemoAnalysisPlugin.class
-        );
+        return List.of(DemoAnalysisPlugin.class);
     }
 
     private class AnalysisTestcases {
         private final String[] phrases;
         private final AnalyzeAction.AnalyzeToken[] tokens;
 
-        AnalysisTestcases(
-            String[] phrases,
-            AnalyzeAction.AnalyzeToken[] tokens) {
+        AnalysisTestcases(String[] phrases, AnalyzeAction.AnalyzeToken[] tokens) {
             this.phrases = phrases;
             this.tokens = tokens;
         }
     }
 
-    private AnalysisTestcases[] testCases = new AnalysisTestcases[]{
+    private AnalysisTestcases[] testCases = new AnalysisTestcases[] {
         new AnalysisTestcases(
-            new String[]{"I like to use elastic products", "I like to use elastic products"},
+            new String[] { "I like to use elastic products", "I like to use elastic products" },
             new AnalyzeAction.AnalyzeToken[] {
-                new AnalyzeAction.AnalyzeToken(
-                    "ELASTIC",
-                    4,
-                    14,
-                    14 + "elastic".length(),
-                    1,
-                    "<ALPHANUM>",
-                    null),
-                new AnalyzeAction.AnalyzeToken(
-                    "ELASTIC",
-                    110,
-                    45,
-                    45 + "elastic".length(),
-                    1,
-                    "<ALPHANUM>",
-                    null)
-            }
+                new AnalyzeAction.AnalyzeToken("ELASTIC", 4, 14, 14 + "elastic".length(), 1, "<ALPHANUM>", null),
+                new AnalyzeAction.AnalyzeToken("ELASTIC", 110, 45, 45 + "elastic".length(), 1, "<ALPHANUM>", null) }
         ),
         new AnalysisTestcases(
-            new String[]{"I like using Elastic products", "I like using Elastic products"},
+            new String[] { "I like using Elastic products", "I like using Elastic products" },
             new AnalyzeAction.AnalyzeToken[] {
-                new AnalyzeAction.AnalyzeToken(
-                    "ELASTIC",
-                    3,
-                    13,
-                    13 + "Elastic".length(),
-                    1,
-                    "<ALPHANUM>",
-                    null),
-                new AnalyzeAction.AnalyzeToken(
-                    "ELASTIC",
-                    108,
-                    43,
-                    43 + "elastic".length(),
-                    1,
-                    "<ALPHANUM>",
-                    null)
-            }
-        )};
+                new AnalyzeAction.AnalyzeToken("ELASTIC", 3, 13, 13 + "Elastic".length(), 1, "<ALPHANUM>", null),
+                new AnalyzeAction.AnalyzeToken("ELASTIC", 108, 43, 43 + "elastic".length(), 1, "<ALPHANUM>", null) }
+        ) };
 
-    private AnalysisTestcases[] normalizerTestcases = new AnalysisTestcases[]{
+    private AnalysisTestcases[] normalizerTestcases = new AnalysisTestcases[] {
         new AnalysisTestcases(
-            new String[]{"Jag gillar att anvaanda elastiska produkter", "Jag gillar att anvaanda Elastic-produkter"},
+            new String[] { "Jag gillar att anvaanda elastiska produkter", "Jag gillar att anvaanda Elastic-produkter" },
             new AnalyzeAction.AnalyzeToken[] {
-                new AnalyzeAction.AnalyzeToken(
-                    "JAG GILLAR ATT ANVÅNDA ELASTISKA PRODUKTER",
-                    0,
-                    0,
-                    43,
-                    1,
-                    "word",
-                    null),
-                new AnalyzeAction.AnalyzeToken(
-                    "JAG GILLAR ATT ANVÅNDA ELASTIC-PRODUKTER",
-                    101,
-                    44,
-                    85,
-                    1,
-                    "word",
-                    null)
-            }
-        )};
+                new AnalyzeAction.AnalyzeToken("JAG GILLAR ATT ANVÅNDA ELASTISKA PRODUKTER", 0, 0, 43, 1, "word", null),
+                new AnalyzeAction.AnalyzeToken("JAG GILLAR ATT ANVÅNDA ELASTIC-PRODUKTER", 101, 44, 85, 1, "word", null) }
+        ) };
 
-    private AnalysisTestcases[] tokenizerTestcases = new AnalysisTestcases[]{
+    private AnalysisTestcases[] tokenizerTestcases = new AnalysisTestcases[] {
         new AnalysisTestcases(
-            new String[]{"john.doe@elastic.co,jane.doe@elastic.co", "john.doe+elastic@elastic.co, jane.doe+elastic@elastic.co"},
+            new String[] { "john.doe@elastic.co,jane.doe@elastic.co", "john.doe+elastic@elastic.co, jane.doe+elastic@elastic.co" },
             new AnalyzeAction.AnalyzeToken[] {
-                new AnalyzeAction.AnalyzeToken(
-                    "john.doe@elastic.co",
-                    0,
-                    0,
-                    19,
-                    1,
-                    "<EMAIL>",
-                    null),
-                new AnalyzeAction.AnalyzeToken(
-                    ",jane.doe@elastic.co",
-                    1,
-                    19,
-                    39,
-                    1,
-                    "<EMAIL>",
-                    null),
-                new AnalyzeAction.AnalyzeToken(
-                    "john.doe+elastic@elastic.co",
-                    102,
-                    40,
-                    67,
-                    1,
-                    "<EMAIL>",
-                    null),
-                new AnalyzeAction.AnalyzeToken(
-                    "jane.doe+elastic@elastic.co",
-                    103,
-                    69,
-                    96,
-                    1,
-                    "<EMAIL>",
-                    null)
-            }
-        )};
+                new AnalyzeAction.AnalyzeToken("john.doe@elastic.co", 0, 0, 19, 1, "<EMAIL>", null),
+                new AnalyzeAction.AnalyzeToken(",jane.doe@elastic.co", 1, 19, 39, 1, "<EMAIL>", null),
+                new AnalyzeAction.AnalyzeToken("john.doe+elastic@elastic.co", 102, 40, 67, 1, "<EMAIL>", null),
+                new AnalyzeAction.AnalyzeToken("jane.doe+elastic@elastic.co", 103, 69, 96, 1, "<EMAIL>", null) }
+        ) };
 
     public void testBasicUsage() {
         String index = "foo";
@@ -202,7 +124,7 @@ public class TestStableAnalysisPluginAPIIT extends ESIntegTestCase {
 
                 assertEquals(2, result.detail().tokenfilters()[firstShrunkTokenIndex].getTokens().length);
 
-                AnalyzeAction.AnalyzeToken[] finalTokens = result.detail().tokenfilters()[firstShrunkTokenIndex+1].getTokens();
+                AnalyzeAction.AnalyzeToken[] finalTokens = result.detail().tokenfilters()[firstShrunkTokenIndex + 1].getTokens();
                 assertEquals(2, finalTokens.length);
 
                 for (int i = 0; i < finalTokens.length; i++) {
@@ -228,8 +150,7 @@ public class TestStableAnalysisPluginAPIIT extends ESIntegTestCase {
 
         for (String filter : List.of("demo_normalizer_stable", "demo_normalizer_legacy")) {
             for (AnalysisTestcases testcase : normalizerTestcases) {
-                AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index)
-                    .addTokenFilter("lowercase")
+                AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index).addTokenFilter("lowercase")
                     .addTokenFilter(filter)
                     .addTokenFilter("uppercase")
                     .text(testcase.phrases);
@@ -253,8 +174,7 @@ public class TestStableAnalysisPluginAPIIT extends ESIntegTestCase {
 
         for (String filter : List.of("demo_normalizer_stable", "demo_normalizer_legacy")) {
             for (AnalysisTestcases testcase : normalizerTestcases) {
-                AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index)
-                    .addTokenFilter("lowercase")
+                AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index).addTokenFilter("lowercase")
                     .addTokenFilter(filter)
                     .addTokenFilter("uppercase")
                     .explain(true)
@@ -271,7 +191,7 @@ public class TestStableAnalysisPluginAPIIT extends ESIntegTestCase {
                 assertEquals(numTokens, result.detail().tokenfilters()[0].getTokens().length);
 
                 int filterCount = result.detail().tokenfilters().length;
-                AnalyzeAction.AnalyzeToken[] finalTokens = result.detail().tokenfilters()[filterCount-1].getTokens();
+                AnalyzeAction.AnalyzeToken[] finalTokens = result.detail().tokenfilters()[filterCount - 1].getTokens();
                 assertEquals(2, finalTokens.length);
 
                 for (int i = 0; i < finalTokens.length; i++) {
@@ -280,7 +200,7 @@ public class TestStableAnalysisPluginAPIIT extends ESIntegTestCase {
                     assertEquals(testcase.tokens[i].getPositionLength(), finalTokens[i].getAttributes().get("positionLength"));
                     assertEquals(1, finalTokens[i].getAttributes().get("termFrequency"));
                     assertTrue(finalTokens[i].getAttributes().get("bytes") instanceof String);
-                    assertTrue(((String)finalTokens[i].getAttributes().get("bytes")).length() > 0);
+                    assertTrue(((String) finalTokens[i].getAttributes().get("bytes")).length() > 0);
 
                     assertEquals(testcase.tokens[i].getTerm(), finalTokens[i].getTerm());
                     assertEquals(testcase.tokens[i].getStartOffset(), finalTokens[i].getStartOffset());
@@ -299,8 +219,7 @@ public class TestStableAnalysisPluginAPIIT extends ESIntegTestCase {
 
         for (String filter : List.of("demo_tokenizer_stable", "uax_url_email")) {
             for (AnalysisTestcases testcase : tokenizerTestcases) {
-                AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index)
-                    .tokenizer(filter)
+                AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index).tokenizer(filter)
                     .addTokenFilter("lowercase")
                     .text(testcase.phrases);
 

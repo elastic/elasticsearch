@@ -10,6 +10,7 @@ package org.elasticsearch.plugins.analysis;
 
 public interface AnalysisIteratorFactory {
     String name();
+
     default boolean isNormalizer() {
         return false;
     }
@@ -17,6 +18,7 @@ public interface AnalysisIteratorFactory {
     default PortableAnalyzeIterator newInstance(ReaderProvider readerProvider) {
         return null;
     }
+
     default PortableAnalyzeIterator newInstance(ESTokenStream esTokenStream) {
         return null;
     };

@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.analysis.AbstractAnalysisIteratorFactory;
-import org.elasticsearch.plugins.analysis.AnalyzeState;
 import org.elasticsearch.plugins.analysis.DelegatingTokenStream;
 import org.elasticsearch.plugins.analysis.ESTokenStream;
 import org.elasticsearch.plugins.analysis.PortableAnalyzeIterator;
@@ -29,15 +28,13 @@ public class DemoFilterIteratorFactory extends AbstractAnalysisIteratorFactory {
 
     @Override
     public PortableAnalyzeIterator newInstance(ESTokenStream esTokenStream) {
-        return new StableLuceneFilterIterator(
-            new ElasticWordOnlyTokenFilter(new DelegatingTokenStream(esTokenStream)),
-            new AnalyzeState(-1, 0));
+        return new StableLuceneFilterIterator(new ElasticWordOnlyTokenFilter(new DelegatingTokenStream(esTokenStream)));
     }
 
     private class ElasticWordOnlyTokenFilter extends FilteringTokenFilter {
         private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
 
-        public ElasticWordOnlyTokenFilter(TokenStream in) {
+        ElasticWordOnlyTokenFilter(TokenStream in) {
             super(in);
         }
 

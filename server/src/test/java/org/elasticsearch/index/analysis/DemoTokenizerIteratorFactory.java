@@ -8,19 +8,14 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.FilteringTokenFilter;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.email.UAX29URLEmailTokenizer;
-import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.plugins.analysis.*;
-
-import java.util.List;
+import org.elasticsearch.plugins.analysis.AbstractAnalysisIteratorFactory;
+import org.elasticsearch.plugins.analysis.PortableAnalyzeIterator;
+import org.elasticsearch.plugins.analysis.ReaderProvider;
+import org.elasticsearch.plugins.analysis.StableLuceneTokenizerIterator;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.newAttributeFactory;
 
@@ -32,9 +27,6 @@ public class DemoTokenizerIteratorFactory extends AbstractAnalysisIteratorFactor
 
     @Override
     public PortableAnalyzeIterator newInstance(ReaderProvider readerProvider) {
-        return new StableLuceneTokenizerIterator(
-            new UAX29URLEmailTokenizer(newAttributeFactory()),
-            new AnalyzeState(-1, 0),
-            readerProvider);
+        return new StableLuceneTokenizerIterator(new UAX29URLEmailTokenizer(newAttributeFactory()), readerProvider);
     }
 }

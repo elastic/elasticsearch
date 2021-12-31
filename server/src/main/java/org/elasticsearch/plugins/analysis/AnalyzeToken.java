@@ -40,14 +40,7 @@ public class AnalyzeToken {
         return Objects.hash(term, startOffset, endOffset, position, positionLength, type);
     }
 
-    public AnalyzeToken(
-        String term,
-        int position,
-        int startOffset,
-        int endOffset,
-        int positionLength,
-        String type
-    ) {
+    public AnalyzeToken(String term, int position, int startOffset, int endOffset, int positionLength, String type) {
         this.term = term;
         this.position = position;
         this.startOffset = startOffset;

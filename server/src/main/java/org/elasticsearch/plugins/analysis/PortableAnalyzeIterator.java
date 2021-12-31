@@ -12,7 +12,8 @@ import java.io.Closeable;
 
 public interface PortableAnalyzeIterator extends Closeable {
     AnalyzeToken reset();
+
     AnalyzeToken next();
+
     AnalyzeToken end();
-    AnalyzeState state();
 }

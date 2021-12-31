@@ -79,18 +79,11 @@ public class AnalysisUtil {
         return createStackedTokenStream(tokenizer, tokenFilterFactories, current);
     }
 
-    public static TokenStream createStackedTokenStream(
-        TokenStream tokenStream,
-        TokenFilterFactory[] tokenFilterFactories
-    ) {
+    public static TokenStream createStackedTokenStream(TokenStream tokenStream, TokenFilterFactory[] tokenFilterFactories) {
         return createStackedTokenStream(tokenStream, tokenFilterFactories, tokenFilterFactories.length);
     }
 
-    public static TokenStream createStackedTokenStream(
-        TokenStream tokenStream,
-        TokenFilterFactory[] tokenFilterFactories,
-        int current
-    ) {
+    public static TokenStream createStackedTokenStream(TokenStream tokenStream, TokenFilterFactory[] tokenFilterFactories, int current) {
         for (int i = 0; i < current; i++) {
             tokenStream = tokenFilterFactories[i].create(tokenStream);
         }

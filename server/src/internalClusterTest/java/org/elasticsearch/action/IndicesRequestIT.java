@@ -650,11 +650,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     static IndicesRequest convertRequest(TransportRequest request) {
-        if (request instanceof IndicesRequest indicesRequest) {
-            return indicesRequest;
-        } else {
-            return TransportReplicationActionTests.resolveRequest(request);
-        }
+        return request instanceof IndicesRequest indicesRequest ? indicesRequest : TransportReplicationActionTests.resolveRequest(request);
     }
 
     private String randomIndexOrAlias() {

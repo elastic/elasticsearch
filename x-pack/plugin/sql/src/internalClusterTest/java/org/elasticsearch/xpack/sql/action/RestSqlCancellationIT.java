@@ -23,7 +23,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;

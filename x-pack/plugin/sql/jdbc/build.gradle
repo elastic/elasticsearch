@@ -17,7 +17,12 @@ dependencies {
   api(xpackProject('plugin:sql:sql-proto')) {
     transitive = false
   }
-  api project(':libs:elasticsearch-x-content')
+  api(project(':libs:elasticsearch-x-content')) {
+      transitive = false
+  }
+  // required by x-content
+  runtimeOnly project(':libs:elasticsearch-core')
+
   api(project(':libs:elasticsearch-geo')) {
     transitive = false
   }

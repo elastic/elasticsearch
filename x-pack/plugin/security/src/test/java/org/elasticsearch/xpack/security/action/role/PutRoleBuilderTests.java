@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.action.role;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;

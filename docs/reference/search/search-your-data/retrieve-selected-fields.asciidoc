@@ -289,6 +289,135 @@ However, when the `fields` pattern targets the nested `user` field directly, no
 values will be returned because the pattern doesn't match any leaf fields.
 
 [discrete]
+[[join-retrieval]]
+==== Retrieve fields from related indices
+
+The `fields` parameter can also be used to retrieve fields from related indices.
+
+[source,console]
+----
+POST ip_location/_doc/192.168.1.1
+{
+  "country": "Canada",
+  "city": "Montreal"
+}
+
+PUT logs/_doc/1?refresh
+{
+  "ip": "192.168.1.1",
+  "message": "the first message"
+}
+
+PUT logs/_doc/2?refresh
+{
+  "ip": "192.168.1.2",
+  "message": "the second message"
+}
+
+POST logs/_search
+{
+  "fields": [
+    "message",
+    {
+      "name": "location", <1>
+      "type": "lookup", <2>
+      "index": "ip_location", <3>
+      "key": "ip", <4>
+      "fields": ["country", "cit*"] <5>
+    }
+  ],
+  "_source": false
+}
+----
+
+<1> The name of the field. The response of this field is returned under this name.
+<2> The type of the field. Here the `lookup` type means join fields are retrieved using the <<docs-get,GET API>>
+<3> The external index that join fields are retrieved from
+<4> The key field whose values are used as `_id` in the <<docs-get,GET API>>
+<5> An optional list of fields to retrieve from the external index.
+
+The above search returns the country and city from the `ip_location` index
+for each ip address of the returning hits.
+
+[source,console-result]
+----
+{
+  "took": 3,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 2,
+      "relation": "eq"
+    },
+    "max_score": 1.0,
+    "hits": [
+      {
+        "_index": "logs",
+        "_id": "1",
+        "_score": 1.0,
+        "fields": {
+          "ip": [
+            "192.168.1.1"
+          ],
+          "location": [
+            {
+              "_id": [
+                "192.168.1.1"
+              ],
+              "city": [
+                "Montreal"
+              ],
+              "country": [
+                "Canada"
+              ]
+            }
+          ],
+          "message": [
+            "the first message"
+          ]
+        }
+      },
+      {
+        "_index": "logs",
+        "_id": "2",
+        "_score": 1.0,
+        "fields": {
+          "ip": [
+            "192.168.1.2"
+          ],
+          "location": [
+            {
+              "_id": [
+                "192.168.1.2"
+              ],
+              "_failure": [
+                "id [192.168.1.2] on index [ip_location] doesn't exist"
+              ]
+            }
+          ],
+          "message": [
+            "the second message"
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 3/"took": $body.took/]
+
+The `fields` response of join fields is similar to the response of nested fields.
+Values inside `join` fields are grouped to maintain the independence
+of each join document from the external index. If there is any error during
+the lookup, the error is returned under the `_failure` field of a join document.
+
+[discrete]
 [[retrieve-unmapped-fields]]
 ==== Retrieve unmapped fields
 By default, the `fields` parameter returns only values of mapped fields.

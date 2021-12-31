@@ -839,7 +839,7 @@ public class Node implements Closeable {
             final SearchService searchService = newSearchService(
                 clusterService,
                 indicesService,
-                threadPool,
+                transportService,
                 scriptService,
                 bigArrays,
                 searchModule.getFetchPhase(),
@@ -1472,7 +1472,7 @@ public class Node implements Closeable {
     protected SearchService newSearchService(
         ClusterService clusterService,
         IndicesService indicesService,
-        ThreadPool threadPool,
+        TransportService transportService,
         ScriptService scriptService,
         BigArrays bigArrays,
         FetchPhase fetchPhase,
@@ -1483,7 +1483,7 @@ public class Node implements Closeable {
         return new SearchService(
             clusterService,
             indicesService,
-            threadPool,
+            transportService,
             scriptService,
             bigArrays,
             fetchPhase,

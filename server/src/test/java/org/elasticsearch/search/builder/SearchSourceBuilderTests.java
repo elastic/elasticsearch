@@ -23,13 +23,13 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.AbstractSearchTestCase;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -38,10 +38,12 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
@@ -88,13 +90,6 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertEquals(copy, original);
         assertEquals(copy.hashCode(), original.hashCode());
         assertNotSame(copy, original);
-    }
-
-    public void testSerializingWithRuntimeFieldsBeforeSupportedThrows() {
-        SearchSourceBuilder original = new SearchSourceBuilder().runtimeMappings(randomRuntimeMappings());
-        Version v = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_11_0));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> copyBuilder(original, v));
-        assertThat(e.getMessage(), equalTo("Versions before 7.11.0 don't support [runtime_mappings] and search was sent to [" + v + "]"));
     }
 
     public void testShallowCopy() {
@@ -545,6 +540,51 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
             assertEquals("[track_total_hits] parameter must be positive or equals to -1, got " + randomNegativeValue, ex.getMessage());
+        }
+    }
+
+    public void testParseJoinFields() throws IOException {
+        String restContent = """
+            {
+              "fields": [
+                "message",
+                {"field": "timestamp", "format": "yyyy-MM-dd HH:mm:ss"},
+                {
+                  "type": "lookup",
+                  "name": "host",
+                  "index": "machines",
+                  "key" : "ip"
+                },
+                {
+                    "type": "lookup",
+                    "name": "location",
+                    "index": "ip_tables",
+                    "key": "ip",
+                    "fields": ["city", "country"]
+                }
+              ]
+            }""";
+        int iterations = iterations(2, 5);
+        for (int i = 0; i < iterations; i++) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                assertThat(
+                    searchSourceBuilder.fetchFields(),
+                    contains(
+                        new FieldAndFormat("message", null),
+                        new FieldAndFormat("timestamp", "yyyy-MM-dd HH:mm:ss"),
+                        new FieldAndFormat("ip", null) // this field is added by the join field
+                    )
+                );
+                assertThat(
+                    searchSourceBuilder.joinFields(),
+                    contains(
+                        new JoinField("host", "machines", "ip", null),
+                        new JoinField("location", "ip_tables", "ip", List.of("city", "country"))
+                    )
+                );
+                restContent = searchSourceBuilder.toString(ToXContent.EMPTY_PARAMS);
+            }
         }
     }
 

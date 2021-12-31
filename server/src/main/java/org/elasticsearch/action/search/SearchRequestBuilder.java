@@ -18,6 +18,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.builder.JoinField;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -321,6 +322,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder addFetchField(FieldAndFormat fetchField) {
         sourceBuilder().fetchField(fetchField);
+        return this;
+    }
+
+    /**
+     * Add a join field to the search request. Join fields are retrieved from other indices.
+     */
+    public SearchRequestBuilder addJoinField(JoinField joinField) {
+        sourceBuilder().joinField(joinField);
         return this;
     }
 

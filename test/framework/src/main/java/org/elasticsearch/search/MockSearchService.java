@@ -22,7 +22,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -75,7 +75,7 @@ public class MockSearchService extends SearchService {
     public MockSearchService(
         ClusterService clusterService,
         IndicesService indicesService,
-        ThreadPool threadPool,
+        TransportService transportService,
         ScriptService scriptService,
         BigArrays bigArrays,
         FetchPhase fetchPhase,
@@ -86,7 +86,7 @@ public class MockSearchService extends SearchService {
         super(
             clusterService,
             indicesService,
-            threadPool,
+            transportService,
             scriptService,
             bigArrays,
             fetchPhase,

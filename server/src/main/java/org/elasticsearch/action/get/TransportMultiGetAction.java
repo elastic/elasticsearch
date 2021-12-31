@@ -97,6 +97,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
 
         for (final MultiGetShardRequest shardRequest : shardRequests.values()) {
+            // TODO: Limit the number of concurrent get requests (as we do with msearch)
             client.executeLocally(TransportShardMultiGetAction.TYPE, shardRequest, new ActionListener.Delegating<>(listener) {
                 @Override
                 public void onResponse(MultiGetShardResponse response) {

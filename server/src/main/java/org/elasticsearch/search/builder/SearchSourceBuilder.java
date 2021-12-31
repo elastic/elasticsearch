@@ -43,6 +43,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -53,9 +54,11 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -165,6 +168,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private List<ScriptField> scriptFields;
     private FetchSourceContext fetchSourceContext;
     private List<FieldAndFormat> fetchFields;
+    private List<JoinField> joinFields;
 
     private AggregatorFactories.Builder aggregations;
 
@@ -242,14 +246,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
         collapse = in.readOptionalWriteable(CollapseBuilder::new);
         trackTotalHitsUpTo = in.readOptionalInt();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            if (in.readBoolean()) {
-                fetchFields = in.readList(FieldAndFormat::new);
-            }
-            pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
-            runtimeMappings = in.readMap();
+        fetchFields = in.readOptionalList(FieldAndFormat::new);
+        pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
+        runtimeMappings = in.readMap();
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            joinFields = in.readOptionalList(JoinField::new);
         }
     }
 
@@ -305,21 +306,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(sliceBuilder);
         out.writeOptionalWriteable(collapse);
         out.writeOptionalInt(trackTotalHitsUpTo);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            out.writeBoolean(fetchFields != null);
-            if (fetchFields != null) {
-                out.writeList(fetchFields);
-            }
-            out.writeOptionalWriteable(pointInTimeBuilder);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
-            out.writeMap(runtimeMappings);
-        } else {
-            if (false == runtimeMappings.isEmpty()) {
-                throw new IllegalArgumentException(
-                    "Versions before 7.11.0 don't support [runtime_mappings] and search was sent to [" + out.getVersion() + "]"
-                );
-            }
+        out.writeOptionalCollection(fetchFields);
+        out.writeOptionalWriteable(pointInTimeBuilder);
+        out.writeMap(runtimeMappings);
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            out.writeOptionalCollection(joinFields);
         }
     }
 
@@ -884,6 +875,24 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
+     * Returns the list of join fields specified in the search request.
+     */
+    public List<JoinField> joinFields() {
+        return joinFields;
+    }
+
+    /**
+     * Adds a join lookup field to the search request
+     */
+    public SearchSourceBuilder joinField(JoinField joinField) {
+        if (joinFields == null) {
+            joinFields = new ArrayList<>();
+        }
+        joinFields.add(joinField);
+        return this;
+    }
+
+    /**
      * Adds a script field under the given name with the provided script.
      *
      * @param name
@@ -1074,6 +1083,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.extBuilders = extBuilders;
         rewrittenBuilder.fetchSourceContext = fetchSourceContext;
         rewrittenBuilder.fetchFields = fetchFields;
+        rewrittenBuilder.joinFields = joinFields;
         rewrittenBuilder.docValueFields = docValueFields;
         rewrittenBuilder.storedFieldsContext = storedFieldsContext;
         rewrittenBuilder.from = from;
@@ -1272,10 +1282,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         docValueFields.add(FieldAndFormat.fromXContent(parser));
                     }
                 } else if (FETCH_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    fetchFields = new ArrayList<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        fetchFields.add(FieldAndFormat.fromXContent(parser));
-                    }
+                    parseFetchOrJoinFields(parser);
                 } else if (INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         indexBoosts.add(new IndexBoost(parser));
@@ -1393,10 +1400,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.endArray();
         }
 
-        if (fetchFields != null) {
+        if (fetchFields != null || joinFields != null) {
             builder.startArray(FETCH_FIELDS_FIELD.getPreferredName());
-            for (FieldAndFormat docValueField : fetchFields) {
-                docValueField.toXContent(builder, params);
+            if (fetchFields != null) {
+                for (FieldAndFormat docValueField : fetchFields) {
+                    docValueField.toXContent(builder, params);
+                }
+            }
+            if (joinFields != null) {
+                for (JoinField joinField : joinFields) {
+                    joinField.toXContent(builder, params);
+                }
             }
             builder.endArray();
         }
@@ -1724,6 +1738,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             explain,
             fetchSourceContext,
             fetchFields,
+            joinFields,
             docValueFields,
             storedFieldsContext,
             from,
@@ -1767,6 +1782,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(explain, other.explain)
             && Objects.equals(fetchSourceContext, other.fetchSourceContext)
             && Objects.equals(fetchFields, other.fetchFields)
+            && Objects.equals(joinFields, other.joinFields)
             && Objects.equals(docValueFields, other.docValueFields)
             && Objects.equals(storedFieldsContext, other.storedFieldsContext)
             && Objects.equals(from, other.from)
@@ -1806,6 +1822,89 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             return XContentHelper.toXContent(this, XContentType.JSON, params, true).utf8ToString();
         } catch (IOException e) {
             throw new ElasticsearchException(e);
+        }
+    }
+
+    private void parseFetchOrJoinFields(XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            if (token.isValue()) {
+                fetchField(parser.text());
+            } else {
+                final FetchOrJoinField fetchOrJoinField = FetchOrJoinField.PARSER.apply(parser, null);
+                if (fetchOrJoinField.fetchField != null) {
+                    fetchField(fetchOrJoinField.fetchField);
+                } else {
+                    joinField(fetchOrJoinField.joinField);
+                }
+            }
+        }
+        // Add fetch fields that are required by the join fields
+        if (joinFields != null) {
+            final Set<String> fetchFieldNames = new HashSet<>();
+            if (fetchFields != null) {
+                for (FieldAndFormat fetchField : fetchFields) {
+                    fetchFieldNames.add(fetchField.field);
+                }
+            }
+            for (JoinField joinField : joinFields) {
+                if (fetchFieldNames.add(joinField.getKeyField())) {
+                    fetchField(joinField.getKeyField());
+                }
+            }
+        }
+    }
+
+    private static class FetchOrJoinField {
+        @SuppressWarnings("unchecked")
+        static final ConstructingObjectParser<FetchOrJoinField, Void> PARSER = new ConstructingObjectParser<>(
+            "fetch_or_join_field",
+            a -> new FetchOrJoinField(
+                (String) a[0],
+                (String) a[1],
+                (String) a[2],
+                (String) a[3],
+                (List<String>) a[4],
+                (String) a[5],
+                (String) a[6],
+                (Boolean) a[7]
+            )
+        );
+
+        static {
+            JoinField.registerXContentParser(PARSER);
+            FieldAndFormat.registerXContentParser(PARSER);
+        }
+
+        final JoinField joinField;
+        final FieldAndFormat fetchField;
+
+        FetchOrJoinField(
+            String type,
+            String name,
+            String index,
+            String keyField,
+            List<String> fields,
+            String field,
+            String format,
+            Boolean includeUnmapped
+        ) {
+            if (type != null && type.equals(JoinField.LOOKUP_TYPE) == false) {
+                throw new IllegalArgumentException("Unknown field type [" + type + "]");
+            }
+            if (type == null) {
+                if (name != null || index != null || keyField != null || fields != null) {
+                    throw new IllegalArgumentException("A fetch field accepts [field], [format], and [include_unmapped]");
+                }
+                this.joinField = null;
+                this.fetchField = new FieldAndFormat(field, format, includeUnmapped);
+            } else {
+                if (field != null || format != null || includeUnmapped != null) {
+                    throw new IllegalArgumentException("A join field accepts [name], [index], [key], and [fields]");
+                }
+                this.joinField = new JoinField(name, index, keyField, fields);
+                this.fetchField = null;
+            }
         }
     }
 

@@ -1106,6 +1106,18 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Same as {@link #readList(Writeable.Reader)} but the returned list may be null.
+     * The list is expected to have been written using {@link StreamOutput#writeOptionalCollection(Collection)}.
+     */
+    public <T> List<T> readOptionalList(Writeable.Reader<T> reader) throws IOException {
+        if (readBoolean() == false) {
+            return null;
+        } else {
+            return readList(reader);
+        }
+    }
+
+    /**
      * Reads a list of strings. The list is expected to have been written using {@link StreamOutput#writeStringCollection(Collection)}.
      * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
      *

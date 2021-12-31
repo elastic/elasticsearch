@@ -28,9 +28,9 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
         public Bucket(
             String key,
             double from,
-            double originalFrom,
+            Double originalFrom,
             double to,
-            double originalTo,
+            Double originalTo,
             long docCount,
             List<InternalAggregation> aggregations,
             boolean keyed,
@@ -75,11 +75,11 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
             return to;
         }
 
-        private double internalGetOriginalFrom() {
+        private Double internalGetOriginalFrom() {
             return originalFrom;
         }
 
-        private double internalGetOriginalTo() {
+        private Double internalGetOriginalTo() {
             return originalTo;
         }
 
@@ -124,9 +124,9 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
         public Bucket createBucket(
             String key,
             double from,
-            double originalFrom,
+            Double originalFrom,
             double to,
-            double originalTo,
+            Double originalTo,
             long docCount,
             InternalAggregations aggregations,
             boolean keyed,

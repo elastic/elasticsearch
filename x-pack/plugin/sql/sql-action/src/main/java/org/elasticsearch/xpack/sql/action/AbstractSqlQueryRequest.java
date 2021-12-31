@@ -26,7 +26,6 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
@@ -43,18 +42,18 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xpack.sql.proto.Protocol.CATALOG_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.FETCH_SIZE_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.FILTER_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.MODE_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.PAGE_TIMEOUT_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.QUERY_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.REQUEST_TIMEOUT_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.TIME_ZONE_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.CATALOG_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.CLIENT_ID_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.CURSOR_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.FETCH_SIZE_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.FILTER_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.MODE_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.PAGE_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.PARAMS_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.QUERY_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.REQUEST_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.TIME_ZONE_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.VERSION_NAME;
 
 /**
  * Base class for requests that contain sql queries (Query and Translate)

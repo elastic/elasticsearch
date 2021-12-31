@@ -26,9 +26,9 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         Bucket(
             String key,
             double from,
-            Double originalFrom,
+            double originalFrom,
             double to,
-            Double originalTo,
+            double originalTo,
             long docCount,
             InternalAggregations aggregations,
             boolean keyed
@@ -77,9 +77,9 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         public Bucket createBucket(
             String key,
             double from,
-            Double originalFrom,
+            double originalFrom,
             double to,
-            Double originalTo,
+            double originalTo,
             long docCount,
             InternalAggregations aggregations,
             boolean keyed,

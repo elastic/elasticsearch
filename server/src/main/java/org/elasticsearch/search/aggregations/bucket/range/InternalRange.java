@@ -37,9 +37,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         protected final transient boolean keyed;
         protected final transient DocValueFormat format;
         protected final double from;
-        protected final Double originalFrom;
+        protected final double originalFrom;
         protected final double to;
-        protected final Double originalTo;
+        protected final double originalTo;
         private final long docCount;
         private final InternalAggregations aggregations;
         private final String key;
@@ -47,9 +47,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         public Bucket(
             String key,
             double from,
-            Double originalFrom,
+            double originalFrom,
             double to,
-            Double originalTo,
+            double originalTo,
             long docCount,
             InternalAggregations aggregations,
             boolean keyed,
@@ -223,9 +223,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         public B createBucket(
             String key,
             double from,
-            Double originalFrom,
+            double originalFrom,
             double to,
-            Double originalTo,
+            double originalTo,
             long docCount,
             InternalAggregations aggregations,
             boolean keyed,

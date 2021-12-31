@@ -89,9 +89,7 @@ class S3RetryingInputStream extends InputStream {
         } catch (final AmazonClientException e) {
             if (e instanceof AmazonS3Exception amazonS3Exception) {
                 if (404 == amazonS3Exception.getStatusCode()) {
-                    throw addSuppressedExceptions(
-                        new NoSuchFileException("Blob object [" + blobKey + "] not found: " + e.getMessage())
-                    );
+                    throw addSuppressedExceptions(new NoSuchFileException("Blob object [" + blobKey + "] not found: " + e.getMessage()));
                 }
             }
             throw addSuppressedExceptions(e);

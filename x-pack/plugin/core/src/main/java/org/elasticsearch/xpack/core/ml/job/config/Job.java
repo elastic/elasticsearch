@@ -1218,8 +1218,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                     deprecationLogger.critical(
                         DeprecationCategory.OTHER,
                         "bucket_span",
-                        "bucket_span {} is not an integral multiple of 1d. This is now deprecated.",
-                        analysisConfig.getBucketSpan().toString()
+                        "bucket_span {} [{}s] is not an integral multiple of 1d [{}s]. This is now deprecated.",
+                        analysisConfig.getBucketSpan().toString(),
+                        analysisConfig.getBucketSpan().seconds(),
+                        SECONDS_IN_A_DAY
                     );
                 }
             } else {
@@ -1227,8 +1229,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                     deprecationLogger.critical(
                         DeprecationCategory.OTHER,
                         "bucket_span",
-                        "bucket_span {} is not an integral divisor of 1d. This is now deprecated.",
-                        analysisConfig.getBucketSpan().toString()
+                        "bucket_span {} [{}s] is not an integral divisor of 1d [{}s]. This is now deprecated.",
+                        analysisConfig.getBucketSpan().toString(),
+                        analysisConfig.getBucketSpan().seconds(),
+                        SECONDS_IN_A_DAY
                     );
                 }
             }

@@ -96,10 +96,10 @@ public abstract class RangeAggregator extends BucketsAggregator {
 
         protected final String key;
         protected final double from;
-        protected final Double originalFrom;
+        protected final double originalFrom;
         protected final String fromAsStr;
         protected final double to;
-        protected final Double originalTo;
+        protected final double originalTo;
         protected final String toAsStr;
 
         /**
@@ -138,8 +138,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
             toAsStr = in.readOptionalString();
             from = in.readDouble();
             to = in.readDouble();
-            originalFrom = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalDouble() : Double.valueOf(from);
-            originalTo = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalDouble() : Double.valueOf(to);
+            originalFrom = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readDouble() : from;
+            originalTo = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readDouble() : from;
         }
 
         @Override
@@ -150,8 +150,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
             out.writeDouble(from);
             out.writeDouble(to);
             if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
-                out.writeOptionalDouble(originalFrom);
-                out.writeOptionalDouble(originalTo);
+                out.writeDouble(originalFrom);
+                out.writeDouble(originalTo);
             }
         }
 
@@ -163,11 +163,11 @@ public abstract class RangeAggregator extends BucketsAggregator {
             return this.to;
         }
 
-        public Double getOriginalFrom() {
+        public double getOriginalFrom() {
             return originalFrom;
         }
 
-        public Double getOriginalTo() {
+        public double getOriginalTo() {
             return originalTo;
         }
 

@@ -37,9 +37,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         protected final transient boolean keyed;
         protected final transient DocValueFormat format;
         protected final double from;
-        protected final Double originalFrom;
+        protected final double originalFrom;
         protected final double to;
-        protected final Double originalTo;
+        protected final double originalTo;
         private final long docCount;
         private final InternalAggregations aggregations;
         private final String key;
@@ -47,9 +47,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         public Bucket(
             String key,
             double from,
-            Double originalFrom,
+            double originalFrom,
             double to,
-            Double originalTo,
+            double originalTo,
             long docCount,
             InternalAggregations aggregations,
             boolean keyed,
@@ -81,7 +81,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return from;
         }
 
-        public Double getOriginalFrom() {
+        public double getOriginalFrom() {
             return originalFrom;
         }
 
@@ -90,7 +90,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return to;
         }
 
-        public Double getOriginalTo() {
+        public double getOriginalTo() {
             return originalTo;
         }
 
@@ -173,11 +173,11 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             out.writeString(key);
             out.writeDouble(from);
             if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
-                out.writeOptionalDouble(originalFrom);
+                out.writeDouble(originalFrom);
             }
             out.writeDouble(to);
             if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
-                out.writeOptionalDouble(originalTo);
+                out.writeDouble(originalTo);
             }
             out.writeVLong(docCount);
             aggregations.writeTo(out);
@@ -223,9 +223,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         public B createBucket(
             String key,
             double from,
-            Double originalFrom,
+            double originalFrom,
             double to,
-            Double originalTo,
+            double originalTo,
             long docCount,
             InternalAggregations aggregations,
             boolean keyed,
@@ -278,9 +278,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         for (int i = 0; i < size; i++) {
             String key = in.readString();
             double from = in.readDouble();
-            Double originalFrom = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalDouble() : Double.valueOf(from);
+            double originalFrom = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readDouble() : from;
             double to = in.readDouble();
-            Double originalTo = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalDouble() : Double.valueOf(to);
+            double originalTo = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readDouble() : to;
             long docCount = in.readVLong();
             ranges.add(
                 getFactory().createBucket(

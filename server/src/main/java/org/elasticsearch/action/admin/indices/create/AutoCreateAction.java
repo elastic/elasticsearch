@@ -190,9 +190,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             }
                         }
 
-                        final SystemIndexDescriptor mainDescriptor = isSystemIndex
-                            ? systemIndices.findMatchingDescriptor(indexName)
-                            : null;
+                        final SystemIndexDescriptor mainDescriptor = isSystemIndex ? systemIndices.findMatchingDescriptor(indexName) : null;
                         final boolean isManagedSystemIndex = mainDescriptor != null && mainDescriptor.isAutomaticallyManaged();
 
                         final CreateIndexClusterStateUpdateRequest updateRequest;
@@ -214,9 +212,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             if (Objects.isNull(request.settings())) {
                                 updateRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
                             } else if (false == request.settings().hasValue(SETTING_INDEX_HIDDEN)) {
-                                updateRequest.settings(
-                                    Settings.builder().put(request.settings()).put(SETTING_INDEX_HIDDEN, true).build()
-                                );
+                                updateRequest.settings(Settings.builder().put(request.settings()).put(SETTING_INDEX_HIDDEN, true).build());
                             } else if ("false".equals(request.settings().get(SETTING_INDEX_HIDDEN))) {
                                 final String message = "Cannot auto-create system index ["
                                     + indexName
@@ -237,9 +233,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         request.cause(),
                         indexName,
                         request.index()
-                    ).ackTimeout(request.timeout())
-                        .performReroute(false)
-                        .masterNodeTimeout(request.masterNodeTimeout());
+                    ).ackTimeout(request.timeout()).performReroute(false).masterNodeTimeout(request.masterNodeTimeout());
                     logger.debug("Auto-creating index {}", indexName);
                     return updateRequest;
                 }
@@ -284,9 +278,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     return updateRequest;
                 }
             };
-            clusterService.submitStateUpdateTask(
-                "auto create [" + request.index() + "]",
-                clusterTask, clusterTask, executor, clusterTask);
+            clusterService.submitStateUpdateTask("auto create [" + request.index() + "]", clusterTask, clusterTask, executor, clusterTask);
         }
 
         @Override

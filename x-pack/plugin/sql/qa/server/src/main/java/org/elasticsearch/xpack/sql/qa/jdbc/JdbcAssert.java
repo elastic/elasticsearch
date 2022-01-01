@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 import com.carrotsearch.hppc.IntObjectHashMap;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -309,20 +308,19 @@ public class JdbcAssert {
                     } else if (type == Types.FLOAT) {
                         assertEquals(msg, (float) expectedObject, (float) actualObject, lenientFloatingNumbers ? 1f : 0.0f);
                     } else if (type == Types.OTHER) {
-                        if (actualObject instanceof Geometry) {
-                            // We need to convert the expected object to libs/geo Geometry for comparision
-                            try {
-                                expectedObject = WellKnownText.fromWKT(StandardValidator.instance(true), true, expectedObject.toString());
-                            } catch (IOException | ParseException ex) {
-                                fail(ex.getMessage());
+                        // check geo case
+                        if (actual.getMetaData().getColumnType(column) == EsType.GEO_SHAPE.getVendorTypeNumber()) {
+                            // parse strings into actual objects
+                            actualObject = fromWkt(actualObject.toString());
+                            expectedObject = fromWkt(expectedObject.toString());
+
+                            if (actualObject instanceof Point) {
+                                // geo points are loaded form doc values where they are stored as long-encoded values leading
+                                // to lose in precision
+                                assertThat(expectedObject, instanceOf(Point.class));
+                                assertEquals(((Point) expectedObject).getY(), ((Point) actualObject).getY(), 0.000001d);
+                                assertEquals(((Point) expectedObject).getX(), ((Point) actualObject).getX(), 0.000001d);
                             }
-                        }
-                        if (actualObject instanceof Point) {
-                            // geo points are loaded form doc values where they are stored as long-encoded values leading
-                            // to lose in precision
-                            assertThat(expectedObject, instanceOf(Point.class));
-                            assertEquals(((Point) expectedObject).getY(), ((Point) actualObject).getY(), 0.000001d);
-                            assertEquals(((Point) expectedObject).getX(), ((Point) actualObject).getX(), 0.000001d);
                         } else {
                             assertEquals(msg, expectedObject, actualObject);
                         }
@@ -347,6 +345,16 @@ public class JdbcAssert {
 
         if (actual.next()) {
             fail("Elasticsearch [" + actual + "] still has data after [" + count + "] entries:\n" + resultSetCurrentData(actual));
+        }
+    }
+
+    private static Object fromWkt(String source) {
+        try {
+            return WellKnownText.fromWKT(StandardValidator.instance(true), true, source);
+        } catch (IOException | ParseException ex) {
+            fail(ex.getMessage());
+            // won't execute
+            return null;
         }
     }
 

@@ -322,10 +322,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             );
             CloseableChannel.closeChannel(channel);
         } else {
-            logger.warn(
-                () -> new ParameterizedMessage("caught exception while handling client http traffic, closing connection {}", channel),
-                e
-            );
+            // logger.warn(
+            //     () -> new ParameterizedMessage("caught exception while handling client http traffic, closing connection {}", channel),
+            //     e
+            // );
             CloseableChannel.closeChannel(channel);
         }
     }

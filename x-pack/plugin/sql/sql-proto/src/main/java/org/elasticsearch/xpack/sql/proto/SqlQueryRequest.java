@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.sql.proto.core.Nullable;
 import org.elasticsearch.xpack.sql.proto.core.TimeValue;
+import org.elasticsearch.xpack.sql.proto.xcontent.ToXContent;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.ZoneId;

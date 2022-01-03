@@ -28,7 +28,6 @@ dependencies {
 
   api xpackProject('plugin:sql:sql-client')
   api project(":libs:elasticsearch-cli")
-  api project(':libs:elasticsearch-x-content')
   runtimeOnly "net.java.dev.jna:jna:${versions.jna}"
   testImplementation project(":test:framework")
 }

@@ -6,12 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.client;
 
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.client.JreHttpUrlConnection.ResponseOrException;
 import org.elasticsearch.xpack.sql.proto.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.proto.CoreProtocol;
@@ -25,6 +19,12 @@ import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.core.Streams;
 import org.elasticsearch.xpack.sql.proto.core.TimeValue;
 import org.elasticsearch.xpack.sql.proto.core.Tuple;
+import org.elasticsearch.xpack.sql.proto.xcontent.DeprecationHandler;
+import org.elasticsearch.xpack.sql.proto.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.sql.proto.xcontent.ToXContent;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentParser;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentType;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

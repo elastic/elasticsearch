@@ -208,10 +208,11 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
 
             if (columns != null) {
                 builder.startArray("columns");
-                {
-                    for (ColumnInfo column : columns) {
-                        column.toXContent(builder, params);
-                    }
+                org.elasticsearch.xpack.sql.proto.xcontent.XContentBuilder protoBuilder = ProtoShim.toProto(builder);
+                org.elasticsearch.xpack.sql.proto.xcontent.ToXContent.Params protoParam = ProtoShim.toProto(params);
+
+                for (ColumnInfo column : columns) {
+                    column.toXContent(protoBuilder, protoParam);
                 }
                 builder.endArray();
             }

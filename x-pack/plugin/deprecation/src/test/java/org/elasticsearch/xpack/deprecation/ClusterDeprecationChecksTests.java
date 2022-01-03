@@ -350,9 +350,14 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             .patterns(Collections.singletonList("foo"))
             .putMapping("_doc", "{\"type1\":{}}")
             .build();
+        IndexTemplateMetadata noType = IndexTemplateMetadata.builder("no-type")
+            .patterns(Collections.singletonList("foo"))
+            .putMapping("properties", "{ \"foo\": {\n" + "\"type\": \"keyword\"\n} }")
+            .build();
         ImmutableOpenMap<String, IndexTemplateMetadata> templates = ImmutableOpenMap.<String, IndexTemplateMetadata>builder()
             .fPut("multiple-types", multipleTypes)
             .fPut("single-type", singleType)
+            .fPut("no-type", noType)
             .build();
         Metadata badMetadata = Metadata.builder().templates(templates).build();
         ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();

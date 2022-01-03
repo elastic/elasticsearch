@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 public class BearerToken implements AuthenticationToken {
 
-    private final SecureString bearerString;
+    protected final SecureString bearerString;
 
     public BearerToken(SecureString bearerString) {
         this.bearerString = bearerString;

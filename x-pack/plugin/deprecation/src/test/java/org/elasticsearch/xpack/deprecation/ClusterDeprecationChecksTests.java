@@ -16,15 +16,20 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -340,6 +345,46 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
     }
 
     public void testIndexTemplatesWithMultipleTypes() throws IOException {
+        String typelessTemplate = "{ \"order\" : 2147483647,\n"
+            + "    \"index_patterns\" : [\n"
+            + "      \".patterns-*\"\n"
+            + "    ],\n"
+            + "    \"settings\" : {\n"
+            + "      \"index\" : {\n"
+            + "        \"format\" : \"6\",\n"
+            + "        \"number_of_shards\" : \"1\",\n"
+            + "        \"priority\" : \"800\",\n"
+            + "        \"auto_expand_replicas\" : \"0-1\",\n"
+            + "        \"number_of_replicas\" : \"0\"\n"
+            + "      }\n"
+            + "    },\n"
+            + "    \"mappings\" : {\n"
+            + "      \"properties\" : {\n"
+            + "        \"status\" : {\n"
+            + "          \"type\" : \"object\",\n"
+            + "          \"enabled\" : false,\n"
+            + "          \"dynamic\" : true\n"
+            + "        },\n"
+            + "        \"metadata\" : {\n"
+            + "          \"type\" : \"object\",\n"
+            + "          \"dynamic\" : true\n"
+            + "        }\n"
+            + "      }\n"
+            + "    },\n"
+            + "    \"aliases\" : { } }";
+
+        BytesReference templateBytes = new BytesArray(typelessTemplate);
+        final IndexTemplateMetadata typelessTemplateMetadata;
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                templateBytes,
+                XContentType.JSON
+            )
+        ) {
+            typelessTemplateMetadata = IndexTemplateMetadata.Builder.fromXContent(parser, "typeless");
+        }
 
         IndexTemplateMetadata multipleTypes = IndexTemplateMetadata.builder("multiple-types")
             .patterns(Collections.singletonList("foo"))
@@ -350,14 +395,10 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             .patterns(Collections.singletonList("foo"))
             .putMapping("_doc", "{\"type1\":{}}")
             .build();
-        IndexTemplateMetadata noType = IndexTemplateMetadata.builder("no-type")
-            .patterns(Collections.singletonList("foo"))
-            .putMapping("properties", "{ \"foo\": {\n" + "\"type\": \"keyword\"\n} }")
-            .build();
         ImmutableOpenMap<String, IndexTemplateMetadata> templates = ImmutableOpenMap.<String, IndexTemplateMetadata>builder()
             .fPut("multiple-types", multipleTypes)
             .fPut("single-type", singleType)
-            .fPut("no-type", noType)
+            .fPut("typeless", typelessTemplateMetadata)
             .build();
         Metadata badMetadata = Metadata.builder().templates(templates).build();
         ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();

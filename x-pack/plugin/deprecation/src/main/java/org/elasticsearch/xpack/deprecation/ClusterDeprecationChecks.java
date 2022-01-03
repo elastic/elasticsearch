@@ -53,7 +53,7 @@ public class ClusterDeprecationChecks {
     private static final Logger logger = LogManager.getLogger(ClusterDeprecationChecks.class);
 
     private static final String SPARSE_VECTOR = "sparse_vector";
-    public static final String TYPELESS = "properties";
+    public static final String TYPELESS_MAPPING = "properties";
 
     @SuppressWarnings("unchecked")
     static DeprecationIssue checkUserAgentPipelines(ClusterState state) {
@@ -610,7 +610,7 @@ public class ClusterDeprecationChecks {
                 }
                 boolean hasCustomType = mappings.stream().anyMatch(mapping -> {
                     String typeName = mapping.getKey();
-                    return TYPELESS.equals(typeName) == false && MapperService.SINGLE_MAPPING_NAME.equals(typeName) == false;
+                    return TYPELESS_MAPPING.equals(typeName) == false && MapperService.SINGLE_MAPPING_NAME.equals(typeName) == false;
                 });
                 if (hasCustomType) {
                     templatesWithCustomTypes.add(templateName);

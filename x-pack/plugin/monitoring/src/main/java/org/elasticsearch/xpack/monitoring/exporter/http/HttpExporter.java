@@ -911,18 +911,13 @@ public class HttpExporter extends Exporter {
             if (result.isSuccess()) {
                 status = ExporterResourceStatus.ready(name(), TYPE);
             } else {
-                switch (result.getResourceState()) {
-                    case CLEAN:
-                        status = ExporterResourceStatus.ready(name(), TYPE);
-                        break;
-                    case CHECKING:
-                    case DIRTY:
+                status = switch (result.getResourceState()) {
+                    case CLEAN -> ExporterResourceStatus.ready(name(), TYPE);
+                    case CHECKING, DIRTY ->
                         // CHECKING should be unlikely, but in case of that, we mark it as not ready
-                        status = ExporterResourceStatus.notReady(name(), TYPE, result.getReason());
-                        break;
-                    default:
-                        throw new ElasticsearchException("Illegal exporter resource status state [{}]", result.getResourceState());
-                }
+                        ExporterResourceStatus.notReady(name(), TYPE, result.getReason());
+                    default -> throw new ElasticsearchException("Illegal exporter resource status state [{}]", result.getResourceState());
+                };
             }
             listener.accept(status);
         }, (exception) -> listener.accept(ExporterResourceStatus.notReady(name(), TYPE, exception))));

@@ -114,33 +114,19 @@ public final class AuthorizationUtils {
         }
 
         switch (actionOrigin) {
-            case SECURITY_ORIGIN:
-                securityContext.executeAsUser(XPackSecurityUser.INSTANCE, consumer, Version.CURRENT);
-                break;
-            case WATCHER_ORIGIN:
-            case ML_ORIGIN:
-            case MONITORING_ORIGIN:
-            case TRANSFORM_ORIGIN:
-            case DEPRECATION_ORIGIN:
-            case PERSISTENT_TASK_ORIGIN:
-            case ROLLUP_ORIGIN:
-            case INDEX_LIFECYCLE_ORIGIN:
-            case ENRICH_ORIGIN:
-            case IDP_ORIGIN:
-            case INGEST_ORIGIN:
-            case STACK_ORIGIN:
-            case SEARCHABLE_SNAPSHOTS_ORIGIN:
-            case LOGSTASH_MANAGEMENT_ORIGIN:
-            case FLEET_ORIGIN:
-            case TASKS_ORIGIN:   // TODO use a more limited user for tasks
+            case SECURITY_ORIGIN -> securityContext.executeAsUser(XPackSecurityUser.INSTANCE, consumer, Version.CURRENT);
+            // TODO use a more limited user for tasks
+            // tag::noformat
+            case WATCHER_ORIGIN, ML_ORIGIN, MONITORING_ORIGIN, TRANSFORM_ORIGIN, DEPRECATION_ORIGIN, PERSISTENT_TASK_ORIGIN, ROLLUP_ORIGIN,
+                 INDEX_LIFECYCLE_ORIGIN, ENRICH_ORIGIN, IDP_ORIGIN, INGEST_ORIGIN, STACK_ORIGIN, SEARCHABLE_SNAPSHOTS_ORIGIN,
+                 LOGSTASH_MANAGEMENT_ORIGIN, FLEET_ORIGIN, TASKS_ORIGIN ->
                 securityContext.executeAsUser(XPackUser.INSTANCE, consumer, Version.CURRENT);
-                break;
-            case ASYNC_SEARCH_ORIGIN:
-                securityContext.executeAsUser(AsyncSearchUser.INSTANCE, consumer, Version.CURRENT);
-                break;
-            default:
+            // end::noformat
+            case ASYNC_SEARCH_ORIGIN -> securityContext.executeAsUser(AsyncSearchUser.INSTANCE, consumer, Version.CURRENT);
+            default -> {
                 assert false : "action.origin [" + actionOrigin + "] is unknown!";
                 throw new IllegalStateException("action.origin [" + actionOrigin + "] should always be a known value");
+            }
         }
     }
 

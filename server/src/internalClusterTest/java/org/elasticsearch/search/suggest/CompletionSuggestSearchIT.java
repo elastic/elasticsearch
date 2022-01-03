@@ -1285,15 +1285,11 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 mapping = mapping.startObject()
                     .field("name", contextMapping.getValue().name())
                     .field("type", contextMapping.getValue().type().name());
-                switch (contextMapping.getValue().type()) {
-                    case CATEGORY:
-                        mapping = mapping.field("path", ((CategoryContextMapping) contextMapping.getValue()).getFieldName());
-                        break;
-                    case GEO:
-                        mapping = mapping.field("path", ((GeoContextMapping) contextMapping.getValue()).getFieldName())
-                            .field("precision", ((GeoContextMapping) contextMapping.getValue()).getPrecision());
-                        break;
-                }
+                mapping = switch (contextMapping.getValue().type()) {
+                    case CATEGORY -> mapping.field("path", ((CategoryContextMapping) contextMapping.getValue()).getFieldName());
+                    case GEO -> mapping.field("path", ((GeoContextMapping) contextMapping.getValue()).getFieldName())
+                        .field("precision", ((GeoContextMapping) contextMapping.getValue()).getPrecision());
+                };
 
                 mapping = mapping.endObject();
             }
@@ -1590,15 +1586,10 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public static boolean isReservedChar(char c) {
-        switch (c) {
-            case '\u001F':
-            case TokenStreamToAutomaton.HOLE:
-            case 0x0:
-            case ContextSuggestField.CONTEXT_SEPARATOR:
-                return true;
-            default:
-                return false;
-        }
+        return switch (c) {
+            case '\u001F', TokenStreamToAutomaton.HOLE, 0x0, ContextSuggestField.CONTEXT_SEPARATOR -> true;
+            default -> false;
+        };
     }
 
     private static String replaceReservedChars(String input, char replacement) {

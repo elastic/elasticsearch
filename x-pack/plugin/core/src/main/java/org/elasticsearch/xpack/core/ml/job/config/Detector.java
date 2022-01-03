@@ -729,16 +729,11 @@ public class Detector implements ToXContentObject, Writeable {
 
         private static boolean ruleHasConditionOnResultValue(DetectionRule rule) {
             for (RuleCondition condition : rule.getConditions()) {
-                switch (condition.getAppliesTo()) {
-                    case ACTUAL:
-                    case TYPICAL:
-                    case DIFF_FROM_TYPICAL:
-                        return true;
-                    case TIME:
-                        return false;
-                    default:
-                        throw new IllegalStateException("Unknown applies_to value [" + condition.getAppliesTo() + "]");
-                }
+                return switch (condition.getAppliesTo()) {
+                    case ACTUAL, TYPICAL, DIFF_FROM_TYPICAL -> true;
+                    case TIME -> false;
+                    default -> throw new IllegalStateException("Unknown applies_to value [" + condition.getAppliesTo() + "]");
+                };
             }
             return false;
         }

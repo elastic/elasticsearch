@@ -1702,30 +1702,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".deprecation-")) {
             return true;
         }
-        switch (name) {
-            case ".watches":
-            case "security_audit_log":
-            case ".slm-history":
-            case ".async-search":
-            case "saml-service-provider":
-            case "logs":
-            case "logs-settings":
-            case "logs-mappings":
-            case "metrics":
-            case "metrics-settings":
-            case "metrics-mappings":
-            case "synthetics":
-            case "synthetics-settings":
-            case "synthetics-mappings":
-            case ".snapshot-blob-cache":
-            case "ilm-history":
-            case "logstash-index-template":
-            case "security-index-template":
-            case "data-streams-mappings":
-                return true;
-            default:
-                return false;
-        }
+        return switch (name) {
+            // tag::noformat
+            case ".watches", "security_audit_log", ".slm-history", ".async-search", "saml-service-provider", "logs", "logs-settings",
+                 "logs-mappings", "metrics", "metrics-settings", "metrics-mappings", "synthetics", "synthetics-settings",
+                 "synthetics-mappings", ".snapshot-blob-cache", "ilm-history", "logstash-index-template", "security-index-template",
+                 "data-streams-mappings" -> true;
+            // end::noformat
+            default -> false;
+        };
     }
 
     public void flush(String index, boolean force) throws IOException {

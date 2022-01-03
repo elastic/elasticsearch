@@ -1130,22 +1130,26 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     ) {
                         final TransportRequestOptions.Type chanType = options.type();
                         switch (action) {
-                            case JoinHelper.JOIN_ACTION_NAME:
-                            case FollowersChecker.FOLLOWER_CHECK_ACTION_NAME:
-                            case LeaderChecker.LEADER_CHECK_ACTION_NAME:
-                                assertThat(action, chanType, equalTo(TransportRequestOptions.Type.PING));
-                                break;
-                            case JoinHelper.JOIN_VALIDATE_ACTION_NAME:
-                            case PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME:
-                            case PublicationTransportHandler.COMMIT_STATE_ACTION_NAME:
-                                assertThat(action, chanType, equalTo(TransportRequestOptions.Type.STATE));
-                                break;
-                            case JoinHelper.JOIN_PING_ACTION_NAME:
-                                assertThat(action, chanType, oneOf(TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.PING));
-                                break;
-                            default:
-                                assertThat(action, chanType, equalTo(TransportRequestOptions.Type.REG));
-                                break;
+                            // tag::noformat
+                            case JoinHelper.JOIN_ACTION_NAME, FollowersChecker.FOLLOWER_CHECK_ACTION_NAME,
+                                 LeaderChecker.LEADER_CHECK_ACTION_NAME -> assertThat(
+                                action,
+                                chanType,
+                                equalTo(TransportRequestOptions.Type.PING)
+                            );
+                            case JoinHelper.JOIN_VALIDATE_ACTION_NAME, PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
+                                 PublicationTransportHandler.COMMIT_STATE_ACTION_NAME -> assertThat(
+                                action,
+                                chanType,
+                                equalTo(TransportRequestOptions.Type.STATE)
+                            );
+                            // end::noformat
+                            case JoinHelper.JOIN_PING_ACTION_NAME -> assertThat(
+                                action,
+                                chanType,
+                                oneOf(TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.PING)
+                            );
+                            default -> assertThat(action, chanType, equalTo(TransportRequestOptions.Type.REG));
                         }
 
                         super.onSendRequest(requestId, action, request, options, destinationTransport);
@@ -1649,8 +1653,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             this.threadPool = threadPool;
             addStateApplier(event -> {
                 switch (clusterStateApplyResponse) {
-                    case SUCCEED:
-                    case HANG:
+                    case SUCCEED, HANG -> {
                         final ClusterState oldClusterState = event.previousState();
                         final ClusterState newClusterState = event.state();
                         assert oldClusterState.version() <= newClusterState.version()
@@ -1658,9 +1661,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                                 + oldClusterState.version()
                                 + " to stale version "
                                 + newClusterState.version();
-                        break;
-                    case FAIL:
-                        throw new ElasticsearchException("simulated cluster state applier failure");
+                    }
+                    case FAIL -> throw new ElasticsearchException("simulated cluster state applier failure");
                 }
             });
         }

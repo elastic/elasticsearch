@@ -43,16 +43,12 @@ public class PreBuiltCacheFactory {
     private PreBuiltCacheFactory() {}
 
     public static <T> PreBuiltCache<T> getCache(CachingStrategy cachingStrategy) {
-        switch (cachingStrategy) {
-            case ONE:
-                return new PreBuiltCacheStrategyOne<>();
-            case LUCENE:
-                return new PreBuiltCacheStrategyLucene<>();
-            case ELASTICSEARCH:
-                return new PreBuiltCacheStrategyElasticsearch<>();
-            default:
-                throw new ElasticsearchException("No action configured for caching strategy[" + cachingStrategy + "]");
-        }
+        return switch (cachingStrategy) {
+            case ONE -> new PreBuiltCacheStrategyOne<>();
+            case LUCENE -> new PreBuiltCacheStrategyLucene<>();
+            case ELASTICSEARCH -> new PreBuiltCacheStrategyElasticsearch<>();
+            default -> throw new ElasticsearchException("No action configured for caching strategy[" + cachingStrategy + "]");
+        };
     }
 
     /**

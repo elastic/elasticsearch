@@ -362,15 +362,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
             return null;
         };
         switch (currentClusterScope) {
-            case SUITE:
+            case SUITE -> {
                 assert SUITE_SEED != null : "Suite seed was not initialized";
                 currentCluster = buildAndPutCluster(currentClusterScope, SUITE_SEED);
                 RandomizedContext.current().runWithPrivateRandomness(SUITE_SEED, setup);
-                break;
-            case TEST:
+            }
+            case TEST -> {
                 currentCluster = buildAndPutCluster(currentClusterScope, randomLong());
                 setup.call();
-                break;
+            }
         }
 
     }
@@ -461,12 +461,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
             );
         }
         switch (random.nextInt(4)) {
-            case 3:
+            case 3 -> {
                 final int maxThreadCount = RandomNumbers.randomIntBetween(random, 1, 4);
                 final int maxMergeCount = RandomNumbers.randomIntBetween(random, maxThreadCount, maxThreadCount + 4);
                 builder.put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount);
                 builder.put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount);
-                break;
+            }
         }
 
         return builder;
@@ -1924,17 +1924,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
             return buildExternalCluster(clusterAddresses, clusterName);
         }
 
-        final String nodePrefix;
-        switch (scope) {
-            case TEST:
-                nodePrefix = TEST_CLUSTER_NODE_PREFIX;
-                break;
-            case SUITE:
-                nodePrefix = SUITE_CLUSTER_NODE_PREFIX;
-                break;
-            default:
-                throw new ElasticsearchException("Scope not supported: " + scope);
-        }
+        final String nodePrefix = switch (scope) {
+            case TEST -> TEST_CLUSTER_NODE_PREFIX;
+            case SUITE -> SUITE_CLUSTER_NODE_PREFIX;
+            default -> throw new ElasticsearchException("Scope not supported: " + scope);
+        };
 
         boolean supportsDedicatedMasters = getSupportsDedicatedMasters();
         int numDataNodes = getNumDataNodes();

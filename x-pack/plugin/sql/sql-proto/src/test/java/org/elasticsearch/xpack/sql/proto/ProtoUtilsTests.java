@@ -40,20 +40,11 @@ public class ProtoUtilsTests extends ESTestCase {
             parser.nextToken();
             Object val = ProtoUtils.parseFieldsValue(parser);
             switch (fieldName) {
-                case "int":
-                    assertEquals(42, val);
-                    break;
-                case "double":
-                    assertEquals(42.5, val);
-                    break;
-                case "string":
-                    assertEquals("foobar", val);
-                    break;
-                case "null":
-                    assertNull(val);
-                    break;
-                default:
-                    fail("Unexpected value " + fieldName);
+                case "int" -> assertEquals(42, val);
+                case "double" -> assertEquals(42.5, val);
+                case "string" -> assertEquals("foobar", val);
+                case "null" -> assertNull(val);
+                default -> fail("Unexpected value " + fieldName);
             }
         }
         assertNull(parser.nextToken());

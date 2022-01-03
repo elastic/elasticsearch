@@ -193,14 +193,11 @@ public class ScriptTransformTests extends ESTestCase {
     }
 
     static String scriptTypeField(ScriptType type) {
-        switch (type) {
-            case INLINE:
-                return "source";
-            case STORED:
-                return "id";
-            default:
-                throw illegalArgument("unsupported script type [{}]", type);
-        }
+        return switch (type) {
+            case INLINE -> "source";
+            case STORED -> "id";
+            default -> throw illegalArgument("unsupported script type [{}]", type);
+        };
     }
 
     public static ScriptService createScriptService() throws Exception {

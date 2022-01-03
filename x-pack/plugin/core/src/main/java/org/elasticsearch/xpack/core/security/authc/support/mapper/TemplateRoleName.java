@@ -90,14 +90,11 @@ public class TemplateRoleName implements ToXContentObject, Writeable {
     public List<String> getRoleNames(ScriptService scriptService, ExpressionModel model) {
         try {
             final String evaluation = parseTemplate(scriptService, model.asMap());
-            switch (format) {
-                case STRING:
-                    return Collections.singletonList(evaluation);
-                case JSON:
-                    return convertJsonToList(evaluation);
-                default:
-                    throw new IllegalStateException("Unsupported format [" + format + "]");
-            }
+            return switch (format) {
+                case STRING -> Collections.singletonList(evaluation);
+                case JSON -> convertJsonToList(evaluation);
+                default -> throw new IllegalStateException("Unsupported format [" + format + "]");
+            };
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

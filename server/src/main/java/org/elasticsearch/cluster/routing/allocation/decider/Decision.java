@@ -64,14 +64,11 @@ public abstract class Decision implements ToXContent, Writeable {
             final String label = in.readOptionalString();
             final String explanation = in.readOptionalString();
             if (label == null && explanation == null) {
-                switch (type) {
-                    case YES:
-                        return YES;
-                    case THROTTLE:
-                        return THROTTLE;
-                    case NO:
-                        return NO;
-                }
+                return switch (type) {
+                    case YES -> YES;
+                    case THROTTLE -> THROTTLE;
+                    case NO -> NO;
+                };
             }
             return new Single(type, label, explanation);
         }
@@ -94,16 +91,12 @@ public abstract class Decision implements ToXContent, Writeable {
 
         public static Type readFrom(StreamInput in) throws IOException {
             int i = in.readVInt();
-            switch (i) {
-                case 0:
-                    return NO;
-                case 1:
-                    return YES;
-                case 2:
-                    return THROTTLE;
-                default:
-                    throw new IllegalArgumentException("No Type for integer [" + i + "]");
-            }
+            return switch (i) {
+                case 0 -> NO;
+                case 1 -> YES;
+                case 2 -> THROTTLE;
+                default -> throw new IllegalArgumentException("No Type for integer [" + i + "]");
+            };
         }
 
         @Override

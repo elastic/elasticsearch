@@ -96,14 +96,11 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
     @Override
     protected Comparator<Option> sortComparator() {
-        switch (sort) {
-            case SCORE:
-                return SCORE;
-            case FREQUENCY:
-                return FREQUENCY;
-            default:
-                throw new ElasticsearchException("Could not resolve comparator for sort key: [" + sort + "]");
-        }
+        return switch (sort) {
+            case SCORE -> SCORE;
+            case FREQUENCY -> FREQUENCY;
+            default -> throw new ElasticsearchException("Could not resolve comparator for sort key: [" + sort + "]");
+        };
     }
 
     @Override

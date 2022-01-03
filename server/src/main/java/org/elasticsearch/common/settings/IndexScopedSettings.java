@@ -214,22 +214,16 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
     @Override
     public boolean isPrivateSetting(String key) {
-        switch (key) {
-            case IndexMetadata.SETTING_CREATION_DATE:
-            case IndexMetadata.SETTING_INDEX_UUID:
-            case IndexMetadata.SETTING_HISTORY_UUID:
-            case IndexMetadata.SETTING_VERSION_UPGRADED:
-            case IndexMetadata.SETTING_INDEX_PROVIDED_NAME:
-            case MergePolicyConfig.INDEX_MERGE_ENABLED:
+        return switch (key) {
+            // tag::noformat
+            case IndexMetadata.SETTING_CREATION_DATE, IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.SETTING_HISTORY_UUID,
+                 IndexMetadata.SETTING_VERSION_UPGRADED, IndexMetadata.SETTING_INDEX_PROVIDED_NAME, MergePolicyConfig.INDEX_MERGE_ENABLED,
                 // we keep the shrink settings for BWC - this can be removed in 8.0
                 // we can't remove in 7 since this setting might be baked into an index coming in via a full cluster restart from 6.0
-            case "index.shrink.source.uuid":
-            case "index.shrink.source.name":
-            case IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY:
-            case IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY:
-                return true;
-            default:
-                return IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
-        }
+                "index.shrink.source.uuid", "index.shrink.source.name",
+                IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY -> true;
+            // end::noformat
+            default -> IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
+        };
     }
 }

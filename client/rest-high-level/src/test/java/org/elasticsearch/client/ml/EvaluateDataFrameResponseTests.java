@@ -33,37 +33,29 @@ public class EvaluateDataFrameResponseTests extends AbstractXContentTestCase<Eva
 
     public static EvaluateDataFrameResponse randomResponse() {
         String evaluationName = randomFrom(OutlierDetection.NAME, Classification.NAME, Regression.NAME);
-        List<EvaluationMetric.Result> metrics;
-        switch (evaluationName) {
-            case OutlierDetection.NAME:
-                metrics = randomSubsetOf(
-                    Arrays.asList(
-                        AucRocResultTests.randomResult(),
-                        PrecisionMetricResultTests.randomResult(),
-                        RecallMetricResultTests.randomResult(),
-                        ConfusionMatrixMetricResultTests.randomResult()
-                    )
-                );
-                break;
-            case Regression.NAME:
-                metrics = randomSubsetOf(
-                    Arrays.asList(MeanSquaredErrorMetricResultTests.randomResult(), RSquaredMetricResultTests.randomResult())
-                );
-                break;
-            case Classification.NAME:
-                metrics = randomSubsetOf(
-                    Arrays.asList(
-                        AucRocResultTests.randomResult(),
-                        AccuracyMetricResultTests.randomResult(),
-                        org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetricResultTests.randomResult(),
-                        org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetricResultTests.randomResult(),
-                        MulticlassConfusionMatrixMetricResultTests.randomResult()
-                    )
-                );
-                break;
-            default:
-                throw new AssertionError("Please add missing \"case\" variant to the \"switch\" statement");
-        }
+        List<EvaluationMetric.Result> metrics = switch (evaluationName) {
+            case OutlierDetection.NAME -> randomSubsetOf(
+                Arrays.asList(
+                    AucRocResultTests.randomResult(),
+                    PrecisionMetricResultTests.randomResult(),
+                    RecallMetricResultTests.randomResult(),
+                    ConfusionMatrixMetricResultTests.randomResult()
+                )
+            );
+            case Regression.NAME -> randomSubsetOf(
+                Arrays.asList(MeanSquaredErrorMetricResultTests.randomResult(), RSquaredMetricResultTests.randomResult())
+            );
+            case Classification.NAME -> randomSubsetOf(
+                Arrays.asList(
+                    AucRocResultTests.randomResult(),
+                    AccuracyMetricResultTests.randomResult(),
+                    org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetricResultTests.randomResult(),
+                    org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetricResultTests.randomResult(),
+                    MulticlassConfusionMatrixMetricResultTests.randomResult()
+                )
+            );
+            default -> throw new AssertionError("Please add missing \"case\" variant to the \"switch\" statement");
+        };
         return new EvaluateDataFrameResponse(evaluationName, metrics);
     }
 

@@ -436,14 +436,10 @@ public final class LdapUtils {
      * purposes of this method.
      */
     private static boolean isSuccess(SearchResult searchResult) {
-        switch (searchResult.getResultCode().intValue()) {
-            case ResultCode.SUCCESS_INT_VALUE:
-            case ResultCode.COMPARE_FALSE_INT_VALUE:
-            case ResultCode.COMPARE_TRUE_INT_VALUE:
-                return true;
-            default:
-                return false;
-        }
+        return switch (searchResult.getResultCode().intValue()) {
+            case ResultCode.SUCCESS_INT_VALUE, ResultCode.COMPARE_FALSE_INT_VALUE, ResultCode.COMPARE_TRUE_INT_VALUE -> true;
+            default -> false;
+        };
     }
 
     private static SearchResult emptyResult(SearchResult parentResult) {

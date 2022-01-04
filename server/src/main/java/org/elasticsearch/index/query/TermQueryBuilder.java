@@ -124,7 +124,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
                                 throw new ParsingException(
                                     parser.getTokenLocation(),
                                     "[term] query does not support arrays for value - use a bool query with multiple term "
-                                    + "clauses in the should section or use a Terms query if scoring is not required"
+                                        + "clauses in the should section or use a Terms query if scoring is not required"
                                 );
                             }
                             value = maybeConvertToBytesRef(parser.objectBytes());

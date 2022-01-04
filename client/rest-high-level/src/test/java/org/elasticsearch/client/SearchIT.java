@@ -150,7 +150,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             Request doc2 = new Request(HttpPut.METHOD_NAME, "/index1/_doc/2");
             doc2.setJsonEntity("""
                 {"id":2, "field":"value2"}""");
-            addDoc(doc1);
+            addDoc(doc2);
         }
 
         {

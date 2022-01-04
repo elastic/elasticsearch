@@ -62,6 +62,7 @@ import java.io.LineNumberReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -1207,11 +1208,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                         throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
                     }
                 } else {
-                    // Ignore these files that are sometimes let behind by the JVM
-                    if (relativeDestination.toFile().getName().startsWith(".attach_pid")) {
-                        return;
-                    }
-
                     try {
                         Files.createDirectories(destination.getParent());
                     } catch (IOException e) {
@@ -1220,6 +1216,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     syncMethod.accept(destination, source);
                 }
             });
+        } catch (NoSuchFileException e) {
+            // Ignore these files that are sometimes left behind by the JVM
+            if (e.getFile() == null || e.getFile().contains(".attach_pid") == false) {
+                throw new UncheckedIOException(e);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("Can't walk source " + sourceRoot, e);
         }

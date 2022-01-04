@@ -19,6 +19,8 @@
  */
 package org.elasticsearch.xpack.lucene.bwc.codecs.lucene54;
 
+import org.apache.lucene.backward_codecs.packed.LegacyDirectMonotonicReader;
+import org.apache.lucene.backward_codecs.packed.LegacyDirectReader;
 import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesProducer;
@@ -47,8 +49,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.packed.DirectMonotonicReader;
-import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.MonotonicBlockPackedReader;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.xpack.lucene.bwc.codecs.index.LegacyBinaryDocValues;
@@ -85,7 +85,7 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
     // memory-resident structures
     private final Map<String, MonotonicBlockPackedReader> addressInstances = new HashMap<>();
     private final Map<String, ReverseTermsIndex> reverseIndexInstances = new HashMap<>();
-    private final Map<String, DirectMonotonicReader.Meta> directAddressesMeta = new HashMap<>();
+    private final Map<String, LegacyDirectMonotonicReader.Meta> directAddressesMeta = new HashMap<>();
 
     private final boolean merging;
 
@@ -334,7 +334,7 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
             // sparse bits need a bit more metadata
             entry.numDocsWithValue = meta.readVLong();
             final int blockShift = meta.readVInt();
-            entry.monotonicMeta = DirectMonotonicReader.loadMeta(meta, entry.numDocsWithValue, blockShift);
+            entry.monotonicMeta = LegacyDirectMonotonicReader.loadMeta(meta, entry.numDocsWithValue, blockShift);
             ramBytesUsed.addAndGet(entry.monotonicMeta.ramBytesUsed());
             directAddressesMeta.put(info.name, entry.monotonicMeta);
         }
@@ -374,7 +374,7 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
                 break;
             case Lucene54DocValuesFormat.MONOTONIC_COMPRESSED:
                 final int blockShift = meta.readVInt();
-                entry.monotonicMeta = DirectMonotonicReader.loadMeta(meta, maxDoc + 1, blockShift);
+                entry.monotonicMeta = LegacyDirectMonotonicReader.loadMeta(meta, maxDoc + 1, blockShift);
                 ramBytesUsed.addAndGet(entry.monotonicMeta.ramBytesUsed());
                 directAddressesMeta.put(info.name, entry.monotonicMeta);
                 break;
@@ -429,7 +429,7 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
             case Lucene54DocValuesFormat.BINARY_VARIABLE_UNCOMPRESSED:
                 entry.addressesOffset = meta.readLong();
                 final int blockShift = meta.readVInt();
-                entry.addressesMeta = DirectMonotonicReader.loadMeta(meta, entry.count + 1, blockShift);
+                entry.addressesMeta = LegacyDirectMonotonicReader.loadMeta(meta, entry.count + 1, blockShift);
                 ramBytesUsed.addAndGet(entry.addressesMeta.ramBytesUsed());
                 directAddressesMeta.put(info.name, entry.addressesMeta);
                 entry.addressesEndOffset = meta.readLong();
@@ -611,7 +611,7 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
             case Lucene54DocValuesFormat.DELTA_COMPRESSED: {
                 RandomAccessInput slice = this.data.randomAccessSlice(entry.offset, entry.endOffset - entry.offset);
                 final long delta = entry.minValue;
-                final LongValues values = DirectReader.getInstance(slice, entry.bitsPerValue, 0);
+                final LongValues values = LegacyDirectReader.getInstance(slice, entry.bitsPerValue, 0);
                 return new LongValues() {
                     @Override
                     public long get(long id) {
@@ -623,7 +623,7 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
                 RandomAccessInput slice = this.data.randomAccessSlice(entry.offset, entry.endOffset - entry.offset);
                 final long min = entry.minValue;
                 final long mult = entry.gcd;
-                final LongValues quotientReader = DirectReader.getInstance(slice, entry.bitsPerValue, 0);
+                final LongValues quotientReader = LegacyDirectReader.getInstance(slice, entry.bitsPerValue, 0);
                 return new LongValues() {
                     @Override
                     public long get(long id) {
@@ -634,7 +634,7 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
             case Lucene54DocValuesFormat.TABLE_COMPRESSED: {
                 RandomAccessInput slice = this.data.randomAccessSlice(entry.offset, entry.endOffset - entry.offset);
                 final long table[] = entry.table;
-                final LongValues ords = DirectReader.getInstance(slice, entry.bitsPerValue, 0);
+                final LongValues ords = LegacyDirectReader.getInstance(slice, entry.bitsPerValue, 0);
                 return new LongValues() {
                     @Override
                     public long get(long id) {
@@ -837,7 +837,7 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
             bytes.addressesOffset,
             bytes.addressesEndOffset - bytes.addressesOffset
         );
-        final LongValues addresses = DirectMonotonicReader.getInstance(bytes.addressesMeta, addressesData);
+        final LongValues addresses = LegacyDirectMonotonicReader.getInstance(bytes.addressesMeta, addressesData);
 
         final IndexInput data = this.data.slice("var-binary", bytes.offset, bytes.addressesOffset - bytes.offset);
         final BytesRef term = new BytesRef(Math.max(0, bytes.maxLength));
@@ -1044,7 +1044,7 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
     /** returns an address instance for sortedset ordinal lists */
     private LongValues getOrdIndexInstance(FieldInfo field, NumericEntry entry) throws IOException {
         RandomAccessInput data = this.data.randomAccessSlice(entry.offset, entry.endOffset - entry.offset);
-        return DirectMonotonicReader.getInstance(entry.monotonicMeta, data);
+        return LegacyDirectMonotonicReader.getInstance(entry.monotonicMeta, data);
     }
 
     @Override
@@ -1463,7 +1463,7 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
 
     private SparseNumericDocValues getSparseNumericDocValues(NumericEntry entry) throws IOException {
         final RandomAccessInput docIdsData = this.data.randomAccessSlice(entry.missingOffset, entry.offset - entry.missingOffset);
-        final LongValues docIDs = DirectMonotonicReader.getInstance(entry.monotonicMeta, docIdsData);
+        final LongValues docIDs = LegacyDirectMonotonicReader.getInstance(entry.monotonicMeta, docIdsData);
         final LongValues values = getNumeric(entry.nonMissingValues); // cannot be sparse
         return new SparseNumericDocValues(Math.toIntExact(entry.numDocsWithValue), docIDs, values);
     }
@@ -1496,7 +1496,7 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
         public long count;
 
         /** monotonic meta */
-        public DirectMonotonicReader.Meta monotonicMeta;
+        public LegacyDirectMonotonicReader.Meta monotonicMeta;
 
         long minValue;
         long gcd;
@@ -1525,7 +1525,7 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
         /** offset to the addressing data that maps a value to its slice of the byte[] */
         public long addressesOffset, addressesEndOffset;
         /** meta data for addresses */
-        public DirectMonotonicReader.Meta addressesMeta;
+        public LegacyDirectMonotonicReader.Meta addressesMeta;
         /** offset to the reverse index */
         public long reverseIndexOffset;
         /** packed ints version used to encode addressing information */

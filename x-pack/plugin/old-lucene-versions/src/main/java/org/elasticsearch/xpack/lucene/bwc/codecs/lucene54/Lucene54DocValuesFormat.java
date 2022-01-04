@@ -41,7 +41,7 @@ public final class Lucene54DocValuesFormat extends DocValuesFormat {
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        throw new UnsupportedOperationException();
+        return new Lucene54DocValuesConsumer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
     }
 
     @Override

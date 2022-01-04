@@ -1,9 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.proto.xcontent;
@@ -70,11 +69,7 @@ public class XContentBuilder implements Closeable, Flushable {
      * @throws IOException if an {@link IOException} occurs while building the content
      */
     public static XContentBuilder builder(XContent xContent, RestApiVersion restApiVersion) throws IOException {
-        return new XContentBuilder(
-            xContent,
-            new ByteArrayOutputStream(),
-            restApiVersion
-        );
+        return new XContentBuilder(xContent, new ByteArrayOutputStream(), restApiVersion);
     }
 
     /**
@@ -88,11 +83,7 @@ public class XContentBuilder implements Closeable, Flushable {
      * @throws IOException if an {@link IOException} occurs while building the content
      */
     public static XContentBuilder builder(XContentType xContentType) throws IOException {
-        return new XContentBuilder(
-            xContentType.xContent(),
-            new ByteArrayOutputStream(),
-            RestApiVersion.current()
-        );
+        return new XContentBuilder(xContentType.xContent(), new ByteArrayOutputStream(), RestApiVersion.current());
     }
 
     private static final Map<Class<?>, Writer> WRITERS;
@@ -161,7 +152,6 @@ public class XContentBuilder implements Closeable, Flushable {
 
     private final RestApiVersion restApiVersion;
 
-
     /**
      * When this flag is set to true, some types of values are written in a format easier to read for a human.
      */
@@ -190,11 +180,7 @@ public class XContentBuilder implements Closeable, Flushable {
      * <p>
      * Make sure to call {@link #close()} when the builder is done with.
      */
-    public XContentBuilder(
-        XContent xContent,
-        OutputStream os,
-        RestApiVersion restApiVersion
-    ) throws IOException {
+    public XContentBuilder(XContent xContent, OutputStream os, RestApiVersion restApiVersion) throws IOException {
         this.bos = os;
         this.generator = xContent.createGenerator(bos);
         this.restApiVersion = restApiVersion;

@@ -71,10 +71,22 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         };
     }
 
-    @SuppressWarnings("removal")
     public void testOldRepoAccess() throws IOException {
+        runTest(false);
+    }
+
+    public void testOldSourceOnlyRepoAccess() throws IOException {
+        runTest(true);
+    }
+
+    @SuppressWarnings("removal")
+    public void runTest(boolean sourceOnlyRepository) throws IOException {
         String repoLocation = System.getProperty("tests.repo.location");
         Version oldVersion = Version.fromString(System.getProperty("tests.es.version"));
+        assumeTrue(
+            "source only repositories only supported since ES 6.5.0",
+            sourceOnlyRepository == false || oldVersion.onOrAfter(Version.fromString("6.5.0"))
+        );
 
         int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
         int numDocs = 5;
@@ -102,7 +114,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
                 // register repo on old ES and take snapshot
                 Request createRepoRequest = new Request("PUT", "/_snapshot/testrepo");
-                createRepoRequest.setJsonEntity("""
+                createRepoRequest.setJsonEntity(sourceOnlyRepository ? """
+                    {"type":"source","settings":{"location":"%s", "delegate_type":"fs"}}
+                    """ : """
                     {"type":"fs","settings":{"location":"%s"}}
                     """.formatted(repoLocation));
                 oldEs.performRequest(createRepoRequest);
@@ -114,13 +128,16 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
                 // register repo on new ES
                 Settings.Builder repoSettingsBuilder = Settings.builder().put("location", repoLocation);
+                if (sourceOnlyRepository) {
+                    repoSettingsBuilder.put("delegate_type", "fs");
+                }
                 if (Build.CURRENT.isSnapshot()) {
                     repoSettingsBuilder.put("allow_bwc_indices", true);
                 }
                 ElasticsearchAssertions.assertAcked(
                     client.snapshot()
                         .createRepository(
-                            new PutRepositoryRequest("testrepo").type("fs").settings(repoSettingsBuilder),
+                            new PutRepositoryRequest("testrepo").type(sourceOnlyRepository ? "source" : "fs").settings(repoSettingsBuilder),
                             RequestOptions.DEFAULT
                         )
                 );

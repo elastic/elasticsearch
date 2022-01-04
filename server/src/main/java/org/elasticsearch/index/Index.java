@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -19,7 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * A value class representing the basic required properties of an Elasticsearch index.
@@ -39,16 +39,15 @@ public class Index implements Writeable, ToXContentObject {
     private final String uuid;
 
     public Index(String name, String uuid) {
-        this.name = Objects.requireNonNull(name);
-        this.uuid = Objects.requireNonNull(uuid);
+        this.name = Settings.internKeyOrValue(name);
+        this.uuid = Settings.internKeyOrValue(uuid);
     }
 
     /**
      * Read from a stream.
      */
     public Index(StreamInput in) throws IOException {
-        this.name = in.readString();
-        this.uuid = in.readString();
+        this(in.readString(), in.readString());
     }
 
     public String getName() {

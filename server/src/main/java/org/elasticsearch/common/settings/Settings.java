@@ -1485,7 +1485,7 @@ public final class Settings implements ToXContentFragment {
      * @param s string to intern
      * @return interned string
      */
-    static String internKeyOrValue(String s) {
+    public static String internKeyOrValue(String s) {
         return settingLiteralDeduplicator.deduplicate(s);
     }
 }

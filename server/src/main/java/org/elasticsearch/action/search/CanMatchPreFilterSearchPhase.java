@@ -165,16 +165,14 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
                 timeProvider.getAbsoluteStartMillis(),
                 searchShardIterator.getClusterAlias()
             );
-            final ShardSearchRequest shardSearchRequest = canMatchNodeRequest.createShardSearchRequest(
-                buildShardLevelRequest(searchShardIterator)
-            );
+            final ShardSearchRequest request = canMatchNodeRequest.createShardSearchRequest(buildShardLevelRequest(searchShardIterator));
             boolean canMatch = true;
             CoordinatorRewriteContext coordinatorRewriteContext = coordinatorRewriteContextProvider.getCoordinatorRewriteContext(
-                shardSearchRequest.shardId().getIndex()
+                request.shardId().getIndex()
             );
             if (coordinatorRewriteContext != null) {
                 try {
-                    canMatch = SearchService.queryStillMatchesAfterRewrite(shardSearchRequest, coordinatorRewriteContext);
+                    canMatch = SearchService.queryStillMatchesAfterRewrite(request, coordinatorRewriteContext);
                 } catch (Exception e) {
                     // treat as if shard is still a potential match
                 }
@@ -183,7 +181,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
                 matchedShardLevelRequests.add(searchShardIterator);
             } else {
                 CanMatchShardResponse result = new CanMatchShardResponse(canMatch, null);
-                result.setShardIndex(shardSearchRequest.shardRequestIndex());
+                result.setShardIndex(request.shardRequestIndex());
                 results.consumeResult(result, () -> {});
             }
         }
@@ -400,7 +398,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
 
     private void finishPhase() {
         try {
-            phaseFactory.apply(getIterator()).start();
+            phaseFactory.apply(getIterator(results, shardsIts)).start();
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
                 logger.debug(new ParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);
@@ -428,8 +426,8 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         );
     }
 
-    private boolean checkMinimumVersion(GroupShardsIterator<SearchShardIterator> shardIterators) {
-        for (SearchShardIterator it : shardIterators) {
+    private boolean checkMinimumVersion(GroupShardsIterator<SearchShardIterator> shardsIts) {
+        for (SearchShardIterator it : shardsIts) {
             if (it.getTargetNodeIds().isEmpty() == false) {
                 boolean isCompatible = it.getTargetNodeIds().stream().anyMatch(nodeId -> {
                     Transport.Connection conn = getConnection(new SendingTarget(it.getClusterAlias(), nodeId));
@@ -556,7 +554,10 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         }
     }
 
-    private GroupShardsIterator<SearchShardIterator> getIterator() {
+    private GroupShardsIterator<SearchShardIterator> getIterator(
+        CanMatchSearchPhaseResults results,
+        GroupShardsIterator<SearchShardIterator> shardsIts
+    ) {
         int cardinality = results.getNumPossibleMatches();
         FixedBitSet possibleMatches = results.getPossibleMatches();
         if (cardinality == 0) {

@@ -37,7 +37,7 @@ import javax.sql.rowset.serial.SerialException;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.client.UriUtils.appendSegmentToPath;
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_QUERY_REST_ENDPOINT;
 
 /**
  * Low-level http client using the built-in {@link HttpURLConnection}.

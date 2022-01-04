@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -223,7 +223,7 @@ public class BulkProcessor implements Closeable {
      * @param listener The BulkProcessor listener that gets called on bulk events
      * @return the builder for BulkProcessor
      * @deprecated Use {@link #builder(BiConsumer, Listener, String)}
-     * with client::bulk as the first argument, or {@link #builder(org.elasticsearch.client.Client,
+     * with client::bulk as the first argument, or {@link #builder(org.elasticsearch.client.internal.Client,
      * org.elasticsearch.action.bulk.BulkProcessor.Listener, org.elasticsearch.threadpool.Scheduler,
      * org.elasticsearch.threadpool.Scheduler, java.lang.Runnable)} and manage the flush and retry schedulers explicitly
      */
@@ -516,9 +516,9 @@ public class BulkProcessor implements Closeable {
         if (isOverTheLimit() == false) {
             return null;
         }
-        final BulkRequest currentBulkRequest = this.bulkRequest;
+        final BulkRequest bulkRequest = this.bulkRequest;
         this.bulkRequest = bulkRequestSupplier.get();
-        return new Tuple<>(currentBulkRequest, executionIdGen.incrementAndGet());
+        return new Tuple<>(bulkRequest, executionIdGen.incrementAndGet());
     }
 
     // may be executed without a lock
@@ -529,11 +529,11 @@ public class BulkProcessor implements Closeable {
     // needs to be executed under a lock
     private void execute() {
         if (flushSupplier.get()) {
-            final BulkRequest currentBulkRequest = this.bulkRequest;
+            final BulkRequest bulkRequest = this.bulkRequest;
             final long executionId = executionIdGen.incrementAndGet();
 
             this.bulkRequest = bulkRequestSupplier.get();
-            execute(currentBulkRequest, executionId);
+            execute(bulkRequest, executionId);
         }
     }
 

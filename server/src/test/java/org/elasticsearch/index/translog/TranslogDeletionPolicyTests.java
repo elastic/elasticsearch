@@ -91,7 +91,8 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
                 randomNonNegativeLong(),
                 new TragicExceptionHolder(),
                 seqNo -> {},
-                BigArrays.NON_RECYCLING_INSTANCE
+                BigArrays.NON_RECYCLING_INSTANCE,
+                TranslogTests.RANDOMIZING_IO_BUFFERS
             );
             writer = Mockito.spy(writer);
             byte[] bytes = new byte[4];

@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 

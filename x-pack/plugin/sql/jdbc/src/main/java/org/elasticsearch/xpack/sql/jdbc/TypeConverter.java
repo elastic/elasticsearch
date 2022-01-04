@@ -6,11 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.geometry.utils.StandardValidator;
-import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.Date;
@@ -18,7 +15,6 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.text.ParseException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -259,11 +255,7 @@ final class TypeConverter {
             case GEO_POINT:
             case GEO_SHAPE:
             case SHAPE:
-                try {
-                    return WellKnownText.fromWKT(StandardValidator.instance(true), true, v.toString());
-                } catch (IOException | ParseException ex) {
-                    throw new SQLException("Cannot parse geo_shape", ex);
-                }
+                return v.toString();
             case IP:
                 return v.toString();
             default:

@@ -103,12 +103,9 @@ if [ "$REMOVE_DIRS" = "true" ]; then
 
     # delete the security auto config directory if we are purging
     if [ "$REMOVE_SECURITY_AUTO_CONFIG_DIRECTORY" = "true" ]; then
-      for dir in "${ES_PATH_CONF}"/tls_auto_config_*
-      do
-        echo -n "Deleting security auto-configuration directory..."
-        rm -rf "${dir}"
-        echo "OK"
-      done
+      echo -n "Deleting security auto-configuration directory..."
+      rm -rf "${ES_PATH_CONF}"/certs
+      echo "OK"
     fi
 
     # delete the elasticsearch keystore if we are purging

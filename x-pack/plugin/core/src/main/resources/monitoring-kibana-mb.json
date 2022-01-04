@@ -22,18 +22,6 @@
             }
           }
         },
-        "elasticsearch": {
-          "properties": {
-            "cluster": {
-              "properties": {
-                "id": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                }
-              }
-            }
-          }
-        },
         "service": {
           "properties": {
             "address": {
@@ -172,6 +160,18 @@
         },
         "kibana": {
           "properties": {
+            "elasticsearch": {
+              "properties": {
+                "cluster": {
+                  "properties": {
+                    "id": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            },
             "stats": {
               "properties": {
                 "request": {
@@ -639,7 +639,7 @@
         },
         "cluster_uuid": {
           "type": "alias",
-          "path": "elasticsearch.cluster.id"
+          "path": "kibana.elasticsearch.cluster.id"
         }
       }
     },

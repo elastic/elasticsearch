@@ -44,6 +44,7 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
@@ -284,6 +285,65 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             assertThat(allocateDef.get("include"), is(Collections.emptyMap()));
             assertThat(allocateDef.get("exclude"), is(Collections.emptyMap()));
             assertThat(allocateDef.get("require"), is(Collections.emptyMap()));
+        }
+
+        {
+            // index is in the cold phase and the migrated allocate action is not removed due to allocate specifying
+            // total_shards_per_node
+            LifecyclePolicyMetadata policyMetadataWithTotalShardsPerNode = getWarmColdPolicyMeta(
+                warmSetPriority,
+                shrinkAction,
+                warmAllocateAction,
+                new AllocateAction(null, 1, null, null, org.elasticsearch.core.Map.of("data", "cold"))
+            );
+
+            LifecycleExecutionState preMigrationExecutionState = LifecycleExecutionState.builder()
+                .setPhase("cold")
+                .setAction("allocate")
+                .setStep("allocate")
+                .setPhaseDefinition(getColdPhaseDefinitionWithTotalShardsPerNode())
+                .build();
+
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName)
+                .settings(getBaseIndexSettings())
+                .putCustom(ILM_CUSTOM_METADATA_KEY, preMigrationExecutionState.asMap());
+
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(
+                    Metadata.builder()
+                        .putCustom(
+                            IndexLifecycleMetadata.TYPE,
+                            new IndexLifecycleMetadata(
+                                Collections.singletonMap(
+                                    policyMetadataWithTotalShardsPerNode.getName(),
+                                    policyMetadataWithTotalShardsPerNode
+                                ),
+                                OperationMode.STOPPED
+                            )
+                        )
+                        .put(indexMetadata)
+                        .build()
+                )
+                .build();
+
+            Metadata.Builder newMetadata = Metadata.builder(state.metadata());
+            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
+
+            assertThat(migratedPolicies.get(0), is(lifecycleName));
+            ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
+            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+
+            Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
+
+            // expecting the phase definition to be refreshed with the migrated phase representation
+            // ie. allocate action does not contain any allocation rules
+            Map<String, Object> actions = (Map<String, Object>) migratedPhaseDefAsMap.get("actions");
+            assertThat(actions.size(), is(1));
+            Map<String, Object> allocateDef = (Map<String, Object>) actions.get(AllocateAction.NAME);
+            assertThat(allocateDef, notNullValue());
+            assertThat(allocateDef.get("include"), is(org.elasticsearch.core.Map.of()));
+            assertThat(allocateDef.get("exclude"), is(org.elasticsearch.core.Map.of()));
+            assertThat(allocateDef.get("require"), is(org.elasticsearch.core.Map.of()));
         }
 
         {
@@ -1000,6 +1060,28 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             + "        \"version\" : 1,\n"
             + "        \"modified_date_in_millis\" : 1578521007076\n"
             + "      }";
+    }
+
+    private String getColdPhaseDefinitionWithTotalShardsPerNode() {
+        return String.format(
+            Locale.ROOT,
+            "            {\n"
+                + "              \"policy\": \"%s\",\n"
+                + "              \"phase_definition\": {\n"
+                + "                \"min_age\": \"0m\",\n"
+                + "                \"actions\": {\n"
+                + "                  \"allocate\": {\n"
+                + "                    \"total_shards_per_node\": \"1\",\n"
+                + "                    \"require\": {\n"
+                + "                      \"data\": \"cold\"\n"
+                + "                    }\n"
+                + "                  }\n"
+                + "                }\n"
+                + "              },\n"
+                + "              \"version\": 1,\n"
+                + "              \"modified_date_in_millis\": 1578521007076 \n}",
+            lifecycleName
+        );
     }
 
     private String getColdPhaseDefinition() {

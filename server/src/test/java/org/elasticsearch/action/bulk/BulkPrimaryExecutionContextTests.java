@@ -63,7 +63,6 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
                 case CREATE -> new IndexRequest("index").id("id_" + i).create(true);
                 case UPDATE -> new UpdateRequest("index", "id_" + i);
                 case DELETE -> new DeleteRequest("index", "id_" + i);
-                default -> throw new AssertionError("unknown type");
             };
             items[i] = new BulkItemRequest(i, request);
         }

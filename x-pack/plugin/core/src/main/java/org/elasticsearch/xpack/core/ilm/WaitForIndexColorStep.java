@@ -97,7 +97,6 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
             case GREEN -> waitForGreen(indexRoutingTable);
             case YELLOW -> waitForYellow(indexRoutingTable);
             case RED -> waitForRed(indexRoutingTable);
-            default -> new Result(false, new Info("no index color match"));
         };
         return result;
     }

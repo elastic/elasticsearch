@@ -1002,7 +1002,6 @@ public class TranslogTests extends ESTestCase {
                             case CREATE, INDEX -> new Translog.Index("" + id, id, primaryTerm.get(), new byte[] { (byte) id });
                             case DELETE -> new Translog.Delete(Long.toString(id), id, primaryTerm.get());
                             case NO_OP -> new Translog.NoOp(id, 1, Long.toString(id));
-                            default -> throw new AssertionError("unsupported operation type [" + type + "]");
                         };
                         Translog.Location location = translog.add(op);
                         tracker.markSeqNoAsProcessed(id);
@@ -2339,7 +2338,6 @@ public class TranslogTests extends ESTestCase {
                             1 + randomInt(100000)
                         );
                         case NO_OP -> new Translog.NoOp(seqNoGenerator.getAndIncrement(), primaryTerm.get(), randomAlphaOfLength(16));
-                        default -> throw new AssertionError("unsupported operation type [" + type + "]");
                     };
 
                     Translog.Location loc = add(op);

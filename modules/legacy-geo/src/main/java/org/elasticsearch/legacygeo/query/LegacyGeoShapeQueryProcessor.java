@@ -102,7 +102,6 @@ public class LegacyGeoShapeQueryProcessor {
             case INTERSECTS -> new SpatialArgs(SpatialOperation.Intersects, buildS4J(shape));
             case WITHIN -> new SpatialArgs(SpatialOperation.IsWithin, buildS4J(shape));
             case CONTAINS -> new SpatialArgs(SpatialOperation.Contains, buildS4J(shape));
-            default -> throw new IllegalArgumentException("invalid relation [" + relation + "]");
         };
     }
 

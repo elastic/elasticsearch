@@ -87,7 +87,6 @@ public class ParsedStats extends ParsedAggregation implements Stats {
             case avg -> avg;
             case count -> count;
             case sum -> sum;
-            default -> throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
         };
     }
 

@@ -133,7 +133,6 @@ public class DirectSpellcheckerSettings {
         Comparator<SuggestWord> comparator = switch (sort()) {
             case SCORE -> SCORE_COMPARATOR;
             case FREQUENCY -> LUCENE_FREQUENCY;
-            default -> throw new IllegalArgumentException("Illegal suggest sort: " + sort());
         };
         directSpellChecker.setComparator(comparator);
         directSpellChecker.setDistance(stringDistance());

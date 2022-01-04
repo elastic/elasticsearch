@@ -41,7 +41,6 @@ public class TextStructure implements ToXContentObject, Writeable {
             return switch (this) {
                 case NDJSON, XML -> true;
                 case DELIMITED, SEMI_STRUCTURED_TEXT -> false;
-                default -> throw new IllegalStateException("enum value [" + this + "] missing from switch.");
             };
         }
 
@@ -49,7 +48,6 @@ public class TextStructure implements ToXContentObject, Writeable {
             return switch (this) {
                 case NDJSON, XML, DELIMITED -> true;
                 case SEMI_STRUCTURED_TEXT -> false;
-                default -> throw new IllegalStateException("enum value [" + this + "] missing from switch.");
             };
         }
 
@@ -57,7 +55,6 @@ public class TextStructure implements ToXContentObject, Writeable {
             return switch (this) {
                 case NDJSON, XML, DELIMITED -> false;
                 case SEMI_STRUCTURED_TEXT -> true;
-                default -> throw new IllegalStateException("enum value [" + this + "] missing from switch.");
             };
         }
 

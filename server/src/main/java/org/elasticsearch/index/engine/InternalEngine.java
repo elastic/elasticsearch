@@ -863,7 +863,6 @@ public class InternalEngine extends Engine {
                     assert index.isRetry();
                     yield true; // allow to optimize in order to update the max safe time stamp
                 }
-                default -> throw new IllegalArgumentException("unknown origin " + index.origin());
             };
         }
         return false;
@@ -2327,7 +2326,6 @@ public class InternalEngine extends Engine {
         return switch (scope) {
             case INTERNAL -> internalReaderManager;
             case EXTERNAL -> externalReaderManager;
-            default -> throw new IllegalStateException("unknown scope: " + scope);
         };
     }
 

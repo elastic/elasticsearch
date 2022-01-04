@@ -146,7 +146,6 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             case avg -> this.getAvg();
             case count -> this.count;
             case sum -> this.sum;
-            default -> throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
         };
     }
 

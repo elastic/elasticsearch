@@ -65,9 +65,6 @@ public enum TrainedModelType {
         return switch (this) {
             case TREE_ENSEMBLE, LANG_IDENT -> new IndexLocation(InferenceIndexConstants.LATEST_INDEX_NAME);
             case PYTORCH -> new IndexLocation(InferenceIndexConstants.nativeDefinitionStore());
-            default -> throw new IllegalArgumentException(
-                "can not determine appropriate location for type [" + this + " for model [" + modelId + "]"
-            );
         };
     }
 }

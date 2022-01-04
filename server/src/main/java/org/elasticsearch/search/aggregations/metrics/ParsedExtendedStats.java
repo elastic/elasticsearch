@@ -101,7 +101,6 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
             case LOWER -> stdDeviationBoundLower;
             case LOWER_POPULATION -> stdDeviationBoundLowerPopulation;
             case LOWER_SAMPLING -> stdDeviationBoundLowerSampling;
-            default -> throw new IllegalArgumentException("Unknown bounds type " + bound);
         };
     }
 
@@ -164,7 +163,6 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
                 Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_lower_sampling",
                 Double.toString(stdDeviationBoundLowerSampling)
             );
-            default -> throw new IllegalArgumentException("Unknown bounds type " + bound);
         };
     }
 

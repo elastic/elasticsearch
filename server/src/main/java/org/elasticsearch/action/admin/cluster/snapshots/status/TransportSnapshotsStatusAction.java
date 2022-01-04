@@ -224,7 +224,6 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         case FAILED, ABORTED, MISSING -> SnapshotIndexShardStage.FAILURE;
                         case INIT, WAITING, QUEUED -> SnapshotIndexShardStage.STARTED;
                         case SUCCESS -> SnapshotIndexShardStage.DONE;
-                        default -> throw new IllegalArgumentException("Unknown snapshot state " + shardEntry.getValue().state());
                     };
                     final SnapshotIndexShardStatus shardStatus;
                     if (stage == SnapshotIndexShardStage.DONE) {

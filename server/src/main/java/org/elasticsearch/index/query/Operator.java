@@ -25,7 +25,6 @@ public enum Operator implements Writeable {
         return switch (this) {
             case OR -> BooleanClause.Occur.SHOULD;
             case AND -> BooleanClause.Occur.MUST;
-            default -> throw Operator.newOperatorException(this.toString());
         };
     }
 
@@ -33,7 +32,6 @@ public enum Operator implements Writeable {
         return switch (this) {
             case OR -> QueryParser.Operator.OR;
             case AND -> QueryParser.Operator.AND;
-            default -> throw Operator.newOperatorException(this.toString());
         };
     }
 

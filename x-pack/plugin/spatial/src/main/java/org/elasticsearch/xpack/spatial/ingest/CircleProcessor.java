@@ -98,7 +98,6 @@ public final class CircleProcessor extends AbstractProcessor {
                 final Geometry polygonizedCircle = switch (circleShapeFieldType) {
                     case GEO_SHAPE -> SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
                     case SHAPE -> SpatialUtils.createRegularShapePolygon(circle, numSides);
-                    default -> throw new IllegalStateException("invalid shape_type [" + circleShapeFieldType + "]");
                 };
                 XContentBuilder newValueBuilder = XContentFactory.jsonBuilder().startObject().field("val");
                 geometryFormat.toXContent(polygonizedCircle, newValueBuilder, ToXContent.EMPTY_PARAMS);

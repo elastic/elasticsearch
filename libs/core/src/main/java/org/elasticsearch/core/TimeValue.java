@@ -326,7 +326,6 @@ public class TimeValue implements Comparable<TimeValue> {
             case MINUTES -> duration + "m";
             case HOURS -> duration + "h";
             case DAYS -> duration + "d";
-            default -> throw new IllegalArgumentException("unknown time unit: " + timeUnit.name());
         };
     }
 

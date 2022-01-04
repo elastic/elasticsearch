@@ -171,7 +171,6 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         return switch (mode) {
             case SNIFF -> new SniffConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
             case PROXY -> new ProxyConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
-            default -> throw new AssertionError("Invalid connection strategy" + mode);
         };
     }
 

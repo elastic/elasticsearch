@@ -16,7 +16,6 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
@@ -916,7 +915,6 @@ public class HttpExporter extends Exporter {
                     case CHECKING, DIRTY ->
                         // CHECKING should be unlikely, but in case of that, we mark it as not ready
                         ExporterResourceStatus.notReady(name(), TYPE, result.getReason());
-                    default -> throw new ElasticsearchException("Illegal exporter resource status state [{}]", result.getResourceState());
                 };
             }
             listener.accept(status);

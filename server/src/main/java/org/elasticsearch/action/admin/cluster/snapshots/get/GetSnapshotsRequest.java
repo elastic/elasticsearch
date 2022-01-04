@@ -458,7 +458,6 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
                 case SHARDS -> String.valueOf(snapshotInfo.totalShards());
                 case FAILED_SHARDS -> String.valueOf(snapshotInfo.failedShards());
                 case REPOSITORY -> snapshotInfo.repository();
-                default -> throw new AssertionError("unknown sort column [" + sortBy + "]");
             };
             return new After(afterValue, snapshotInfo.repository(), snapshotInfo.snapshotId().getName());
         }

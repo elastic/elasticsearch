@@ -736,7 +736,6 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 case SHARDS -> (s1, s2) -> assertThat(s2.totalShards(), greaterThanOrEqualTo(s1.totalShards()));
                 case FAILED_SHARDS -> (s1, s2) -> assertThat(s2.failedShards(), greaterThanOrEqualTo(s1.failedShards()));
                 case REPOSITORY -> (s1, s2) -> assertThat(s2.repository(), greaterThanOrEqualTo(s1.repository()));
-                default -> throw new AssertionError("unknown sort column [" + sort + "]");
             };
         }
         final BiConsumer<SnapshotInfo, SnapshotInfo> orderAssertion;

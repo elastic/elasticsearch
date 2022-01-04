@@ -395,7 +395,6 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             case IP -> new IpFieldMapper.IpFieldType(name);
             case GEOPOINT -> new GeoPointFieldMapper.GeoPointFieldType(name);
             case RANGE -> new RangeFieldMapper.RangeFieldType(name, RangeType.DOUBLE);
-            default -> throw new IllegalArgumentException("Test does not support value type [" + valueType + "]");
         };
     }
 }

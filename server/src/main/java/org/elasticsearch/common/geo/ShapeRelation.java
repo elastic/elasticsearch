@@ -59,7 +59,6 @@ public enum ShapeRelation implements Writeable {
             case DISJOINT -> QueryRelation.DISJOINT;
             case WITHIN -> QueryRelation.WITHIN;
             case CONTAINS -> QueryRelation.CONTAINS;
-            default -> throw new IllegalArgumentException("ShapeRelation [" + this + "] not supported");
         };
     }
 

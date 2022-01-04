@@ -104,7 +104,6 @@ public abstract class Component2DVisitor implements TriangleTreeReader.Visitor {
             case INTERSECTS -> new IntersectsVisitor(component2D, encoder);
             case DISJOINT -> new DisjointVisitor(component2D, encoder);
             case WITHIN -> new WithinVisitor(component2D, encoder);
-            default -> throw new IllegalArgumentException("Invalid query relation:[" + relation + "]");
         };
     }
 

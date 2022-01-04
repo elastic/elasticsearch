@@ -1110,7 +1110,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 case CREATE, INDEX -> new Index(input);
                 case DELETE -> new Delete(input);
                 case NO_OP -> new NoOp(input);
-                default -> throw new AssertionError("no case for [" + type + "]");
             };
         }
 

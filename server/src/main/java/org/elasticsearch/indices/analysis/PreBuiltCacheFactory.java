@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.indices.analysis;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 
 import java.util.Collection;
@@ -47,7 +46,6 @@ public class PreBuiltCacheFactory {
             case ONE -> new PreBuiltCacheStrategyOne<>();
             case LUCENE -> new PreBuiltCacheStrategyLucene<>();
             case ELASTICSEARCH -> new PreBuiltCacheStrategyElasticsearch<>();
-            default -> throw new ElasticsearchException("No action configured for caching strategy[" + cachingStrategy + "]");
         };
     }
 

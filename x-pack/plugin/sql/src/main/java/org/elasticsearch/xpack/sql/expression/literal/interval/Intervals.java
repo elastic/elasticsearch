@@ -88,7 +88,6 @@ public final class Intervals {
                 case MINUTE -> Duration.ZERO.plusMinutes(duration);
                 case SECOND -> Duration.ZERO.plusSeconds(duration);
                 case MILLISECOND -> Duration.ZERO.plusMillis(duration);
-                default -> throw new ParsingException(source, "Cannot parse duration [{}]", unit);
             };
         } catch (ArithmeticException ae) {
             throw new ParsingException(source, "Value [{}] cannot be used as it is too large to convert into [{}]s", duration, unit);

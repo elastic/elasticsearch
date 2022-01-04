@@ -211,7 +211,6 @@ public class License implements ToXContentObject {
                 case PLATINUM -> PLATINUM;
                 case ENTERPRISE -> ENTERPRISE;
                 case TRIAL -> TRIAL;
-                default -> throw new IllegalArgumentException("unsupported license type [" + type.getTypeName() + "]");
             };
         }
 

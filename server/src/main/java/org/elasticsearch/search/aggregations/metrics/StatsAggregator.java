@@ -132,7 +132,6 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
                 case min -> Double.POSITIVE_INFINITY;
                 case max -> Double.NEGATIVE_INFINITY;
                 case avg -> Double.NaN;
-                default -> throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
             };
         }
         return switch (InternalStats.Metrics.resolve(name)) {
@@ -141,7 +140,6 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
             case min -> mins.get(owningBucketOrd);
             case max -> maxes.get(owningBucketOrd);
             case avg -> sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
-            default -> throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
         };
     }
 

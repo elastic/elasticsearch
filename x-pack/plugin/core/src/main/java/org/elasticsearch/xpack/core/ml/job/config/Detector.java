@@ -732,7 +732,6 @@ public class Detector implements ToXContentObject, Writeable {
                 return switch (condition.getAppliesTo()) {
                     case ACTUAL, TYPICAL, DIFF_FROM_TYPICAL -> true;
                     case TIME -> false;
-                    default -> throw new IllegalStateException("Unknown applies_to value [" + condition.getAppliesTo() + "]");
                 };
             }
             return false;

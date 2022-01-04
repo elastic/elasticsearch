@@ -17,7 +17,6 @@ import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -1927,7 +1926,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final String nodePrefix = switch (scope) {
             case TEST -> TEST_CLUSTER_NODE_PREFIX;
             case SUITE -> SUITE_CLUSTER_NODE_PREFIX;
-            default -> throw new ElasticsearchException("Scope not supported: " + scope);
         };
 
         boolean supportsDedicatedMasters = getSupportsDedicatedMasters();

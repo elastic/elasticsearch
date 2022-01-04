@@ -964,7 +964,6 @@ public abstract class EngineTestCase extends ESTestCase {
                 case INTERNAL -> forReplica ? i : Versions.MATCH_ANY;
                 case EXTERNAL -> i;
                 case EXTERNAL_GTE -> randomBoolean() ? Math.max(i - 1, 0) : i;
-                default -> throw new UnsupportedOperationException("unknown version type: " + versionType);
             };
             if (randomBoolean()) {
                 op = new Engine.Index(
@@ -1201,7 +1200,6 @@ public abstract class EngineTestCase extends ESTestCase {
             case INDEX -> engine.index((Engine.Index) operation);
             case DELETE -> engine.delete((Engine.Delete) operation);
             case NO_OP -> engine.noOp((Engine.NoOp) operation);
-            default -> throw new IllegalStateException("No operation defined for [" + operation + "]");
         };
         return result;
     }

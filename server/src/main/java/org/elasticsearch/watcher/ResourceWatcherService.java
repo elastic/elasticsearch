@@ -129,7 +129,6 @@ public class ResourceWatcherService implements Closeable {
             case LOW -> lowMonitor.add(watcher);
             case MEDIUM -> mediumMonitor.add(watcher);
             case HIGH -> highMonitor.add(watcher);
-            default -> throw new IllegalArgumentException("Unknown frequency [" + frequency + "]");
         };
     }
 

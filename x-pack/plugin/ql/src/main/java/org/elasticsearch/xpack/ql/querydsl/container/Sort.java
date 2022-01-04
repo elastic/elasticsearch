@@ -67,7 +67,6 @@ public abstract class Sort {
                 return switch (fallbackDirection) {
                     case ASC -> LAST.searchOrder;
                     case DESC -> FIRST.searchOrder;
-                    default -> throw new IllegalArgumentException("Unknown direction [" + fallbackDirection + "]");
                 };
             }
         }

@@ -239,7 +239,6 @@ public class MatchQueryParser {
             case BOOLEAN_PREFIX -> builder.createBooleanPrefixQuery(resolvedFieldName, stringValue, occur);
             case PHRASE -> builder.createPhraseQuery(resolvedFieldName, stringValue, phraseSlop);
             case PHRASE_PREFIX -> builder.createPhrasePrefixQuery(resolvedFieldName, stringValue, phraseSlop);
-            default -> throw new IllegalStateException("No type found for [" + type + "]");
         };
         return query == null ? zeroTermsQuery.asQuery() : query;
     }

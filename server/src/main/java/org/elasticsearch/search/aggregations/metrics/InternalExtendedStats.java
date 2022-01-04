@@ -190,7 +190,6 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             case UPPER_SAMPLING -> getAvg() + (getStdDeviationSampling() * sigma);
             case LOWER, LOWER_POPULATION -> getAvg() - (getStdDeviationPopulation() * sigma);
             case LOWER_SAMPLING -> getAvg() - (getStdDeviationSampling() * sigma);
-            default -> throw new IllegalArgumentException("Unknown bounds type " + bound);
         };
     }
 
@@ -238,7 +237,6 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             case LOWER_POPULATION -> valueAsString(Metrics.std_lower_population.name());
             case UPPER_SAMPLING -> valueAsString(Metrics.std_upper_sampling.name());
             case LOWER_SAMPLING -> valueAsString(Metrics.std_lower_sampling.name());
-            default -> throw new IllegalArgumentException("Unknown bounds type " + bound);
         };
     }
 

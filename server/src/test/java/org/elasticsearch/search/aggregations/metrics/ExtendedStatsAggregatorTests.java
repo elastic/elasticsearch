@@ -297,7 +297,6 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
                 case LOWER -> (sum / count) - (Math.sqrt(variance()) * sigma);
                 case LOWER_POPULATION -> (sum / count) - (Math.sqrt(variancePopulation()) * sigma);
                 case LOWER_SAMPLING -> (sum / count) - (Math.sqrt(varianceSampling()) * sigma);
-                default -> throw new IllegalArgumentException("Unknown bound " + bounds);
             };
         }
 

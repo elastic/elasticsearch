@@ -342,7 +342,6 @@ public class Classification implements DataFrameAnalysis {
                 "int";
             case STRING -> "string";
             case BOOLEAN -> "bool";
-            default -> null;
         };
     }
 

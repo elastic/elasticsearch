@@ -86,7 +86,6 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             case UNSIGNED_LONG, LONG, DOUBLE -> randomNumericDocValueFormat();
             case IP -> DocValueFormat.IP;
             case STRING -> DocValueFormat.RAW;
-            default -> throw new IllegalArgumentException("unsupported converter [" + converter + "]");
         };
     }
 
@@ -115,7 +114,6 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             case DOUBLE -> randomDouble();
             case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
             case STRING -> new BytesRef(randomAlphaOfLength(5));
-            default -> throw new IllegalArgumentException("unsupported converter [" + converter + "]");
         };
     }
 

@@ -54,7 +54,6 @@ public class HistogramRateAggregator extends AbstractRateAggregator {
                         final double value = switch (rateMode) {
                             case SUM -> sketch.value();
                             case VALUE_COUNT -> sketch.count();
-                            default -> throw new IllegalArgumentException("Unsupported rate mode " + rateMode);
                         };
                         kahanSummation.add(value);
                         compensations.set(bucket, kahanSummation.delta());

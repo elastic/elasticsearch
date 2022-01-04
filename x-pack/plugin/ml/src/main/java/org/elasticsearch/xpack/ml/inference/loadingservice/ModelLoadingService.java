@@ -842,7 +842,6 @@ public class ModelLoadingService implements ClusterStateListener {
         return switch (targetType) {
             case REGRESSION -> RegressionConfig.EMPTY_PARAMS;
             case CLASSIFICATION -> ClassificationConfig.EMPTY_PARAMS;
-            default -> throw ExceptionsHelper.badRequestException("unsupported target type [{}]", targetType);
         };
     }
 

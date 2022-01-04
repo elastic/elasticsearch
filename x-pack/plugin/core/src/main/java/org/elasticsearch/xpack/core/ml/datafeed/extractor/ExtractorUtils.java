@@ -153,7 +153,6 @@ public final class ExtractorUtils {
                 case MONTH_OF_YEAR, YEAR_OF_CENTURY, QUARTER_OF_YEAR -> throw ExceptionsHelper.badRequestException(
                     invalidDateHistogramCalendarIntervalMessage(calendarInterval)
                 );
-                default -> throw ExceptionsHelper.badRequestException("Unexpected dateTimeUnit [" + dateTimeUnit + "]");
             };
         } else {
             interval = TimeValue.parseTimeValue(calendarInterval, "date_histogram.calendar_interval");

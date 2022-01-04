@@ -93,7 +93,6 @@ public class TemplateRoleName implements ToXContentObject, Writeable {
             return switch (format) {
                 case STRING -> Collections.singletonList(evaluation);
                 case JSON -> convertJsonToList(evaluation);
-                default -> throw new IllegalStateException("Unsupported format [" + format + "]");
             };
         } catch (IOException e) {
             throw new UncheckedIOException(e);

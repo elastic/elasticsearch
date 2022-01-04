@@ -1226,7 +1226,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     task,
                     clusters
                 );
-                default -> throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
             };
             return searchAsyncAction;
         }

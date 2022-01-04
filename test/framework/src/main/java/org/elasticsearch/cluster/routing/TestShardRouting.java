@@ -227,7 +227,6 @@ public class TestShardRouting {
         return switch (state) {
             case UNASSIGNED, INITIALIZING -> randomUnassignedInfo("auto generated for test");
             case STARTED, RELOCATING -> null;
-            default -> throw new IllegalStateException("illegal state");
         };
     }
 

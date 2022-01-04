@@ -73,7 +73,6 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
                 parent,
                 metadata
             );
-            default -> throw new IllegalArgumentException("Unsupported t-test type " + testType);
         };
     }
 

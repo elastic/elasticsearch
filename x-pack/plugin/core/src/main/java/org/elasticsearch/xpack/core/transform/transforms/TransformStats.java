@@ -280,7 +280,6 @@ public class TransformStats implements Writeable, ToXContentObject {
                     case STOPPING -> STOPPING;
                     case STOPPED -> STOPPING;
                     case ABORTING -> ABORTING;
-                    default -> throw new IllegalStateException("Unexpected indexer state enum value: " + indexerState);
                 };
             }
         }

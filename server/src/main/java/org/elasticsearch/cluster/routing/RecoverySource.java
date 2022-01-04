@@ -56,7 +56,6 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             case PEER -> PeerRecoverySource.INSTANCE;
             case SNAPSHOT -> new SnapshotRecoverySource(in);
             case LOCAL_SHARDS -> LocalShardsRecoverySource.INSTANCE;
-            default -> throw new IllegalArgumentException("unknown recovery type: " + type.name());
         };
     }
 

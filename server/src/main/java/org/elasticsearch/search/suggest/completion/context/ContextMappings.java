@@ -237,7 +237,6 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
         final ContextMapping<?> contextMapping = switch (Type.fromString(type)) {
             case CATEGORY -> CategoryContextMapping.load(name, contextConfig);
             case GEO -> GeoContextMapping.load(name, contextConfig);
-            default -> throw new ElasticsearchParseException("unknown context type[" + type + "]");
         };
         MappingParser.checkNoRemainingFields(name, contextConfig);
         return contextMapping;

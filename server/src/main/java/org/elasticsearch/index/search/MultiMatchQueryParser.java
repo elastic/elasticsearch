@@ -63,7 +63,6 @@ public class MultiMatchQueryParser extends MatchQueryParser {
                 minimumShouldMatch
             );
             case CROSS_FIELDS -> buildCrossFieldQuery(fieldNames, value, minimumShouldMatch, tieBreaker);
-            default -> throw new IllegalStateException("No such type: " + type);
         };
         return combineGrouped(queries, tieBreaker);
     }

@@ -585,7 +585,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             case SHARDS -> BY_SHARDS_COUNT;
             case FAILED_SHARDS -> BY_FAILED_SHARDS_COUNT;
             case REPOSITORY -> BY_REPOSITORY;
-            default -> throw new AssertionError("unexpected sort column [" + sortBy + "]");
         };
 
         Stream<SnapshotInfo> infos = snapshotInfos.stream();
@@ -640,7 +639,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 order == SortOrder.ASC
                     ? (info -> compareRepositoryName(snapshotName, repoName, info) < 0)
                     : (info -> compareRepositoryName(snapshotName, repoName, info) > 0);
-            default -> throw new AssertionError("unexpected sort column [" + sortBy + "]");
         };
     }
 

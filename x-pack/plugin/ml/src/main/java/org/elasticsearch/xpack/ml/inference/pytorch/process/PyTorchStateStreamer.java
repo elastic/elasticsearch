@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.ml.inference.pytorch.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelRestorer;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
@@ -76,13 +76,18 @@ public class PyTorchStateStreamer {
         restorer.setSearchSize(1);
         restorer.restoreModelDefinition(doc -> writeChunk(doc, restoreStream), success -> {
             logger.debug("model [{}] state restored in [{}] documents from index [{}]", modelId, restorer.getNumDocsWritten(), index);
-            if (modelBytesWritten.get() != modelSize) {
-                logger.error(
-                    "model [{}] restored state size [{}] does not equal the expected model size [{}]",
-                    modelId,
-                    modelBytesWritten,
-                    modelSize
-                );
+
+            if (success) {
+                if (modelBytesWritten.get() != modelSize) {
+                    logger.error(
+                        "model [{}] restored state size [{}] does not equal the expected model size [{}]",
+                        modelId,
+                        modelBytesWritten,
+                        modelSize
+                    );
+                }
+            } else {
+                logger.info("[{}] loading model state cancelled", modelId);
             }
             listener.onResponse(success);
         }, listener::onFailure);

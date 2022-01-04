@@ -26,7 +26,7 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplat
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -179,7 +179,7 @@ public class MlInitializationService implements ClusterStateListener {
 
         // The atomic flag shortcircuits the check after no legacy templates have been found to exist.
         if (this.isMaster && checkForLegacyMlTemplates.get()) {
-            if (deleteOneMlLegacyTemplateIfNecessary(client, event.state()) == false) {
+            if (deleteOneMlLegacyTemplateIfNecessary(event.state()) == false) {
                 checkForLegacyMlTemplates.set(false);
             }
         }
@@ -189,7 +189,7 @@ public class MlInitializationService implements ClusterStateListener {
      * @return <code>true</code> if further calls to this method are worthwhile.
      *         <code>false</code> if this method never needs to be called again.
      */
-    private boolean deleteOneMlLegacyTemplateIfNecessary(Client client, ClusterState state) {
+    private boolean deleteOneMlLegacyTemplateIfNecessary(ClusterState state) {
 
         String templateToDelete = nextTemplateToDelete(state.getMetadata().getTemplates());
         if (templateToDelete != null) {

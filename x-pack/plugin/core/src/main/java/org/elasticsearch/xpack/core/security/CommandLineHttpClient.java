@@ -343,7 +343,7 @@ public class CommandLineHttpClient {
      * Returns a TrustManager to be used in a client SSLContext, which trusts all certificates that are signed
      * by a specific CA certificate ( identified by its SHA256 fingerprint, {@code pinnedCaCertFingerPrint} )
      */
-    private TrustManager fingerprintTrustingTrustManager(String pinnedCaCertFingerprint) {
+    private TrustManager fingerprintTrustingTrustManager(String caCertFingerprint) {
         final TrustManager trustManager = new X509TrustManager() {
             public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {}
 
@@ -354,7 +354,7 @@ public class CommandLineHttpClient {
                 final Certificate caCertFromChain = chain[1];
                 MessageDigest sha256 = MessageDigests.sha256();
                 sha256.update(caCertFromChain.getEncoded());
-                if (MessageDigests.toHexString(sha256.digest()).equals(pinnedCaCertFingerprint) == false) {
+                if (MessageDigests.toHexString(sha256.digest()).equals(caCertFingerprint) == false) {
                     throw new CertificateException();
                 }
             }

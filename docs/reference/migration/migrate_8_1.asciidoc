@@ -11,14 +11,13 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 coming[8.1.0]
 
-////
 [discrete]
 [[breaking-changes-8.1]]
 === Breaking changes
 
 The following changes in {es} 8.1 might affect your applications
 and prevent them from operating normally.
-Before upgrading to 8.0, review these changes and take the described steps
+Before upgrading to 8.1, review these changes and take the described steps
 to mitigate the impact.
 
 NOTE: Breaking changes introduced in minor versions are
@@ -32,9 +31,25 @@ enable <<deprecation-logging, deprecation logging>>.
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+[discrete]
+[[breaking_81_rest_api_changes]]
+==== REST API changes
 
+[[fields_api_geoshape_normalize]]
+.The search API's `fields` parameter now normalizes geometry objects that cross the international dateline.
+[%collapsible]
+====
+*Details* +
+The search API's `fields` parameter now normalizes `geo_shape` objects that
+cross the international dateline (+/-180° longitude). For example, if a polygon
+crosses the dateline, the `fields` parameter returns it as two polygons. You can
+still retrieve original, unnormalized geometry objects from `_source`.
+
+*Impact* +
+If your application requires unnormalized geometry objects, retrieve them from
+`_source` rather than using the `fields` parameter.
+====
 //end::notable-breaking-changes[]
-////
 
 [discrete]
 [[deprecated-8.1]]
@@ -52,7 +67,6 @@ To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
 //tag::notable-breaking-changes[]
-
 [discrete]
 [[breaking_8.1_cluster_node_setting_deprecations]]
 ==== Cluster and node setting deprecations

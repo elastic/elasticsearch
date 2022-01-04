@@ -21,8 +21,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -242,6 +242,10 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         final long timeInEpochMillis,
         final ActionListener<Void> listener
     ) {
+        if (closed.get()) {
+            listener.onFailure(new IllegalStateException("Blob cache service is closed"));
+            return;
+        }
         final String id = generateId(repository, snapshotId, indexId, shardId, name, range);
         try {
             final CachedBlob cachedBlob = new CachedBlob(
@@ -267,10 +271,6 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
             boolean submitted = false;
             inFlightCacheFills.acquire();
             try {
-                if (closed.get()) {
-                    listener.onFailure(new IllegalStateException("Blob cache service is closed"));
-                    return;
-                }
                 final ActionListener<Void> wrappedListener = ActionListener.runAfter(listener, release);
                 innerPut(request, new ActionListener<>() {
                     @Override

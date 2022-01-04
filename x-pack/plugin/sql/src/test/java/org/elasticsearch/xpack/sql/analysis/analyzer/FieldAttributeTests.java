@@ -286,14 +286,13 @@ public class FieldAttributeTests extends ESTestCase {
             VerificationException.class,
             () -> plan("SELECT gender AS g, last_name AS g, min(salary) AS m, max(salary) as m FROM test GROUP BY g, m")
         );
-        assertEquals(
-            "Found 2 problems\n"
-                + "line 1:91: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); "
-                + "matches any of [line 1:8 [g], line 1:21 [g]]\n"
-                + "line 1:94: Reference [m] is ambiguous (to disambiguate use quotes or qualifiers); "
-                + "matches any of [line 1:37 [m], line 1:55 [m]]",
-            ex.getMessage()
-        );
+        String expected = """
+            Found 2 problems
+            line 1:91: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); matches any of [line 1:8 [g], \
+            line 1:21 [g]]
+            line 1:94: Reference [m] is ambiguous (to disambiguate use quotes or qualifiers); matches any of [line 1:37 [m], \
+            line 1:55 [m]]""";
+        assertEquals(expected, ex.getMessage());
     }
 
     public void testFunctionOverNonExistingFieldAsArgumentAndSameAlias() throws Exception {

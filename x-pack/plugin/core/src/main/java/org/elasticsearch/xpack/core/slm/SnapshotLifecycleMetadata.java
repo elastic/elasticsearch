@@ -213,5 +213,11 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
         static Diff<SnapshotLifecyclePolicyMetadata> readLifecyclePolicyDiffFrom(StreamInput in) throws IOException {
             return AbstractDiffable.readDiffFrom(SnapshotLifecyclePolicyMetadata::new, in);
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_4_0;
+        }
+
     }
 }

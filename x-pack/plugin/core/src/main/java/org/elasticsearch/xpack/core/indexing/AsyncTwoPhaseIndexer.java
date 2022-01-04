@@ -555,7 +555,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                     position.set(newPosition);
 
                     if (triggerSaveState()) {
-                        doSaveState(IndexerState.INDEXING, newPosition, () -> { nextSearch(); });
+                        doSaveState(IndexerState.INDEXING, newPosition, this::nextSearch);
                     } else {
                         nextSearch();
                     }
@@ -568,7 +568,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         }
     }
 
-    private void onBulkResponse(BulkResponse response, JobPosition position) {
+    private void onBulkResponse(BulkResponse response, JobPosition jobPosition) {
         stats.markEndIndexing();
 
         // check if we should stop
@@ -578,7 +578,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
         try {
             if (triggerSaveState()) {
-                doSaveState(IndexerState.INDEXING, position, () -> { nextSearch(); });
+                doSaveState(IndexerState.INDEXING, jobPosition, this::nextSearch);
             } else {
                 nextSearch();
             }

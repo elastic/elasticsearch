@@ -109,7 +109,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     /**
      * Currently active license
      */
-    private final AtomicReference<License> currentLicense = new AtomicReference<>();
+    private final AtomicReference<License> currentLicenseHolder = new AtomicReference<>();
     private final SchedulerEngine scheduler;
     private final Clock clock;
 
@@ -175,15 +175,11 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     static CharSequence buildExpirationMessage(long expirationMillis, boolean expired) {
         String expiredMsg = expired ? "expired" : "will expire";
-        String general = LoggerMessageFormat.format(
-            null,
-            "License [{}] on [{}].\n"
-                + "# If you have a new license, please update it. Otherwise, please reach out to\n"
-                + "# your support contact.\n"
-                + "# ",
-            expiredMsg,
-            DATE_FORMATTER.formatMillis(expirationMillis)
-        );
+        String general = LoggerMessageFormat.format(null, """
+            License [{}] on [{}].
+            # If you have a new license, please update it. Otherwise, please reach out to
+            # your support contact.
+            #\s""", expiredMsg, DATE_FORMATTER.formatMillis(expirationMillis));
         if (expired) {
             general = general.toUpperCase(Locale.ROOT);
         }
@@ -438,7 +434,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         clusterService.removeListener(this);
         scheduler.stop();
         // clear current license
-        currentLicense.set(null);
+        currentLicenseHolder.set(null);
     }
 
     @Override
@@ -558,9 +554,9 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         // license can be null if the trial license is yet to be auto-generated
         // in this case, it is a no-op
         if (license != null) {
-            final License previousLicense = currentLicense.get();
+            final License previousLicense = currentLicenseHolder.get();
             if (license.equals(previousLicense) == false) {
-                currentLicense.set(license);
+                currentLicenseHolder.set(license);
                 license.setOperationModeFileWatcher(operationModeFileWatcher);
                 scheduler.add(new SchedulerEngine.Job(LICENSE_JOB, nextLicenseCheck(license)));
                 for (ExpirationCallback expirationCallback : expirationCallbacks) {

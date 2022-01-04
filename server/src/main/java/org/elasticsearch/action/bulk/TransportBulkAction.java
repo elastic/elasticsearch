@@ -31,7 +31,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -511,7 +511,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, i, metadata)) {
                     continue;
                 }
-                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices, metadata)) {
+                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices)) {
                     continue;
                 }
                 Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
@@ -591,7 +591,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     public void onFailure(Exception e) {
                         // create failures for all relevant requests
                         for (BulkItemRequest request : requests) {
-                            final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
+                            final String indexName = request.index();
                             DocWriteRequest<?> docWriteRequest = request.request();
                             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
                             responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
@@ -678,29 +678,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return false;
         }
 
-        private boolean addFailureIfIndexIsUnavailable(
-            DocWriteRequest<?> request,
-            int idx,
-            final ConcreteIndices concreteIndices,
-            final Metadata metadata
-        ) {
+        private boolean addFailureIfIndexIsUnavailable(DocWriteRequest<?> request, int idx, final ConcreteIndices concreteIndices) {
             IndexNotFoundException cannotCreate = indicesThatCannotBeCreated.get(request.index());
             if (cannotCreate != null) {
                 addFailure(request, idx, cannotCreate);
                 return true;
             }
-            Index concreteIndex = concreteIndices.getConcreteIndex(request.index());
-            if (concreteIndex == null) {
-                try {
-                    concreteIndex = concreteIndices.resolveIfAbsent(request);
-                } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
-                    addFailure(request, idx, ex);
-                    return true;
-                }
-            }
-            IndexMetadata indexMetadata = metadata.getIndexSafe(concreteIndex);
-            if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
-                addFailure(request, idx, new IndexClosedException(concreteIndex));
+            try {
+                assert request.indicesOptions().forbidClosedIndices() : "only open indices can be resolved";
+                Index concreteIndex = concreteIndices.resolveIfAbsent(request);
+                assert concreteIndex != null;
+            } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
+                addFailure(request, idx, ex);
                 return true;
             }
             return false;
@@ -736,10 +725,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ConcreteIndices(ClusterState state, IndexNameExpressionResolver indexNameExpressionResolver) {
             this.state = state;
             this.indexNameExpressionResolver = indexNameExpressionResolver;
-        }
-
-        Index getConcreteIndex(String indexOrAlias) {
-            return indices.get(indexOrAlias);
         }
 
         Index resolveIfAbsent(DocWriteRequest<?> request) {
@@ -804,27 +789,27 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // (this will happen if pre-processing all items in the bulk failed)
                         actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
                     } else {
+                        ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
+                            @Override
+                            protected void doRun() {
+                                doInternalExecute(task, bulkRequest, executorName, actionListener);
+                            }
+
+                            @Override
+                            public boolean isForceExecution() {
+                                // If we fork back to a write thread we **not** should fail, because tp queue is full.
+                                // (Otherwise the work done during ingest will be lost)
+                                // It is okay to force execution here. Throttling of write requests happens prior to
+                                // ingest when a node receives a bulk request.
+                                return true;
+                            }
+                        };
                         // If a processor went async and returned a response on a different thread then
                         // before we continue the bulk request we should fork back on a write thread:
                         if (originalThread == Thread.currentThread()) {
-                            assert Thread.currentThread().getName().contains(executorName);
-                            doInternalExecute(task, bulkRequest, executorName, actionListener);
+                            threadPool.executor(Names.SAME).execute(runnable);
                         } else {
-                            threadPool.executor(executorName).execute(new ActionRunnable<>(actionListener) {
-                                @Override
-                                protected void doRun() {
-                                    doInternalExecute(task, bulkRequest, executorName, actionListener);
-                                }
-
-                                @Override
-                                public boolean isForceExecution() {
-                                    // If we fork back to a write thread we **not** should fail, because tp queue is full.
-                                    // (Otherwise the work done during ingest will be lost)
-                                    // It is okay to force execution here. Throttling of write requests happens prior to
-                                    // ingest when a node receives a bulk request.
-                                    return true;
-                                }
-                            });
+                            threadPool.executor(executorName).execute(runnable);
                         }
                     }
                 }

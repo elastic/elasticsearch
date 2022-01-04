@@ -8,12 +8,10 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -75,11 +73,11 @@ public class RestGetAliasesAction extends BaseRestHandler {
     ) throws Exception {
         final Set<String> indicesToDisplay = new HashSet<>();
         final Set<String> returnedAliasNames = new HashSet<>();
-        for (final ObjectObjectCursor<String, List<AliasMetadata>> cursor : responseAliasMap) {
-            for (final AliasMetadata aliasMetadata : cursor.value) {
+        for (final Map.Entry<String, List<AliasMetadata>> cursor : responseAliasMap.entrySet()) {
+            for (final AliasMetadata aliasMetadata : cursor.getValue()) {
                 if (aliasesExplicitlyRequested) {
                     // only display indices that have aliases
-                    indicesToDisplay.add(cursor.key);
+                    indicesToDisplay.add(cursor.getKey());
                 }
                 returnedAliasNames.add(aliasMetadata.alias());
             }

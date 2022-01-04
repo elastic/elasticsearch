@@ -85,55 +85,46 @@ public class DependenciesGraphTask extends DefaultTask {
         for (final Dependency dependency : runtimeDependencies) {
             final String id = dependency.getGroup() + ":" + dependency.getName();
             final String versionedId = id + "@" + dependency.getVersion();
-            final StringBuilder packageString = new StringBuilder();
             final StringBuilder nodeString = new StringBuilder();
             if (dependency instanceof ProjectDependency) {
                 continue;
             }
-            packageString.append("{\"id\": \"")
-                .append(versionedId)
-                .append("\",\"info\": {\"name\": \"")
-                .append(id)
-                .append("\",\"version\": \"")
-                .append(dependency.getVersion())
-                .append("\"}}");
-            packages.add(packageString.toString());
-            nodeString.append("{\"nodeId\": \"")
-                .append(versionedId)
-                .append("\",\"pkgId\": \"")
-                .append(versionedId)
-                .append("\",\"deps\": []}");
+            packages.add("""
+                {"id": "%s","info": {"name": "%s","version": "%s"}}\
+                """.formatted(versionedId, id, dependency.getVersion()));
+            nodeString.append("""
+                {"nodeId": "%s","pkgId": "%s","deps": []}\
+                """.formatted(versionedId, versionedId));
             nodes.add(nodeString.toString());
-            nodeIds.add("{\"nodeId\": \"" + versionedId + "\"}");
+            nodeIds.add("""
+                {"nodeId": "%s"}\
+                """.formatted(versionedId));
         }
         // We add one package and one node for each dependency, it suffices to check packages.
         if (packages.size() > 0) {
             final String projectName = "elastic/elasticsearch" + getProject().getPath();
-            final StringBuilder output = new StringBuilder();
-            output.append("{\"depGraph\": {\"schemaVersion\": \"1.2.0\",\"pkgManager\": {\"name\": \"gradle\"},\"pkgs\": [")
-                .append("{\"id\": \"")
-                .append(projectName)
-                .append("@0.0.0")
-                .append("\", \"info\": {\"name\": \"")
-                .append(projectName)
-                .append("\", \"version\": \"0.0.0\"}},")
-                .append(String.join(",", packages))
-                .append("],\"graph\": {\"rootNodeId\": \"")
-                .append(projectName)
-                .append("@0.0.0")
-                .append("\",\"nodes\": [")
-                .append("{\"nodeId\": \"")
-                .append(projectName)
-                .append("@0.0.0")
-                .append("\",\"pkgId\": \"")
-                .append(projectName)
-                .append("@0.0.0")
-                .append("\",\"deps\": [")
-                .append(String.join(",", nodeIds))
-                .append("]},")
-                .append(String.join(",", nodes))
-                .append("]}}}");
-            getLogger().debug("Dependency Graph: " + output.toString());
+            final String output = """
+                {
+                  "depGraph": {
+                    "schemaVersion": "1.2.0",
+                    "pkgManager": {"name": "gradle"},
+                    "pkgs": [
+                      {
+                        "id": "%s@0.0.0",
+                        "info": {"name": "%1$s", "version": "0.0.0"}
+                      },
+                      %s
+                    ],
+                    "graph": {
+                      "rootNodeId": "%1$s@0.0.0",
+                      "nodes": [
+                        { "nodeId": "%1$s@0.0.0","pkgId": "%1$s@0.0.0","deps": [%s] },
+                        %s
+                      ]
+                    }
+                  }
+                }""".formatted(projectName, String.join(",", packages), String.join(",", nodeIds), String.join(",", nodes));
+            getLogger().debug("Dependency Graph: " + output);
             try (CloseableHttpClient client = HttpClients.createDefault()) {
                 HttpPost postRequest = new HttpPost(url);
                 postRequest.addHeader("Authorization", "token " + token);

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -594,9 +592,9 @@ public abstract class StreamOutput extends OutputStream {
     public final <K, V> void writeMap(final ImmutableOpenMap<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
         throws IOException {
         writeVInt(map.size());
-        for (final ObjectObjectCursor<K, V> entry : map) {
-            keyWriter.write(this, entry.key);
-            valueWriter.write(this, entry.value);
+        for (final Map.Entry<K, V> entry : map.entrySet()) {
+            keyWriter.write(this, entry.getKey());
+            valueWriter.write(this, entry.getValue());
         }
     }
 

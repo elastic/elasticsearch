@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ql.index;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -68,10 +69,12 @@ import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.common.regex.Regex.simpleMatch;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.supportsUnsignedLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.ql.util.StringUtils.qualifyAndJoinIndices;
 import static org.elasticsearch.xpack.ql.util.StringUtils.splitQualifiedIndex;
@@ -366,12 +369,16 @@ public class IndexResolver {
         String indexWildcard,
         IndicesOptions indicesOptions,
         Map<String, Object> runtimeMappings,
+        Version version,
         ActionListener<IndexResolution> listener
     ) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, indicesOptions, runtimeMappings);
         client.fieldCaps(
             fieldRequest,
-            ActionListener.wrap(response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response)), listener::onFailure)
+            ActionListener.wrap(
+                response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response, version)),
+                listener::onFailure
+            )
         );
     }
 
@@ -382,19 +389,24 @@ public class IndexResolver {
         String indexWildcard,
         boolean includeFrozen,
         Map<String, Object> runtimeMappings,
+        Version version,
         ActionListener<IndexResolution> listener
     ) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen, runtimeMappings);
         client.fieldCaps(
             fieldRequest,
-            ActionListener.wrap(response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response)), listener::onFailure)
+            ActionListener.wrap(
+                response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response, version)),
+                listener::onFailure
+            )
         );
     }
 
     public static IndexResolution mergedMappings(
         DataTypeRegistry typeRegistry,
         String indexPattern,
-        FieldCapabilitiesResponse fieldCapsResponse
+        FieldCapabilitiesResponse fieldCapsResponse,
+        Version version
     ) {
 
         if (fieldCapsResponse.getIndices().length == 0) {
@@ -402,7 +414,7 @@ public class IndexResolver {
         }
 
         // merge all indices onto the same one
-        List<EsIndex> indices = buildIndices(typeRegistry, null, fieldCapsResponse, null, i -> indexPattern, (n, types) -> {
+        List<EsIndex> indices = buildIndices(typeRegistry, null, fieldCapsResponse, null, i -> indexPattern, version, (n, types) -> {
             StringBuilder errorMessage = new StringBuilder();
 
             boolean hasUnmapped = types.containsKey(UNMAPPED);
@@ -473,7 +485,8 @@ public class IndexResolver {
         Map<String, Map<String, FieldCapabilities>> globalCaps,
         Map<String, EsField> hierarchicalMapping,
         Map<String, EsField> flattedMapping,
-        Function<String, EsField> field
+        Function<String, EsField> field,
+        Version version
     ) {
 
         Map<String, EsField> parentProps = hierarchicalMapping;
@@ -493,7 +506,7 @@ public class IndexResolver {
                 // lack of parent implies the field is an alias
                 if (map == null) {
                     // as such, create the field manually, marking the field to also be an alias
-                    fieldFunction = s -> createField(typeRegistry, s, OBJECT.esType(), new TreeMap<>(), false, true);
+                    fieldFunction = s -> createField(typeRegistry, s, OBJECT.esType(), new TreeMap<>(), false, true, version);
                 } else {
                     Iterator<FieldCapabilities> iterator = map.values().iterator();
                     FieldCapabilities parentCap = iterator.next();
@@ -501,10 +514,18 @@ public class IndexResolver {
                         parentCap = iterator.next();
                     }
                     final FieldCapabilities parentC = parentCap;
-                    fieldFunction = s -> createField(typeRegistry, s, parentC.getType(), new TreeMap<>(), parentC.isAggregatable(), false);
+                    fieldFunction = s -> createField(
+                        typeRegistry,
+                        s,
+                        parentC.getType(),
+                        new TreeMap<>(),
+                        parentC.isAggregatable(),
+                        false,
+                        version
+                    );
                 }
 
-                parent = createField(typeRegistry, parentName, globalCaps, hierarchicalMapping, flattedMapping, fieldFunction);
+                parent = createField(typeRegistry, parentName, globalCaps, hierarchicalMapping, flattedMapping, fieldFunction, version);
             }
             parentProps = parent.getProperties();
         }
@@ -537,7 +558,8 @@ public class IndexResolver {
         String typeName,
         Map<String, EsField> props,
         boolean isAggregateable,
-        boolean isAlias
+        boolean isAlias,
+        Version version
     ) {
         DataType esType = typeRegistry.fromEs(typeName);
 
@@ -553,7 +575,7 @@ public class IndexResolver {
         if (esType == DATETIME) {
             return DateEsField.dateEsField(fieldName, props, isAggregateable);
         }
-        if (esType == UNSUPPORTED) {
+        if (esType == UNSUPPORTED || (esType == UNSIGNED_LONG && supportsUnsignedLong(version) == false)) {
             return new UnsupportedEsField(fieldName, typeName, null, props);
         }
 
@@ -591,6 +613,7 @@ public class IndexResolver {
         String javaRegex,
         boolean includeFrozen,
         Map<String, Object> runtimeMappings,
+        Version version,
         ActionListener<List<EsIndex>> listener
     ) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen, runtimeMappings);
@@ -600,10 +623,12 @@ public class IndexResolver {
                 .getAliases(
                     createGetAliasesRequest(response, includeFrozen),
                     wrap(
-                        aliases -> { listener.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases())); },
+                        aliases -> {
+                            listener.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases(), version));
+                        },
                         ex -> {
                             if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
-                                listener.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
+                                listener.onResponse(separateMappings(typeRegistry, javaRegex, response, null, version));
                             } else {
                                 listener.onFailure(ex);
                             }
@@ -625,9 +650,10 @@ public class IndexResolver {
         DataTypeRegistry typeRegistry,
         String javaRegex,
         FieldCapabilitiesResponse fieldCaps,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases
+        ImmutableOpenMap<String, List<AliasMetadata>> aliases,
+        Version version
     ) {
-        return buildIndices(typeRegistry, javaRegex, fieldCaps, aliases, Function.identity(), (s, cap) -> null);
+        return buildIndices(typeRegistry, javaRegex, fieldCaps, aliases, Function.identity(), version, (s, cap) -> null);
     }
 
     private static class Fields {
@@ -645,6 +671,7 @@ public class IndexResolver {
         FieldCapabilitiesResponse fieldCapsResponse,
         ImmutableOpenMap<String, List<AliasMetadata>> aliases,
         Function<String, String> indexNameProcessor,
+        Version version,
         BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> validityVerifier
     ) {
 
@@ -780,8 +807,10 @@ public class IndexResolver {
                                         typeCap.getType(),
                                         emptyMap(),
                                         typeCap.isAggregatable(),
-                                        isAliasFieldType.get()
-                                    )
+                                        isAliasFieldType.get(),
+                                        version
+                                    ),
+                                version
                             );
                         }
                     }

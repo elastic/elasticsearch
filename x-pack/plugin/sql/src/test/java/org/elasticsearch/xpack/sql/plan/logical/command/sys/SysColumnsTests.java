@@ -44,10 +44,10 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.TestUtils.UTC;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
-import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -59,7 +59,7 @@ public class SysColumnsTests extends ESTestCase {
 
     public static List<SqlVersion> UNSIGNED_LONG_TEST_VERSIONS = List.of(
         SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER),
-        INTRODUCING_UNSIGNED_LONG,
+        SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id),
         SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER),
         SqlVersion.fromId(Version.CURRENT.id)
     );
@@ -75,7 +75,7 @@ public class SysColumnsTests extends ESTestCase {
     private void sysColumnsInMode(Mode mode) {
         Class<? extends Number> typeClass = mode == Mode.ODBC ? Short.class : Integer.class;
         List<List<?>> rows = new ArrayList<>();
-        SysColumns.fillInRows("test", "index", MAPPING2, null, rows, null, mode, SqlVersion.fromId(Version.CURRENT.id));
+        SysColumns.fillInRows("test", "index", MAPPING2, null, rows, null, mode);
         assertEquals(FIELD_COUNT2, rows.size());
         assertEquals(24, rows.get(0).size());
 
@@ -146,14 +146,14 @@ public class SysColumnsTests extends ESTestCase {
     }
 
     public void testUnsignedLongFiltering() {
-        Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
         for (Mode mode : List.of(Mode.JDBC, Mode.ODBC)) {
             for (SqlVersion version : UNSIGNED_LONG_TEST_VERSIONS) {
                 List<List<?>> rows = new ArrayList<>();
-                SysColumns.fillInRows("test", "index", mapping, null, rows, null, mode, version);
+                Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true, Version.fromId(version.id));
+                SysColumns.fillInRows("test", "index", mapping, null, rows, null, mode);
                 List<String> types = rows.stream().map(row -> name(row).toString()).collect(Collectors.toList());
                 assertEquals(
-                    isTypeSupportedInVersion(UNSIGNED_LONG, version),
+                    isTypeSupportedInVersion(UNSIGNED_LONG, Version.fromId(version.id)),
                     types.contains(UNSIGNED_LONG.toString().toLowerCase(Locale.ROOT))
                 );
             }
@@ -354,13 +354,13 @@ public class SysColumnsTests extends ESTestCase {
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
         when(resolver.remoteClusters()).thenReturn(Set.of(CLUSTER_NAME));
         doAnswer(invocation -> {
-            ((ActionListener<IndexResolution>) invocation.getArguments()[3]).onResponse(IndexResolution.valid(test));
+            ((ActionListener<IndexResolution>) invocation.getArguments()[4]).onResponse(IndexResolution.valid(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsMergedMapping(any(), anyBoolean(), any(), any());
+        }).when(resolver).resolveAsMergedMapping(any(), anyBoolean(), any(), any(), any());
         doAnswer(invocation -> {
-            ((ActionListener<List<EsIndex>>) invocation.getArguments()[4]).onResponse(singletonList(test));
+            ((ActionListener<List<EsIndex>>) invocation.getArguments()[5]).onResponse(singletonList(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsSeparateMappings(any(), any(), anyBoolean(), any(), any());
+        }).when(resolver).resolveAsSeparateMappings(any(), any(), anyBoolean(), any(), any(), any());
 
         SqlSession session = new SqlSession(config, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);

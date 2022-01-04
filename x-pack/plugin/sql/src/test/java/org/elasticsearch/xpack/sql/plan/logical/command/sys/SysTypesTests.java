@@ -35,9 +35,9 @@ import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumnsTests.UNSIGNED_LONG_TEST_VERSIONS;
-import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.mockito.Mockito.mock;
 
 public class SysTypesTests extends ESTestCase {
@@ -151,7 +151,7 @@ public class SysTypesTests extends ESTestCase {
                     List<String> types = new ArrayList<>();
                     r.forEachRow(rv -> types.add((String) rv.column(0)));
                     assertEquals(
-                        isTypeSupportedInVersion(UNSIGNED_LONG, cmd.v2().configuration().version()),
+                        isTypeSupportedInVersion(UNSIGNED_LONG, Version.fromId(cmd.v2().configuration().version().id)),
                         types.contains(UNSIGNED_LONG.toString())
                     );
                 }, ex -> fail(ex.getMessage())));

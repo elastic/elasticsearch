@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
@@ -77,8 +78,8 @@ import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AnalyzerRule;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
-import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
     /**
@@ -451,7 +452,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
         private List<NamedExpression> filterUnsupportedProjections(List<NamedExpression> projections) {
             return projections.stream()
-                .filter(p -> p.resolved() == false || isTypeSupportedInVersion(p.dataType(), configuration.version()))
+                .filter(p -> p.resolved() == false || isTypeSupportedInVersion(p.dataType(), Version.fromId(configuration.version().id)))
                 .collect(toList());
         }
 

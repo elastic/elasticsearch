@@ -19,7 +19,6 @@ public enum EsType implements SQLType {
     SHORT(Types.SMALLINT),
     INTEGER(Types.INTEGER),
     LONG(Types.BIGINT),
-    UNSIGNED_LONG(Types.NUMERIC),
     DOUBLE(Types.DOUBLE),
     FLOAT(Types.REAL),
     HALF_FLOAT(Types.FLOAT),
@@ -48,7 +47,8 @@ public enum EsType implements SQLType {
     INTERVAL_MINUTE_TO_SECOND(ExtraTypes.INTERVAL_MINUTE_SECOND),
     GEO_POINT(ExtraTypes.GEOMETRY),
     GEO_SHAPE(ExtraTypes.GEOMETRY),
-    SHAPE(ExtraTypes.GEOMETRY);
+    SHAPE(ExtraTypes.GEOMETRY),
+    UNSIGNED_LONG(Types.NUMERIC);
 
     private final Integer type;
 

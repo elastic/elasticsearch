@@ -5,25 +5,22 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.session;
+package org.elasticsearch.xpack.ql.index;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import static org.elasticsearch.Version.V_8_1_0;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
 public final class VersionCompatibilityChecks {
 
-    public static final SqlVersion INTRODUCING_UNSIGNED_LONG = SqlVersion.fromId(V_8_1_0.id);
+    public static final Version INTRODUCING_UNSIGNED_LONG = V_8_1_0;
 
     private VersionCompatibilityChecks() {}
 
-    /**
-     * Is the provided {@code dataType} being supported in the provided {@code version}?
-     */
-    public static boolean isTypeSupportedInVersion(DataType dataType, SqlVersion version) {
+    public static boolean isTypeSupportedInVersion(DataType dataType, Version version) {
         if (dataType == UNSIGNED_LONG) {
             return supportsUnsignedLong(version);
         }
@@ -33,11 +30,11 @@ public final class VersionCompatibilityChecks {
     /**
      * Does the provided {@code version} support the unsigned_long type (PR#60050)?
      */
-    public static boolean supportsUnsignedLong(SqlVersion version) {
+    public static boolean supportsUnsignedLong(Version version) {
         return INTRODUCING_UNSIGNED_LONG.compareTo(version) <= 0;
     }
 
-    public static @Nullable SqlVersion versionIntroducingType(DataType dataType) {
+    public static @Nullable Version versionIntroducingType(DataType dataType) {
         if (dataType == UNSIGNED_LONG) {
             return INTRODUCING_UNSIGNED_LONG;
         }

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.index;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.test.ESTestCase;
@@ -495,7 +496,8 @@ public class IndexResolverTests extends ESTestCase {
         return IndexResolver.mergedMappings(
             SqlDataTypeRegistry.INSTANCE,
             indexPattern,
-            new FieldCapabilitiesResponse(indexNames, fieldCaps)
+            new FieldCapabilitiesResponse(indexNames, fieldCaps),
+            Version.CURRENT
         );
     }
 
@@ -508,7 +510,8 @@ public class IndexResolverTests extends ESTestCase {
             SqlDataTypeRegistry.INSTANCE,
             javaRegex,
             new FieldCapabilitiesResponse(indexNames, fieldCaps),
-            null
+            null,
+            Version.CURRENT
         );
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.session;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -120,6 +121,7 @@ public class EqlSession {
             indexWildcard,
             configuration.indicesOptions(),
             configuration.runtimeMappings(),
+            Version.CURRENT,
             map(listener, r -> preAnalyzer.preAnalyze(parsed, r))
         );
     }

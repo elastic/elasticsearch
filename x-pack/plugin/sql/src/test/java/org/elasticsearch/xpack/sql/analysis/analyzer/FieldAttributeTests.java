@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -35,13 +36,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
@@ -308,7 +309,8 @@ public class FieldAttributeTests extends ESTestCase {
         getIndexResult = IndexResolution.valid(index);
 
         String query = "SELECT unsigned_long FROM test";
-        String queryWithLiteral = "SELECT 18446744073709551615 as unsigned_long";
+        String queryWithLiteral = "SELECT 18446744073709551615 AS unsigned_long";
+        String queryWithCastLiteral = "SELECT '18446744073709551615'::unsigned_long AS unsigned_long";
         String queryWithAlias = "SELECT unsigned_long AS unsigned_long FROM test";
         String queryWithArithmetic = "SELECT unsigned_long + 1 AS unsigned_long FROM test";
         String queryWithCast = "SELECT long + 1::unsigned_long AS unsigned_long FROM test";
@@ -316,7 +318,7 @@ public class FieldAttributeTests extends ESTestCase {
         SqlVersion preUnsignedLong = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER);
         SqlVersion postUnsignedLong = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER);
 
-        for (String sql : List.of(query, queryWithLiteral, queryWithAlias, queryWithArithmetic, queryWithCast)) {
+        for (String sql : List.of(query, queryWithLiteral, queryWithCastLiteral, queryWithAlias, queryWithArithmetic, queryWithCast)) {
             SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(preUnsignedLong);
             analyzer = new Analyzer(sqlConfig, functionRegistry, getIndexResult, new Verifier(new Metrics()));
             VerificationException ex = expectThrows(VerificationException.class, () -> plan(sql));
@@ -329,7 +331,7 @@ public class FieldAttributeTests extends ESTestCase {
                 ex.getMessage()
             );
 
-            for (SqlVersion v : List.of(INTRODUCING_UNSIGNED_LONG, postUnsignedLong)) {
+            for (SqlVersion v : List.of(SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id), postUnsignedLong)) {
                 analyzer = new Analyzer(SqlTestUtils.randomConfiguration(v), functionRegistry, getIndexResult, verifier);
                 LogicalPlan plan = plan(sql);
                 assertThat(plan, instanceOf(Project.class));
@@ -375,7 +377,7 @@ public class FieldAttributeTests extends ESTestCase {
         SqlVersion postUnsignedLong = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER);
         String query = "SELECT * FROM test";
 
-        for (SqlVersion version : List.of(preUnsignedLong, INTRODUCING_UNSIGNED_LONG, postUnsignedLong)) {
+        for (SqlVersion version : List.of(preUnsignedLong, SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id), postUnsignedLong)) {
             SqlConfiguration config = SqlTestUtils.randomConfiguration(version);
             analyzer = new Analyzer(config, functionRegistry, getIndexResult, new Verifier(new Metrics()));
 
@@ -384,7 +386,10 @@ public class FieldAttributeTests extends ESTestCase {
             Project p = (Project) plan;
 
             List<DataType> projectedDataTypes = p.projections().stream().map(Expression::dataType).collect(Collectors.toList());
-            assertEquals(isTypeSupportedInVersion(UNSIGNED_LONG, config.version()), projectedDataTypes.contains(UNSIGNED_LONG));
+            assertEquals(
+                isTypeSupportedInVersion(UNSIGNED_LONG, Version.fromId(config.version().id)),
+                projectedDataTypes.contains(UNSIGNED_LONG)
+            );
         }
 
     }

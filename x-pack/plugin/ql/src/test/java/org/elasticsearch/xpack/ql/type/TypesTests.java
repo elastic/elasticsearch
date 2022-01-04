@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.type;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -27,12 +28,12 @@ import static org.hamcrest.Matchers.is;
 public class TypesTests extends ESTestCase {
 
     public void testNullMap() {
-        Map<String, EsField> fromEs = Types.fromEs(DefaultDataTypeRegistry.INSTANCE, null);
+        Map<String, EsField> fromEs = Types.fromEs(DefaultDataTypeRegistry.INSTANCE, null, Version.CURRENT);
         assertThat(fromEs.isEmpty(), is(true));
     }
 
     public void testEmptyMap() {
-        Map<String, EsField> fromEs = Types.fromEs(DefaultDataTypeRegistry.INSTANCE, emptyMap());
+        Map<String, EsField> fromEs = Types.fromEs(DefaultDataTypeRegistry.INSTANCE, emptyMap(), Version.CURRENT);
         assertThat(fromEs.isEmpty(), is(true));
     }
 
@@ -211,27 +212,27 @@ public class TypesTests extends ESTestCase {
     }
 
     public static Map<String, EsField> loadMapping(String name) {
-        return loadMapping(DefaultDataTypeRegistry.INSTANCE, name, null);
+        return loadMapping(DefaultDataTypeRegistry.INSTANCE, name, null, Version.CURRENT);
     }
 
     public static Map<String, EsField> loadMapping(String name, boolean ordered) {
-        return loadMapping(DefaultDataTypeRegistry.INSTANCE, name, ordered);
+        return loadMapping(DefaultDataTypeRegistry.INSTANCE, name, ordered, Version.CURRENT);
     }
 
     public static Map<String, EsField> loadMapping(DataTypeRegistry registry, String name) {
-        return loadMapping(registry, name, null);
+        return loadMapping(registry, name, null, Version.CURRENT);
     }
 
-    public static Map<String, EsField> loadMapping(DataTypeRegistry registry, String name, Boolean ordered) {
+    public static Map<String, EsField> loadMapping(DataTypeRegistry registry, String name, Boolean ordered, Version version) {
         InputStream stream = TypesTests.class.getResourceAsStream("/" + name);
         assertNotNull("Could not find mapping resource:" + name, stream);
-        return loadMapping(registry, stream, ordered);
+        return loadMapping(registry, stream, ordered, version);
     }
 
-    public static Map<String, EsField> loadMapping(DataTypeRegistry registry, InputStream stream, Boolean ordered) {
+    private static Map<String, EsField> loadMapping(DataTypeRegistry registry, InputStream stream, Boolean ordered, Version version) {
         boolean order = ordered != null ? ordered.booleanValue() : randomBoolean();
         try (InputStream in = stream) {
-            return Types.fromEs(registry, XContentHelper.convertToMap(JsonXContent.jsonXContent, in, order));
+            return Types.fromEs(registry, XContentHelper.convertToMap(JsonXContent.jsonXContent, in, order), version);
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }

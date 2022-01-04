@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.apache.lucene.util.Counter;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -19,7 +20,6 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.ListCursor;
 import org.elasticsearch.xpack.sql.session.Rows;
@@ -44,7 +44,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 import static org.elasticsearch.xpack.ql.util.StringUtils.isQualified;
 import static org.elasticsearch.xpack.ql.util.StringUtils.splitQualifiedIndex;
-import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.displaySize;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDataType;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDateTimeSub;
@@ -158,34 +157,39 @@ public class SysColumns extends Command {
         // special case for '%' (translated to *)
         if ("*".equals(idx)) {
             session.indexResolver()
-                .resolveAsSeparateMappings(indexPattern, regex, includeFrozen, emptyMap(), ActionListener.wrap(esIndices -> {
-                    List<List<?>> rows = new ArrayList<>();
-                    for (EsIndex esIndex : esIndices) {
-                        fillInRows(
-                            tableCat,
-                            esIndex.name(),
-                            esIndex.mapping(),
-                            null,
-                            rows,
-                            columnMatcher,
-                            mode,
-                            session.configuration().version()
-                        );
-                    }
-                    listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
-                }, listener::onFailure));
+                .resolveAsSeparateMappings(
+                    indexPattern,
+                    regex,
+                    includeFrozen,
+                    emptyMap(),
+                    Version.fromId(session.configuration().version().id),
+                    ActionListener.wrap(esIndices -> {
+                        List<List<?>> rows = new ArrayList<>();
+                        for (EsIndex esIndex : esIndices) {
+                            fillInRows(tableCat, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
+                        }
+                        listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
+                    }, listener::onFailure)
+                );
         }
         // otherwise use a merged mapping
         else {
-            session.indexResolver().resolveAsMergedMapping(indexPattern, includeFrozen, emptyMap(), ActionListener.wrap(r -> {
-                List<List<?>> rows = new ArrayList<>();
-                // populate the data only when a target is found
-                if (r.isValid()) {
-                    EsIndex esIndex = r.get();
-                    fillInRows(tableCat, indexName, esIndex.mapping(), null, rows, columnMatcher, mode, session.configuration().version());
-                }
-                listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
-            }, listener::onFailure));
+            session.indexResolver()
+                .resolveAsMergedMapping(
+                    indexPattern,
+                    includeFrozen,
+                    emptyMap(),
+                    Version.fromId(session.configuration().version().id),
+                    ActionListener.wrap(r -> {
+                        List<List<?>> rows = new ArrayList<>();
+                        // populate the data only when a target is found
+                        if (r.isValid()) {
+                            EsIndex esIndex = r.get();
+                            fillInRows(tableCat, indexName, esIndex.mapping(), null, rows, columnMatcher, mode);
+                        }
+                        listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
+                    }, listener::onFailure)
+                );
         }
     }
 
@@ -196,20 +200,9 @@ public class SysColumns extends Command {
         String prefix,
         List<List<?>> rows,
         Pattern columnMatcher,
-        Mode mode,
-        SqlVersion version
+        Mode mode
     ) {
-        fillInRows(
-            clusterName,
-            splitQualifiedIndex(indexName).v2(),
-            mapping,
-            prefix,
-            rows,
-            columnMatcher,
-            Counter.newCounter(),
-            mode,
-            version
-        );
+        fillInRows(clusterName, splitQualifiedIndex(indexName).v2(), mapping, prefix, rows, columnMatcher, Counter.newCounter(), mode);
     }
 
     private static void fillInRows(
@@ -220,8 +213,7 @@ public class SysColumns extends Command {
         List<List<?>> rows,
         Pattern columnMatcher,
         Counter position,
-        Mode mode,
-        SqlVersion version
+        Mode mode
     ) {
         boolean isOdbcClient = mode == Mode.ODBC;
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
@@ -233,7 +225,7 @@ public class SysColumns extends Command {
             DataType type = field.getDataType();
 
             // skip the nested, object and unsupported types
-            if (isPrimitive(type) && isTypeSupportedInVersion(type, version)) {
+            if (isPrimitive(type)) {
                 if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
                     rows.add(
                         asList(
@@ -277,7 +269,7 @@ public class SysColumns extends Command {
             }
             // skip nested fields
             if (field.getProperties() != null && type != NESTED) {
-                fillInRows(clusterName, indexName, field.getProperties(), name, rows, columnMatcher, position, mode, version);
+                fillInRows(clusterName, indexName, field.getProperties(), name, rows, columnMatcher, position, mode);
             }
         }
     }

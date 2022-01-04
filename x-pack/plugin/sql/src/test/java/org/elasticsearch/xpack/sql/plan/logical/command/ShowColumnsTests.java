@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
@@ -17,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.Version.CURRENT;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.supportsUnsignedLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
@@ -40,7 +41,7 @@ public class ShowColumnsTests extends ESTestCase {
     public void testShowColumns() {
         String prefix = "myIndex";
         List<List<?>> rows = new ArrayList<>();
-        ShowColumns.fillInRows(loadMapping("mapping-multi-field-variation.json", true), prefix, SqlVersion.fromId(CURRENT.id), rows);
+        ShowColumns.fillInRows(loadMapping("mapping-multi-field-variation.json", true), prefix, rows);
 
         List<List<?>> expect = asList(
             asList("bool", JDBCType.BOOLEAN.getName(), BOOLEAN.typeName()),
@@ -82,12 +83,13 @@ public class ShowColumnsTests extends ESTestCase {
     }
 
     public void testUnsignedLongFiltering() {
-        Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
+        List<?> rowSupported = List.of("unsigned_long", "NUMERIC", "unsigned_long");
+        List<?> rowUnsupported = List.of("unsigned_long", "OTHER", "unsupported");
         for (SqlVersion version : UNSIGNED_LONG_TEST_VERSIONS) {
             List<List<?>> rows = new ArrayList<>();
-            ShowColumns.fillInRows(mapping, null, version, rows);
-            List<String> typeNames = rows.stream().map(row -> (String) row.get(2)).toList();
-            assertTrue(typeNames.contains(UNSIGNED_LONG.typeName()));
+            Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true, Version.fromId(version.id));
+            ShowColumns.fillInRows(mapping, null, rows);
+            assertTrue((supportsUnsignedLong(Version.fromId(version.id)) && rows.contains(rowSupported)) || rows.contains(rowUnsupported));
         }
     }
 }

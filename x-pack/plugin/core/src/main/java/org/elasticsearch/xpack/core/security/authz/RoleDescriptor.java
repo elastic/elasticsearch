@@ -589,10 +589,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     } while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT);
                 } else {
                     throw new ElasticsearchParseException(
-                        "failed to parse indices privileges for role [{}]. expected {} or {} but got {}" + " in \"{}\".",
+                        "failed to parse indices privileges for role [{}]. expected {} but got {} in \"{}\".",
                         roleName,
                         XContentParser.Token.START_OBJECT,
-                        XContentParser.Token.START_ARRAY,
                         token,
                         Fields.FIELD_PERMISSIONS
                     );
@@ -604,9 +603,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     grantedFields = readStringArray(roleName, parser, true);
                 } else {
                     throw new ElasticsearchParseException(
-                        "[\"fields\": [...]] format has changed for field"
-                            + " permissions in role [{}], use [\"{}\": {\"{}\":[...],"
-                            + "\"{}\":[...]}] instead",
+                        """
+                            ["fields": [...]] format has changed for field permissions in role [{}], \
+                            use ["{}": {"{}":[...],"{}":[...]}] instead""",
                         roleName,
                         Fields.FIELD_PERMISSIONS,
                         Fields.GRANT_FIELDS,

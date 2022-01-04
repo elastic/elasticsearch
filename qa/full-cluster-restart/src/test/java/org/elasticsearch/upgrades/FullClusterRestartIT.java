@@ -569,26 +569,31 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     public void testRollover() throws IOException {
         if (isRunningAgainstOldCluster()) {
             Request createIndex = new Request("PUT", "/" + index + "-000001");
-            createIndex.setJsonEntity("{" + "  \"aliases\": {" + "    \"" + index + "_write\": {}" + "  }" + "}");
+            createIndex.setJsonEntity("""
+                {
+                  "aliases": {
+                    "%s_write": {}
+                  }
+                }""".formatted(index));
             client().performRequest(createIndex);
         }
 
         int bulkCount = 10;
-        StringBuilder bulk = new StringBuilder();
-        for (int i = 0; i < bulkCount; i++) {
-            bulk.append("{\"index\":{}}\n");
-            bulk.append("{\"test\":\"test\"}\n");
-        }
+        String bulk = """
+            {"index":{}}
+            {"test":"test"}
+            """.repeat(bulkCount);
 
         Request bulkRequest = new Request("POST", "/" + index + "_write/_bulk");
 
-        bulkRequest.setJsonEntity(bulk.toString());
+        bulkRequest.setJsonEntity(bulk);
         bulkRequest.addParameter("refresh", "");
         assertThat(EntityUtils.toString(client().performRequest(bulkRequest).getEntity()), containsString("\"errors\":false"));
 
         if (isRunningAgainstOldCluster()) {
             Request rolloverRequest = new Request("POST", "/" + index + "_write/_rollover");
-            rolloverRequest.setJsonEntity("{" + "  \"conditions\": {" + "    \"max_docs\": 5" + "  }" + "}");
+            rolloverRequest.setJsonEntity("""
+                {  "conditions": {    "max_docs": 5  }}""");
             client().performRequest(rolloverRequest);
 
             assertThat(
@@ -623,7 +628,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         logger.info("--> testing basic search with sort");
         {
             Request searchRequest = new Request("GET", "/" + index + "/_search");
-            searchRequest.setJsonEntity("{ \"sort\": [{ \"int\" : \"asc\" }]}");
+            searchRequest.setJsonEntity("""
+                { "sort": [{ "int" : "asc" }]}""");
             Map<String, Object> response = entityAsMap(client().performRequest(searchRequest));
             assertNoFailures(response);
             assertTotalHits(count, response);
@@ -632,7 +638,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         logger.info("--> testing exists filter");
         {
             Request searchRequest = new Request("GET", "/" + index + "/_search");
-            searchRequest.setJsonEntity("{ \"query\": { \"exists\" : {\"field\": \"string\"} }}");
+            searchRequest.setJsonEntity("""
+                { "query": { "exists" : {"field": "string"} }}""");
             Map<String, Object> response = entityAsMap(client().performRequest(searchRequest));
             assertNoFailures(response);
             assertTotalHits(count, response);
@@ -641,7 +648,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         logger.info("--> testing field with dots in the name");
         {
             Request searchRequest = new Request("GET", "/" + index + "/_search");
-            searchRequest.setJsonEntity("{ \"query\": { \"exists\" : {\"field\": \"field.with.dots\"} }}");
+            searchRequest.setJsonEntity("""
+                { "query": { "exists" : {"field": "field.with.dots"} }}""");
             Map<String, Object> response = entityAsMap(client().performRequest(searchRequest));
             assertNoFailures(response);
             assertTotalHits(count, response);
@@ -678,7 +686,17 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     void assertBasicAggregationWorks() throws IOException {
         // histogram on a long
         Request longHistogramRequest = new Request("GET", "/" + index + "/_search");
-        longHistogramRequest.setJsonEntity("{ \"aggs\": { \"histo\" : {\"histogram\" : {\"field\": \"int\", \"interval\": 10}} }}");
+        longHistogramRequest.setJsonEntity("""
+            {
+              "aggs": {
+                "histo": {
+                  "histogram": {
+                    "field": "int",
+                    "interval": 10
+                  }
+                }
+              }
+            }""");
         Map<?, ?> longHistogram = entityAsMap(client().performRequest(longHistogramRequest));
         assertNoFailures(longHistogram);
         List<?> histoBuckets = (List<?>) XContentMapValues.extractValue("aggregations.histo.buckets", longHistogram);
@@ -691,7 +709,16 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // terms on a boolean
         Request boolTermsRequest = new Request("GET", "/" + index + "/_search");
-        boolTermsRequest.setJsonEntity("{ \"aggs\": { \"bool_terms\" : {\"terms\" : {\"field\": \"bool\"}} }}");
+        boolTermsRequest.setJsonEntity("""
+            {
+              "aggs": {
+                "bool_terms": {
+                  "terms": {
+                    "field": "bool"
+                  }
+                }
+              }
+            }""");
         Map<?, ?> boolTerms = entityAsMap(client().performRequest(boolTermsRequest));
         List<?> termsBuckets = (List<?>) XContentMapValues.extractValue("aggregations.bool_terms.buckets", boolTerms);
         int termsCount = 0;
@@ -704,17 +731,20 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     void assertRealtimeGetWorks() throws IOException {
         Request disableAutoRefresh = new Request("PUT", "/" + index + "/_settings");
-        disableAutoRefresh.setJsonEntity("{ \"index\": { \"refresh_interval\" : -1 }}");
+        disableAutoRefresh.setJsonEntity("""
+            { "index": { "refresh_interval" : -1 }}""");
         client().performRequest(disableAutoRefresh);
 
         Request searchRequest = new Request("GET", "/" + index + "/_search");
-        searchRequest.setJsonEntity("{ \"query\": { \"match_all\" : {} }}");
+        searchRequest.setJsonEntity("""
+            { "query": { "match_all" : {} }}""");
         Map<?, ?> searchResponse = entityAsMap(client().performRequest(searchRequest));
         Map<?, ?> hit = (Map<?, ?>) ((List<?>) (XContentMapValues.extractValue("hits.hits", searchResponse))).get(0);
         String docId = (String) hit.get("_id");
 
         Request updateRequest = new Request("POST", "/" + index + "/_update/" + docId);
-        updateRequest.setJsonEntity("{ \"doc\" : { \"foo\": \"bar\"}}");
+        updateRequest.setJsonEntity("""
+            { "doc" : { "foo": "bar"}}""");
         client().performRequest(updateRequest);
 
         Request getRequest = new Request("GET", "/" + index + "/_doc/" + docId);
@@ -724,13 +754,21 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertTrue("doc does not contain 'foo' key: " + source, source.containsKey("foo"));
 
         Request enableAutoRefresh = new Request("PUT", "/" + index + "/_settings");
-        enableAutoRefresh.setJsonEntity("{ \"index\": { \"refresh_interval\" : \"1s\" }}");
+        enableAutoRefresh.setJsonEntity("""
+            { "index": { "refresh_interval" : "1s" }}""");
         client().performRequest(enableAutoRefresh);
     }
 
     void assertStoredBinaryFields(int count) throws Exception {
         Request request = new Request("GET", "/" + index + "/_search");
-        request.setJsonEntity("{ \"query\": { \"match_all\" : {} }, \"size\": 100, \"stored_fields\": \"binary\"}");
+        request.setJsonEntity("""
+            {
+              "query": {
+                "match_all": {}
+              },
+              "size": 100,
+              "stored_fields": "binary"
+            }""");
         Map<String, Object> rsp = entityAsMap(client().performRequest(request));
 
         assertTotalHits(count, rsp);
@@ -806,6 +844,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * Tests recovery of an index with or without a translog and the
      * statistics we gather about that.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52031")
     public void testRecovery() throws Exception {
         int count;
         boolean shouldHaveTranslog;
@@ -951,9 +990,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // Stick a routing attribute into to cluster settings so we can see it after the restore
         Request addRoutingSettings = new Request("PUT", "/_cluster/settings");
-        addRoutingSettings.setJsonEntity(
-            "{\"persistent\": {\"cluster.routing.allocation.exclude.test_attr\": \"" + getOldClusterVersion() + "\"}}"
-        );
+        addRoutingSettings.setJsonEntity("""
+            {"persistent": {"cluster.routing.allocation.exclude.test_attr": "%s"}}
+            """.formatted(getOldClusterVersion()));
         client().performRequest(addRoutingSettings);
 
         // Stick a template into the cluster so we can see it after the restore
@@ -1225,7 +1264,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // Remove the routing setting and template so we can test restoring them.
         Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
-        clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
+        clearRoutingFromSettings.setJsonEntity("""
+            {"persistent":{"cluster.routing.allocation.exclude.test_attr": null}}""");
         client().performRequest(clearRoutingFromSettings);
         client().performRequest(new Request("DELETE", "/_template/test_template"));
 
@@ -1251,8 +1291,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         int extras = between(1, 100);
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < extras; i++) {
-            bulk.append("{\"index\":{\"_id\":\"").append(count + i).append("\"}}\n");
-            bulk.append("{\"test\":\"test\"}\n");
+            bulk.append("""
+                {"index":{"_id":"%s"}}
+                {"test":"test"}
+                """.formatted(count + i));
         }
 
         Request writeToRestoredRequest = new Request("POST", "/restored_" + index + "/_bulk");
@@ -1556,21 +1598,23 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
-            bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\"}}\n" + "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+            bulk.setJsonEntity("""
+                {"index": {"_index": "test_index_old"}}
+                {"f1": "v1", "f2": "v2"}
+                """);
             client().performRequest(bulk);
 
             // start a async reindex job
             Request reindex = new Request("POST", "/_reindex");
-            reindex.setJsonEntity(
-                "{\n"
-                    + "  \"source\":{\n"
-                    + "    \"index\":\"test_index_old\"\n"
-                    + "  },\n"
-                    + "  \"dest\":{\n"
-                    + "    \"index\":\"test_index_reindex\"\n"
-                    + "  }\n"
-                    + "}"
-            );
+            reindex.setJsonEntity("""
+                {
+                  "source":{
+                    "index":"test_index_old"
+                  },
+                  "dest":{
+                    "index":"test_index_reindex"
+                  }
+                }""");
             reindex.addParameter("wait_for_completion", "false");
             Map<String, Object> response = entityAsMap(client().performRequest(reindex));
             String taskId = (String) response.get("task");
@@ -1605,14 +1649,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             if (minimumNodeVersion().before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
                 // Create an alias to make sure it gets upgraded properly
                 Request putAliasRequest = new Request("POST", "/_aliases");
-                putAliasRequest.setJsonEntity(
-                    "{\n"
-                        + "  \"actions\": [\n"
-                        + "    {\"add\":  {\"index\":  \".tasks\", \"alias\": \"test-system-alias\"}},\n"
-                        + "    {\"add\":  {\"index\":  \"test_index_reindex\", \"alias\": \"test-system-alias\"}}\n"
-                        + "  ]\n"
-                        + "}"
-                );
+                putAliasRequest.setJsonEntity("""
+                    {
+                      "actions": [
+                        {"add":  {"index":  ".tasks", "alias": "test-system-alias"}},
+                        {"add":  {"index":  "test_index_reindex", "alias": "test-system-alias"}}
+                      ]
+                    }""");
                 putAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {
                     v.current(systemIndexWarning);
                     v.compatible(systemIndexWarning);

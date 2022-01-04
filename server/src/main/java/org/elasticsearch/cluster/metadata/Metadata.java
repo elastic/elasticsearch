@@ -999,7 +999,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         @Override
         public Metadata apply(Metadata part) {
-            Builder builder = builder();
+            // create builder from existing mappings hashes so we don't change existing index metadata instances when deduplicating
+            // mappings in the builder
+            Builder builder = new Builder(part.mappingsByHash);
             builder.clusterUUID(clusterUUID);
             builder.clusterUUIDCommitted(clusterUUIDCommitted);
             builder.version(version);
@@ -1090,13 +1092,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private final Map<String, MappingMetadata> mappingsByHash;
 
         public Builder() {
-            clusterUUID = UNKNOWN_CLUSTER_UUID;
-            indices = ImmutableOpenMap.builder();
-            templates = ImmutableOpenMap.builder();
-            customs = ImmutableOpenMap.builder();
-            indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
-            previousIndicesLookup = null;
-            mappingsByHash = new HashMap<>();
+            this(Map.of());
         }
 
         Builder(Metadata metadata) {
@@ -1112,6 +1108,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             this.customs = ImmutableOpenMap.builder(metadata.customs);
             previousIndicesLookup = metadata.getIndicesLookup();
             this.mappingsByHash = new HashMap<>(metadata.mappingsByHash);
+        }
+
+        private Builder(Map<String, MappingMetadata> mappingsByHash) {
+            clusterUUID = UNKNOWN_CLUSTER_UUID;
+            indices = ImmutableOpenMap.builder();
+            templates = ImmutableOpenMap.builder();
+            customs = ImmutableOpenMap.builder();
+            indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
+            previousIndicesLookup = null;
+            this.mappingsByHash = new HashMap<>(mappingsByHash);
         }
 
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {

@@ -220,11 +220,11 @@ final class QueryTranslator {
     }
 
     static String nameOf(Expression e) {
-        if (e instanceof DateTimeFunction) {
-            return nameOf(((DateTimeFunction) e).field());
+        if (e instanceof DateTimeFunction dateTimeFunction) {
+            return nameOf(dateTimeFunction.field());
         }
-        if (e instanceof NamedExpression) {
-            return ((NamedExpression) e).name();
+        if (e instanceof NamedExpression namedExpression) {
+            return namedExpression.name();
         } else {
             return e.sourceText();
         }
@@ -234,8 +234,7 @@ final class QueryTranslator {
         if (arg.foldable()) {
             return String.valueOf(arg.fold());
         }
-        if (arg instanceof FieldAttribute) {
-            FieldAttribute field = (FieldAttribute) arg;
+        if (arg instanceof FieldAttribute field) {
             // COUNT(DISTINCT) uses cardinality aggregation which works on exact values (not changed by analyzers or normalizers)
             if ((af instanceof Count && ((Count) af).distinct()) || af instanceof TopHits) {
                 // use the `keyword` version of the field, if there is one

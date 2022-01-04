@@ -203,7 +203,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                 assertThat(content.isPresent(), is(true));
                 assertThat(content.get().v1(), equalTo(blobContainer.path().buildAsString() + "write_blob_max_retries"));
                 if (Objects.deepEquals(bytes, BytesReference.toBytes(content.get().v2()))) {
-                    byte[] response = ("{\"bucket\":\"bucket\",\"name\":\"" + content.get().v1() + "\"}").getBytes(UTF_8);
+                    byte[] response = """
+                        {"bucket":"bucket","name":"%s"}
+                        """.formatted(content.get().v1()).getBytes(UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);

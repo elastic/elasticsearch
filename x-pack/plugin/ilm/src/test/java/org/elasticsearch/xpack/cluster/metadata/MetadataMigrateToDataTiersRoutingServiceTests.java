@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.cluster.metadata;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -239,6 +239,65 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                             IndexLifecycleMetadata.TYPE,
                             new IndexLifecycleMetadata(
                                 Collections.singletonMap(policyMetadata.getName(), policyMetadata),
+                                OperationMode.STOPPED
+                            )
+                        )
+                        .put(indexMetadata)
+                        .build()
+                )
+                .build();
+
+            Metadata.Builder newMetadata = Metadata.builder(state.metadata());
+            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
+
+            assertThat(migratedPolicies.get(0), is(lifecycleName));
+            ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
+            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+
+            Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
+
+            // expecting the phase definition to be refreshed with the migrated phase representation
+            // ie. allocate action does not contain any allocation rules
+            Map<String, Object> actions = (Map<String, Object>) migratedPhaseDefAsMap.get("actions");
+            assertThat(actions.size(), is(1));
+            Map<String, Object> allocateDef = (Map<String, Object>) actions.get(AllocateAction.NAME);
+            assertThat(allocateDef, notNullValue());
+            assertThat(allocateDef.get("include"), is(Map.of()));
+            assertThat(allocateDef.get("exclude"), is(Map.of()));
+            assertThat(allocateDef.get("require"), is(Map.of()));
+        }
+
+        {
+            // index is in the cold phase and the migrated allocate action is not removed due to allocate specifying
+            // total_shards_per_node
+            LifecyclePolicyMetadata policyMetadataWithTotalShardsPerNode = getWarmColdPolicyMeta(
+                warmSetPriority,
+                shrinkAction,
+                warmAllocateAction,
+                new AllocateAction(null, 1, null, null, Map.of("data", "cold"))
+            );
+
+            LifecycleExecutionState preMigrationExecutionState = LifecycleExecutionState.builder()
+                .setPhase("cold")
+                .setAction("allocate")
+                .setStep("allocate")
+                .setPhaseDefinition(getColdPhaseDefinitionWithTotalShardsPerNode())
+                .build();
+
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName)
+                .settings(getBaseIndexSettings())
+                .putCustom(ILM_CUSTOM_METADATA_KEY, preMigrationExecutionState.asMap());
+
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(
+                    Metadata.builder()
+                        .putCustom(
+                            IndexLifecycleMetadata.TYPE,
+                            new IndexLifecycleMetadata(
+                                Collections.singletonMap(
+                                    policyMetadataWithTotalShardsPerNode.getName(),
+                                    policyMetadataWithTotalShardsPerNode
+                                ),
                                 OperationMode.STOPPED
                             )
                         )
@@ -920,51 +979,69 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     private String getWarmPhaseDef() {
-        return "{\n"
-            + "        \"policy\" : \""
-            + lifecycleName
-            + "\",\n"
-            + "        \"phase_definition\" : {\n"
-            + "          \"min_age\" : \"0m\",\n"
-            + "          \"actions\" : {\n"
-            + "            \"allocate\" : {\n"
-            + "              \"number_of_replicas\" : \"0\",\n"
-            + "              \"require\" : {\n"
-            + "                \"data\": \"cold\"\n"
-            + "              }\n"
-            + "            },\n"
-            + "            \"set_priority\": {\n"
-            + "              \"priority\": 100 \n"
-            + "            },\n"
-            + "            \"shrink\": {\n"
-            + "              \"number_of_shards\": 2 \n"
-            + "            }\n"
-            + "          }\n"
-            + "        },\n"
-            + "        \"version\" : 1,\n"
-            + "        \"modified_date_in_millis\" : 1578521007076\n"
-            + "      }";
+        return """
+            {
+              "policy": "%s",
+              "phase_definition": {
+                "min_age": "0m",
+                "actions": {
+                  "allocate": {
+                    "number_of_replicas": "0",
+                    "require": {
+                      "data": "cold"
+                    }
+                  },
+                  "set_priority": {
+                    "priority": 100
+                  },
+                  "shrink": {
+                    "number_of_shards": 2
+                  }
+                }
+              },
+              "version": 1,
+              "modified_date_in_millis": 1578521007076
+            }""".formatted(lifecycleName);
+    }
+
+    private String getColdPhaseDefinitionWithTotalShardsPerNode() {
+        return """
+            {
+              "policy": "%s",
+              "phase_definition": {
+                "min_age": "0m",
+                "actions": {
+                  "allocate": {
+                    "total_shards_per_node": "1",
+                    "require": {
+                      "data": "cold"
+                    }
+                  }
+                }
+              },
+              "version": 1,
+              "modified_date_in_millis": 1578521007076
+            }""".formatted(lifecycleName);
     }
 
     private String getColdPhaseDefinition() {
-        return "{\n"
-            + "        \"policy\" : \""
-            + lifecycleName
-            + "\",\n"
-            + "        \"phase_definition\" : {\n"
-            + "          \"min_age\" : \"0m\",\n"
-            + "          \"actions\" : {\n"
-            + "            \"allocate\" : {\n"
-            + "              \"number_of_replicas\" : \"0\",\n"
-            + "              \"require\" : {\n"
-            + "                \"data\": \"cold\"\n"
-            + "              }\n"
-            + "            }\n"
-            + "          }\n"
-            + "        },\n"
-            + "        \"version\" : 1,\n"
-            + "        \"modified_date_in_millis\" : 1578521007076\n"
-            + "      }";
+        return """
+            {
+              "policy": "%s",
+              "phase_definition": {
+                "min_age": "0m",
+                "actions": {
+                  "allocate": {
+                    "number_of_replicas": "0",
+                    "require": {
+                      "data": "cold"
+                    }
+                  }
+                }
+              },
+              "version": 1,
+              "modified_date_in_millis": 1578521007076
+            }""".formatted(lifecycleName);
     }
 
     @SuppressWarnings("unchecked")

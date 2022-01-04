@@ -28,16 +28,21 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
     // see #3544
     public void testConcurrentDynamicMapping() throws Exception {
         final String fieldName = "field";
-        final String mapping = "{"
-            + "\"dynamic_templates\": ["
-            + "{ \""
-            + fieldName
-            + "\": {"
-            + "\"path_match\": \"*\","
-            + "\"mapping\": {"
-            + "\"type\": \"text\","
-            + "\"store\": true,"
-            + "\"analyzer\": \"whitespace\" } } } ] }";
+        final String mapping = """
+            {
+              "dynamic_templates": [
+                {
+                  "%s": {
+                    "path_match": "*",
+                    "mapping": {
+                      "type": "text",
+                      "store": true,
+                      "analyzer": "whitespace"
+                    }
+                  }
+                }
+              ]
+            }""".formatted(fieldName);
         // The 'fieldNames' array is used to help with retrieval of index terms
         // after testing
 

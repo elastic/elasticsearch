@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -217,31 +218,60 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(startFullSnapshot(repo, "snapshot-3"));
     }
 
-    private static void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) {
+    private static void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) throws IOException {
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIdx).get();
         MappingMetadata mapping = getMappingsResponse.getMappings().get(sourceIdx);
-        String nested = useNested
-            ? ",\"incorrect\":{\"type\":\"object\"},\"nested\":{\"type\":\"nested\",\"properties\":{\"value\":{\"type\":\"long\"}}}"
-            : "";
+        String nested = useNested ? """
+            ,"incorrect":{"type":"object"},"nested":{"type":"nested","properties":{"value":{"type":"long"}}}""" : "";
         if (requireRouting) {
-            assertEquals(
-                "{\"_doc\":{\"enabled\":false,"
-                    + "\"_meta\":{\"_doc\":{\"_routing\":{\"required\":true},"
-                    + "\"properties\":{\"field1\":{\"type\":\"text\","
-                    + "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}"
-                    + nested
-                    + "}}}}}",
-                mapping.source().string()
-            );
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "_doc": {
+                    "enabled": false,
+                    "_meta": {
+                      "_doc": {
+                        "_routing": {
+                          "required": true
+                        },
+                        "properties": {
+                          "field1": {
+                            "type": "text",
+                            "fields": {
+                              "keyword": {
+                                "type": "keyword",
+                                "ignore_above": 256
+                              }
+                            }
+                          }
+                          %s
+                        }
+                      }
+                    }
+                  }
+                }""".formatted(nested)), mapping.source().string());
         } else {
-            assertEquals(
-                "{\"_doc\":{\"enabled\":false,"
-                    + "\"_meta\":{\"_doc\":{\"properties\":{\"field1\":{\"type\":\"text\","
-                    + "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}"
-                    + nested
-                    + "}}}}}",
-                mapping.source().string()
-            );
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "_doc": {
+                    "enabled": false,
+                    "_meta": {
+                      "_doc": {
+                        "properties": {
+                          "field1": {
+                            "type": "text",
+                            "fields": {
+                              "keyword": {
+                                "type": "keyword",
+                                "ignore_above": 256
+                              }
+                            }
+                          }
+                          %s
+                        }
+                      }
+                    }
+                  }
+                }""".formatted(nested)), mapping.source().string());
         }
     }
 

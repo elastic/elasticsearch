@@ -11,6 +11,7 @@ package org.elasticsearch.http;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -286,46 +287,44 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     public void onException(HttpChannel channel, Exception e) {
-        if (lifecycle.started() == false) {
-            // just close and ignore - we are already stopped and just need to make sure we release all resources
-            CloseableChannel.closeChannel(channel);
-            return;
-        }
-        if (NetworkExceptionHelper.isCloseConnectionException(e)) {
-            logger.trace(
-                () -> new ParameterizedMessage(
-                    "close connection exception caught while handling client http traffic, closing connection {}",
-                    channel
-                ),
-                e
-            );
-            CloseableChannel.closeChannel(channel);
-        } else if (NetworkExceptionHelper.isConnectException(e)) {
-            logger.trace(
-                () -> new ParameterizedMessage(
-                    "connect exception caught while handling client http traffic, closing connection {}",
-                    channel
-                ),
-                e
-            );
-            CloseableChannel.closeChannel(channel);
-        } else if (e instanceof HttpReadTimeoutException) {
-            logger.trace(() -> new ParameterizedMessage("http read timeout, closing connection {}", channel), e);
-            CloseableChannel.closeChannel(channel);
-        } else if (e instanceof CancelledKeyException) {
-            logger.trace(
-                () -> new ParameterizedMessage(
-                    "cancelled key exception caught while handling client http traffic, closing connection {}",
-                    channel
-                ),
-                e
-            );
-            CloseableChannel.closeChannel(channel);
-        } else {
-            logger.warn(
-                () -> new ParameterizedMessage("caught exception while handling client http traffic, closing connection {}", channel),
-                e
-            );
+        try {
+            if (lifecycle.started() == false) {
+                // just close and ignore - we are already stopped and just need to make sure we release all resources
+                return;
+            }
+            if (NetworkExceptionHelper.getCloseConnectionExceptionLevel(e) != Level.OFF) {
+                logger.trace(
+                    () -> new ParameterizedMessage(
+                        "close connection exception caught while handling client http traffic, closing connection {}",
+                        channel
+                    ),
+                    e
+                );
+            } else if (NetworkExceptionHelper.isConnectException(e)) {
+                logger.trace(
+                    () -> new ParameterizedMessage(
+                        "connect exception caught while handling client http traffic, closing connection {}",
+                        channel
+                    ),
+                    e
+                );
+            } else if (e instanceof HttpReadTimeoutException) {
+                logger.trace(() -> new ParameterizedMessage("http read timeout, closing connection {}", channel), e);
+            } else if (e instanceof CancelledKeyException) {
+                logger.trace(
+                    () -> new ParameterizedMessage(
+                        "cancelled key exception caught while handling client http traffic, closing connection {}",
+                        channel
+                    ),
+                    e
+                );
+            } else {
+                logger.warn(
+                    () -> new ParameterizedMessage("caught exception while handling client http traffic, closing connection {}", channel),
+                    e
+                );
+            }
+        } finally {
             CloseableChannel.closeChannel(channel);
         }
     }

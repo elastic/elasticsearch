@@ -2674,30 +2674,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             long indexIncrementalSize = 0;
             long indexTotalFileSize = 0;
             final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new LinkedBlockingQueue<>();
-            // If we did not find a set of files that is equal to the current commit we determine the files to upload by comparing files
-            // in the commit with files already in the repository
-            if (filesFromSegmentInfos == null) {
+
+            if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
+                indexCommitPointFiles = Collections.emptyList();
+            } else if (filesFromSegmentInfos == null) {
+                // If we did not find a set of files that is equal to the current commit we determine the files to upload by comparing files
+                // in the commit with files already in the repository
                 indexCommitPointFiles = new ArrayList<>();
                 final Collection<String> fileNames;
                 final Store.MetadataSnapshot metadataFromStore;
-                if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
-                    fileNames = Collections.emptyList();
-                    metadataFromStore = Store.MetadataSnapshot.EMPTY;
-                } else {
-                    try (Releasable ignored = incrementStoreRef(store, snapshotStatus, shardId)) {
-                        // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
-                        try {
-                            logger.trace(
-                                "[{}] [{}] Loading store metadata using index commit [{}]",
-                                shardId,
-                                snapshotId,
-                                snapshotIndexCommit
-                            );
-                            metadataFromStore = store.getMetadata(snapshotIndexCommit);
-                            fileNames = snapshotIndexCommit.getFileNames();
-                        } catch (IOException e) {
-                            throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
-                        }
+                try (Releasable ignored = incrementStoreRef(store, snapshotStatus, shardId)) {
+                    // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
+                    try {
+                        logger.trace("[{}] [{}] Loading store metadata using index commit [{}]", shardId, snapshotId, snapshotIndexCommit);
+                        metadataFromStore = store.getMetadata(snapshotIndexCommit);
+                        fileNames = snapshotIndexCommit.getFileNames();
+                    } catch (IOException e) {
+                        throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
                     }
                 }
                 for (String fileName : fileNames) {

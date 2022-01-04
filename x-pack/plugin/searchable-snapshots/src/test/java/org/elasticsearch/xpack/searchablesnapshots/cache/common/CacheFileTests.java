@@ -438,7 +438,7 @@ public class CacheFileTests extends ESTestCase {
 
             // on Linux we can infer the filesystem's block size if only 1 byte was written,
             // but this is not always right with encryption at rest using dmcrypt
-            final long blockSize = Constants.LINUX ? sizeOnDisk.getAsLong() : 0L;
+            final long blockSize = Constants.LINUX && noEncryptionAtRest(file) ? sizeOnDisk.getAsLong() : 0L;
 
             fill(fileChannel, 0, Math.toIntExact(cacheFile.getLength()));
             fileChannel.force(false);
@@ -454,30 +454,28 @@ public class CacheFileTests extends ESTestCase {
             if (blockSize > 0L) {
                 final long nbBlocks = (cacheFile.getLength() + blockSize - 1) / blockSize; // ceil(cacheFile.getLength() / blockSize)
                 final long expectedSize = nbBlocks * blockSize;
-                if (blockSize == fourKb) {
-                    assertThat(
-                        "Cache file size mismatches (block size: "
-                            + blockSize
-                            + ", number of blocks: "
-                            + nbBlocks
-                            + ", file length: "
-                            + cacheFile.getLength()
-                            + ')',
-                        sizeOnDisk.getAsLong(),
-                        equalTo(expectedSize)
-                    );
-                } else {
-                    // block size other than usual default block size indicates that a special filesystem may be at use, let's verify this
-                    assertThat(
-                        "Non default block size only used in test executed with encryption at rest",
-                        file.toAbsolutePath().toString(),
-                        containsString("/mnt/secret")
-                    );
-                }
+                assertThat(
+                    "Cache file size mismatches (block size: "
+                        + blockSize
+                        + ", number of blocks: "
+                        + nbBlocks
+                        + ", file length: "
+                        + cacheFile.getLength()
+                        + ')',
+                    sizeOnDisk.getAsLong(),
+                    equalTo(expectedSize)
+                );
             }
         } finally {
             cacheFile.release(listener);
         }
+    }
+
+    /**
+     * @return true when no encryption at rest is in use (best effort method)
+     */
+    private static boolean noEncryptionAtRest(Path path) {
+        return path.toAbsolutePath().toString().contains("/mnt/secret") == false;
     }
 
     static class TestEvictionListener implements EvictionListener {

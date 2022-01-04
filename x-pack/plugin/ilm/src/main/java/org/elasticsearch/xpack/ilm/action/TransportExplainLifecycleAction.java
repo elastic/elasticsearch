@@ -122,6 +122,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
             stepInfoBytes = new BytesArray(stepInfo);
         }
         String indexName = indexMetadata.getIndex().getName();
+        Long indexCreationDate = indexMetadata.getCreationDate();
 
         // parse existing phase steps from the phase definition in the index settings
         String phaseDef = lifecycleState.getPhaseDefinition();
@@ -146,6 +147,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                 Long originationDate = idxSettings.getAsLong(LIFECYCLE_ORIGINATION_DATE, -1L);
                 indexResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(
                     indexName,
+                    indexCreationDate,
                     policyName,
                     originationDate != -1L ? originationDate : lifecycleState.getLifecycleDate(),
                     lifecycleState.getPhase(),

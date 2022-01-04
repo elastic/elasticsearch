@@ -24,3 +24,10 @@ tasks.named('forbiddenApisMain').configure {
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+        'com.fasterxml.jackson.databind.ObjectMapper',
+        'com.fasterxml.jackson.databind.cfg.MapperBuilder'
+  )
+}

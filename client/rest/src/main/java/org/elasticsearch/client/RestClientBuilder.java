@@ -51,7 +51,7 @@ public final class RestClientBuilder {
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
 
-    static final String VERSION;
+    public static final String VERSION;
     static final String META_HEADER_NAME = "X-Elastic-Client-Meta";
     static final String META_HEADER_VALUE;
     private static final String USER_AGENT_HEADER_VALUE;
@@ -109,13 +109,20 @@ public final class RestClientBuilder {
             // Keep unknown
         }
 
+        // Use a single 'p' suffix for all prerelease versions (snapshot, beta, etc).
+        String metaVersion = version;
+        int dashPos = metaVersion.indexOf('-');
+        if (dashPos > 0) {
+            metaVersion = metaVersion.substring(0, dashPos) + "p";
+        }
+
         // service, language, transport, followed by additional information
         META_HEADER_VALUE = "es="
-            + VERSION
+            + metaVersion
             + ",jv="
             + System.getProperty("java.specification.version")
             + ",t="
-            + VERSION
+            + metaVersion
             + ",hc="
             + (httpClientVersion == null ? "" : httpClientVersion.getRelease())
             + LanguageRuntimeVersions.getRuntimeMetadata();

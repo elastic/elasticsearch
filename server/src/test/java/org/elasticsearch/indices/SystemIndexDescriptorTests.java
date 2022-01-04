@@ -95,16 +95,17 @@ public class SystemIndexDescriptorTests extends ESTestCase {
      * Check that a system index descriptor correctly identifies the presence of a dynamic mapping when once is present.
      */
     public void testFindDynamicMappingsWithDynamicMapping() {
-        String json = "{"
-            + "  \"foo\": {"
-            + "    \"bar\": {"
-            + "      \"dynamic\": false"
-            + "    },"
-            + "    \"baz\": {"
-            + "      \"dynamic\": true"
-            + "    }"
-            + "  }"
-            + "}";
+        String json = """
+            {
+              "foo": {
+                "bar": {
+                  "dynamic": false
+                },
+                "baz": {
+                  "dynamic": true
+                }
+              }
+            }""";
 
         final Map<String, Object> mappings = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
 
@@ -115,7 +116,8 @@ public class SystemIndexDescriptorTests extends ESTestCase {
      * Check that a system index descriptor correctly identifies the absence of a dynamic mapping when none are present.
      */
     public void testFindDynamicMappingsWithoutDynamicMapping() {
-        String json = "{ \"foo\": { \"bar\": { \"dynamic\": false } } }";
+        String json = """
+            { "foo": { "bar": { "dynamic": false } } }""";
 
         final Map<String, Object> mappings = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
 

@@ -10,7 +10,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;

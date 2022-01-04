@@ -15,6 +15,10 @@
 ---
 "basic segments test":
 
+  - skip:
+      version: all
+      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/81928"
+
   - do:
       indices.create:
         index: index1

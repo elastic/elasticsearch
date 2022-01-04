@@ -7,19 +7,19 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
-import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
-import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BasicTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.DelimitedToken;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -91,10 +91,12 @@ public class NerProcessorTests extends ESTestCase {
     public void testProcessResults_GivenNoTokens() {
         NerProcessor.NerResultProcessor processor = new NerProcessor.NerResultProcessor(NerProcessor.IobTag.values(), null, false);
         TokenizationResult tokenization = tokenize(List.of(BertTokenizer.PAD_TOKEN, BertTokenizer.UNKNOWN_TOKEN), "");
-        assertThat(
-            processor.processResult(tokenization, new PyTorchResult("test", null, 0L, null)),
-            instanceOf(WarningInferenceResults.class)
+
+        var e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> processor.processResult(tokenization, new PyTorchInferenceResult("test", null, 0L, null))
         );
+        assertThat(e, instanceOf(ElasticsearchStatusException.class));
     }
 
     public void testProcessResults() {
@@ -114,7 +116,7 @@ public class NerProcessorTests extends ESTestCase {
                 { 0, 0, 0, 0, 0, 0, 0, 0, 0 }, // in
                 { 0, 0, 0, 0, 0, 0, 0, 6, 0 } // london
             } };
-        NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchResult("1", scores, 1L, null));
+        NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchInferenceResult("1", scores, 1L, null));
 
         assertThat(result.getAnnotatedResult(), equalTo("Many use [Elasticsearch](ORG&Elasticsearch) in [London](LOC&London)"));
         assertThat(result.getEntityGroups().size(), equalTo(2));
@@ -151,7 +153,7 @@ public class NerProcessorTests extends ESTestCase {
                 { 0, 0, 0, 0, 0, 0, 0, 0, 5 }, // in
                 { 6, 0, 0, 0, 0, 0, 0, 0, 0 } // london
             } };
-        NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchResult("1", scores, 1L, null));
+        NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchInferenceResult("1", scores, 1L, null));
 
         assertThat(result.getAnnotatedResult(), equalTo("[Elasticsearch](ORG&Elasticsearch) in [London](LOC&London)"));
         assertThat(result.getEntityGroups().size(), equalTo(2));

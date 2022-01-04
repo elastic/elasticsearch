@@ -87,13 +87,14 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
      */
     public void testTransformRollingUpgrade() throws Exception {
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
-        adjustLoggingLevels.setJsonEntity(
-            "{\"persistent\": {"
-                + "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\","
-                + "\"logger.org.elasticsearch.xpack.dataframe\": \"trace\","
-                + "\"logger.org.elasticsearch.xpack.transform\": \"trace\""
-                + "}}"
-        );
+        adjustLoggingLevels.setJsonEntity("""
+            {
+              "persistent": {
+                "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "trace",
+                "logger.org.elasticsearch.xpack.dataframe": "trace",
+                "logger.org.elasticsearch.xpack.transform": "trace"
+              }
+            }""");
         client().performRequest(adjustLoggingLevels);
         Request waitForYellow = new Request("GET", "/_cluster/health");
         waitForYellow.addParameter("wait_for_nodes", "3");
@@ -243,28 +244,20 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             TRANSFORM_INTERNAL_INDEX_PREFIX + "*," + TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED + "*" + "/_search"
         );
 
-        getStatsDocsRequest.setJsonEntity(
-            "{\n"
-                + "  \"query\": {\n"
-                + "    \"bool\": {\n"
-                + "      \"filter\": \n"
-                + "        {\"term\": {\n"
-                + "          \"_id\": \"data_frame_transform_state_and_stats-"
-                + id
-                + "\"\n"
-                + "        }}\n"
-                + "    }\n"
-                + "  },\n"
-                + "  \"sort\": [\n"
-                + "    {\n"
-                + "      \"_index\": {\n"
-                + "        \"order\": \"desc\"\n"
-                + "      }\n"
-                + "    }\n"
-                + "  ],\n"
-                + "  \"size\": 1\n"
-                + "}"
-        );
+        getStatsDocsRequest.setJsonEntity("""
+            {
+               "query": {
+                 "bool": {
+                   "filter": {
+                     "term": {
+                       "_id": "data_frame_transform_state_and_stats-%s"
+                     }
+                   }
+                 }
+               },
+               "sort": [ { "_index": { "order": "desc" } } ],
+               "size": 1
+             }""".formatted(id));
         assertBusy(() -> {
             // Want to make sure we get the latest docs
             client().performRequest(new Request("POST", TRANSFORM_INTERNAL_INDEX_PREFIX + "*/_refresh"));
@@ -374,14 +367,10 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         final StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < numDocs; i++) {
             for (String entity : entityIds) {
-                bulk.append("{\"index\":{\"_index\":\"" + indexName + "\"}}\n")
-                    .append("{\"user_id\":\"")
-                    .append(entity)
-                    .append("\",\"stars\":")
-                    .append(randomLongBetween(0, 5))
-                    .append(",\"timestamp\":")
-                    .append(timeStamp)
-                    .append("}\n");
+                bulk.append("""
+                    {"index":{"_index":"%s"}}
+                    {"user_id":"%s","stars":%s,"timestamp":%s}
+                    """.formatted(indexName, entity, randomLongBetween(0, 5), timeStamp));
             }
         }
         bulk.append("\r\n");

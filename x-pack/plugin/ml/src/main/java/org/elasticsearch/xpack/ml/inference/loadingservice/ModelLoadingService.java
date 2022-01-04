@@ -332,7 +332,7 @@ public class ModelLoadingService implements ClusterStateListener {
                     handleLoadFailure(
                         modelId,
                         new ElasticsearchStatusException(
-                            "model [{}] with type [{}] is currently not usable in search.",
+                            "Trained model [{}] with type [{}] is currently not usable in search.",
                             RestStatus.BAD_REQUEST,
                             modelId,
                             trainedModelConfig.getModelType()
@@ -342,11 +342,7 @@ public class ModelLoadingService implements ClusterStateListener {
                 }
                 handleLoadFailure(
                     modelId,
-                    new ElasticsearchStatusException(
-                        "model [{}] must be deployed to use. Please deploy with the start trained model deployment API.",
-                        RestStatus.BAD_REQUEST,
-                        modelId
-                    )
+                    new ElasticsearchStatusException("Trained model [{}] is not deployed.", RestStatus.BAD_REQUEST, modelId)
                 );
                 return;
             }

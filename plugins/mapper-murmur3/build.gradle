@@ -16,6 +16,8 @@ esplugin {
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
+  //compileOnly project(':modules:lang-painless')
+  //testImplementation project(':modules:lang-painless')
 }
 
 restResources {
@@ -23,3 +25,8 @@ restResources {
     include '_common', 'indices', 'index', 'search'
   }
 }
+/*
+testClusters.configureEach {
+  module ':modules:lang-painless'
+}
+ */

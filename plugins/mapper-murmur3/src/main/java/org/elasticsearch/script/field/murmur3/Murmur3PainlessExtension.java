@@ -25,10 +25,10 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 
-public class PainlessFieldsWhitelistExtension implements PainlessExtension {
+public class Murmur3PainlessExtension implements PainlessExtension {
 
     private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(
-        PainlessFieldsWhitelistExtension.class,
+        Murmur3PainlessExtension.class,
         "org.elasticsearch.field.murmur3.txt"
     );
 

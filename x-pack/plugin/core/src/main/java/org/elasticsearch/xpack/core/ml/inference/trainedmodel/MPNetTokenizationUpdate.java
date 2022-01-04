@@ -19,36 +19,36 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class BertTokenizationUpdate implements TokenizationUpdate {
+public class MPNetTokenizationUpdate implements TokenizationUpdate {
 
-    public static final ParseField NAME = BertTokenization.NAME;
+    public static final ParseField NAME = MPNetTokenization.NAME;
 
-    public static ConstructingObjectParser<BertTokenizationUpdate, Void> PARSER = new ConstructingObjectParser<>(
-        "bert_tokenization_update",
-        a -> new BertTokenizationUpdate(a[0] == null ? null : Tokenization.Truncate.fromString((String) a[0]))
+    public static ConstructingObjectParser<MPNetTokenizationUpdate, Void> PARSER = new ConstructingObjectParser<>(
+        "mpnet_tokenization_update",
+        a -> new MPNetTokenizationUpdate(a[0] == null ? null : Tokenization.Truncate.fromString((String) a[0]))
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Tokenization.TRUNCATE);
     }
 
-    public static BertTokenizationUpdate fromXContent(XContentParser parser) {
+    public static MPNetTokenizationUpdate fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
     private final Tokenization.Truncate truncate;
 
-    public BertTokenizationUpdate(@Nullable Tokenization.Truncate truncate) {
+    public MPNetTokenizationUpdate(@Nullable Tokenization.Truncate truncate) {
         this.truncate = truncate;
     }
 
-    public BertTokenizationUpdate(StreamInput in) throws IOException {
+    public MPNetTokenizationUpdate(StreamInput in) throws IOException {
         this.truncate = in.readOptionalEnum(Tokenization.Truncate.class);
     }
 
     @Override
     public Tokenization apply(Tokenization originalConfig) {
-        if (originalConfig instanceof BertTokenization == false) {
+        if (originalConfig instanceof MPNetTokenization == false) {
             throw ExceptionsHelper.badRequestException(
                 "Tokenization config of type [{}] can not be updated with a request of type [{}]",
                 originalConfig.getName(),
@@ -60,7 +60,7 @@ public class BertTokenizationUpdate implements TokenizationUpdate {
             return originalConfig;
         }
 
-        return new BertTokenization(
+        return new MPNetTokenization(
             originalConfig.doLowerCase(),
             originalConfig.withSpecialTokens(),
             originalConfig.maxSequenceLength(),
@@ -83,7 +83,7 @@ public class BertTokenizationUpdate implements TokenizationUpdate {
 
     @Override
     public String getWriteableName() {
-        return BertTokenization.NAME.getPreferredName();
+        return MPNetTokenization.NAME.getPreferredName();
     }
 
     @Override
@@ -93,14 +93,14 @@ public class BertTokenizationUpdate implements TokenizationUpdate {
 
     @Override
     public String getName() {
-        return BertTokenization.NAME.getPreferredName();
+        return MPNetTokenization.NAME.getPreferredName();
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        BertTokenizationUpdate that = (BertTokenizationUpdate) o;
+        MPNetTokenizationUpdate that = (MPNetTokenizationUpdate) o;
         return truncate == that.truncate;
     }
 

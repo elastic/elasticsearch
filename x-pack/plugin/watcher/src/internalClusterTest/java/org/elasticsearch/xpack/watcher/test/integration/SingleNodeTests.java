@@ -39,7 +39,6 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
     // this is the standard setup when starting watcher in a regular cluster
     // the index does not exist, a watch gets added
     // the watch should be executed properly, despite the index being created and the cluster state listener being reloaded
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54096")
     public void testThatLoadingWithNonExistingIndexWorks() throws Exception {
         stopWatcher();
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
@@ -63,7 +62,7 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
             client().admin().indices().prepareRefresh(".watcher-history*");
             SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
             assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(1L)));
-        }, 5, TimeUnit.SECONDS);
+        }, 30, TimeUnit.SECONDS);
     }
 
 }

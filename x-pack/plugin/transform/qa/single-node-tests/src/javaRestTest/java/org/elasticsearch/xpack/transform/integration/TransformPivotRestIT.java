@@ -957,56 +957,41 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     public void testPreviewTransformWithPipelineScript() throws Exception {
         String pipelineId = "my-preview-pivot-pipeline-script";
         Request pipelineRequest = new Request("PUT", "/_ingest/pipeline/" + pipelineId);
-        pipelineRequest.setJsonEntity("""
-            {
-              "description": "my pivot preview pipeline",
-              "processors": [
-                {
-                  "script": {
-                    "lang": "painless",
-                    "source": "ctx._id = ctx['non']['existing'];"
-                  }
-                }
-              ]
-            }
-            """);
+        pipelineRequest.setJsonEntity(
+            "{\n"
+                + "  \"description\" : \"my pivot preview pipeline\",\n"
+                + "  \"processors\" : [\n"
+                + "    {\n"
+                + "      \"script\" : {\n"
+                + "        \"lang\": \"painless\",\n"
+                + "        \"source\": \"ctx._id = ctx['non']['existing'];\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}"
+        );
         client().performRequest(pipelineRequest);
 
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
         final Request createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
         createPreviewRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
 
-        String config = """
-            {
-              "source": {
-                "index": "%s"
-              },
-              "dest": {
-                "pipeline": "%s"
-              },
-              "pivot": {
-                "group_by": {
-                  "user.id": {
-                    "terms": {
-                      "field": "user_id"
-                    }
-                  },
-                  "by_day": {
-                    "date_histogram": {
-                      "fixed_interval": "1d",
-                      "field": "timestamp"
-                    }
-                  }
-                },
-                "aggregations": {
-                  "user.avg_rating": {
-                    "avg": {
-                      "field": "stars"
-                    }
-                  }
-                }
-              }
-            }""".formatted(REVIEWS_INDEX_NAME, pipelineId);
+        String config = "{ \"source\": {\"index\":\""
+            + REVIEWS_INDEX_NAME
+            + "\"} ,"
+            + "\"dest\": {\"pipeline\": \""
+            + pipelineId
+            + "\"},"
+            + " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"user.id\": {\"terms\": { \"field\": \"user_id\" }},"
+            + "     \"by_day\": {\"date_histogram\": {\"fixed_interval\": \"1d\",\"field\":\"timestamp\"}}},"
+            + "   \"aggregations\": {"
+            + "     \"user.avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } } } }"
+            + "}";
         createPreviewRequest.setJsonEntity(config);
 
         Response createPreviewResponse = client().performRequest(createPreviewRequest);

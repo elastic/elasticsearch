@@ -6,20 +6,16 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
-import com.nimbusds.jwt.SignedJWT;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -45,6 +41,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.net.URL;
 import java.nio.file.Path;
+import java.text.ParseException;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
@@ -158,7 +155,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         // Validate Client Authorization Type and Client Authorization Credential format
         switch (this.clientAuthorizationType) {
-            case (JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET): {
+            case JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET:
                 // If type is "SharedSecret", the shared secret value must be set
                 if (Strings.hasText(this.clientAuthorizationSharedSecret) == false) {
                     throw new SettingsException(
@@ -182,8 +179,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     );
                 }
                 break;
-            }
-            default: {
+            case JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE:
+            default:
                 // If type is "None", the shared secret value must not be set
                 if (Strings.hasText(this.clientAuthorizationSharedSecret)) {
                     throw new SettingsException(
@@ -197,7 +194,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     );
                 }
                 break;
-            }
         }
 
         // Validate that at least one of JWT Set Path and HMAC Key Set are set. If HMAC Key Set, validate Base64Url-encoding.
@@ -336,7 +332,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     @Override
     public AuthenticationToken token(final ThreadContext threadContext) {
-        final SecureString authorizationParameterValue = this.getAuthorizationHeaderParameter(
+        final SecureString authorizationParameterValue = JwtRealm.getAuthorizationHeaderParameter(
             threadContext,
             JwtRealmSettings.HEADER_ENDUSER_AUTHORIZATION,
             JwtRealmSettings.HEADER_ENDUSER_AUTHORIZATION_SCHEME,
@@ -346,22 +342,19 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             return null; // Could not find non-empty SchemeParameters in HTTP header "Authorization: Bearer <SchemeParameters>"
         }
 
-        final SignedJWT signedJWT = JwtRealm.parseSignedJWT(authorizationParameterValue.toString());
-        if (signedJWT == null) {
-            final byte[] bytes = CharArrays.toUtf8Bytes(authorizationParameterValue.getChars());
-            logger.trace("Could not parse token as a Base64Url-encoded SignedJWT {}", MessageDigests.toHexString(bytes));
-            return null; // Could not parse SchemeParameters as a Base64Url-encoded signed JWT
-        }
-
         // Get all other possible parameters. A different JWT realm may do the actual authentication.
-        final SecureString clientAuthorizationSharedSecretValue = this.getAuthorizationHeaderParameter(
+        final SecureString clientAuthorizationSharedSecretValue = JwtRealm.getAuthorizationHeaderParameter(
             threadContext,
             JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION,
             JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
             true
         );
 
-        return new JwtAuthenticationToken(authorizationParameterValue, signedJWT, clientAuthorizationSharedSecretValue);
+        try {
+            return new JwtAuthenticationToken(authorizationParameterValue, clientAuthorizationSharedSecretValue);
+        } catch (ParseException e) {
+            throw new IllegalArgumentException("Could not construct JwtAuthenticationToken", e);
+        }
     }
 
     @Override
@@ -381,18 +374,17 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
             // Client Authorization
             switch (this.clientAuthorizationType) {
-                case (JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET): {
+                case JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET:
                     if (this.clientAuthorizationSharedSecret.equals(jwtAuthenticationToken.getClientAuthorizationSharedSecret())) {
                         LOGGER.trace("Client authentication failed with SharedSecret in realm [{}]", super.name());
                         listener.onResponse(AuthenticationResult.unsuccessful("Client authentication required and failed", null));
                     }
                     LOGGER.trace("Client authentication succeeded with SharedSecret in realm [{}]", super.name());
                     break;
-                }
-                default: { // JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE
+                case JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE:
+                default:
                     LOGGER.trace("Client authentication not required in realm [{}]", super.name());
                     break;
-                }
             }
 
             // JWT Authentication
@@ -515,15 +507,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     return new SecureString(trimmedSchemeParameters.toCharArray());
                 }
             }
-        }
-        return null;
-    }
-
-    public static SignedJWT parseSignedJWT(final String value) {
-        try {
-            return SignedJWT.parse(value);
-        } catch (java.text.ParseException e) {
-            LOGGER.debug("Serialized JWT not parsed", e);
         }
         return null;
     }

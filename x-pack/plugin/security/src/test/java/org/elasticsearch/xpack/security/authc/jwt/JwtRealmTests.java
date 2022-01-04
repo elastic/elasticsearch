@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
-import com.nimbusds.jwt.SignedJWT;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.MockLicenseState;
@@ -19,7 +17,6 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 
 import java.util.Set;
@@ -56,14 +53,6 @@ public class JwtRealmTests extends JwtTestCase {
         final UserRoleMapper userRoleMapper = super.buildRoleMapper("principal1", Set.of("role1, role2"));
         final JwtRealm jwtReam = new JwtRealm(realmConfig, threadPool, sslService, userRoleMapper, resourceWatcherService);
 
-    }
-
-    public void testParseSignedJWT() throws Exception {
-        final SignedJWT signedJWTOriginal = super.generateValidSignedJWT();
-        final String serializedJWTOriginal = signedJWTOriginal.serialize();
-        final SignedJWT signedJWTParsed = JwtRealm.parseSignedJWT(serializedJWTOriginal);
-        final String serializedJWTParsed = signedJWTParsed.serialize();
-        Assert.assertEquals(serializedJWTOriginal, serializedJWTParsed);
     }
 
     // public void testClaimPropertyMapping() throws Exception {

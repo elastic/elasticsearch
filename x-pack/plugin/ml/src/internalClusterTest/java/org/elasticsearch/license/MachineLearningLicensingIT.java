@@ -200,7 +200,8 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
         String datafeedIndex = jobId + "-data";
-        prepareCreate(datafeedIndex).setMapping("{\"_doc\":{\"properties\":{\"time\":{\"type\":\"date\"}}}}").get();
+        prepareCreate(datafeedIndex).setMapping("""
+            {"_doc":{"properties":{"time":{"type":"date"}}}}""").get();
 
         // put job
         PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
@@ -299,7 +300,8 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
         String datafeedIndex = jobId + "-data";
-        prepareCreate(datafeedIndex).setMapping("{\"_doc\":{\"properties\":{\"time\":{\"type\":\"date\"}}}}").get();
+        prepareCreate(datafeedIndex).setMapping("""
+            {"_doc":{"properties":{"time":{"type":"date"}}}}""").get();
         // test that license restricted apis do now work
         PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(createJob(jobId)), putJobListener);
@@ -364,7 +366,8 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
         String datafeedIndex = jobId + "-data";
-        prepareCreate(datafeedIndex).setMapping("{\"_doc\":{\"properties\":{\"time\":{\"type\":\"date\"}}}}").get();
+        prepareCreate(datafeedIndex).setMapping("""
+            {"_doc":{"properties":{"time":{"type":"date"}}}}""").get();
         // test that license restricted apis do now work
         PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(createJob(jobId)), putJobListener);
@@ -505,16 +508,17 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertMLAllowed(true);
         putInferenceModel(modelId);
 
-        String pipeline = "{"
-            + "    \"processors\": [\n"
-            + "      {\n"
-            + "        \"inference\": {\n"
-            + "          \"target_field\": \"regression_value\",\n"
-            + "          \"model_id\": \"modelprocessorlicensetest\",\n"
-            + "          \"inference_config\": {\"regression\": {}},\n"
-            + "          \"field_map\": {}\n"
-            + "        }\n"
-            + "      }]}\n";
+        String pipeline = """
+            {    "processors": [
+                  {
+                    "inference": {
+                      "target_field": "regression_value",
+                      "model_id": "modelprocessorlicensetest",
+                      "inference_config": {"regression": {}},
+                      "field_map": {}
+                    }
+                  }]}
+            """;
         // Creating a pipeline should work
         PlainActionFuture<AcknowledgedResponse> putPipelineListener = PlainActionFuture.newFuture();
         client().execute(
@@ -535,18 +539,17 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             .execute()
             .actionGet();
 
-        String simulateSource = "{\n"
-            + "  \"pipeline\": \n"
-            + pipeline
-            + "  ,\n"
-            + "  \"docs\": [\n"
-            + "    {\"_source\": {\n"
-            + "      \"col1\": \"female\",\n"
-            + "      \"col2\": \"M\",\n"
-            + "      \"col3\": \"none\",\n"
-            + "      \"col4\": 10\n"
-            + "    }}]\n"
-            + "}";
+        String simulateSource = """
+            {
+              "pipeline": %s,
+              "docs": [
+                {"_source": {
+                  "col1": "female",
+                  "col2": "M",
+                  "col3": "none",
+                  "col4": 10
+                }}]
+            }""".formatted(pipeline);
         PlainActionFuture<SimulatePipelineResponse> simulatePipelineListener = PlainActionFuture.newFuture();
         client().execute(
             SimulatePipelineAction.INSTANCE,

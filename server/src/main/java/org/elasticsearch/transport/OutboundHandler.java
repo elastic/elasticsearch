@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -194,10 +195,17 @@ final class OutboundHandler {
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (NetworkExceptionHelper.isCloseConnectionException(e)) {
-                        logger.debug(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+                    final Level closeConnectionExceptionLevel = NetworkExceptionHelper.getCloseConnectionExceptionLevel(e);
+                    if (closeConnectionExceptionLevel == Level.OFF) {
+                        logger.warn(new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+                    } else if (closeConnectionExceptionLevel == Level.INFO && logger.isDebugEnabled() == false) {
+                        logger.info("send message failed [channel: {}]: {}", channel, e.getMessage());
                     } else {
-                        logger.warn(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+                        logger.log(
+                            closeConnectionExceptionLevel,
+                            new ParameterizedMessage("send message failed [channel: {}]", channel),
+                            e
+                        );
                     }
                     listener.onFailure(e);
                     maybeLogSlowMessage(false);

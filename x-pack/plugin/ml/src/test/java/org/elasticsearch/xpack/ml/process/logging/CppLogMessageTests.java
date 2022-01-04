@@ -38,9 +38,18 @@ public class CppLogMessageTests extends AbstractSerializingTestCase<CppLogMessag
         XContent xContent = XContentFactory.xContent(XContentType.JSON);
         Instant before = Instant.ofEpochMilli(Instant.now().toEpochMilli());
 
-        String input = "{\"logger\":\"controller\",\"level\":\"INFO\","
-            + "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\","
-            + "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
+        String input = """
+            {
+              "logger": "controller",
+              "level": "INFO",
+              "pid": 42,
+              "thread": "0x7fff7d2a8000",
+              "message": "message 1",
+              "class": "ml",
+              "method": "core::SomeNoiseMaker",
+              "file": "Noisemaker.cc",
+              "line": 333
+            }""";
         XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input);
         CppLogMessage msg = CppLogMessage.PARSER.apply(parser, null);
 

@@ -120,13 +120,11 @@ public final class ExpressionTranslators {
 
             if (e.field() instanceof FieldAttribute) {
                 targetFieldName = handler.nameOf(((FieldAttribute) e.field()).exactAttribute());
-                if (e instanceof Like) {
-                    Like l = (Like) e;
+                if (e instanceof Like l) {
                     q = new WildcardQuery(e.source(), targetFieldName, l.pattern().asLuceneWildcard(), l.caseInsensitive());
                 }
 
-                if (e instanceof RLike) {
-                    RLike rl = ((RLike) e);
+                if (e instanceof RLike rl) {
                     q = new RegexQuery(e.source(), targetFieldName, rl.pattern().asJavaRegex(), rl.caseInsensitive());
                 }
             } else {
@@ -435,8 +433,7 @@ public final class ExpressionTranslators {
         }
 
         public static Query doKnownTranslate(ScalarFunction f, TranslatorHandler handler) {
-            if (f instanceof StartsWith) {
-                StartsWith sw = (StartsWith) f;
+            if (f instanceof StartsWith sw) {
                 if (sw.input() instanceof FieldAttribute && sw.pattern().foldable()) {
                     String targetFieldName = handler.nameOf(((FieldAttribute) sw.input()).exactAttribute());
                     String pattern = (String) sw.pattern().fold();

@@ -13,9 +13,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -191,7 +191,9 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         }
         Map<String, BytesReference> additions = new HashMap<>(additionsCount);
         for (int i = 0; i < additionsCount; i++) {
-            additions.put("add_template_" + i, new BytesArray("{\"index_patterns\" : \"*\", \"order\" : " + i + "}"));
+            additions.put("add_template_" + i, new BytesArray("""
+                {"index_patterns" : "*", "order" : %s}
+                """.formatted(i)));
         }
 
         final TemplateUpgradeService service = new TemplateUpgradeService(mockClient, clusterService, threadPool, Collections.emptyList());

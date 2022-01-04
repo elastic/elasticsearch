@@ -230,11 +230,9 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
 
     private String createDataStream(boolean hidden) throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
-        Template idxTemplate = new Template(
-            null,
-            new CompressedXContent("{\"properties\":{\"" + timestampFieldName + "\":{\"type\":\"date\"},\"data\":{\"type\":\"keyword\"}}}"),
-            null
-        );
+        Template idxTemplate = new Template(null, new CompressedXContent("""
+            {"properties":{"%s":{"type":"date"},"data":{"type":"keyword"}}}
+            """.formatted(timestampFieldName)), null);
         ComposableIndexTemplate template = new ComposableIndexTemplate(
             List.of(dataStreamName + "*"),
             idxTemplate,

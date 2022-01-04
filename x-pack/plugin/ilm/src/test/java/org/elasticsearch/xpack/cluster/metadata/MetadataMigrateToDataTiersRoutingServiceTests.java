@@ -1063,22 +1063,25 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     private String getColdPhaseDefinitionWithTotalShardsPerNode() {
-        return String.format(Locale.ROOT,
-            "            {\n" +
-                "              \"policy\": \"%s\",\n" +
-                "              \"phase_definition\": {\n" +
-                "                \"min_age\": \"0m\",\n" +
-                "                \"actions\": {\n" +
-                "                  \"allocate\": {\n" +
-                "                    \"total_shards_per_node\": \"1\",\n" +
-                "                    \"require\": {\n" +
-                "                      \"data\": \"cold\"\n" +
-                "                    }\n" +
-                "                  }\n" +
-                "                }\n" +
-                "              },\n" +
-                "              \"version\": 1,\n" +
-                "              \"modified_date_in_millis\": 1578521007076 \n}", lifecycleName);
+        return String.format(
+            Locale.ROOT,
+            "            {\n"
+                + "              \"policy\": \"%s\",\n"
+                + "              \"phase_definition\": {\n"
+                + "                \"min_age\": \"0m\",\n"
+                + "                \"actions\": {\n"
+                + "                  \"allocate\": {\n"
+                + "                    \"total_shards_per_node\": \"1\",\n"
+                + "                    \"require\": {\n"
+                + "                      \"data\": \"cold\"\n"
+                + "                    }\n"
+                + "                  }\n"
+                + "                }\n"
+                + "              },\n"
+                + "              \"version\": 1,\n"
+                + "              \"modified_date_in_millis\": 1578521007076 \n}",
+            lifecycleName
+        );
     }
 
     private String getColdPhaseDefinition() {

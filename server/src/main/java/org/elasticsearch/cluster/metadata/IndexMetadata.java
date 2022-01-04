@@ -1084,6 +1084,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         out.writeByte(state.id());
         writeSettingsToStream(settings, out);
         out.writeVLongArray(primaryTerms);
+        // TODO: adjust serialization format to using an optional writable
         if (mapping == null) {
             out.writeVInt(0);
         } else {

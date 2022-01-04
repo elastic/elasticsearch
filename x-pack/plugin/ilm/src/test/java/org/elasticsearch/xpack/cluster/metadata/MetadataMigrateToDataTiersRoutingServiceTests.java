@@ -44,6 +44,7 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
@@ -293,7 +294,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 warmSetPriority,
                 shrinkAction,
                 warmAllocateAction,
-                new AllocateAction(null, 1, null, null, Map.of("data", "cold"))
+                new AllocateAction(null, 1, null, null, org.elasticsearch.core.Map.of("data", "cold"))
             );
 
             LifecycleExecutionState preMigrationExecutionState = LifecycleExecutionState.builder()
@@ -340,9 +341,9 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             assertThat(actions.size(), is(1));
             Map<String, Object> allocateDef = (Map<String, Object>) actions.get(AllocateAction.NAME);
             assertThat(allocateDef, notNullValue());
-            assertThat(allocateDef.get("include"), is(Map.of()));
-            assertThat(allocateDef.get("exclude"), is(Map.of()));
-            assertThat(allocateDef.get("require"), is(Map.of()));
+            assertThat(allocateDef.get("include"), is(org.elasticsearch.core.Map.of()));
+            assertThat(allocateDef.get("exclude"), is(org.elasticsearch.core.Map.of()));
+            assertThat(allocateDef.get("require"), is(org.elasticsearch.core.Map.of()));
         }
 
         {
@@ -1062,23 +1063,22 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     private String getColdPhaseDefinitionWithTotalShardsPerNode() {
-        return """
-            {
-              "policy": "%s",
-              "phase_definition": {
-                "min_age": "0m",
-                "actions": {
-                  "allocate": {
-                    "total_shards_per_node": "1",
-                    "require": {
-                      "data": "cold"
-                    }
-                  }
-                }
-              },
-              "version": 1,
-              "modified_date_in_millis": 1578521007076
-            }""".formatted(lifecycleName);
+        return String.format(Locale.ROOT,
+            "            {\n" +
+                "              \"policy\": \"%s\",\n" +
+                "              \"phase_definition\": {\n" +
+                "                \"min_age\": \"0m\",\n" +
+                "                \"actions\": {\n" +
+                "                  \"allocate\": {\n" +
+                "                    \"total_shards_per_node\": \"1\",\n" +
+                "                    \"require\": {\n" +
+                "                      \"data\": \"cold\"\n" +
+                "                    }\n" +
+                "                  }\n" +
+                "                }\n" +
+                "              },\n" +
+                "              \"version\": 1,\n" +
+                "              \"modified_date_in_millis\": 1578521007076 \n}", lifecycleName);
     }
 
     private String getColdPhaseDefinition() {

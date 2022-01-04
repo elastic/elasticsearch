@@ -7,16 +7,16 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.MediaTypeRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,7 +25,7 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_DELIMITER;
 
 public class RestSqlQueryAction extends BaseRestHandler {
 

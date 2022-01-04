@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.security.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -769,7 +769,7 @@ public class SecuritySystemIndices {
                                     builder.field("type", "keyword");
                                     builder.endObject();
 
-                                    builder.startObject("domain");
+                                    builder.startObject("node_name");
                                     builder.field("type", "keyword");
                                     builder.endObject();
                                 }

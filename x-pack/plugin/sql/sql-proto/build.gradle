@@ -7,12 +7,7 @@ description = 'Request and response objects shared by the cli, jdbc ' +
   'and the Elasticsearch plugin'
 
 dependencies {
-  api(project(':libs:elasticsearch-core')) {
-    transitive = false
-  }
-  api( project(':libs:elasticsearch-x-content')) {
-    transitive = false
-  }
+  api(project(':libs:elasticsearch-x-content'))
   runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
 
   testImplementation project(":test:framework")

@@ -259,7 +259,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 final Map<String, Object> getWatchStatusResponse = entityAsMap(client().performRequest(getRequest));
                 final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
                 assertEquals("executed", status.get("execution_state"));
-            });
+            }, 30, TimeUnit.SECONDS);
 
         } else {
             logger.info("testing against {}", getOldClusterVersion());
@@ -299,7 +299,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         versionIncreased.get() && executed.get(),
                         is(true)
                     );
-                });
+                }, 30, TimeUnit.SECONDS);
             } finally {
                 stopWatcher();
             }

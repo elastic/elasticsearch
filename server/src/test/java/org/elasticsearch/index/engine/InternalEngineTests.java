@@ -2104,7 +2104,7 @@ public class InternalEngineTests extends EngineTestCase {
                 versionConflict ? " (conflict " + conflictingVersion + ")" : "",
                 versionedOp ? " (versioned " + correctVersion + ", seqNo " + lastOpSeqNo + ", term " + lastOpTerm + " )" : ""
             );
-            if (op instanceof Engine.Index index) {
+            if (op instanceof final Engine.Index index) {
                 if (versionConflict) {
                     // generate a conflict
                     final Engine.IndexResult result;
@@ -2246,7 +2246,7 @@ public class InternalEngineTests extends EngineTestCase {
                 op.seqNo(),
                 op.primaryTerm()
             );
-            if (op instanceof Engine.Index index) {
+            if (op instanceof final Engine.Index index) {
                 Engine.IndexResult result = engine.index(index);
                 if (op.versionType().isVersionConflictForWrites(highestOpVersion, op.version(), docDeleted) == false) {
                     seqNo++;

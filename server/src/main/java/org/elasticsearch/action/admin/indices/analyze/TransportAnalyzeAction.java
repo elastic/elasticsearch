@@ -546,7 +546,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 return;
             }
             if (includeAttributes == null || includeAttributes.isEmpty() || includeAttributes.contains(key.toLowerCase(Locale.ROOT))) {
-                if (value instanceof BytesRef p) {
+                if (value instanceof final BytesRef p) {
                     value = p.toString();
                 }
                 extendedAttributes.put(key, value);

@@ -52,8 +52,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
             (name, valuesSourceConfig, precision, context, parent, metadata) -> {
                 // check global ords
                 if (valuesSourceConfig.hasValues()) {
-                    final ValuesSource valuesSource = valuesSourceConfig.getValuesSource();
-                    if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals source) {
+                    if (valuesSourceConfig.getValuesSource()instanceof final ValuesSource.Bytes.WithOrdinals source) {
                         if (useGlobalOrds(context, source, precision)) {
                             final long maxOrd = source.globalMaxOrd(context.searcher());
                             return new GlobalOrdCardinalityAggregator(

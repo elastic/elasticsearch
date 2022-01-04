@@ -241,7 +241,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         }
         final byte[] lowerPoint;
         final byte[] upperPoint;
-        if (query instanceof PointRangeQuery rangeQuery) {
+        if (query instanceof final PointRangeQuery rangeQuery) {
             lowerPoint = rangeQuery.getLowerPoint();
             upperPoint = rangeQuery.getUpperPoint();
         } else {

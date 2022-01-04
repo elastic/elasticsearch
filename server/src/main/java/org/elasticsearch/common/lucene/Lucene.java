@@ -727,9 +727,9 @@ public class Lucene {
     public static SegmentReader segmentReader(LeafReader reader) {
         if (reader instanceof SegmentReader) {
             return (SegmentReader) reader;
-        } else if (reader instanceof FilterLeafReader fReader) {
+        } else if (reader instanceof final FilterLeafReader fReader) {
             return segmentReader(FilterLeafReader.unwrap(fReader));
-        } else if (reader instanceof FilterCodecReader fReader) {
+        } else if (reader instanceof final FilterCodecReader fReader) {
             return segmentReader(FilterCodecReader.unwrap(fReader));
         }
         // hard fail - we can't get a SegmentReader

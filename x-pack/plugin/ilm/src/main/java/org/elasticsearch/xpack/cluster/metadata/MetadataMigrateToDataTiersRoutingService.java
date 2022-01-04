@@ -383,8 +383,8 @@ public final class MetadataMigrateToDataTiersRoutingService {
                 Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
                 // this phase contains an allocate action that defines a require rule for the attribute name so we'll remove all the
                 // rules to allow for the migrate action to be injected
-                if (allocateAction.getNumberOfReplicas() != null) {
-                    // keep the number of replicas configuration
+                if (allocateAction.getNumberOfReplicas() != null || allocateAction.getTotalShardsPerNode() != null) {
+                    // keep the number of replicas configuration and/or the total shards per node configuration
                     AllocateAction updatedAllocateAction = new AllocateAction(
                         allocateAction.getNumberOfReplicas(),
                         allocateAction.getTotalShardsPerNode(),

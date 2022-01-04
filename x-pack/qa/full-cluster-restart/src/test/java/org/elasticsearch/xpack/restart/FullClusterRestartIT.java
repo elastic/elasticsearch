@@ -213,10 +213,21 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         if (isRunningAgainstOldCluster()) {
             final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
-            createApiKeyRequest.setJsonEntity(
-                "{\"name\":\"key-1\",\"role_descriptors\":"
-                    + "{\"r\":{\"cluster\":[\"all\"],\"indices\":[{\"names\":[\"*\"],\"privileges\":[\"all\"]}]}}}"
-            );
+            createApiKeyRequest.setJsonEntity("""
+                {
+                   "name": "key-1",
+                   "role_descriptors": {
+                     "r": {
+                       "cluster": [ "all" ],
+                       "indices": [
+                         {
+                           "names": [ "*" ],
+                           "privileges": [ "all" ]
+                         }
+                       ]
+                     }
+                   }
+                 }""");
             final Response response = client().performRequest(createApiKeyRequest);
             final Map<String, Object> createApiKeyResponse = entityAsMap(response);
 
@@ -349,25 +360,25 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 intervalType = "interval";
             }
 
-            createRollupJobRequest.setJsonEntity(
-                "{"
-                    + "\"index_pattern\":\"rollup-*\","
-                    + "\"rollup_index\":\"results-rollup\","
-                    + "\"cron\":\"*/30 * * * * ?\","
-                    + "\"page_size\":100,"
-                    + "\"groups\":{"
-                    + "    \"date_histogram\":{"
-                    + "        \"field\":\"timestamp\","
-                    + "        \""
-                    + intervalType
-                    + "\":\"5m\""
-                    + "      }"
-                    + "},"
-                    + "\"metrics\":["
-                    + "    {\"field\":\"value\",\"metrics\":[\"min\",\"max\",\"sum\"]}"
-                    + "]"
-                    + "}"
-            );
+            createRollupJobRequest.setJsonEntity("""
+                {
+                  "index_pattern": "rollup-*",
+                  "rollup_index": "results-rollup",
+                  "cron": "*/30 * * * * ?",
+                  "page_size": 100,
+                  "groups": {
+                    "date_histogram": {
+                      "field": "timestamp",
+                      "%s": "5m"
+                    }
+                  },
+                  "metrics": [
+                    {
+                      "field": "value",
+                      "metrics": [ "min", "max", "sum" ]
+                    }
+                  ]
+                }""".formatted(intervalType));
 
             Map<String, Object> createRollupJobResponse = entityAsMap(client().performRequest(createRollupJobRequest));
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -398,16 +409,19 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             // create the source index
             final Request createIndexRequest = new Request("PUT", "customers");
-            createIndexRequest.setJsonEntity(
-                "{"
-                    + "\"mappings\": {"
-                    + "  \"properties\": {"
-                    + "    \"customer_id\": { \"type\": \"keyword\" },"
-                    + "    \"price\": { \"type\": \"double\" }"
-                    + "  }"
-                    + "}"
-                    + "}"
-            );
+            createIndexRequest.setJsonEntity("""
+                {
+                  "mappings": {
+                    "properties": {
+                      "customer_id": {
+                        "type": "keyword"
+                      },
+                      "price": {
+                        "type": "double"
+                      }
+                    }
+                  }
+                }""");
 
             Map<String, Object> createIndexResponse = entityAsMap(client().performRequest(createIndexRequest));
             assertThat(createIndexResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -418,33 +432,32 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 : "_data_frame/transforms/transform-full-cluster-restart-test";
             final Request createTransformRequest = new Request("PUT", endpoint);
 
-            createTransformRequest.setJsonEntity(
-                "{"
-                    + "\"source\":{"
-                    + "  \"index\":\"customers\""
-                    + "},"
-                    + "\"description\":\"testing\","
-                    + "\"dest\":{"
-                    + "  \"index\":\"max_price\""
-                    + "},"
-                    + "\"pivot\": {"
-                    + "  \"group_by\":{"
-                    + "    \"customer_id\":{"
-                    + "      \"terms\":{"
-                    + "        \"field\":\"customer_id\""
-                    + "      }"
-                    + "    }"
-                    + "  },"
-                    + "  \"aggregations\":{"
-                    + "    \"max_price\":{"
-                    + "      \"max\":{"
-                    + "        \"field\":\"price\""
-                    + "      }"
-                    + "    }"
-                    + "  }"
-                    + "}"
-                    + "}"
-            );
+            createTransformRequest.setJsonEntity("""
+                {
+                  "source": {
+                    "index": "customers"
+                  },
+                  "description": "testing",
+                  "dest": {
+                    "index": "max_price"
+                  },
+                  "pivot": {
+                    "group_by": {
+                      "customer_id": {
+                        "terms": {
+                          "field": "customer_id"
+                        }
+                      }
+                    },
+                    "aggregations": {
+                      "max_price": {
+                        "max": {
+                          "field": "price"
+                        }
+                      }
+                    }
+                  }
+                }""");
 
             Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
             assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -584,9 +597,28 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     private void assertBasicWatchInteractions() throws Exception {
-        String watch = "{\"trigger\":{\"schedule\":{\"interval\":\"1s\"}},\"input\":{\"none\":{}},"
-            + "\"condition\":{\"always\":{}},"
-            + "\"actions\":{\"awesome\":{\"logging\":{\"level\":\"info\",\"text\":\"test\"}}}}";
+        String watch = """
+            {
+              "trigger": {
+                "schedule": {
+                  "interval": "1s"
+                }
+              },
+              "input": {
+                "none": {}
+              },
+              "condition": {
+                "always": {}
+              },
+              "actions": {
+                "awesome": {
+                  "logging": {
+                    "level": "info",
+                    "text": "test"
+                  }
+                }
+              }
+            }""";
         Request createWatchRequest = new Request("PUT", "_watcher/watch/new_watch");
         createWatchRequest.setJsonEntity(watch);
         Map<String, Object> createWatch = entityAsMap(client().performRequest(createWatchRequest));
@@ -677,41 +709,35 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private void createUser(final boolean oldCluster) throws Exception {
         final String id = oldCluster ? "preupgrade_user" : "postupgrade_user";
         Request request = new Request("PUT", "/_security/user/" + id);
-        request.setJsonEntity(
-            "{\n"
-                + "   \"password\" : \"l0ng-r4nd0m-p@ssw0rd\",\n"
-                + "   \"roles\" : [ \"admin\", \"other_role1\" ],\n"
-                + "   \"full_name\" : \""
-                + randomAlphaOfLength(5)
-                + "\",\n"
-                + "   \"email\" : \""
-                + id
-                + "@example.com\",\n"
-                + "   \"enabled\": true\n"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+               "password" : "l0ng-r4nd0m-p@ssw0rd",
+               "roles" : [ "admin", "other_role1" ],
+               "full_name" : "%s",
+               "email" : "%s@example.com",
+               "enabled": true
+            }""".formatted(randomAlphaOfLength(5), id));
         client().performRequest(request);
     }
 
     private void createRole(final boolean oldCluster) throws Exception {
         final String id = oldCluster ? "preupgrade_role" : "postupgrade_role";
         Request request = new Request("PUT", "/_security/role/" + id);
-        request.setJsonEntity(
-            "{\n"
-                + "  \"run_as\": [ \"abc\" ],\n"
-                + "  \"cluster\": [ \"monitor\" ],\n"
-                + "  \"indices\": [\n"
-                + "    {\n"
-                + "      \"names\": [ \"events-*\" ],\n"
-                + "      \"privileges\": [ \"read\" ],\n"
-                + "      \"field_security\" : {\n"
-                + "        \"grant\" : [ \"category\", \"@timestamp\", \"message\" ]\n"
-                + "      },\n"
-                + "      \"query\": \"{\\\"match\\\": {\\\"category\\\": \\\"click\\\"}}\"\n"
-                + "    }\n"
-                + "  ]\n"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "run_as": [ "abc" ],
+              "cluster": [ "monitor" ],
+              "indices": [
+                {
+                  "names": [ "events-*" ],
+                  "privileges": [ "read" ],
+                  "field_security" : {
+                    "grant" : [ "category", "@timestamp", "message" ]
+                  },
+                  "query": "{\\"match\\": {\\"category\\": \\"click\\"}}"
+                }
+              ]
+            }""");
         client().performRequest(request);
     }
 
@@ -858,10 +884,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     private static void createComposableTemplate(RestClient client, String templateName, String indexPattern) throws IOException {
-        StringEntity templateJSON = new StringEntity(
-            String.format(Locale.ROOT, "{\n" + "  \"index_patterns\": \"%s\",\n" + "  \"data_stream\": {}\n" + "}", indexPattern),
-            ContentType.APPLICATION_JSON
-        );
+        StringEntity templateJSON = new StringEntity(String.format(Locale.ROOT, """
+            {
+              "index_patterns": "%s",
+              "data_stream": {}
+            }""", indexPattern), ContentType.APPLICATION_JSON);
         Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + templateName);
         createIndexTemplateRequest.setEntity(templateJSON);
         client.performRequest(createIndexTemplateRequest);

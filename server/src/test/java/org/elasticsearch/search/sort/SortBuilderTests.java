@@ -54,7 +54,7 @@ public class SortBuilderTests extends ESTestCase {
      */
     public void testSingleFieldSort() throws IOException {
         SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
-        String json = "{ \"sort\" : { \"field1\" : \"" + order + "\" }}";
+        String json = "{ \"sort\" : { \"field1\" : \"%s\" }}".formatted(order);
         List<SortBuilder<?>> result = parseSort(json);
         assertEquals(1, result.size());
         SortBuilder<?> sortBuilder = result.get(0);
@@ -98,13 +98,15 @@ public class SortBuilderTests extends ESTestCase {
         assertEquals(new ScoreSortBuilder(), sortBuilder);
 
         // test two spellings for _geo_disctance
-        json = "{ \"sort\" : [" + "{\"_geoDistance\" : {" + "\"pin.location\" : \"40,-70\" } }" + "] }";
+        json = """
+            { "sort" : [{"_geoDistance" : {"pin.location" : "40,-70" } }] }""";
         result = parseSort(json);
         assertEquals(1, result.size());
         sortBuilder = result.get(0);
         assertEquals(new GeoDistanceSortBuilder("pin.location", 40, -70), sortBuilder);
 
-        json = "{ \"sort\" : [" + "{\"_geo_distance\" : {" + "\"pin.location\" : \"40,-70\" } }" + "] }";
+        json = """
+            { "sort" : [{"_geo_distance" : {"pin.location" : "40,-70" } }] }""";
         result = parseSort(json);
         assertEquals(1, result.size());
         sortBuilder = result.get(0);
@@ -204,16 +206,29 @@ public class SortBuilderTests extends ESTestCase {
      * - "sort" : [ "fieldname", { "fieldname2" : "asc" }, ...]
      */
     public void testMultiFieldSort() throws IOException {
-        String json = "{ \"sort\" : ["
-            + "{ \"post_date\" : {\"order\" : \"asc\"}},"
-            + "\"user\","
-            + "{ \"name\" : \"desc\" },"
-            + "{ \"age\" : \"desc\" },"
-            + "{"
-            + "\"_geo_distance\" : {"
-            + "\"pin.location\" : \"40,-70\" } },"
-            + "\"_score\""
-            + "] }";
+        String json = """
+            {
+              "sort": [
+                {
+                  "post_date": {
+                    "order": "asc"
+                  }
+                },
+                "user",
+                {
+                  "name": "desc"
+                },
+                {
+                  "age": "desc"
+                },
+                {
+                  "_geo_distance": {
+                    "pin.location": "40,-70"
+                  }
+                },
+                "_score"
+              ]
+            }""";
         List<SortBuilder<?>> result = parseSort(json);
         assertEquals(6, result.size());
         assertEquals(new FieldSortBuilder("post_date").order(SortOrder.ASC), result.get(0));

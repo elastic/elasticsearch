@@ -15,7 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.CancelJobModelSnapshotUpgradeAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
@@ -376,9 +377,9 @@ public class JobManager {
     ) {
         final String jobId = request.getJobId();
 
-        // Step 4. When the job has been removed from the cluster state, return a response
+        // Step 5. When the job has been removed from the config index, return a response
         // -------
-        CheckedConsumer<Boolean, Exception> apiResponseHandler = jobDeleted -> {
+        CheckedConsumer<Boolean, Exception> configResponseHandler = jobDeleted -> {
             if (jobDeleted) {
                 logger.info("Job [" + jobId + "] deleted");
                 auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DELETED));
@@ -388,28 +389,38 @@ public class JobManager {
             }
         };
 
-        // Step 3. When the physical storage has been deleted, delete the job config document
+        // Step 4. When the physical storage has been deleted, delete the job config document
         // -------
         // Don't report an error if the document has already been deleted
-        CheckedConsumer<Boolean, Exception> deleteJobStateHandler = response -> jobConfigProvider.deleteJob(
+        CheckedConsumer<Boolean, Exception> removeFromCalendarsHandler = response -> jobConfigProvider.deleteJob(
             jobId,
             false,
-            ActionListener.wrap(deleteResponse -> apiResponseHandler.accept(Boolean.TRUE), listener::onFailure)
+            ActionListener.wrap(deleteResponse -> configResponseHandler.accept(Boolean.TRUE), listener::onFailure)
         );
 
-        // Step 2. Remove the job from any calendars
-        CheckedConsumer<Boolean, Exception> removeFromCalendarsHandler = response -> jobResultsProvider.removeJobFromCalendars(
+        // Step 3. Remove the job from any calendars
+        CheckedConsumer<Boolean, Exception> deleteJobStateHandler = response -> jobResultsProvider.removeJobFromCalendars(
             jobId,
-            ActionListener.wrap(deleteJobStateHandler, listener::onFailure)
+            ActionListener.wrap(removeFromCalendarsHandler, listener::onFailure)
         );
 
-        // Step 1. Delete the physical storage
-        new JobDataDeleter(clientToUse, jobId).deleteJobDocuments(
-            jobConfigProvider,
-            indexNameExpressionResolver,
-            state,
-            removeFromCalendarsHandler,
+        // Step 2. Delete the physical storage
+        ActionListener<CancelJobModelSnapshotUpgradeAction.Response> cancelUpgradesListener = ActionListener.wrap(
+            r -> new JobDataDeleter(clientToUse, jobId).deleteJobDocuments(
+                jobConfigProvider,
+                indexNameExpressionResolver,
+                state,
+                deleteJobStateHandler,
+                listener::onFailure
+            ),
             listener::onFailure
+        );
+
+        // Step 1. Cancel any model snapshot upgrades that might be in progress
+        clientToUse.execute(
+            CancelJobModelSnapshotUpgradeAction.INSTANCE,
+            new CancelJobModelSnapshotUpgradeAction.Request(jobId, "_all"),
+            cancelUpgradesListener
         );
     }
 

@@ -318,16 +318,11 @@ public class DependencyLicensesTask extends DefaultTask {
         String sha = getSha1(jar);
 
         if (expectedSha.equals(sha) == false) {
-            final String exceptionMessage = String.format(
-                Locale.ROOT,
-                "SHA has changed! Expected %s for %s but got %s."
-                    + "\nThis usually indicates a corrupt dependency cache or artifacts changed upstream."
-                    + "\nEither wipe your cache, fix the upstream artifact, or delete %s and run updateShas",
-                expectedSha,
-                jarName,
-                sha,
-                shaFile
-            );
+            final String exceptionMessage = String.format(Locale.ROOT, """
+                SHA has changed! Expected %s for %s but got %s.
+                This usually indicates a corrupt dependency cache or artifacts changed upstream.
+                Either wipe your cache, fix the upstream artifact, or delete %s and run updateShas
+                """, expectedSha, jarName, sha, shaFile);
 
             throw new GradleException(exceptionMessage);
         }

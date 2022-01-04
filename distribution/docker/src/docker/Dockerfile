@@ -22,7 +22,7 @@
 <% if (docker_base == 'iron_bank') { %>
 ARG BASE_REGISTRY=registry1.dso.mil
 ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
-ARG BASE_TAG=8.4
+ARG BASE_TAG=8.5
 <% } %>
 
 ################################################################################
@@ -68,7 +68,7 @@ RUN chmod 0555 /bin/tini
 
 # Install required packages to extract the Elasticsearch distribution
 <% if (docker_base == 'default' || docker_base == 'cloud') { %>
-RUN <%= retry.loop(package_manager, "${package_manager} update && DEBIAN_FRONTEND=noninteractive ${package_manager} install -y curl ca-certificates-java") %>
+RUN <%= retry.loop(package_manager, "${package_manager} update && DEBIAN_FRONTEND=noninteractive ${package_manager} install -y curl ") %>
 <% } else { %>
 RUN <%= retry.loop(package_manager, "${package_manager} install -y findutils tar gzip") %>
 <% } %>
@@ -191,14 +191,17 @@ RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
 
 <% } else if (docker_base == "default" || docker_base == "cloud") { %>
 
-RUN <%= retry.loop(
+# Change default shell to bash, then install required packages with retries.
+RUN yes no | dpkg-reconfigure dash && \\
+    <%= retry.loop(
     package_manager,
       "export DEBIAN_FRONTEND=noninteractive && \n" +
-      "${package_manager} update && \n" +
-      "${package_manager} upgrade -y && \n" +
-      "${package_manager} install -y --no-install-recommends curl netcat zip unzip vim-tiny ${docker_base == 'cloud' ? 'wget' : '' } && \n" +
-      "${package_manager} clean && \n" +
-      "rm -rf /var/lib/apt/lists/*"
+      "      ${package_manager} update && \n" +
+      "      ${package_manager} upgrade -y && \n" +
+      "      ${package_manager} install -y --no-install-recommends \n" +
+      "        ca-certificates curl netcat p11-kit unzip vim-tiny zip ${docker_base == 'cloud' ? 'wget' : '' } && \n" +
+      "      ${package_manager} clean && \n" +
+      "      rm -rf /var/lib/apt/lists/*"
   ) %>
 
 <% } else { %>
@@ -207,7 +210,7 @@ RUN <%= retry.loop(
     package_manager,
       "${package_manager} update --setopt=tsflags=nodocs -y && \n" +
       "      ${package_manager} install --setopt=tsflags=nodocs -y \n" +
-      "      nc shadow-utils zip unzip findutils procps-ng && \n" +
+      "        nc shadow-utils zip unzip findutils procps-ng && \n" +
       "      ${package_manager} clean all"
     ) %>
 
@@ -228,14 +231,10 @@ RUN groupadd -g 1000 elasticsearch && \\
 ENV ELASTIC_CONTAINER true
 
 WORKDIR /usr/share/elasticsearch
-COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
 
+COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
 COPY --from=zlib --chown=0:0 /usr/local/cloudflare-zlib /usr/local/cloudflare-zlib
-
-<% if (docker_base == 'default' || docker_base == 'cloud') { %>
-COPY --from=builder --chown=0:0 /etc/ssl/certs/java/cacerts /etc/ssl/certs/java/cacerts
-<% } %>
 
 <% if (docker_base == 'cloud') { %>
 COPY --from=builder --chown=0:0 /opt /opt
@@ -260,10 +259,17 @@ COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod g=u /etc/passwd && \\
     chmod 0555 /usr/local/bin/docker-entrypoint.sh && \\
     find / -xdev -perm -4000 -exec chmod ug-s {} + && \\
-    ln -sf <%= docker_base == 'default' || docker_base == 'cloud' ? '/etc/ssl/certs/java/cacerts' : '/etc/pki/ca-trust/extracted/java/cacerts' %> \\
-      /usr/share/elasticsearch/jdk/lib/security/cacerts && \\
     chmod 0775 /usr/share/elasticsearch && \\
     chown elasticsearch bin config config/jvm.options.d data logs plugins
+
+<% if (docker_base == 'default' || docker_base == 'cloud') { %>
+# Update "cacerts" bundle to use Ubuntu's CA certificates (and make sure it
+# stays up-to-date with changes to Ubuntu's store)
+COPY bin/docker-openjdk /etc/ca-certificates/update.d/docker-openjdk
+RUN /etc/ca-certificates/update.d/docker-openjdk
+<% } else { %>
+RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
+<% } %>
 
 EXPOSE 9200 9300
 
@@ -311,7 +317,7 @@ ENTRYPOINT ["/bin/tini", "--"]
 CMD ["/app/elasticsearch.sh"]
 # Generate a stub command that will be overwritten at runtime
 RUN mkdir /app && \\
-    echo '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
+    echo -e '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
     chmod 0555 /app/elasticsearch.sh
 
 <% } else { %>

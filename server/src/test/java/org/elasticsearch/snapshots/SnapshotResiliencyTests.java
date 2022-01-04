@@ -79,8 +79,8 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateHelper;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
@@ -138,6 +138,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -1863,7 +1864,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool,
                     namedXContentRegistry,
                     EmptySystemIndices.INSTANCE,
-                    false
+                    false,
+                    new IndexSettingProviders(Set.of())
                 );
                 actions.put(
                     CreateIndexAction.INSTANCE,

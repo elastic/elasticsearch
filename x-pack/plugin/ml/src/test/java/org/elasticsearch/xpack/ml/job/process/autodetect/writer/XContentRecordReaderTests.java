@@ -32,7 +32,10 @@ import static org.mockito.Mockito.mock;
 
 public class XContentRecordReaderTests extends ESTestCase {
     public void testRead() throws JsonParseException, IOException {
-        String data = "{\"a\":10, \"b\":20, \"c\":30}\n{\"b\":21, \"a\":11, \"c\":31}\n";
+        String data = """
+            {"a":10, "b":20, "c":30}
+            {"b":21, "a":11, "c":31}
+            """;
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = createFieldMap();
 
@@ -55,7 +58,8 @@ public class XContentRecordReaderTests extends ESTestCase {
     }
 
     public void testRead_GivenNestedField() throws JsonParseException, IOException {
-        String data = "{\"a\":10, \"b\":20, \"c\":{\"d\":30, \"e\":40}}";
+        String data = """
+            {"a":10, "b":20, "c":{"d":30, "e":40}}""";
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = new HashMap<>();
         fieldMap.put("a", 0);
@@ -76,7 +80,8 @@ public class XContentRecordReaderTests extends ESTestCase {
     }
 
     public void testRead_GivenSingleValueArrays() throws JsonParseException, IOException {
-        String data = "{\"a\":[10], \"b\":20, \"c\":{\"d\":30, \"e\":[40]}}";
+        String data = """
+            {"a":[10], "b":20, "c":{"d":30, "e":[40]}}""";
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = new HashMap<>();
         fieldMap.put("a", 0);
@@ -97,7 +102,17 @@ public class XContentRecordReaderTests extends ESTestCase {
     }
 
     public void testRead_GivenMultiValueArrays() throws JsonParseException, IOException {
-        String data = "{\"a\":[10, 11], \"b\":20, \"c\":{\"d\":30, \"e\":[40, 50]}, " + "\"f\":[\"a\", \"a\", \"a\", \"a\"], \"g\":20}";
+        String data = """
+            {
+              "a": [ 10, 11 ],
+              "b": 20,
+              "c": {
+                "d": 30,
+                "e": [ 40, 50 ]
+              },
+              "f": [ "a", "a", "a", "a" ],
+              "g": 20
+            }""";
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = new HashMap<>();
         fieldMap.put("a", 0);
@@ -125,7 +140,10 @@ public class XContentRecordReaderTests extends ESTestCase {
 
     public void testRead_RecoverFromBadJson() throws JsonParseException, IOException {
         // no opening '{'
-        String data = "\"a\":10, \"b\":20, \"c\":30}\n{\"b\":21, \"a\":11, \"c\":31}\n" + "{\"c\":32, \"b\":22, \"a\":12}";
+        String data = """
+            "a":10, "b":20, "c":30}
+            {"b":21, "a":11, "c":31}
+            {"c":32, "b":22, "a":12}""";
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = createFieldMap();
 
@@ -145,7 +163,9 @@ public class XContentRecordReaderTests extends ESTestCase {
 
     public void testRead_RecoverFromBadNestedJson() throws JsonParseException, IOException {
         // nested object 'd' is missing a ','
-        String data = "{\"a\":10, \"b\":20, \"c\":30}\n" + "{\"b\":21, \"d\" : {\"ee\": 1 \"ff\":0}, \"a\":11, \"c\":31}";
+        String data = """
+            {"a":10, "b":20, "c":30}
+            {"b":21, "d" : {"ee": 1 "ff":0}, "a":11, "c":31}""";
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = createFieldMap();
 
@@ -167,7 +187,9 @@ public class XContentRecordReaderTests extends ESTestCase {
 
     public void testRead_HitParseErrorsLimit() throws JsonParseException, IOException {
         // missing a ':'
-        String format = "{\"a\":1%1$d, \"b\"2%1$d, \"c\":3%1$d}\n";
+        String format = """
+            {"a":1%1$d, "b"2%1$d, "c":3%1$d}
+            """;
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < XContentRecordReader.PARSE_ERRORS_LIMIT; i++) {
             builder.append(String.format(Locale.ROOT, format, i));
@@ -193,11 +215,11 @@ public class XContentRecordReaderTests extends ESTestCase {
     public void testRead_givenControlCharacterInData() throws Exception {
         char controlChar = '\u0002';
 
-        String data = "{\"a\":10, \""
-            + controlChar
-            + "\" : 5, \"b\":20, \"c\":30}"
-            + "\n{\"b\":21, \"a\":11, \"c\":31}"
-            + "\n{\"c\":32, \"b\":22, \"a\":12}\n";
+        String data = """
+            {"a":10, "%s" : 5, "b":20, "c":30}
+            {"b":21, "a":11, "c":31}
+            {"c":32, "b":22, "a":12}
+            """.formatted(controlChar);
 
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = createFieldMap();

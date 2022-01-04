@@ -45,7 +45,8 @@ setup:
             "groups": [ "jobs-get-result-overall-buckets-group"],
             "analysis_config" : {
                 "bucket_span": "17m",
-                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}],
+                "model_prune_window":"34d"
             },
             "data_description" : {
                 "time_field":"time"

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security.action.rolemapping;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * A builder for requests to delete a role-mapping from the

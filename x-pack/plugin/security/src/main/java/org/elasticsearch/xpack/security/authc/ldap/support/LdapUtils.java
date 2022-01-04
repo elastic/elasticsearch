@@ -225,10 +225,10 @@ public final class LdapUtils {
         ActionListener<SearchResultEntry> listener,
         String... attributes
     ) {
-        if (ldap instanceof LDAPConnection) {
-            searchForEntry((LDAPConnection) ldap, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, listener, attributes);
-        } else if (ldap instanceof LDAPConnectionPool) {
-            searchForEntry((LDAPConnectionPool) ldap, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, listener, attributes);
+        if (ldap instanceof LDAPConnection ldapConnection) {
+            searchForEntry(ldapConnection, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, listener, attributes);
+        } else if (ldap instanceof LDAPConnectionPool ldapConnectionPool) {
+            searchForEntry(ldapConnectionPool, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, listener, attributes);
         } else {
             throw new IllegalArgumentException("unsupported LDAPInterface implementation: " + ldap);
         }
@@ -333,10 +333,10 @@ public final class LdapUtils {
         ActionListener<List<SearchResultEntry>> listener,
         String... attributes
     ) {
-        if (ldap instanceof LDAPConnection) {
-            search((LDAPConnection) ldap, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, listener, attributes);
-        } else if (ldap instanceof LDAPConnectionPool) {
-            search((LDAPConnectionPool) ldap, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, listener, attributes);
+        if (ldap instanceof LDAPConnection ldapConnection) {
+            search(ldapConnection, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, listener, attributes);
+        } else if (ldap instanceof LDAPConnectionPool ldapConnectionPool) {
+            search(ldapConnectionPool, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, listener, attributes);
         } else {
             throw new IllegalArgumentException("unsupported LDAPInterface implementation: " + ldap);
         }

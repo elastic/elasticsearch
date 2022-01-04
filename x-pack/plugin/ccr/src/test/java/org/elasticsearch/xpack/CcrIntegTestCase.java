@@ -24,8 +24,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -220,8 +220,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         for (String nodeName : followerCluster.getNodeNames()) {
             MockTransportService transportService = (MockTransportService) followerCluster.getInstance(TransportService.class, nodeName);
             transportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (isCcrAdminRequest(request) == false && request instanceof AcknowledgedRequest<?>) {
-                    final TimeValue masterTimeout = ((AcknowledgedRequest<?>) request).masterNodeTimeout();
+                if (isCcrAdminRequest(request) == false && request instanceof AcknowledgedRequest<?> acknowledgedRequest) {
+                    final TimeValue masterTimeout = acknowledgedRequest.masterNodeTimeout();
                     if (masterTimeout == null || masterTimeout.nanos() != TimeValue.MAX_VALUE.nanos()) {
                         throw new AssertionError("time out of a master request [" + request + "] on the follower is not set to unbounded");
                     }

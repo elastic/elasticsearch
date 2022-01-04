@@ -431,7 +431,9 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             ConnectionStrategy modeType = (ConnectionStrategy) settings.get(concrete);
             if (isPresent && modeType.equals(expectedStrategy) == false) {
                 throw new IllegalArgumentException(
-                    "Setting \"%s\" cannot be used with the configured \"%s\" [required=%s, configured=%s]".formatted(
+                    String.format(
+                        Locale.ROOT,
+                        "Setting \"%s\" cannot be used with the configured \"%s\" [required=%s, configured=%s]",
                         key,
                         concrete.getKey(),
                         expectedStrategy.name(),

@@ -619,8 +619,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             final MockTransportService mockTransportService = (MockTransportService) transportService;
             transportServices.add(mockTransportService);
             mockTransportService.addRequestHandlingBehavior(IndicesStatsAction.NAME, (handler, request, channel, task) -> {
-                if (request instanceof IndicesStatsRequest) {
-                    IndicesStatsRequest indicesStatsRequest = (IndicesStatsRequest) request;
+                if (request instanceof IndicesStatsRequest indicesStatsRequest) {
                     if (Arrays.equals(indicesStatsRequest.indices(), new String[] { leaderIndex })
                         && indicesStatsRequest.store()
                         && indicesStatsRequest.search() == false

@@ -38,8 +38,7 @@ public class DummyUsernamePasswordRealm extends UsernamePasswordRealm {
 
     @Override
     public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult<User>> listener) {
-        if (token instanceof UsernamePasswordToken) {
-            UsernamePasswordToken usernamePasswordToken = (UsernamePasswordToken) token;
+        if (token instanceof UsernamePasswordToken usernamePasswordToken) {
             User user = authenticate(usernamePasswordToken.principal(), usernamePasswordToken.credentials());
             if (user != null) {
                 listener.onResponse(AuthenticationResult.success(user));

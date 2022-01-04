@@ -17,7 +17,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -47,7 +47,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * Index request to index a typed JSON document into a specific index and make it searchable. Best
- * created using {@link org.elasticsearch.client.Requests#indexRequest(String)}.
+ * created using {@link org.elasticsearch.client.internal.Requests#indexRequest(String)}.
  *
  * The index requires the {@link #index()}, {@link #id(String)} and
  * {@link #source(byte[], XContentType)} to be set.
@@ -59,8 +59,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * If the {@link #id(String)} is not set, it will be automatically generated.
  *
  * @see IndexResponse
- * @see org.elasticsearch.client.Requests#indexRequest(String)
- * @see org.elasticsearch.client.Client#index(IndexRequest)
+ * @see org.elasticsearch.client.internal.Requests#indexRequest(String)
+ * @see org.elasticsearch.client.internal.Client#index(IndexRequest)
  */
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
 

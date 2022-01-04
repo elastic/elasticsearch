@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
@@ -241,24 +242,38 @@ public class PyTorchModelIT extends ESRestTestCase {
             assertThat(responseMap.toString(), statusState, is(not(nullValue())));
             assertThat(AllocationStatus.State.fromString(statusState), greaterThanOrEqualTo(state));
 
-            // starting models do not know their model size yet
-            if (state.isAnyOf(AllocationStatus.State.STARTED, AllocationStatus.State.FULLY_ALLOCATED)) {
-                Integer byteSize = (Integer) XContentMapValues.extractValue("deployment_stats.model_size_bytes", stats.get(0));
-                assertThat(responseMap.toString(), byteSize, is(not(nullValue())));
-                assertThat(byteSize, equalTo((int) RAW_MODEL_SIZE));
+            Integer byteSize = (Integer) XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0));
+            assertThat(responseMap.toString(), byteSize, is(not(nullValue())));
+            assertThat(byteSize, equalTo((int) RAW_MODEL_SIZE));
 
-                Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
-                var humanResponseMap = entityAsMap(humanResponse);
-                stats = (List<Map<String, Object>>) humanResponseMap.get("trained_model_stats");
-                assertThat(stats, hasSize(1));
-                String stringBytes = (String) XContentMapValues.extractValue("deployment_stats.model_size", stats.get(0));
-                assertThat(
-                    "stats response: " + responseMap + " human stats response" + humanResponseMap,
-                    stringBytes,
-                    is(not(nullValue()))
-                );
-                assertThat(stringBytes, equalTo("1.5kb"));
-            }
+            Integer requiredNativeMemory = (Integer) XContentMapValues.extractValue(
+                "model_size_stats.required_native_memory_bytes",
+                stats.get(0)
+            );
+            assertThat(responseMap.toString(), requiredNativeMemory, is(not(nullValue())));
+            assertThat(requiredNativeMemory, equalTo((int) (ByteSizeValue.ofMb(270).getBytes() + 2 * RAW_MODEL_SIZE)));
+
+            Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
+            var humanResponseMap = entityAsMap(humanResponse);
+            stats = (List<Map<String, Object>>) humanResponseMap.get("trained_model_stats");
+            assertThat(stats, hasSize(1));
+            String stringModelSizeBytes = (String) XContentMapValues.extractValue("model_size_stats.model_size", stats.get(0));
+            assertThat(
+                "stats response: " + responseMap + " human stats response" + humanResponseMap,
+                stringModelSizeBytes,
+                is(not(nullValue()))
+            );
+            assertThat(stringModelSizeBytes, equalTo("1.5kb"));
+            String stringRequiredNativeMemory = (String) XContentMapValues.extractValue(
+                "model_size_stats.required_native_memory",
+                stats.get(0)
+            );
+            assertThat(
+                "stats response: " + responseMap + " human stats response" + humanResponseMap,
+                stringRequiredNativeMemory,
+                is(not(nullValue()))
+            );
+            assertThat(stringRequiredNativeMemory, equalTo("270mb"));
             stopDeployment(modelId);
         };
 
@@ -281,7 +296,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(response).get("trained_model_stats");
         assertThat(stats, hasSize(1));
         assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelA));
-        assertThat(XContentMapValues.extractValue("deployment_stats.model_size_bytes", stats.get(0)), equalTo((int) RAW_MODEL_SIZE));
+        assertThat(XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0)), equalTo((int) RAW_MODEL_SIZE));
         List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
             "deployment_stats.nodes",
             stats.get(0)
@@ -473,10 +488,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                   }
             """);
         Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
-        assertThat(
-            ex.getMessage(),
-            containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API.")
-        );
+        assertThat(ex.getMessage(), containsString("Trained model [not-deployed] is not deployed."));
     }
 
     public void testTruncation() throws IOException {
@@ -592,7 +604,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertThat(
             response,
             allOf(
-                containsString("inference not possible. Task is configured with [pass_through] but received update of type [ner]"),
+                containsString("Trained model [deployed] is configured for task [pass_through] but called with task [ner]"),
                 containsString("error"),
                 not(containsString("warning"))
             )
@@ -616,7 +628,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             """;
 
         response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
-        assertThat(response, containsString("no value could be found for input field [input]"));
+        assertThat(response, containsString("Input field [input] does not exist in the source document"));
         assertThat(response, containsString("status_exception"));
     }
 

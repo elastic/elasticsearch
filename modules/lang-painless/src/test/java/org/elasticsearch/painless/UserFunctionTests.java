@@ -151,7 +151,7 @@ public class UserFunctionTests extends ScriptTestCase {
             + "    );"
             + "}"
             + "test(params)";
-        assertNull(exec(source, Map.of("a", 5), false));
+        assertNull(exec(source, org.elasticsearch.core.Map.of("a", 5), false));
         assertBytecodeExists(source, "public synthetic lambda$synthetic$0(ILjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
     }
 
@@ -173,7 +173,7 @@ public class UserFunctionTests extends ScriptTestCase {
             + "Map myParams = new HashMap(params);"
             + "test(myParams);"
             + "myParams['a']['aaa']";
-        assertEquals(5, exec(source, Map.of("a", Map.of("b", 1)), false));
+        assertEquals(5, exec(source, org.elasticsearch.core.Map.of("a", org.elasticsearch.core.Map.of("b", 1)), false));
         assertBytecodeExists(source, "public synthetic lambda$synthetic$1(IILjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
     }
 }

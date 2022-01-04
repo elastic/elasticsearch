@@ -711,7 +711,8 @@ public interface DocValueFormat extends NamedWriteable {
 
                     if (v instanceof String s) {
                         bytes = TimeSeriesIdFieldMapper.encodeTsidValue(s);
-                    } else if (v instanceof Long l) {
+                    } else if (v instanceof Long || v instanceof Integer) {
+                        Long l = Long.valueOf(v.toString());
                         // For a long encoded number, we must check if the number can be the encoded value
                         // of an unsigned_long.
                         Number ul = (Number) UNSIGNED_LONG_SHIFTED.format(l);

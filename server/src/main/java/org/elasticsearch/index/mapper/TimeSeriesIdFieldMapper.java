@@ -141,7 +141,6 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         // SortedMap is expected to be sorted by key (field name)
         SortedMap<String, BytesReference> dimensionFields = context.doc().getDimensionBytes();
         BytesReference timeSeriesId = buildTsidField(dimensionFields);
-        assert timeSeriesId != null : "In time series mode _tsid cannot be null";
         context.doc().add(new SortedSetDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
     }
 

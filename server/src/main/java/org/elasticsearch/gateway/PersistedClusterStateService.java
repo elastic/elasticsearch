@@ -559,6 +559,13 @@ public class PersistedClusterStateService {
                             continue;
                         }
 
+                        // The metadata doesn't fit into a single page, so we accumulate pages until we have a complete set. Typically we
+                        // will see pages in order since they were written in order, so the map will often have at most one entry. Also 1MB
+                        // should be ample space for compressed index metadata so this is almost always used just for the global metadata.
+                        // Even in pathological cases we shouldn't run out of memory here because we're doing this very early on in node
+                        // startup, on the main thread and before most other services have started, and we will need space to serialize the
+                        // whole cluster state in memory later on.
+
                         final String key;
                         if (type.equals(GLOBAL_TYPE_NAME)) {
                             key = GLOBAL_TYPE_NAME;

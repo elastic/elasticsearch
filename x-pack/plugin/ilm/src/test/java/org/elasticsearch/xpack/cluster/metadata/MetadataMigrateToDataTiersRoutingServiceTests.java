@@ -932,7 +932,6 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         }
     }
 
-
     public void testMigrationDoesNotRemoveComposableTemplates() {
         ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate.Builder().indexPatterns(
             Collections.singletonList("*")

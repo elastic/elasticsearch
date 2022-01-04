@@ -148,7 +148,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     }
 
     public void testExplainValidateQueryTwoNodes() throws IOException {
-        createIndex("test");
+        createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).build());
         ensureGreen();
         client().admin()
             .indices()

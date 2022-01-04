@@ -148,9 +148,9 @@ public class JwtRealmSettings {
             )
         );
         // Standard TLS connection settings for outgoing connections to get JWT issuer jwkset_path
-        set.addAll(SSLConfigurationSettings.getRealmSettings(TYPE));
+        set.addAll(SSL_CONFIGURATION_SETTINGS);
         // JWT End-user delegated authorization settings: authorization_realms
-        set.addAll(DelegatedAuthorizationSettings.getSettings(TYPE));
+        set.addAll(DELEGATED_AUTHORIZATION_REALMS_SETTINGS);
         return set;
     }
 
@@ -282,6 +282,19 @@ public class JwtRealmSettings {
         RealmSettings.realmSettingPrefix(TYPE),
         "http.max_endpoint_connections",
         key -> Setting.intSetting(key, DEFAULT_HTTP_MAX_ENDPOINT_CONNECTIONS, MIN_HTTP_MAX_ENDPOINT_CONNECTIONS, Setting.Property.NodeScope)
+    );
+
+    // SSL Configuration settings
+
+    public static final Collection<Setting.AffixSetting<?>> SSL_CONFIGURATION_SETTINGS = SSLConfigurationSettings.getRealmSettings(TYPE);
+    public static final SSLConfigurationSettings ssl = SSLConfigurationSettings.withoutPrefix(true);
+
+    // Delegated Authorization Realms settings
+
+    public static final Collection<Setting.AffixSetting<?>> DELEGATED_AUTHORIZATION_REALMS_SETTINGS = DelegatedAuthorizationSettings
+        .getSettings(TYPE);
+    public static final Setting.AffixSetting<List<String>> AUTHORIZATION_REALMS = DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(
+        JwtRealmSettings.TYPE
     );
 
     private static void verifyNonNullNotEmpty(final String key, final String value, final List<String> allowedValues) {

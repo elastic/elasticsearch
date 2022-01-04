@@ -39,6 +39,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.junit.Assert;
@@ -66,7 +67,6 @@ public abstract class JwtTestCase extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(JwtRealm.class);
 
-    protected static final String REALM_NAME = "jwt1";
     protected String pathHome;
     protected Settings globalSettings;
     protected Environment env;
@@ -151,11 +151,11 @@ public abstract class JwtTestCase extends ESTestCase {
 
         final SignedJWT signedJwt = new SignedJWT(jwtHeader, jwtClaimsSet);
         signedJwt.sign(jwtSigner);
-        Assert.assertTrue(signedJwt.verify(jwtVerifier));
+        Assert.assertTrue(signedJwt.verify(jwtVerifier)); // VERIFY
         return signedJwt;
     }
 
-    protected Settings.Builder getAllRealmSettings() throws IOException {
+    protected Settings.Builder getAllRealmSettings(final String name) throws IOException {
         final boolean includeRsa = randomBoolean();
         final boolean includeEc = randomBoolean();
         final boolean includePublicKey = includeRsa || includeEc;
@@ -184,115 +184,97 @@ public abstract class JwtTestCase extends ESTestCase {
         final String allowedSignatureAlgorithms = allowedSignatureAlgorithmsList.toString(); // Ex: "[HS256,RS384,ES512]"
 
         final Settings.Builder settingsBuilder = Settings.builder()
-            // Realm settings
-            .put(
-                RealmSettings.getFullSettingKey(
-                    new RealmConfig.RealmIdentifier(JwtRealmSettings.TYPE, REALM_NAME),
-                    RealmSettings.ORDER_SETTING
-                ),
-                0
-            )
+            // // Realm settings
+            // .put(
+            // RealmSettings.getFullSettingKey(
+            // new RealmConfig.RealmIdentifier(JwtRealmSettings.TYPE, name),
+            // RealmSettings.ORDER_SETTING
+            // ),
+            // 0
+            // )
             // Issuer settings
             .put(
-                RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.ALLOWED_ISSUER),
+                RealmSettings.getFullSettingKey(name, JwtRealmSettings.ALLOWED_ISSUER),
                 randomFrom("https://www.example.com/iss1", randomAlphaOfLengthBetween(10, 20))
             )
             .put(
-                RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
+                RealmSettings.getFullSettingKey(name, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
                 allowedSignatureAlgorithms.substring(1, allowedSignatureAlgorithms.length() - 1)
             )
             .put(
-                RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.ALLOWED_CLOCK_SKEW),
+                RealmSettings.getFullSettingKey(name, JwtRealmSettings.ALLOWED_CLOCK_SKEW),
                 randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(1, 5) + randomFrom("s", "m", "h")
             )
-            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.JWKSET_PATH), includePublicKey ? jwkSetPath : "")
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.JWKSET_PATH), includePublicKey ? jwkSetPath : "")
             // Audience settings
             .put(
-                RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.ALLOWED_AUDIENCES),
+                RealmSettings.getFullSettingKey(name, JwtRealmSettings.ALLOWED_AUDIENCES),
                 randomFrom("rp_client1", "aud1", "aud2", "aud3")
             )
             // End-user settings
             .put(
-                RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()),
+                RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()),
                 randomFrom("sub", "uid", "name", "dn", "email", "custom")
             )
             .put(
-                RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.CLAIMS_PRINCIPAL.getPattern()),
+                RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_PRINCIPAL.getPattern()),
                 randomBoolean() ? null : randomFrom("^(.*)$", "^([^@]+)@example\\.com$")
             )
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_GROUPS.getClaim()), randomFrom("group", "roles", "other"))
             .put(
-                RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.CLAIMS_GROUPS.getClaim()),
-                randomFrom("group", "roles", "other")
-            )
-            .put(
-                RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.CLAIMS_GROUPS.getPattern()),
+                RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_GROUPS.getPattern()),
                 randomBoolean() ? null : randomFrom("^(.*)$", "^Group-(.*)$")
             )
-            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.POPULATE_USER_METADATA), populateUserMetadata)
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.POPULATE_USER_METADATA), populateUserMetadata)
             // Client settings for incoming connections
-            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE), clientAuthorizationType)
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE), clientAuthorizationType)
             // Delegated authorization settings
-            // .put(
-            // RealmSettings.getFullSettingKey(REALM_NAME, DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(JwtRealmSettings.TYPE)),
-            // randomFrom("native1", "file1", "native1,file1,ldap1,ad1")
-            // )
+            .put(
+                RealmSettings.getFullSettingKey(name, DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(JwtRealmSettings.TYPE)),
+                randomBoolean() ? "" : "authz1, authz2"
+            )
             // Cache settings
             .put(
-                RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.CACHE_TTL),
-                randomBoolean() ? ""
-                    : randomBoolean() ? "-1"
-                    : randomBoolean() ? "0"
-                    : randomIntBetween(10, 120) + randomFrom("s", "m", "h")
+                RealmSettings.getFullSettingKey(name, JwtRealmSettings.CACHE_TTL),
+                randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(10, 120) + randomFrom("s", "m", "h")
             )
-            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.CACHE_MAX_USERS), randomIntBetween(1000, 10000))
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CACHE_MAX_USERS), randomIntBetween(1000, 10000))
             // HTTP settings for outgoing connections
             .put(
-                RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.HTTP_CONNECT_TIMEOUT),
+                RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_CONNECT_TIMEOUT),
                 randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(1, 5) + randomFrom("s", "m", "h")
             )
             .put(
-                RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT),
+                RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT),
                 randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(5, 10) + randomFrom("s", "m", "h")
             )
             .put(
-                RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.HTTP_SOCKET_TIMEOUT),
+                RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_SOCKET_TIMEOUT),
                 randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(5, 10) + randomFrom("s", "m", "h")
             )
-            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.HTTP_MAX_CONNECTIONS), randomIntBetween(5, 20))
-            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS), randomIntBetween(5, 20))
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_MAX_CONNECTIONS), randomIntBetween(5, 20))
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS), randomIntBetween(5, 20))
             // TLS settings for outgoing connections
-            .put(
-                RealmSettings.getFullSettingKey(REALM_NAME, SSLConfigurationSettings.TRUSTSTORE_TYPE.realm(JwtRealmSettings.TYPE)),
-                "PKCS12"
-            )
-            .put(
-                RealmSettings.getFullSettingKey(REALM_NAME, SSLConfigurationSettings.TRUSTSTORE_PATH.realm(JwtRealmSettings.TYPE)),
-                "ts2.p12"
-            )
-            .put(
-                RealmSettings.getFullSettingKey(REALM_NAME, SSLConfigurationSettings.TRUSTSTORE_ALGORITHM.realm(JwtRealmSettings.TYPE)),
-                "PKIX"
-            )
-            .put(
-                RealmSettings.getFullSettingKey(REALM_NAME, SSLConfigurationSettings.CERT_AUTH_PATH.realm(JwtRealmSettings.TYPE)),
-                "ca2.pem"
-            );
+            .put(RealmSettings.getFullSettingKey(name, SSLConfigurationSettings.TRUSTSTORE_TYPE.realm(JwtRealmSettings.TYPE)), "PKCS12")
+            .put(RealmSettings.getFullSettingKey(name, SSLConfigurationSettings.TRUSTSTORE_PATH.realm(JwtRealmSettings.TYPE)), "ts2.p12")
+            .put(RealmSettings.getFullSettingKey(name, SSLConfigurationSettings.TRUSTSTORE_ALGORITHM.realm(JwtRealmSettings.TYPE)), "PKIX")
+            .put(RealmSettings.getFullSettingKey(name, SSLConfigurationSettings.CERT_AUTH_PATH.realm(JwtRealmSettings.TYPE)), "ca2.pem");
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         if (includeHmac) {
             secureSettings.setString(
-                RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.ISSUER_HMAC_SECRET_KEY),
+                RealmSettings.getFullSettingKey(name, JwtRealmSettings.ISSUER_HMAC_SECRET_KEY),
                 randomAlphaOfLengthBetween(10, 20)
             );
         }
         if (JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET.equals(clientAuthorizationType)) {
             secureSettings.setString(
-                RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET),
+                RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET),
                 randomAlphaOfLengthBetween(8, 12)
             );
         }
         secureSettings.setString(
-            RealmSettings.getFullSettingKey(REALM_NAME, SSLConfigurationSettings.TRUSTSTORE_PASSWORD.realm(JwtRealmSettings.TYPE)),
+            RealmSettings.getFullSettingKey(name, SSLConfigurationSettings.TRUSTSTORE_PASSWORD.realm(JwtRealmSettings.TYPE)),
             randomAlphaOfLengthBetween(10, 10)
         );
 
@@ -300,14 +282,20 @@ public abstract class JwtTestCase extends ESTestCase {
         return settingsBuilder;
     }
 
-    protected RealmConfig buildRealmConfig(final Settings realmSettings) {
-        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier(JwtRealmSettings.TYPE, REALM_NAME);
+    protected RealmConfig buildRealmConfig(
+        final String realmType,
+        final String realmName,
+        final Settings realmSettings,
+        final Integer realmOrder
+    ) {
+        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier(realmType, realmName);
         final Settings settings = Settings.builder()
+            .put(this.globalSettings)
+            // .put("path.home", this.pathHome)
             .put(realmSettings)
-            .put("path.home", this.pathHome)
-            .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
+            .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), realmOrder)
             .build();
-        return new RealmConfig(realmIdentifier, settings, env, this.threadContext);
+        return new RealmConfig(realmIdentifier, settings, this.env, this.threadContext);
     }
 
     protected static void writeJwkSetToFile(Path file) throws IOException {

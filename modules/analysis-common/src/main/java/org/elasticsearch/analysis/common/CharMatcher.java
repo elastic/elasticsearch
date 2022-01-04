@@ -56,23 +56,32 @@ public interface CharMatcher {
         PUNCTUATION {
             @Override
             public boolean isTokenChar(int c) {
-                return switch (Character.getType(c)) {
-        // tag::noformat
-                    case Character.START_PUNCTUATION, Character.END_PUNCTUATION, Character.OTHER_PUNCTUATION,
-                         Character.CONNECTOR_PUNCTUATION, Character.DASH_PUNCTUATION, Character.INITIAL_QUOTE_PUNCTUATION,
-                         Character.FINAL_QUOTE_PUNCTUATION -> true;
-        // end::noformat
-                    default -> false;
-                };
+                switch (Character.getType(c)) {
+                    case Character.START_PUNCTUATION:
+                    case Character.END_PUNCTUATION:
+                    case Character.OTHER_PUNCTUATION:
+                    case Character.CONNECTOR_PUNCTUATION:
+                    case Character.DASH_PUNCTUATION:
+                    case Character.INITIAL_QUOTE_PUNCTUATION:
+                    case Character.FINAL_QUOTE_PUNCTUATION:
+                        return true;
+                    default:
+                        return false;
+                }
             }
         },
         SYMBOL {
             @Override
             public boolean isTokenChar(int c) {
-                return switch (Character.getType(c)) {
-                    case Character.CURRENCY_SYMBOL, Character.MATH_SYMBOL, Character.OTHER_SYMBOL, Character.MODIFIER_SYMBOL -> true;
-                    default -> false;
-                };
+                switch (Character.getType(c)) {
+                    case Character.CURRENCY_SYMBOL:
+                    case Character.MATH_SYMBOL:
+                    case Character.OTHER_SYMBOL:
+                    case Character.MODIFIER_SYMBOL:
+                        return true;
+                    default:
+                        return false;
+                }
             }
         }
     }
@@ -90,26 +99,29 @@ public interface CharMatcher {
         }
 
         public CharMatcher build() {
-            return switch (matchers.size()) {
-                case 0 -> new CharMatcher() {
-                    @Override
-                    public boolean isTokenChar(int c) {
-                        return false;
-                    }
-                };
-                case 1 -> matchers.iterator().next();
-                default -> new CharMatcher() {
-                    @Override
-                    public boolean isTokenChar(int c) {
-                        for (CharMatcher matcher : matchers) {
-                            if (matcher.isTokenChar(c)) {
-                                return true;
-                            }
+            switch (matchers.size()) {
+                case 0:
+                    return new CharMatcher() {
+                        @Override
+                        public boolean isTokenChar(int c) {
+                            return false;
                         }
-                        return false;
-                    }
-                };
-            };
+                    };
+                case 1:
+                    return matchers.iterator().next();
+                default:
+                    return new CharMatcher() {
+                        @Override
+                        public boolean isTokenChar(int c) {
+                            for (CharMatcher matcher : matchers) {
+                                if (matcher.isTokenChar(c)) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        }
+                    };
+            }
         }
     }
 

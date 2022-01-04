@@ -53,13 +53,20 @@ public final class EnhancedSuggestLexer extends SuggestLexer {
         if (lastToken == null) {
             return true;
         }
-        return switch (lastToken.getType()) {
-            // tag::noformat
-            case PainlessLexer.RBRACE, PainlessLexer.RP, PainlessLexer.OCTAL, PainlessLexer.HEX, PainlessLexer.INTEGER,
-                 PainlessLexer.DECIMAL, PainlessLexer.ID, PainlessLexer.DOTINTEGER, PainlessLexer.DOTID -> false;
-            // end::noformat
-            default -> true;
-        };
+        switch (lastToken.getType()) {
+            case PainlessLexer.RBRACE:
+            case PainlessLexer.RP:
+            case PainlessLexer.OCTAL:
+            case PainlessLexer.HEX:
+            case PainlessLexer.INTEGER:
+            case PainlessLexer.DECIMAL:
+            case PainlessLexer.ID:
+            case PainlessLexer.DOTINTEGER:
+            case PainlessLexer.DOTID:
+                return false;
+            default:
+                return true;
+        }
     }
 
     @Override

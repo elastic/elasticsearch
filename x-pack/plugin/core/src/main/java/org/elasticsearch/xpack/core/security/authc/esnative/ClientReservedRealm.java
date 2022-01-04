@@ -15,13 +15,17 @@ public class ClientReservedRealm {
 
     public static boolean isReserved(String username, Settings settings) {
         assert username != null;
-        return switch (username) {
-            // tag::noformat
-            case UsernamesField.ELASTIC_NAME, UsernamesField.DEPRECATED_KIBANA_NAME, UsernamesField.KIBANA_NAME,
-                 UsernamesField.LOGSTASH_NAME, UsernamesField.BEATS_NAME, UsernamesField.APM_NAME,
-                 UsernamesField.REMOTE_MONITORING_NAME -> XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
-            // end::noformat
-            default -> AnonymousUser.isAnonymousUsername(username, settings);
-        };
+        switch (username) {
+            case UsernamesField.ELASTIC_NAME:
+            case UsernamesField.DEPRECATED_KIBANA_NAME:
+            case UsernamesField.KIBANA_NAME:
+            case UsernamesField.LOGSTASH_NAME:
+            case UsernamesField.BEATS_NAME:
+            case UsernamesField.APM_NAME:
+            case UsernamesField.REMOTE_MONITORING_NAME:
+                return XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
+            default:
+                return AnonymousUser.isAnonymousUsername(username, settings);
+        }
     }
 }

@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -101,7 +102,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 createIndex.setJsonEntity("""
                     {"settings":{"number_of_shards": %s}}
                     """.formatted(numberOfShards));
-                oldEs.performRequest(createIndex);
+                assertOK(oldEs.performRequest(createIndex));
 
                 for (int i = 0; i < numDocs; i++) {
                     String id = "testdoc" + i;
@@ -109,22 +110,22 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                     Request doc = new Request("PUT", "/test/doc/" + id);
                     doc.addParameter("refresh", "true");
                     doc.setJsonEntity(sourceForDoc(i));
-                    oldEs.performRequest(doc);
+                    assertOK(oldEs.performRequest(doc));
                 }
 
                 // register repo on old ES and take snapshot
                 Request createRepoRequest = new Request("PUT", "/_snapshot/testrepo");
                 createRepoRequest.setJsonEntity(sourceOnlyRepository ? """
-                    {"type":"source","settings":{"location":"%s", "delegate_type":"fs"}}
-                    """ : """
+                    {"type":"source","settings":{"location":"%s","delegate_type":"fs"}}
+                    """.formatted(repoLocation) : """
                     {"type":"fs","settings":{"location":"%s"}}
                     """.formatted(repoLocation));
-                oldEs.performRequest(createRepoRequest);
+                assertOK(oldEs.performRequest(createRepoRequest));
 
                 Request createSnapshotRequest = new Request("PUT", "/_snapshot/testrepo/snap1");
                 createSnapshotRequest.addParameter("wait_for_completion", "true");
                 createSnapshotRequest.setJsonEntity("{\"indices\":\"test\"}");
-                oldEs.performRequest(createSnapshotRequest);
+                assertOK(oldEs.performRequest(createSnapshotRequest));
 
                 // register repo on new ES
                 Settings.Builder repoSettingsBuilder = Settings.builder().put("location", repoLocation);
@@ -210,7 +211,19 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                     restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards);
                 }
             } finally {
-                oldEs.performRequest(new Request("DELETE", "/test"));
+                IOUtils.closeWhileHandlingException(
+                    () -> oldEs.performRequest(new Request("DELETE", "/test")),
+                    () -> oldEs.performRequest(new Request("DELETE", "/_snapshot/testrepo/snap1")),
+                    () -> oldEs.performRequest(new Request("DELETE", "/_snapshot/testrepo"))
+                );
+                if (Build.CURRENT.isSnapshot()) {
+                    IOUtils.closeWhileHandlingException(
+                        () -> client().performRequest(new Request("DELETE", "/restored_test")),
+                        () -> client().performRequest(new Request("DELETE", "/mounted_full_copy_test")),
+                        () -> client().performRequest(new Request("DELETE", "/mounted_shared_cache_test"))
+                    );
+                }
+                IOUtils.closeWhileHandlingException(() -> client().performRequest(new Request("DELETE", "/_snapshot/testrepo")));
             }
         }
     }

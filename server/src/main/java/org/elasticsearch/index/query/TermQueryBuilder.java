@@ -120,6 +120,12 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
                         if (TERM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             value = maybeConvertToBytesRef(parser.objectBytes());
                         } else if (VALUE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "[term] query does not support arrays for value - use Terms query instead."
+                                );
+                            }
                             value = maybeConvertToBytesRef(parser.objectBytes());
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();

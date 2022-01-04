@@ -39,6 +39,7 @@ include::migrate_8_0/painless-changes.asciidoc[]
 include::migrate_8_0/rest-api-changes.asciidoc[]
 include::migrate_8_0/system-req-changes.asciidoc[]
 include::migrate_8_0/transform.asciidoc[]
+include::migrate_8_0/sql-jdbc-changes.asciidoc[]
 
 [discrete]
 [[deprecated-8.0]]

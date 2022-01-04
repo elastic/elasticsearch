@@ -22,10 +22,6 @@ dependencies {
   }
   // required by x-content
   runtimeOnly project(':libs:elasticsearch-core')
-
-  api(project(':libs:elasticsearch-geo')) {
-    transitive = false
-  }
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
   runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   testImplementation project(":test:framework")

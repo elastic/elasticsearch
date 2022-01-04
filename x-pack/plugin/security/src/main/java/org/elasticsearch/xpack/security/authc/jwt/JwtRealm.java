@@ -36,10 +36,9 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.ParseException;
 import java.util.Base64;
@@ -87,7 +86,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     // constructor derives members
     private final URL jwkSetPathUrl; // Non-null if jwkSetPath is set and starts with "https://"
-    private final File jwkSetPathFile; // Non-null if jwkSetPath is set and resolves to a local config file
+    private final Path jwkSetPathObj; // Non-null if jwkSetPath is set and resolves to a local config file
     private final Cache<String, ListenableFuture<CachedAuthenticationSuccess>> cachedAuthenticationSuccesses;
     private final Hasher hasher;
 
@@ -170,7 +169,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 }
                 // If type is "SharedSecret", the shared secret value must Base64url-encoded
                 try {
-                    Base64.getUrlDecoder().decode(new String(this.hmacSecretKey.getChars()).getBytes());
+                    Base64.getUrlDecoder().decode(new String(this.hmacSecretKey.getChars()).getBytes(StandardCharsets.UTF_8));
                 } catch (Exception e) {
                     throw new SettingsException(
                         "Base64Url-encoding is required for the Client Authorization Shared Secret ["
@@ -199,7 +198,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         // Validate that at least one of JWT Set Path and HMAC Key Set are set. If HMAC Key Set, validate Base64Url-encoding.
         if (Strings.hasText(this.hmacSecretKey)) {
             try {
-                Base64.getUrlDecoder().decode(new String(this.hmacSecretKey.getChars()).getBytes());
+                Base64.getUrlDecoder().decode(new String(this.hmacSecretKey.getChars()).getBytes(StandardCharsets.UTF_8));
             } catch (Exception e) {
                 throw new SettingsException(
                     "Base64Url-encoding is required for the Issuer HMAC Key  ["
@@ -218,7 +217,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
         // If JWK Set Path is configured, validate it is an HTTPS URL, or a local config file which exists and is non-empty.
         URL jwkSetPathUrlTemp = null;
-        File jwkSetPathFileTemp = null;
+        Path jwkSetPathObjTemp = null;
         if (Strings.hasText(this.jwkSetPath)) {
             if (this.jwkSetPath.startsWith("https://")) {
                 try {
@@ -238,9 +237,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         + "]. HTTP not supported, use HTTPS."
                 );
             } else {
-                final Path configDirectory = realmConfig.env().configFile();
-                try (FileInputStream fis = new FileInputStream(jwkSetPathFileTemp = configDirectory.resolve(this.jwkSetPath).toFile())) {
-                    if (fis.read() == -1) {
+                jwkSetPathObjTemp = realmConfig.env().configFile().resolve(this.jwkSetPath);
+                try {
+                    final String jwtSetPathContents = Files.readString(jwkSetPathObjTemp, StandardCharsets.UTF_8);
+                    if (Strings.hasText(jwtSetPathContents) == false) {
                         throw new SettingsException(
                             "Empty JWK Set Path file for setting ["
                                 + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.JWKSET_PATH)
@@ -248,14 +248,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         );
                     }
                 } catch (SettingsException e) {
-                    throw e; // re-throw any inner SettingsException
-                } catch (FileNotFoundException e) {
-                    throw new SettingsException(
-                        "File not found for JWK Set Path setting ["
-                            + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.JWKSET_PATH)
-                            + "]",
-                        e
-                    );
+                    throw e; // re-throw inner SettingsException
                 } catch (Exception e) {
                     throw new SettingsException(
                         "Invalid JWK Set Path setting ["
@@ -267,7 +260,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             }
         }
         this.jwkSetPathUrl = jwkSetPathUrlTemp;
-        this.jwkSetPathFile = jwkSetPathFileTemp;
+        this.jwkSetPathObj = jwkSetPathObjTemp;
 
         // If Issuer HMAC Secret Key is set, at least one HMAC Signature Algorithm is required.
         // If at least one HMAC Signature Algorithm is set, Issuer HMAC Secret Key is required.

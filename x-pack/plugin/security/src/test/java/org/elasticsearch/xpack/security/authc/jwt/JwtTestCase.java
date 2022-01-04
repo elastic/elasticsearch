@@ -25,11 +25,14 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.nimbusds.openid.connect.sdk.Nonce;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -60,6 +63,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 
 public abstract class JwtTestCase extends ESTestCase {
+
+    private static final Logger LOGGER = LogManager.getLogger(JwtRealm.class);
 
     protected static final String REALM_NAME = "jwt1";
     protected String pathHome;
@@ -99,7 +104,7 @@ public abstract class JwtTestCase extends ESTestCase {
     ) throws Exception {
         final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
         final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
-        System.out.println("signatureAlgorithm: " + signatureAlgorithm);
+        LOGGER.debug("signatureAlgorithm: " + signatureAlgorithm);
 
         final String kid = randomAlphaOfLengthBetween(16, 32);
         final JWSSigner jwtSigner;
@@ -107,19 +112,19 @@ public abstract class JwtTestCase extends ESTestCase {
         if (JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS.contains(signatureAlgorithm)) {
             final int minRequiredSecretLength = MACSigner.getMinRequiredSecretLength(jwsAlgorithm) / 8;
             final byte[] hmacKeyBytes = new byte[randomIntBetween(minRequiredSecretLength, minRequiredSecretLength * 2)];
-            System.out.println("HMAC size: " + hmacKeyBytes.length);
+            LOGGER.debug("HMAC size: " + hmacKeyBytes.length);
             random().nextBytes(hmacKeyBytes);
             jwtSigner = new MACSigner(hmacKeyBytes);
             jwtVerifier = new MACVerifier(hmacKeyBytes);
         } else if (JwtRealmSettings.SUPPORTED_PUBLIC_KEY_RSA_SIGNATURE_ALGORITHMS.contains(signatureAlgorithm)) {
             final Integer rsaSize = randomFrom(2048, 3072); // RSA lengths NOT restricted by SHA-2 lengths
-            System.out.println("RSA size: " + rsaSize);
+            LOGGER.debug("RSA size: " + rsaSize);
             final RSAKey privateKey = new RSAKeyGenerator(rsaSize).keyID(kid).generate();
             jwtSigner = new RSASSASigner(privateKey);
             jwtVerifier = new RSASSAVerifier(privateKey.toPublicJWK());
         } else if (JwtRealmSettings.SUPPORTED_PUBLIC_KEY_EC_SIGNATURE_ALGORITHMS.contains(signatureAlgorithm)) {
             final Curve ecCurve = randomFrom(Curve.forJWSAlgorithm(jwsAlgorithm)); // EC curves by specific SHA-2 lengths.
-            System.out.println("EC curve: " + ecCurve);
+            LOGGER.debug("EC curve: " + ecCurve);
             final ECKey privateKey = new ECKeyGenerator(ecCurve).keyID(kid).generate();
             jwtSigner = new ECDSASigner(privateKey);
             jwtVerifier = new ECDSAVerifier(privateKey.toPublicJWK());
@@ -156,11 +161,13 @@ public abstract class JwtTestCase extends ESTestCase {
         final boolean includePublicKey = includeRsa || includeEc;
         final boolean includeHmac = randomBoolean() || (includePublicKey == false); // one of HMAC/RSA/EC must be true
         final boolean populateUserMetadata = randomBoolean();
-        final String jwkSetPathUrlOrFile = randomBoolean()
+        final Path jwtSetPathObj = PathUtils.get(this.pathHome);
+        final String jwkSetPath = randomBoolean()
             ? "https://op.example.com/jwkset.json"
-            : Files.createTempFile("jwkset", "json").toFile().getAbsolutePath();
-        if (jwkSetPathUrlOrFile.equals("https://op.example.com/jwkset.json") == false) {
-            Files.writeString(Path.of(jwkSetPathUrlOrFile), "Non-empty JWK Set Path contents");
+            : Files.createTempFile(jwtSetPathObj, "jwkset.", ".json").toString();
+
+        if (jwkSetPath.equals("https://op.example.com/jwkset.json") == false) {
+            Files.writeString(PathUtils.get(jwkSetPath), "Non-empty JWK Set Path contents");
         }
         final String clientAuthorizationType = randomFrom(JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE);
 
@@ -198,7 +205,7 @@ public abstract class JwtTestCase extends ESTestCase {
                 RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.ALLOWED_CLOCK_SKEW),
                 randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(1, 5) + randomFrom("s", "m", "h")
             )
-            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.JWKSET_PATH), includePublicKey ? jwkSetPathUrlOrFile : "")
+            .put(RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.JWKSET_PATH), includePublicKey ? jwkSetPath : "")
             // Audience settings
             .put(
                 RealmSettings.getFullSettingKey(REALM_NAME, JwtRealmSettings.ALLOWED_AUDIENCES),

@@ -11,19 +11,14 @@ package org.elasticsearch.script.field.murmur3;
 import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
-import org.elasticsearch.script.AggregationScript;
-import org.elasticsearch.script.BucketAggregationSelectorScript;
-import org.elasticsearch.script.FieldScript;
-import org.elasticsearch.script.FilterScript;
-import org.elasticsearch.script.NumberSortScript;
-import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.StringSortScript;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.script.ScriptModule.CORE_CONTEXTS;
 
 public class Murmur3PainlessExtension implements PainlessExtension {
 
@@ -35,21 +30,10 @@ public class Murmur3PainlessExtension implements PainlessExtension {
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
         List<Whitelist> whitelist = singletonList(WHITELIST);
-        return Map.of(
-            FieldScript.CONTEXT,
-            whitelist,
-            ScoreScript.CONTEXT,
-            whitelist,
-            FilterScript.CONTEXT,
-            whitelist,
-            AggregationScript.CONTEXT,
-            whitelist,
-            NumberSortScript.CONTEXT,
-            whitelist,
-            StringSortScript.CONTEXT,
-            whitelist,
-            BucketAggregationSelectorScript.CONTEXT,
-            whitelist
-        );
+        Map<ScriptContext<?>, List<Whitelist>> contextWhitelists = new HashMap<>(CORE_CONTEXTS.size());
+        for (ScriptContext<?> scriptContext : CORE_CONTEXTS.values()) {
+            contextWhitelists.put(scriptContext, whitelist);
+        }
+        return contextWhitelists;
     }
 }

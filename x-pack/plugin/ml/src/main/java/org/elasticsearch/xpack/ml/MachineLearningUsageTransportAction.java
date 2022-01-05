@@ -358,6 +358,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
 
     private void addDeploymentStats(GetTrainedModelsStatsAction.Response statsResponse, Map<String, Object> inferenceUsage) {
         StatsAccumulator modelSizes = new StatsAccumulator();
+        int deploymentsCount = 0;
         double avgTimeSum = 0.0;
         StatsAccumulator nodeDistribution = new StatsAccumulator();
         for (var stats : statsResponse.getResources().results()) {
@@ -365,6 +366,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             if (deploymentStats == null) {
                 continue;
             }
+            deploymentsCount++;
             TrainedModelSizeStats modelSizeStats = stats.getModelSizeStats();
             if (modelSizeStats != null) {
                 modelSizes.add(modelSizeStats.getModelSizeBytes());
@@ -380,7 +382,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             "deployments",
             Map.of(
                 "count",
-                statsResponse.getResources().count(),
+                deploymentsCount,
                 "time_ms",
                 Map.of(StatsAccumulator.Fields.AVG, nodeDistribution.getTotal() == 0.0 ? 0.0 : avgTimeSum / nodeDistribution.getTotal()),
                 "model_sizes_bytes",

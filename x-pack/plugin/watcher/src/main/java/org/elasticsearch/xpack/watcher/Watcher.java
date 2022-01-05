@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -720,9 +721,12 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return map -> {
             map.keySet().removeIf(name -> name.startsWith("watch_history_"));
-            // watcher migrated to using system indices so these legacy templates are not needed anymore
-            map.remove(".watches");
-            map.remove(".triggered_watches");
+            //watcher migrated to using system indices so these legacy templates are not needed any more except to pass validation
+            //during a rolling upgrade see #82109
+            map.put(".watches", new IndexTemplateMetadata(".watches", 0, 99,
+                Collections.singletonList(".watches-do-not-use"), Settings.EMPTY, ImmutableOpenMap.of(), ImmutableOpenMap.of()));
+            map.put(".triggered_watches", new IndexTemplateMetadata(".triggered_watches", 0, 99,
+                Collections.singletonList(".triggered_watches-do-not-use"), Settings.EMPTY, ImmutableOpenMap.of(), ImmutableOpenMap.of()));
             // post 7.x we moved to typeless watch-history-10
             map.remove(".watch-history-9");
             return map;

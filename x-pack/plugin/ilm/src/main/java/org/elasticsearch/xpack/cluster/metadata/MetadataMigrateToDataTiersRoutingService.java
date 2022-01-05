@@ -134,13 +134,16 @@ public final class MetadataMigrateToDataTiersRoutingService {
         @Nullable String indexTemplateToDelete,
         NamedXContentRegistry xContentRegistry,
         Client client,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        boolean dryRun
     ) {
-        IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
-        if (currentMetadata != null && currentMetadata.getOperationMode() != STOPPED) {
-            throw new IllegalStateException(
-                "stop ILM before migrating to data tiers, current state is [" + currentMetadata.getOperationMode() + "]"
-            );
+        if (dryRun == false) {
+            IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
+            if (currentMetadata != null && currentMetadata.getOperationMode() != STOPPED) {
+                throw new IllegalStateException(
+                    "stop ILM before migrating to data tiers, current state is [" + currentMetadata.getOperationMode() + "]"
+                );
+            }
         }
 
         Metadata.Builder mb = Metadata.builder(currentState.metadata());

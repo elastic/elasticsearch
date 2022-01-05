@@ -73,16 +73,6 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
         ClusterState state,
         ActionListener<MigrateToDataTiersResponse> listener
     ) throws Exception {
-        IndexLifecycleMetadata currentMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
-        if (currentMetadata != null && currentMetadata.getOperationMode() != STOPPED) {
-            listener.onFailure(
-                new IllegalStateException(
-                    "stop ILM before migrating to data tiers, current state is [" + currentMetadata.getOperationMode() + "]"
-                )
-            );
-            return;
-        }
-
         if (request.isDryRun()) {
             MigratedEntities entities = migrateToDataTiersRouting(
                 state,
@@ -90,10 +80,21 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
                 request.getLegacyTemplateToDelete(),
                 xContentRegistry,
                 client,
-                licenseState
+                licenseState,
+                request.isDryRun()
             ).v2();
             listener.onResponse(
                 new MigrateToDataTiersResponse(entities.removedIndexTemplateName, entities.migratedPolicies, entities.migratedIndices, true)
+            );
+            return;
+        }
+
+        IndexLifecycleMetadata currentMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
+        if (currentMetadata != null && currentMetadata.getOperationMode() != STOPPED) {
+            listener.onFailure(
+                new IllegalStateException(
+                    "stop ILM before migrating to data tiers, current state is [" + currentMetadata.getOperationMode() + "]"
+                )
             );
             return;
         }
@@ -108,7 +109,8 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
                     request.getLegacyTemplateToDelete(),
                     xContentRegistry,
                     client,
-                    licenseState
+                    licenseState,
+                    request.isDryRun()
                 );
 
                 migratedEntities.set(migratedEntitiesTuple.v2());

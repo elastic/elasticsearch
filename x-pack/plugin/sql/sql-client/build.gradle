@@ -12,10 +12,6 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-tasks.named("dependencyLicenses").configure {
-  mapping from: /jackson-.*/, to: 'jackson'
-}
-
 tasks.named('forbiddenApisMain').configure {
   // does not depend on core, so only jdk and http signatures should be checked
   replaceSignatureFiles 'jdk-signatures'

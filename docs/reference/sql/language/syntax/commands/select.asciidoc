@@ -123,7 +123,7 @@ The name can be a <<multi-index, pattern>> pointing to multiple indices (likely 
 include-tagged::{sql-specs}/docs/docs.csv-spec[fromTablePatternQuoted]
 ----
 
-To run a <<modules-cross-cluster-search, cross cluster search>>, specify a
+experimental:[] To run a <<modules-cross-cluster-search, cross cluster search>>, specify a
 cluster name using the `<remote_cluster>:<target>` syntax, where
 `<remote_cluster>` maps to a SQL catalog (cluster) and `<target>` to a table
 (index or data stream). The `<remote_cluster>` supports wildcards (`*`)

@@ -152,6 +152,8 @@ will be - typically the first in natural ascending order) for fields with multip
 ==== Cluster
 `catalog`:: Default catalog (cluster) for queries. If unspecified, the
 queries execute on the data in the local cluster only.
++
+experimental:[] See <<modules-cross-cluster-search, cross cluster search>>.
 
 [discrete]
 ==== Additional

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.junit.Before;
@@ -25,6 +26,12 @@ public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<SqlC
     @Before
     public void setup() {
         requestInfo = new RequestInfo(randomFrom(Mode.values()), randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20)));
+    }
+
+    @Override
+    protected SqlClearCursorRequest createXContextTestInstance(XContentType xContentType) {
+        SqlTestUtils.assumeXContentJsonOrCbor(xContentType);
+        return super.createXContextTestInstance(xContentType);
     }
 
     @Override

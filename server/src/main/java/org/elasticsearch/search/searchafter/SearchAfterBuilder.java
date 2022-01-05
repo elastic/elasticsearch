@@ -201,7 +201,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                 case STRING_VAL:
                 case STRING:
                     if (value instanceof BytesRef bytesRef) {
-                        // TODO: We should replace this branch by finding the correct SortField.Type for binary data
+                        // _tsid is stored and ordered as BytesRef. We should not format it
                         return bytesRef;
                     } else {
                         return format.parseBytesRef(value);

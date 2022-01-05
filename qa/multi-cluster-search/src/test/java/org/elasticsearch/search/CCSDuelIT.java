@@ -178,13 +178,23 @@ public class CCSDuelIT extends ESRestTestCase {
         int numShards = randomIntBetween(1, 5);
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(INDEX_NAME);
         createIndexRequest.settings(Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", 0));
-        createIndexRequest.mapping(
-            "{\"properties\":{"
-                + "\"id\":{\"type\":\"keyword\"},"
-                + "\"suggest\":{\"type\":\"completion\"},"
-                + "\"join\":{\"type\":\"join\", \"relations\": {\"question\":\"answer\"}}}}",
-            XContentType.JSON
-        );
+        createIndexRequest.mapping("""
+            {
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "suggest": {
+                  "type": "completion"
+                },
+                "join": {
+                  "type": "join",
+                  "relations": {
+                    "question": "answer"
+                  }
+                }
+              }
+            }""", XContentType.JSON);
         CreateIndexResponse createIndexResponse = restHighLevelClient.indices().create(createIndexRequest, RequestOptions.DEFAULT);
         assertTrue(createIndexResponse.isAcknowledged());
 

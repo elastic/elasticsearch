@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -134,16 +133,12 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
         createIndex(indexName);
         client().admin().indices().prepareCreate(searchIndex).setMapping("location", "type=shape").get();
 
-        String location = "\"location\" : {\"type\":\"polygon\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
+        String location = """
+            "location" : {"type":"polygon", "coordinates":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}""";
 
-        client().prepareIndex(indexName)
-            .setId("1")
-            .setSource(
-                String.format(Locale.ROOT, "{ %s, \"1\" : { %s, \"2\" : { %s, \"3\" : { %s } }} }", location, location, location, location),
-                XContentType.JSON
-            )
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        client().prepareIndex(indexName).setId("1").setSource("""
+            { %s, "1" : { %s, "2" : { %s, "3" : { %s } }} }
+            """.formatted(location, location, location, location), XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex(searchIndex)
             .setId("1")
             .setSource(
@@ -235,20 +230,13 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
      * Test that the indexed shape routing can be provided if it is required
      */
     public void testIndexShapeRouting() {
-        String source = "{\n"
-            + "    \"shape\" : {\n"
-            + "        \"type\" : \"bbox\",\n"
-            + "        \"coordinates\" : [["
-            + -Float.MAX_VALUE
-            + ","
-            + Float.MAX_VALUE
-            + "], ["
-            + Float.MAX_VALUE
-            + ", "
-            + -Float.MAX_VALUE
-            + "]]\n"
-            + "    }\n"
-            + "}";
+        String source = """
+            {
+                "shape" : {
+                    "type" : "bbox",
+                    "coordinates" : [[%s,%s], [%s, %s]]
+                }
+            }""".formatted(-Float.MAX_VALUE, Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE);
 
         client().prepareIndex(INDEX).setId("0").setSource(source, XContentType.JSON).setRouting("ABC").get();
         client().admin().indices().prepareRefresh(INDEX).get();
@@ -294,7 +282,8 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
 
         client().admin().indices().prepareCreate("test_contains").setMapping("location", "type=shape").execute().actionGet();
 
-        String doc = "{\"location\" : {\"type\":\"envelope\", \"coordinates\":[ [-100.0, 100.0], [100.0, -100.0]]}}";
+        String doc = """
+            {"location" : {"type":"envelope", "coordinates":[ [-100.0, 100.0], [100.0, -100.0]]}}""";
         client().prepareIndex("test_contains").setId("1").setSource(doc, XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         // index the mbr of the collection

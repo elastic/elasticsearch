@@ -13,7 +13,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -171,10 +171,11 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         Optional<InputStream> stream = extractor.next();
         assertThat(stream.isPresent(), is(true));
-        String expectedStream = "{\"airline\":\"a\",\"time\":1999,\"responsetime\":11.0,\"doc_count\":1} "
-            + "{\"airline\":\"b\",\"time\":1999,\"responsetime\":12.0,\"doc_count\":2} "
-            + "{\"airline\":\"c\",\"time\":3999,\"responsetime\":31.0,\"doc_count\":4} "
-            + "{\"airline\":\"b\",\"time\":3999,\"responsetime\":32.0,\"doc_count\":3}";
+        String expectedStream = """
+            {"airline":"a","time":1999,"responsetime":11.0,"doc_count":1} \
+            {"airline":"b","time":1999,"responsetime":12.0,"doc_count":2} \
+            {"airline":"c","time":3999,"responsetime":31.0,"doc_count":4} \
+            {"airline":"b","time":3999,"responsetime":32.0,"doc_count":3}""";
         assertThat(asString(stream.get()), equalTo(expectedStream));
         assertThat(capturedSearchRequests.size(), equalTo(1));
 

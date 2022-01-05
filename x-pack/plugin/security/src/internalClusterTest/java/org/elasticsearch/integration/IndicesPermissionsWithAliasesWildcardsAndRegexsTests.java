@@ -58,22 +58,24 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
 
     @Override
     protected String configRoles() {
-        return super.configRoles()
-            + "\nrole1:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "      - names: 't*'\n"
-            + "        privileges: [ALL]\n"
-            + "        field_security:\n"
-            + "           grant: [ field1 ]\n"
-            + "      - names: 'my_alias'\n"
-            + "        privileges: [ALL]\n"
-            + "        field_security:\n"
-            + "           grant: [ field2 ]\n"
-            + "      - names: '/an_.*/'\n"
-            + "        privileges: [ALL]\n"
-            + "        field_security:\n"
-            + "           grant: [ field3 ]\n";
+        return """
+            %s
+            role1:
+              cluster: [ all ]
+              indices:
+                  - names: 't*'
+                    privileges: [ALL]
+                    field_security:
+                       grant: [ field1 ]
+                  - names: 'my_alias'
+                    privileges: [ALL]
+                    field_security:
+                       grant: [ field2 ]
+                  - names: '/an_.*/'
+                    privileges: [ALL]
+                    field_security:
+                       grant: [ field3 ]
+            """.formatted(super.configRoles());
     }
 
     @Override

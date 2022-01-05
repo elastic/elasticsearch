@@ -63,12 +63,10 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
             } else {
                 handler.accept(null, new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements."));
             }
-        } else if (o instanceof Map) {
-            Map<?, ?> map = (Map<?, ?>) o;
+        } else if (o instanceof Map<?, ?> map) {
             List<?> keys = new ArrayList<>(map.keySet());
             innerExecuteMap(0, new HashMap<Object, Object>(map), keys, new HashMap<>(map.size()), ingestDocument, handler);
-        } else if (o instanceof List) {
-            List<?> list = (List<?>) o;
+        } else if (o instanceof List<?> list) {
             innerExecuteList(0, new ArrayList<>(list), new ArrayList<>(list.size()), ingestDocument, handler);
         } else {
             throw new IllegalArgumentException(

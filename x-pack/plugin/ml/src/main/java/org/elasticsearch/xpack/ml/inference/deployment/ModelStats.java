@@ -10,33 +10,11 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 import java.time.Instant;
 import java.util.LongSummaryStatistics;
 
-public class ModelStats {
-
-    private final Instant startTime;
-    private final LongSummaryStatistics timingStats;
-    private final Instant lastUsed;
-    private final int pendingCount;
-
-    ModelStats(Instant startTime, LongSummaryStatistics timingStats, Instant lastUsed, int pendingCount) {
-        this.startTime = startTime;
-        this.timingStats = timingStats;
-        this.lastUsed = lastUsed;
-        this.pendingCount = pendingCount;
-    }
-
-    public Instant getStartTime() {
-        return startTime;
-    }
-
-    public LongSummaryStatistics getTimingStats() {
-        return timingStats;
-    }
-
-    public Instant getLastUsed() {
-        return lastUsed;
-    }
-
-    public int getPendingCount() {
-        return pendingCount;
-    }
-}
+public record ModelStats(
+    Instant startTime,
+    LongSummaryStatistics timingStats,
+    Instant lastUsed,
+    int pendingCount,
+    Integer inferenceThreads,
+    Integer modelThreads
+) {}

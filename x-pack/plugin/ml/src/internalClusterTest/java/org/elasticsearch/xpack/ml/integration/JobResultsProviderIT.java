@@ -20,7 +20,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -675,10 +675,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         // Add a snapshot WITHOUT a min version.
         client().prepareIndex(AnomalyDetectorsIndex.jobResultsAliasedName("other_job"))
             .setId(ModelSnapshot.documentId("other_job", "11"))
-            .setSource(
-                "{\"job_id\":\"other_job\"," + "\"snapshot_id\":\"11\", \"snapshot_doc_count\":1,\"retain\":false}",
-                XContentType.JSON
-            )
+            .setSource("""
+                {"job_id":"other_job","snapshot_id":"11", "snapshot_doc_count":1,"retain":false}""", XContentType.JSON)
             .get();
 
         client().admin()

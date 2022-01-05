@@ -16,6 +16,11 @@ dependencies {
   }
 }
 
+tasks.named("compileJava").configure {
+  targetCompatibility = JavaVersion.VERSION_1_8
+  sourceCompatibility = JavaVersion.VERSION_1_8
+}
+
 tasks.named('forbiddenApisMain').configure {
   //sql does not depend on server, so only jdk signatures should be checked
   replaceSignatureFiles 'jdk-signatures'

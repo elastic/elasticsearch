@@ -309,28 +309,30 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
     private static void createIndex(RestClient client, String name, Settings settings) throws IOException {
         Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings) + "}");
+        request.setJsonEntity("""
+            {
+             "settings": %s
+            }""".formatted(Strings.toString(settings)));
         client.performRequest(request);
     }
 
     private static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow?wait_for_active_shards=1");
-        request.setJsonEntity(
-            "{\"remote_cluster\": \"" + leaderCluster + "\", \"leader_index\": \"" + leaderIndex + "\", \"read_poll_timeout\": \"10ms\"}"
-        );
+        request.setJsonEntity("""
+            {"remote_cluster": "%s", "leader_index": "%s", "read_poll_timeout": "10ms"}
+            """.formatted(leaderCluster, leaderIndex));
         assertOK(client.performRequest(request));
     }
 
     private static void putAutoFollowPattern(RestClient client, String name, String remoteCluster, String pattern) throws IOException {
         Request request = new Request("PUT", "/_ccr/auto_follow/" + name);
-        request.setJsonEntity(
-            "{\"leader_index_patterns\": [\""
-                + pattern
-                + "\"], \"remote_cluster\": \""
-                + remoteCluster
-                + "\","
-                + "\"follow_index_pattern\": \"copy-{{leader_index}}\", \"read_poll_timeout\": \"10ms\"}"
-        );
+        request.setJsonEntity("""
+            {
+              "leader_index_patterns": [ "%s" ],
+              "remote_cluster": "%s",
+              "follow_index_pattern": "copy-{{leader_index}}",
+              "read_poll_timeout": "10ms"
+            }""".formatted(pattern, remoteCluster));
         assertOK(client.performRequest(request));
     }
 

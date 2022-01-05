@@ -11,6 +11,8 @@ import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.AntFixture
+import org.elasticsearch.gradle.transform.UnzipTransform
+import org.gradle.api.internal.artifacts.ArtifactAttributes
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
@@ -44,7 +46,7 @@ dependencies {
 restResources {
   restApi {
     include '_common', 'cluster', 'nodes', 'indices', 'index', 'get', 'search', 'mget', 'count',
-                'update_by_query', 'delete_by_query', 'reindex_rethrottle', 'tasks', 'reindex', 'put_script'
+                'update_by_query', 'delete_by_query', 'reindex_rethrottle', 'tasks', 'reindex', 'put_script', 'bulk'
   }
 }
 
@@ -102,8 +104,17 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     systemProperty "tests.fromOld", "false"
   }
 } else {
-  /* Set up tasks to unzip and run the old versions of ES before running the
-   * integration tests. */
+  /* Register a gradle artifact transformation to unpack resolved elasticsearch distributions. We only resolve
+   * zip files here. Using artifact transforms allow a better caching of the downloaded distros as the
+   * transformed (unpacked) distro will be cached by gradle resulting in less unpacking
+   *
+   * To avoid testing against too many old versions, always pick first and last version per major
+   */
+  project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
+    transformSpec.getFrom().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE);
+    transformSpec.getTo().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+  });
+
   def versions = ['2', '1', '090']
   if (Os.isFamily(Os.FAMILY_MAC)) {
     // 0.90 fails sometimes on mac, given that it is so old, let us disable it
@@ -111,21 +122,10 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     versions = ['2', '1']
   }
   versions.each { version ->
-    // TODO Rene: we should be able to replace these unzip tasks with gradle artifact transforms
-    TaskProvider<Sync> unzip = tasks.register("unzipEs${version}", Sync) {
-      Configuration oldEsDependency = configurations['es' + version]
-      dependsOn oldEsDependency
-      /* Use a closure here to delay resolution of the dependency until we need
-       * it */
-      from {
-        oldEsDependency.collect { zipTree(it) }
-      }
-      into temporaryDir
-    }
-
+    def oldEsDependency = configurations['es' + version]
+    oldEsDependency.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
     TaskProvider<AntFixture> fixture = tasks.register("oldEs${version}Fixture", AntFixture) {
-      dependsOn project.configurations.oldesFixture, jdks.legacy
-      dependsOn unzip
+      dependsOn project.configurations.oldesFixture, jdks.legacy, oldEsDependency
       executable = "${BuildParams.runtimeJavaHome}/bin/java"
       env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
       // old versions of Elasticsearch need JAVA_HOME
@@ -136,7 +136,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       }
       args 'oldes.OldElasticsearch',
         baseDir,
-        unzip.get().temporaryDir,
+        "${ -> oldEsDependency.singleFile.getPath()}",
         version == '090'
       waitCondition = { fixture, ant ->
         // the fixture writes the ports file when Elasticsearch's HTTP service

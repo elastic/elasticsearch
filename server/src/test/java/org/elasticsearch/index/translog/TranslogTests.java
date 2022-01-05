@@ -35,6 +35,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -63,6 +65,7 @@ import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -141,6 +144,27 @@ import static org.mockito.Mockito.when;
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class TranslogTests extends ESTestCase {
 
+    public static final DiskIoBufferPool RANDOMIZING_IO_BUFFERS = new DiskIoBufferPool() {
+        @Override
+        public ByteBuffer maybeGetDirectIOBuffer() {
+            // null out thread-local to be able to test that the correct buffer is used when called repeatedly from the same thread
+            ioBufferPool.remove();
+            final String currentThreadName = Thread.currentThread().getName();
+            try {
+                final boolean useWriteThread = randomBoolean();
+                Thread.currentThread().setName(useWriteThread ? "[" + ThreadPool.Names.WRITE + "] thread" : "not-a-write-thread");
+                final ByteBuffer buffer = super.maybeGetDirectIOBuffer();
+                if (useWriteThread) {
+                    assertTrue(buffer.isDirect());
+                } else {
+                    assertNull(buffer);
+                }
+                return buffer;
+            } finally {
+                Thread.currentThread().setName(currentThreadName);
+            }
+        }
+    };
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
 
     protected Translog translog;
@@ -260,7 +284,14 @@ public class TranslogTests extends ESTestCase {
         );
 
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings);
-        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize);
+        return new TranslogConfig(
+            shardId,
+            path,
+            indexSettings,
+            NON_RECYCLING_INSTANCE,
+            bufferSize,
+            randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS
+        );
     }
 
     private Location addToTranslogAndList(Translog translog, List<Translog.Operation> list, Translog.Operation op) throws IOException {
@@ -486,18 +517,16 @@ public class TranslogTests extends ESTestCase {
                 builder.startObject();
                 copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
-                assertThat(
-                    Strings.toString(builder),
-                    equalTo(
-                        "{\"translog\":{\"operations\":4,\"size_in_bytes\":"
-                            + 326
-                            + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":"
-                            + 271
-                            + ",\"earliest_last_modified_age\":"
-                            + stats.getEarliestLastModifiedAge()
-                            + "}}"
-                    )
-                );
+                assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace("""
+                    {
+                      "translog": {
+                        "operations": 4,
+                        "size_in_bytes": 326,
+                        "uncommitted_operations": 4,
+                        "uncommitted_size_in_bytes": 271,
+                        "earliest_last_modified_age": %s
+                      }
+                    }""".formatted(stats.getEarliestLastModifiedAge()))));
             }
         }
         translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(randomLongBetween(3, Long.MAX_VALUE));
@@ -1368,7 +1397,8 @@ public class TranslogTests extends ESTestCase {
             temp.getTranslogPath(),
             temp.getIndexSettings(),
             temp.getBigArrays(),
-            new ByteSizeValue(1, ByteSizeUnit.KB)
+            new ByteSizeValue(1, ByteSizeUnit.KB),
+            randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS
         );
 
         final Set<Long> persistedSeqNos = new HashSet<>();

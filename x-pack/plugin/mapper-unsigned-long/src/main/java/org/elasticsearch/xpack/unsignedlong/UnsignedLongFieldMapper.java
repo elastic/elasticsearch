@@ -359,8 +359,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     if (lv >= 0) {
                         return lv;
                     }
-                } else if (value instanceof BigInteger) {
-                    BigInteger bigIntegerValue = (BigInteger) value;
+                } else if (value instanceof BigInteger bigIntegerValue) {
                     if (bigIntegerValue.compareTo(BigInteger.ZERO) >= 0 && bigIntegerValue.compareTo(BIGINTEGER_2_64_MINUS_ONE) <= 0) {
                         return bigIntegerValue.longValue();
                     }
@@ -596,8 +595,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("Value \"" + value + "\" has a decimal part");
                 }
                 return parseUnsignedLong(v.longValue());
-            } else if (value instanceof BigInteger) {
-                BigInteger bigIntegerValue = (BigInteger) value;
+            } else if (value instanceof BigInteger bigIntegerValue) {
                 if (bigIntegerValue.compareTo(BIGINTEGER_2_64_MINUS_ONE) > 0 || bigIntegerValue.compareTo(BigInteger.ZERO) < 0) {
                     throw new IllegalArgumentException("Value [" + bigIntegerValue + "] is out of range for unsigned long");
                 }

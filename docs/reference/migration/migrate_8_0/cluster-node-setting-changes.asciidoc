@@ -16,7 +16,7 @@ The default for the `action.destructive_requires_name` setting changes from `fal
 to `true` in {es} 8.0.0.
 
 Previously, defaulting to `false` allowed users to use wildcard
-patterns to delete, close, or change index blocks on indices. 
+patterns to delete, close, or change index blocks on indices.
 To prevent the accidental deletion of indices that happen to match a
 wildcard pattern, we now default to requiring that destructive
 operations explicitly name the indices to be modified.
@@ -44,19 +44,28 @@ non-frozen node will result in an error on startup.
 ====
 
 [[max_clause_count_change]]
-.The `indices.query.bool.max_clause_count` setting now limits all query clauses.
+.The `indices.query.bool.max_clause_count` setting has been deprecated, and no longer has any effect.
 [%collapsible]
 ====
 *Details* +
-Previously, the `indices.query.bool.max_clause_count` would apply to the number
-of clauses of a single `bool` query. It now applies to the total number of
-clauses of the rewritten query. To reduce chances of breaks, its
-default value has been bumped from 1024 to 4096.
+Elasticsearch will now dynamically set the maximum number of allowed clauses
+in a query, using a heuristic based on the size of the search thread pool and
+the size of the heap allocated to the JVM. This limit has a minimum value of
+1024 and will in most cases be larger (for example, a node with 30Gb RAM and
+48 CPUs will have a maximum clause count of around 27,000). Larger heaps lead
+to higher values, and larger thread pools result in lower values.
 
 *Impact* +
-Queries with many clauses should be avoided whenever possible. 
-If you previously bumped this setting to accommodate heavy queries, 
-you might need to increase it further. 
+Queries with many clauses should be avoided whenever possible.
+If you previously bumped this setting to accommodate heavy queries,
+you might need to increase the amount of memory available to Elasticsearch,
+or to reduce the size of your search thread pool so that more memory is
+available to each concurrent search.
+
+In previous versions of Lucene you could get around this limit by nesting
+boolean queries within each other, but the limit is now based on the total
+number of leaf queries within the query as a whole and this workaround will
+no longer help.
 ====
 
 [[ilm-poll-interval-limit]]
@@ -224,7 +233,7 @@ Remove the `http.content_type.required` setting from `elasticsearch.yml`. Specif
 The `http.tcp_no_delay` setting was deprecated in 7.x and has been removed in 8.0. Use`http.tcp.no_delay` instead.
 
 *Impact* +
-Replace the `http.tcp_no_delay` setting with `http.tcp.no_delay`.  
+Replace the `http.tcp_no_delay` setting with `http.tcp.no_delay`.
 Specifying  `http.tcp_no_delay` in `elasticsearch.yml` will
 result in an error on startup.
 ====
@@ -237,7 +246,7 @@ The `network.tcp.connect_timeout` setting was deprecated in 7.x and has been rem
 was a fallback setting for `transport.connect_timeout`.
 
 *Impact* +
-Remove the`network.tcp.connect_timeout` setting. 
+Remove the`network.tcp.connect_timeout` setting.
 Use the `transport.connect_timeout` setting to change the default connection
 timeout for client connections. Specifying
 `network.tcp.connect_timeout` in `elasticsearch.yml` will result in an
@@ -282,7 +291,7 @@ since the 5.2 release of {es}.
 
 *Impact* +
 Remove the `xpack.security.authz.store.roles.index.cache.max_size`
-and `xpack.security.authz.store.roles.index.cache.ttl` settings from `elasticsearch.yml` . 
+and `xpack.security.authz.store.roles.index.cache.ttl` settings from `elasticsearch.yml` .
 Specifying these settings will result in an error on startup.
 ====
 

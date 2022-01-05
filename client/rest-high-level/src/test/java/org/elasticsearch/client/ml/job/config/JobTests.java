@@ -28,20 +28,21 @@ import java.util.List;
 
 public class JobTests extends AbstractXContentTestCase<Job> {
 
-    private static final String FUTURE_JOB = "{\n"
-        + "    \"job_id\": \"farequote\",\n"
-        + "    \"create_time\": 1234567890000,\n"
-        + "    \"tomorrows_technology_today\": \"wow\",\n"
-        + "    \"analysis_config\": {\n"
-        + "        \"bucket_span\": \"1h\",\n"
-        + "        \"something_new\": \"gasp\",\n"
-        + "        \"detectors\": [{\"function\": \"metric\", \"field_name\": \"responsetime\", \"by_field_name\": \"airline\"}]\n"
-        + "    },\n"
-        + "    \"data_description\": {\n"
-        + "        \"time_field\": \"time\",\n"
-        + "        \"the_future\": 123\n"
-        + "    }\n"
-        + "}";
+    private static final String FUTURE_JOB = """
+        {
+            "job_id": "farequote",
+            "create_time": 1234567890000,
+            "tomorrows_technology_today": "wow",
+            "analysis_config": {
+                "bucket_span": "1h",
+                "something_new": "gasp",
+                "detectors": [{"function": "metric", "field_name": "responsetime", "by_field_name": "airline"}]
+            },
+            "data_description": {
+                "time_field": "time",
+                "the_future": 123
+            }
+        }""";
 
     @Override
     protected Job createTestInstance() {

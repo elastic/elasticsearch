@@ -61,7 +61,7 @@ queries execute on the data in the local cluster only.
 experimental:[] See <<modules-cross-cluster-search,{ccs}>>.
 
 `columnar`::
-(Optional, boolean) If `true`, returns results in a columnar format. Defaults to
+(Optional, Boolean) If `true`, returns results in a columnar format. Defaults to
 `false`. The API only supports this parameter for CBOR, JSON, SMILE, and YAML
 responses. See <<sql-rest-columnar>>.
 
@@ -77,7 +77,7 @@ to `1000`.
 
 [[sql-search-api-field-multi-value-leniency]]
 `field_multi_value_leniency`::
-(Optional, boolean) If `false`, the API returns an error for fields containing
+(Optional, Boolean) If `false`, the API returns an error for fields containing
 <<array,array values>>. If `true`, the API returns the first value from the
 array with no guarantee of consistent results. Defaults to `false`.
 
@@ -86,7 +86,7 @@ array with no guarantee of consistent results. Defaults to `false`.
 search. See <<sql-rest-filtering>>.
 
 `index_include_frozen`::
-(Optional, boolean) If `true`, the search can run on frozen indices. Defaults to
+(Optional, Boolean) If `true`, the search can run on frozen indices. Defaults to
 `false`.
 
 `keep_alive`::
@@ -95,7 +95,7 @@ search. See <<sql-rest-filtering>>.
 to `5d` (five days).
 
 `keep_on_completion`::
-(Optional, boolean) If `true`, {es} <<sql-store-searches,stores synchronous
+(Optional, Boolean) If `true`, {es} <<sql-store-searches,stores synchronous
 searches>> if you also specify the `wait_for_completion_timeout` parameter. If
 `false`, {es} only stores <<sql-async,async searches>> that don't finish before
 the `wait_for_completion_timeout`. Defaults to `false`.

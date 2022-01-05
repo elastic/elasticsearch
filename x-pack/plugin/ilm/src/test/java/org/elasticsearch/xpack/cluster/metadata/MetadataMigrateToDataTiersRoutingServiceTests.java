@@ -992,7 +992,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 "catch-all",
                 REGISTRY,
                 client,
-                null
+                null,
+                false
             );
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
@@ -1016,7 +1017,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 null,
                 REGISTRY,
                 client,
-                null
+                null,
+                false
             );
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
@@ -1040,7 +1042,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 null,
                 REGISTRY,
                 client,
-                null
+                null,
+                false
             );
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
@@ -1070,7 +1073,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .build();
             IllegalStateException illegalStateException = expectThrows(
                 IllegalStateException.class,
-                () -> migrateToDataTiersRouting(ilmRunningState, "data", "catch-all", REGISTRY, client, null)
+                () -> migrateToDataTiersRouting(ilmRunningState, "data", "catch-all", REGISTRY, client, null, false)
             );
             assertThat(illegalStateException.getMessage(), is("stop ILM before migrating to data tiers, current state is [RUNNING]"));
         }
@@ -1087,7 +1090,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .build();
             IllegalStateException illegalStateException = expectThrows(
                 IllegalStateException.class,
-                () -> migrateToDataTiersRouting(ilmStoppingState, "data", "catch-all", REGISTRY, client, null)
+                () -> migrateToDataTiersRouting(ilmStoppingState, "data", "catch-all", REGISTRY, client, null, false)
             );
             assertThat(illegalStateException.getMessage(), is("stop ILM before migrating to data tiers, current state is [STOPPING]"));
         }
@@ -1108,11 +1111,34 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 "catch-all",
                 REGISTRY,
                 client,
-                null
+                null,
+                false
             );
             assertThat(migratedState.v2().migratedIndices, empty());
             assertThat(migratedState.v2().migratedPolicies, empty());
             assertThat(migratedState.v2().removedIndexTemplateName, nullValue());
+        }
+    }
+
+    public void testDryRunDoesntRequireILMStopped() {
+        {
+            ClusterState ilmRunningState = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(
+                    Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.RUNNING))
+                )
+                .build();
+            migrateToDataTiersRouting(ilmRunningState, "data", "catch-all", REGISTRY, client, null, true);
+            // no exceptions
+        }
+
+        {
+            ClusterState ilmStoppingState = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(
+                    Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.STOPPING))
+                )
+                .build();
+            migrateToDataTiersRouting(ilmStoppingState, "data", "catch-all", REGISTRY, client, null, true);
+            // no exceptions
         }
     }
 
@@ -1131,7 +1157,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             composableTemplateName,
             REGISTRY,
             client,
-            null
+            null,
+            false
         );
         assertThat(migratedEntitiesTuple.v2().removedIndexTemplateName, nullValue());
         assertThat(migratedEntitiesTuple.v1().metadata().templatesV2().get(composableTemplateName), is(composableIndexTemplate));
@@ -1144,7 +1171,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
         // if the cluster state doesn't mention the setting, it ends up true
         clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
-        migratedEntitiesTuple = migrateToDataTiersRouting(clusterState, null, null, REGISTRY, client, null);
+        migratedEntitiesTuple = migrateToDataTiersRouting(clusterState, null, null, REGISTRY, client, null, false);
         assertTrue(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.get(migratedEntitiesTuple.v1().metadata().persistentSettings()));
         assertFalse(migratedEntitiesTuple.v1().metadata().transientSettings().keySet().contains(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE));
 
@@ -1154,7 +1181,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         metadata.persistentSettings(Settings.builder().put(ENFORCE_DEFAULT_TIER_PREFERENCE, randomBoolean()).build());
         metadata.transientSettings(Settings.builder().put(ENFORCE_DEFAULT_TIER_PREFERENCE, randomBoolean()).build());
         clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
-        migratedEntitiesTuple = migrateToDataTiersRouting(clusterState, null, null, REGISTRY, client, null);
+        migratedEntitiesTuple = migrateToDataTiersRouting(clusterState, null, null, REGISTRY, client, null, false);
         assertTrue(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.get(migratedEntitiesTuple.v1().metadata().persistentSettings()));
         assertFalse(migratedEntitiesTuple.v1().metadata().transientSettings().keySet().contains(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE));
     }

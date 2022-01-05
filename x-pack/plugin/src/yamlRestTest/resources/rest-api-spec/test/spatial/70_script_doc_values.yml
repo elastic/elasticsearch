@@ -92,6 +92,30 @@ setup:
 
   - match: { error.root_cause.0.reason: "cannot write xcontent for geo_shape doc value" }
 
+  - do:
+      catch: /illegal_argument_exception/
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            type:
+              script:
+                source: "field('geo_shape').get(null)"
+
+  - match: { error.root_cause.0.reason: "cannot write xcontent for geo_shape doc value" }
+
+  - do:
+      catch: /illegal_argument_exception/
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            type:
+              script:
+                source: "/* avoid yaml stash */ $('geo_shape', null)"
+
+  - match: { error.root_cause.0.reason: "cannot write xcontent for geo_shape doc value" }
+
 ---
 "diagonal length":
   - do:

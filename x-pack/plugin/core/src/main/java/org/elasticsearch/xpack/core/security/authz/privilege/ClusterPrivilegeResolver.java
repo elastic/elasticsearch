@@ -72,7 +72,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_SERVICE_ACCOUNT_PATTERN = Collections.singleton(
         "cluster:admin/xpack/security/service_account/*"
     );
-    private static final Set<String> MONITOR_PATTERN = Set.of(
+    private static final Set<String> MONITOR_PATTERN = Sets.newHashSet(
         "cluster:monitor/*",
         GetIndexTemplatesAction.NAME,
         GetComponentTemplateAction.NAME,

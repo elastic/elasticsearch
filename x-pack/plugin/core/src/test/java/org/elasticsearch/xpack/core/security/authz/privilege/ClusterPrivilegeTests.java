@@ -15,7 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 
-import java.util.List;
+import java.util.Arrays;
 
 public class ClusterPrivilegeTests extends ESTestCase {
 
@@ -24,7 +24,7 @@ public class ClusterPrivilegeTests extends ESTestCase {
     }
 
     public void testMonitorPrivilegeGrantsGetTemplateActions() {
-        for (var action : List.of(
+        for (ActionType<?> action : Arrays.asList(
             GetComponentTemplateAction.INSTANCE,
             GetComposableIndexTemplateAction.INSTANCE,
             GetIndexTemplatesAction.INSTANCE

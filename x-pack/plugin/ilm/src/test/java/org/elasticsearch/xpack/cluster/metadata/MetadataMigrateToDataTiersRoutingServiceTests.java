@@ -268,6 +268,65 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         }
 
         {
+            // index is in the cold phase and the migrated allocate action is not removed due to allocate specifying
+            // total_shards_per_node
+            LifecyclePolicyMetadata policyMetadataWithTotalShardsPerNode = getWarmColdPolicyMeta(
+                warmSetPriority,
+                shrinkAction,
+                warmAllocateAction,
+                new AllocateAction(null, 1, null, null, Map.of("data", "cold"))
+            );
+
+            LifecycleExecutionState preMigrationExecutionState = LifecycleExecutionState.builder()
+                .setPhase("cold")
+                .setAction("allocate")
+                .setStep("allocate")
+                .setPhaseDefinition(getColdPhaseDefinitionWithTotalShardsPerNode())
+                .build();
+
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName)
+                .settings(getBaseIndexSettings())
+                .putCustom(ILM_CUSTOM_METADATA_KEY, preMigrationExecutionState.asMap());
+
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(
+                    Metadata.builder()
+                        .putCustom(
+                            IndexLifecycleMetadata.TYPE,
+                            new IndexLifecycleMetadata(
+                                Collections.singletonMap(
+                                    policyMetadataWithTotalShardsPerNode.getName(),
+                                    policyMetadataWithTotalShardsPerNode
+                                ),
+                                OperationMode.STOPPED
+                            )
+                        )
+                        .put(indexMetadata)
+                        .build()
+                )
+                .build();
+
+            Metadata.Builder newMetadata = Metadata.builder(state.metadata());
+            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
+
+            assertThat(migratedPolicies.get(0), is(lifecycleName));
+            ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
+            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+
+            Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
+
+            // expecting the phase definition to be refreshed with the migrated phase representation
+            // ie. allocate action does not contain any allocation rules
+            Map<String, Object> actions = (Map<String, Object>) migratedPhaseDefAsMap.get("actions");
+            assertThat(actions.size(), is(1));
+            Map<String, Object> allocateDef = (Map<String, Object>) actions.get(AllocateAction.NAME);
+            assertThat(allocateDef, notNullValue());
+            assertThat(allocateDef.get("include"), is(Map.of()));
+            assertThat(allocateDef.get("exclude"), is(Map.of()));
+            assertThat(allocateDef.get("require"), is(Map.of()));
+        }
+
+        {
             // index is in the warm phase executing the allocate action, the migrated allocate action is removed
             LifecycleExecutionState preMigrationExecutionState = LifecycleExecutionState.builder()
                 .setPhase("warm")
@@ -499,8 +558,10 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         }
 
         {
-            // since the index has a _tier_preference configuration the migrated index should still contain it and have the `data`
+            // since the index has a _tier_preference configuration the migrated index should still contain it and have ALL the `data`
             // attributes routing removed
+            // given the `require.data` attribute configuration is colder than the existing _tier_preference configuration, the
+            // _tier_preference must be updated to reflect the coldest tier configured in the `require.data` attribute
             IndexMetadata.Builder indexWithTierPreferenceAndDataAttribute = IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute")
                 .settings(
                     getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING, "cold")
@@ -521,12 +582,42 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             IndexMetadata migratedIndex = migratedState.metadata().index("indexWithTierPreferenceAndDataAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
-            assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_warm,data_hot"));
+            assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_cold,data_warm,data_hot"));
+        }
+
+        {
+            // since the index has a _tier_preference configuration the migrated index should still contain it and have ALL the `data`
+            // attributes routing removed
+            // given the `include.data` attribute configuration is colder than the existing _tier_preference configuration, the
+            // _tier_preference must be updated to reflect the coldest tier configured in the `include.data` attribute
+            IndexMetadata.Builder indexWithTierPreferenceAndDataAttribute = IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute")
+                .settings(
+                    getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING, "hot")
+                        .put(DATA_ROUTING_INCLUDE_SETTING, "cold")
+                        .put(TIER_PREFERENCE, "data_warm,data_hot")
+                );
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute))
+                .build();
+
+            Metadata.Builder mb = Metadata.builder(state.metadata());
+
+            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            assertThat(migratedIndices.size(), is(1));
+            assertThat(migratedIndices.get(0), is("indexWithTierPreferenceAndDataAttribute"));
+
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            IndexMetadata migratedIndex = migratedState.metadata().index("indexWithTierPreferenceAndDataAttribute");
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_cold,data_warm,data_hot"));
         }
 
         {
             // like above, test a combination of node attribute and _tier_preference routings configured for the original index, but this
             // time using the `include.data` setting
+            // given the `include.data` attribute configuration is colder than the existing _tier_preference configuration, the
+            // _tier_preference must be updated to reflect the coldest tier configured in the `include.data` attribute
             IndexMetadata.Builder indexWithTierPreferenceAndDataAttribute = IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute")
                 .settings(getBaseIndexSettings().put(DATA_ROUTING_INCLUDE_SETTING, "cold").put(TIER_PREFERENCE, "data_warm,data_hot"));
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
@@ -541,6 +632,98 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
             IndexMetadata migratedIndex = migratedState.metadata().index("indexWithTierPreferenceAndDataAttribute");
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_cold,data_warm,data_hot"));
+        }
+
+        {
+            // test a combination of node attribute and _tier_preference routings configured for the original index
+            // where the tier_preference is `data_content`
+            // given the `include.data` attribute configuration is "colder" than the existing `data_content` _tier_preference configuration,
+            // the _tier_preference must be updated to reflect the coldest tier configured in the `include.data` attribute
+            IndexMetadata.Builder indexWithTierPreferenceAndDataAttribute = IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute")
+                .settings(getBaseIndexSettings().put(DATA_ROUTING_INCLUDE_SETTING, "cold").put(TIER_PREFERENCE, "data_content"));
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute))
+                .build();
+
+            Metadata.Builder mb = Metadata.builder(state.metadata());
+
+            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            assertThat(migratedIndices.size(), is(1));
+            assertThat(migratedIndices.get(0), is("indexWithTierPreferenceAndDataAttribute"));
+
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            IndexMetadata migratedIndex = migratedState.metadata().index("indexWithTierPreferenceAndDataAttribute");
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_cold,data_warm,data_hot"));
+        }
+
+        {
+            // test a combination of node attribute and _tier_preference routings configured for the original index
+            // where the tier_preference is `data_content`
+            // given the `require.data` attribute configuration is `hot` the existing `data_content` _tier_preference
+            // configuration must NOT be changed
+            IndexMetadata.Builder indexWithTierPreferenceAndDataAttribute = IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute")
+                .settings(getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING, "hot").put(TIER_PREFERENCE, "data_content"));
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute))
+                .build();
+
+            Metadata.Builder mb = Metadata.builder(state.metadata());
+
+            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            assertThat(migratedIndices.size(), is(1));
+            assertThat(migratedIndices.get(0), is("indexWithTierPreferenceAndDataAttribute"));
+
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            IndexMetadata migratedIndex = migratedState.metadata().index("indexWithTierPreferenceAndDataAttribute");
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_content"));
+        }
+
+        {
+            // combination of both data attributes and _tier_preference, but the require data attribute has an unrecognized value
+            IndexMetadata.Builder indexWithTierPreferenceAndDataAttribute = IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute")
+                .settings(
+                    getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING, "some_value")
+                        .put(DATA_ROUTING_INCLUDE_SETTING, "cold")
+                        .put(TIER_PREFERENCE, "data_warm,data_hot")
+                );
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute))
+                .build();
+
+            Metadata.Builder mb = Metadata.builder(state.metadata());
+
+            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            assertThat(migratedIndices.size(), is(1));
+            assertThat(migratedIndices.get(0), is("indexWithTierPreferenceAndDataAttribute"));
+
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            IndexMetadata migratedIndex = migratedState.metadata().index("indexWithTierPreferenceAndDataAttribute");
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_cold,data_warm,data_hot"));
+        }
+
+        {
+            // the include attribute routing is not colder than the existing _tier_preference
+            IndexMetadata.Builder indexWithTierPreferenceAndDataAttribute = IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute")
+                .settings(getBaseIndexSettings().put(DATA_ROUTING_INCLUDE_SETTING, "hot").put(TIER_PREFERENCE, "data_warm,data_hot"));
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute))
+                .build();
+
+            Metadata.Builder mb = Metadata.builder(state.metadata());
+
+            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            assertThat(migratedIndices.size(), is(1));
+            assertThat(migratedIndices.get(0), is("indexWithTierPreferenceAndDataAttribute"));
+
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            IndexMetadata migratedIndex = migratedState.metadata().index("indexWithTierPreferenceAndDataAttribute");
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_warm,data_hot"));
         }
@@ -620,29 +803,58 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         }
     }
 
-    public void testRequireAttributeIndexSettingTakesPriorityOverInclude() {
-        IndexMetadata.Builder indexWithAllRoutingSettings = IndexMetadata.builder("indexWithAllRoutingSettings")
-            .settings(
-                getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING, "warm")
-                    .put(DATA_ROUTING_INCLUDE_SETTING, "cold")
-                    .put(DATA_ROUTING_EXCLUDE_SETTING, "hot")
-            );
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexWithAllRoutingSettings))
-            .build();
+    public void testColdestAttributeIsConvertedToTierPreference() {
+        // `include` is colder than `require`
+        {
+            IndexMetadata.Builder indexWithAllRoutingSettings = IndexMetadata.builder("indexWithAllRoutingSettings")
+                .settings(
+                    getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING, "warm")
+                        .put(DATA_ROUTING_INCLUDE_SETTING, "cold")
+                        .put(DATA_ROUTING_EXCLUDE_SETTING, "hot")
+                );
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexWithAllRoutingSettings))
+                .build();
 
-        Metadata.Builder mb = Metadata.builder(state.metadata());
+            Metadata.Builder mb = Metadata.builder(state.metadata());
 
-        List<String> migratedIndices = migrateIndices(mb, state, "data");
-        assertThat(migratedIndices.size(), is(1));
-        assertThat(migratedIndices.get(0), is("indexWithAllRoutingSettings"));
+            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            assertThat(migratedIndices.size(), is(1));
+            assertThat(migratedIndices.get(0), is("indexWithAllRoutingSettings"));
 
-        ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
-        IndexMetadata migratedIndex = migratedState.metadata().index("indexWithAllRoutingSettings");
-        assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
-        assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
-        assertThat(migratedIndex.getSettings().get(DATA_ROUTING_EXCLUDE_SETTING), nullValue());
-        assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_warm,data_hot"));
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            IndexMetadata migratedIndex = migratedState.metadata().index("indexWithAllRoutingSettings");
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_EXCLUDE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_cold,data_warm,data_hot"));
+        }
+
+        {
+            // `require` is colder than `include`
+            IndexMetadata.Builder indexWithAllRoutingSettings = IndexMetadata.builder("indexWithAllRoutingSettings")
+                .settings(
+                    getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING, "cold")
+                        .put(DATA_ROUTING_INCLUDE_SETTING, "warm")
+                        .put(DATA_ROUTING_EXCLUDE_SETTING, "hot")
+                );
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexWithAllRoutingSettings))
+                .build();
+
+            Metadata.Builder mb = Metadata.builder(state.metadata());
+
+            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            assertThat(migratedIndices.size(), is(1));
+            assertThat(migratedIndices.get(0), is("indexWithAllRoutingSettings"));
+
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            IndexMetadata migratedIndex = migratedState.metadata().index("indexWithAllRoutingSettings");
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_EXCLUDE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_cold,data_warm,data_hot"));
+        }
     }
 
     public void testMigrateToDataTiersRouting() {
@@ -937,6 +1149,26 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                   },
                   "shrink": {
                     "number_of_shards": 2
+                  }
+                }
+              },
+              "version": 1,
+              "modified_date_in_millis": 1578521007076
+            }""".formatted(lifecycleName);
+    }
+
+    private String getColdPhaseDefinitionWithTotalShardsPerNode() {
+        return """
+            {
+              "policy": "%s",
+              "phase_definition": {
+                "min_age": "0m",
+                "actions": {
+                  "allocate": {
+                    "total_shards_per_node": "1",
+                    "require": {
+                      "data": "cold"
+                    }
                   }
                 }
               },

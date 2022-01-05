@@ -18,17 +18,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class BertRequestBuilder implements NlpTask.RequestBuilder {
+public class MPNetRequestBuilder implements NlpTask.RequestBuilder {
 
     static final String REQUEST_ID = "request_id";
     static final String TOKENS = "tokens";
     static final String ARG1 = "arg_1";
-    static final String ARG2 = "arg_2";
-    static final String ARG3 = "arg_3";
 
     private final NlpTokenizer tokenizer;
 
-    public BertRequestBuilder(NlpTokenizer tokenizer) {
+    public MPNetRequestBuilder(NlpTokenizer tokenizer) {
         this.tokenizer = tokenizer;
     }
 
@@ -59,9 +57,6 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
 
         NlpTask.RequestBuilder.writePaddedTokens(TOKENS, tokenization, padToken, (tokens, i) -> tokens.getTokenIds()[i], builder);
         NlpTask.RequestBuilder.writePaddedTokens(ARG1, tokenization, padToken, (tokens, i) -> 1, builder);
-        int batchSize = tokenization.getTokenizations().size();
-        NlpTask.RequestBuilder.writeNonPaddedArguments(ARG2, batchSize, tokenization.getLongestSequenceLength(), i -> 0, builder);
-        NlpTask.RequestBuilder.writeNonPaddedArguments(ARG3, batchSize, tokenization.getLongestSequenceLength(), i -> i, builder);
         builder.endObject();
 
         // BytesReference.bytes closes the builder

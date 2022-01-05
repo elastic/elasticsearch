@@ -50,7 +50,7 @@ public class FillMaskConfigTests extends InferenceConfigItemTestCase<FillMaskCon
     public static FillMaskConfig createRandom() {
         return new FillMaskConfig(
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
-            randomBoolean() ? null : BertTokenizationTests.createRandom(),
+            randomBoolean() ? null : randomFrom(BertTokenizationTests.createRandom(), MPNetTokenizationTests.createRandom()),
             randomBoolean() ? null : randomInt(),
             randomBoolean() ? null : randomAlphaOfLength(5)
         );

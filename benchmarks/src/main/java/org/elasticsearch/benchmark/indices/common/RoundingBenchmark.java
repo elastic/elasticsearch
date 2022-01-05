@@ -92,7 +92,7 @@ public class RoundingBenchmark {
         rounderBuilder = switch (rounder) {
             case "java time" -> rounding::prepareJavaTime;
             case "es" -> () -> rounding.prepare(min, max);
-            default -> throw new IllegalArgumentException("Expectd rounder to be [java time] or [es]");
+            default -> throw new IllegalArgumentException("Expected rounder to be [java time] or [es]");
         };
     }
 

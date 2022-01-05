@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.sql.proto.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xpack.sql.proto.xcontent.ParseField;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentParser;
 
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.sql.proto.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Response to the request to clean all SQL resources associated with the cursor for JDBC/CLI client

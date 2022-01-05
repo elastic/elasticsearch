@@ -52,32 +52,11 @@ public abstract class TaskBatcher {
         assert tasks.stream().allMatch(t -> t.batchingKey == firstTask.batchingKey)
             : "tasks submitted in a batch should share the same batching key: " + tasks;
         // convert to an identity map to check for dups based on task identity
-        final Map<Object, BatchedTask> tasksIdentity = tasks.stream()
-            .collect(
-                Collectors.toMap(
-                    BatchedTask::getTask,
-                    Function.identity(),
-                    (a, b) -> { throw new IllegalStateException("cannot add duplicate task: " + a); },
-                    IdentityHashMap::new
-                )
-            );
 
         tasksPerBatchingKey.compute(firstTask.batchingKey, (k, existingTasks) -> {
+            assert assertNoDuplicateTasks(tasks, existingTasks);
             if (existingTasks == null) {
                 return new LinkedHashSet<>(tasks);
-            }
-            for (BatchedTask existing : existingTasks) {
-                // check that there won't be two tasks with the same identity for the same batching key
-                BatchedTask duplicateTask = tasksIdentity.get(existing.getTask());
-                if (duplicateTask != null) {
-                    throw new IllegalStateException(
-                        "task ["
-                            + duplicateTask.describeTasks(Collections.singletonList(existing))
-                            + "] with source ["
-                            + duplicateTask.source
-                            + "] is already queued"
-                    );
-                }
             }
             existingTasks.addAll(tasks);
             return existingTasks;
@@ -88,6 +67,32 @@ public abstract class TaskBatcher {
         } else {
             threadExecutor.execute(firstTask);
         }
+    }
+
+    private static boolean assertNoDuplicateTasks(List<? extends BatchedTask> tasks, LinkedHashSet<BatchedTask> existingTasks) {
+        final Map<Object, BatchedTask> tasksIdentity = tasks.stream()
+            .collect(
+                Collectors.toMap(
+                    BatchedTask::getTask,
+                    Function.identity(),
+                    (a, b) -> { throw new AssertionError("cannot add duplicate task: " + a); },
+                    IdentityHashMap::new
+                )
+            );
+        if (existingTasks == null) {
+            return true;
+        }
+        for (BatchedTask existing : existingTasks) {
+            // check that there won't be two tasks with the same identity for the same batching key
+            BatchedTask duplicateTask = tasksIdentity.get(existing.getTask());
+            assert duplicateTask == null
+                : "task ["
+                    + duplicateTask.describeTasks(Collections.singletonList(existing))
+                    + "] with source ["
+                    + duplicateTask.source
+                    + "] is already queued";
+        }
+        return true;
     }
 
     private void onTimeoutInternal(List<? extends BatchedTask> tasks, TimeValue timeout) {

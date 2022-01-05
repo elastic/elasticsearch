@@ -65,6 +65,15 @@ setup:
 "Mumur3 script fields api":
 
   - do:
+      index:
+        index: test
+        id: 1
+        body: { "foo": "foo" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
       search:
         index: test
         body:
@@ -74,4 +83,4 @@ setup:
               script:
                 source: "field('foo.hash').get(10L)"
 
-  - match: { hits.hits.0.fields.field.0: "1.0.0" }
+  - match: { hits.hits.0.fields.field.0: -2129773440516405919 }

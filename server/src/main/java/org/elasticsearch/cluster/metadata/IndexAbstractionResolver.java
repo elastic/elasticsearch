@@ -108,9 +108,15 @@ public class IndexAbstractionResolver {
                 wildcardSeen = true;
                 boolean isWildcardExpansionEmpty = true;
                 for (String authorizedIndex : availableIndexAbstractions) {
-                    if (Regex.simpleMatch(indexAbstraction, authorizedIndex) &&
-                        isIndexVisible(indexAbstraction, authorizedIndex, indicesOptions, metadata, indexNameExpressionResolver,
-                            includeDataStreams)) {
+                    if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
+                        && isIndexVisible(
+                            indexAbstraction,
+                            authorizedIndex,
+                            indicesOptions,
+                            metadata,
+                            indexNameExpressionResolver,
+                            includeDataStreams
+                        )) {
                         isWildcardExpansionEmpty = false;
                         if (minus) {
                             finalIndices.remove(authorizedIndex);
@@ -119,7 +125,7 @@ public class IndexAbstractionResolver {
                         }
                     }
                 }
-                //es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
+                // es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
                 if (isWildcardExpansionEmpty && indicesOptions.allowNoIndices() == false) {
                     throw new IndexNotFoundException(indexAbstraction);
                 }

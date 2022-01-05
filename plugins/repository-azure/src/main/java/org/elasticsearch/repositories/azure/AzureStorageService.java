@@ -135,16 +135,11 @@ public class AzureStorageService {
             throw new IllegalArgumentException("Unable to use " + locationMode + " location mode without a secondary location URI");
         }
 
-        final String secondaryHost;
-        switch (locationMode) {
-            case PRIMARY_ONLY, SECONDARY_ONLY -> secondaryHost = null;
-            case PRIMARY_THEN_SECONDARY -> secondaryHost = secondaryUri;
-            case SECONDARY_THEN_PRIMARY -> secondaryHost = primaryUri;
-            default -> {
-                assert false;
-                throw new AssertionError("Impossible to get here");
-            }
-        }
+        final String secondaryHost = switch (locationMode) {
+            case PRIMARY_ONLY, SECONDARY_ONLY ->  null;
+            case PRIMARY_THEN_SECONDARY ->  secondaryUri;
+            case SECONDARY_THEN_PRIMARY -> primaryUri;
+        };
 
         // The request retry policy uses seconds as the default time unit, since
         // it's possible to configure a timeout < 1s we should ceil that value

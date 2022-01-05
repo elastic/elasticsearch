@@ -1638,7 +1638,16 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<List<String>> stringListSetting(String key, Property... properties) {
-        return listSetting(key, List.of(), Function.identity(), v -> {}, properties);
+        return stringListSetting(key, List.of(), properties);
+    }
+
+    public static Setting<List<String>> stringListSetting(String key, List<String> defValue, Property... properties) {
+        return new ListSetting<>(key, null, s -> defValue, Setting::parseableStringToList, v -> {}, properties) {
+            @Override
+            public List<String> get(Settings settings) {
+                return settings.getAsList(getKey(), defValue);
+            }
+        };
     }
 
     public static Setting<List<String>> stringListSetting(String key, Validator<List<String>> validator, Property... properties) {

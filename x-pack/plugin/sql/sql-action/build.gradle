@@ -3,8 +3,7 @@
  */
 apply plugin: 'elasticsearch.build'
 
-description = 'Request and response objects shared by the cli, jdbc ' +
-  'and the Elasticsearch plugin'
+description = 'Request and response objects shared by the Elasticsearch plugin and qa tests'
 
 dependencies {
   /* We'd like to just depend on xcontent but there are some bits of
@@ -43,7 +42,7 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
-          'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
+          //'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
 
           // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
           'com.fasterxml.jackson.databind.ObjectMapper',

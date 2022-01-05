@@ -24,11 +24,13 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
         return Parameter.explicitBoolParam("coerce", true, initializer, coerceByDefault);
     }
 
+    private static final Explicit<Orientation> IMPLICIT_RIGHT = new Explicit<>(Orientation.RIGHT, false);
+
     public static Parameter<Explicit<Orientation>> orientationParam(Function<FieldMapper, Explicit<Orientation>> initializer) {
         return new Parameter<>(
             "orientation",
             true,
-            () -> new Explicit<>(Orientation.RIGHT, false),
+            () -> IMPLICIT_RIGHT,
             (n, c, o) -> new Explicit<>(Orientation.fromString(o.toString()), true),
             initializer
         ).setSerializer((b, f, v) -> b.field(f, v.value()), v -> v.value().toString());

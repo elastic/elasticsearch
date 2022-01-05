@@ -6,37 +6,17 @@
  */
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentLocation;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.sql.proto.xcontent.ToXContentObject;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentLocation;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xpack.sql.proto.ProtoUtils.parseFieldsValue;
 
 /**
  * Represent a strongly typed parameter value
  */
 public class SqlTypedParamValue implements ToXContentObject {
-    private static final ConstructingObjectParser<SqlTypedParamValue, Void> PARSER = new ConstructingObjectParser<>(
-        "params",
-        true,
-        objects -> new SqlTypedParamValue((String) objects[1], objects[0])
-    );
-
-    private static final ParseField VALUE = new ParseField("value");
-    private static final ParseField TYPE = new ParseField("type");
-
-    static {
-        PARSER.declareField(constructorArg(), (p, c) -> parseFieldsValue(p), VALUE, ObjectParser.ValueType.VALUE);
-        PARSER.declareString(constructorArg(), TYPE);
-    }
 
     public final Object value;
     public final String type;
@@ -76,10 +56,6 @@ public class SqlTypedParamValue implements ToXContentObject {
         builder.field("value", value);
         builder.endObject();
         return builder;
-    }
-
-    public static SqlTypedParamValue fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 
     @Override

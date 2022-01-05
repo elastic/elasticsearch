@@ -10,6 +10,18 @@
               "type": "keyword",
               "ignore_above": 1024
             },
+            "elasticsearch": {
+              "properties": {
+                "cluster": {
+                  "properties": {
+                    "id": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            },
             "state": {
               "properties": {
                 "beat": {
@@ -1808,7 +1820,7 @@
                           "type": "alias",
                           "path": "beat.stats.libbeat.pipeline.clients"
                         },
-                        "event": {
+                        "events": {
                           "properties": {
                             "active": {
                               "type": "alias",
@@ -2175,21 +2187,9 @@
             }
           }
         },
-        "elasticsearch": {
-          "properties": {
-            "cluster": {
-              "properties": {
-                "id": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                }
-              }
-            }
-          }
-        },
         "cluster_uuid": {
           "type": "alias",
-          "path": "elasticsearch.cluster.id"
+          "path": "beat.elasticsearch.cluster.id"
         }
       }
     }

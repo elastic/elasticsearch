@@ -581,6 +581,9 @@ public class XContentMapValues {
     }
 
     public static boolean nodeBooleanValue(Object node) {
+        if (node instanceof Boolean) {
+            return (Boolean) node;
+        }
         return Booleans.parseBoolean(node.toString());
     }
 

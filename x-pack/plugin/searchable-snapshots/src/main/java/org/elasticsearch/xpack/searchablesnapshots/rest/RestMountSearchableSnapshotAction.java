@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.searchablesnapshots.rest;
 
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;

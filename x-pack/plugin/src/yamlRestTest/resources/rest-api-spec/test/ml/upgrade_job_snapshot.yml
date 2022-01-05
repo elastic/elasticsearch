@@ -14,6 +14,9 @@ setup:
             "data_description" : {
                 "format":"xcontent",
                 "time_field":"time"
+            },
+            "analysis_limits" : {
+                "model_memory_limit":"20mb"
             }
           }
 
@@ -93,10 +96,6 @@ setup:
 
 ---
 "Test existing but corrupt snapshot":
-  - skip:
-      version: all
-      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/81578"
-
   - do:
       ml.upgrade_job_snapshot:
         job_id: "upgrade-model-snapshot"
@@ -110,3 +109,4 @@ setup:
   - match: { count: 1 }
   - match: { model_snapshot_upgrades.0.job_id: "upgrade-model-snapshot" }
   - match: { model_snapshot_upgrades.0.snapshot_id: "1234567890" }
+  - match: { model_snapshot_upgrades.0.state: /failed|loading_old_state/ }

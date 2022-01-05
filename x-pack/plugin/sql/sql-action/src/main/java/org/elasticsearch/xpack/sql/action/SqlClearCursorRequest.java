@@ -106,7 +106,7 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test round-trip compatibility with proto.SqlClearCursorRequest
-        return new org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest(cursor, requestInfo()).toXContent(builder, params);
+        return ProtoShim.fromProto(new org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest(cursor, requestInfo()), builder, params);
     }
 
     public static SqlClearCursorRequest fromXContent(XContentParser parser) {

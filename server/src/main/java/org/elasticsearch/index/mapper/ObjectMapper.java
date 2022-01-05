@@ -62,7 +62,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public static class Builder extends Mapper.Builder {
 
-        protected Explicit<Boolean> enabled = new Explicit<>(true, false);
+        protected Explicit<Boolean> enabled = Explicit.IMPLICIT_TRUE;
 
         protected Dynamic dynamic;
 
@@ -73,7 +73,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         public Builder enabled(boolean enabled) {
-            this.enabled = new Explicit<>(enabled, true);
+            this.enabled = Explicit.explicitBoolean(enabled);
             return this;
         }
 

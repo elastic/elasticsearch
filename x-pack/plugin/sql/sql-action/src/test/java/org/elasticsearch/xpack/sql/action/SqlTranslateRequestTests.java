@@ -15,6 +15,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.junit.Before;
@@ -34,6 +35,12 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
     @Before
     public void setup() {
         testMode = randomFrom(Mode.values());
+    }
+
+    @Override
+    protected SqlTranslateRequest createXContextTestInstance(XContentType xContentType) {
+        SqlTestUtils.assumeXContentJsonOrCbor(xContentType);
+        return super.createXContextTestInstance(xContentType);
     }
 
     @Override

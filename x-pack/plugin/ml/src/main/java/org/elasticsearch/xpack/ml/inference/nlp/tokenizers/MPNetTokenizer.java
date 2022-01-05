@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 
 /**
  * Performs basic tokenization and normalization of input text
@@ -53,13 +54,38 @@ public class MPNetTokenizer extends BertTokenizer {
             maxSequenceLength,
             requestBuilderFactory,
             Sets.union(neverSplit, NEVER_SPLIT),
-            CLASS_TOKEN,
             SEPARATOR_TOKEN,
             CLASS_TOKEN,
             PAD_TOKEN,
             MASK_TOKEN,
             UNKNOWN_TOKEN
         );
+    }
+
+    @Override
+    protected int getNumExtraTokensForSeqPair() {
+        return 4;
+    }
+
+    @Override
+    protected BertTokenizationBuilder bertTokenizationBuilder() {
+        return new MPNetTokenizationBuilder();
+    }
+
+    protected class MPNetTokenizationBuilder extends BertTokenizationBuilder {
+
+        @Override
+        BertTokenizationBuilder addTokens(List<Integer> wordPieceTokenIds, List<Integer> tokenPositionMap) {
+            if (numSeq > 0 && withSpecialTokens) {
+                tokenIds.add(IntStream.of(sepTokenId, sepTokenId));
+                tokenMap.add(IntStream.of(SPECIAL_TOKEN_POSITION, SPECIAL_TOKEN_POSITION));
+            }
+            tokenIds.add(wordPieceTokenIds.stream().mapToInt(Integer::valueOf));
+            tokenMap.add(tokenPositionMap.stream().mapToInt(Integer::valueOf));
+            numSeq++;
+            return this;
+        }
+
     }
 
     public static Builder mpBuilder(List<String> vocab, Tokenization tokenization) {

@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.MPNetTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -55,6 +56,40 @@ public class MPNetTokenizerTests extends ESTestCase {
         assertThat(tokenStrings(tokenization.getTokens()), contains("Elasticsearch", "fun"));
         assertArrayEquals(new int[] { 0, 1, 3 }, tokenization.getTokenIds());
         assertArrayEquals(new int[] { 0, 0, 1 }, tokenization.getTokenMap());
+    }
+
+    public void testMultiSeqTokenization() {
+        MPNetTokenizer tokenizer = MPNetTokenizer.mpBuilder(
+            TEST_CASED_VOCAB,
+            new MPNetTokenization(null, false, null, Tokenization.Truncate.NONE)
+        ).setDoLowerCase(false).setWithSpecialTokens(true).build();
+        TokenizationResult.Tokenization tokenization = tokenizer.tokenize(
+            "Elasticsearch is fun",
+            "Godzilla my little red car",
+            Tokenization.Truncate.NONE
+        );
+
+        var tokenStream = Arrays.stream(tokenization.getTokenIds()).mapToObj(TEST_CASED_VOCAB::get).collect(Collectors.toList());
+        assertThat(
+            tokenStream,
+            contains(
+                MPNetTokenizer.CLASS_TOKEN,
+                "Elastic",
+                "##search",
+                "is",
+                "fun",
+                MPNetTokenizer.SEPARATOR_TOKEN,
+                MPNetTokenizer.SEPARATOR_TOKEN,
+                "God",
+                "##zilla",
+                "my",
+                "little",
+                "red",
+                "car",
+                MPNetTokenizer.SEPARATOR_TOKEN
+            )
+        );
+        assertArrayEquals(new int[] { 12, 0, 1, 2, 3, 13, 13, 8, 9, 4, 5, 6, 7, 13 }, tokenization.getTokenIds());
     }
 
 }

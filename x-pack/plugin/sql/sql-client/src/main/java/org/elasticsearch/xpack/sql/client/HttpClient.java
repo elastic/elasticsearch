@@ -6,12 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.client;
 
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.client.JreHttpUrlConnection.ResponseOrException;
 import org.elasticsearch.xpack.sql.proto.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.proto.CoreProtocol;
@@ -25,12 +19,16 @@ import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.core.Streams;
 import org.elasticsearch.xpack.sql.proto.core.TimeValue;
 import org.elasticsearch.xpack.sql.proto.core.Tuple;
+import org.elasticsearch.xpack.sql.proto.xcontent.ToXContent;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentParser;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentType;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.SQLException;
 import java.util.function.Function;
@@ -52,8 +50,6 @@ public class HttpClient {
         this.cfg = cfg;
         this.requestBodyContentType = cfg.binaryCommunication() ? XContentType.CBOR : XContentType.JSON;
     }
-
-    private NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
 
     public boolean ping(long timeoutInMs) throws SQLException {
         return head("/", timeoutInMs);
@@ -111,6 +107,7 @@ public class HttpClient {
         return response.isSucceeded();
     }
 
+    @SuppressWarnings({ "removal" })
     private <Request extends AbstractSqlRequest, Response> Response post(
         String path,
         Request request,
@@ -118,7 +115,7 @@ public class HttpClient {
     ) throws SQLException {
         byte[] requestBytes = toXContent(request);
         String query = "error_trace";
-        Tuple<XContentType, byte[]> response = AccessController.doPrivileged(
+        Tuple<XContentType, byte[]> response = java.security.AccessController.doPrivileged(
             (PrivilegedAction<ResponseOrException<Tuple<XContentType, byte[]>>>) () -> JreHttpUrlConnection.http(
                 path,
                 query,
@@ -134,6 +131,7 @@ public class HttpClient {
         return fromXContent(response.v1(), response.v2(), responseParser);
     }
 
+    @SuppressWarnings({ "removal" })
     private boolean head(String path, long timeoutInMs) throws SQLException {
         ConnectionConfiguration pingCfg = new ConnectionConfiguration(
             cfg.baseUri(),
@@ -151,7 +149,7 @@ public class HttpClient {
             cfg.proxyConfig()
         );
         try {
-            return AccessController.doPrivileged(
+            return java.security.AccessController.doPrivileged(
                 (PrivilegedAction<Boolean>) () -> JreHttpUrlConnection.http(path, "error_trace", pingCfg, JreHttpUrlConnection::head)
             );
         } catch (ClientException ex) {
@@ -159,9 +157,10 @@ public class HttpClient {
         }
     }
 
+    @SuppressWarnings({ "removal" })
     private <Response> Response get(String path, CheckedFunction<XContentParser, Response, IOException> responseParser)
         throws SQLException {
-        Tuple<XContentType, byte[]> response = AccessController.doPrivileged(
+        Tuple<XContentType, byte[]> response = java.security.AccessController.doPrivileged(
             (PrivilegedAction<ResponseOrException<Tuple<XContentType, byte[]>>>) () -> JreHttpUrlConnection.http(
                 path,
                 "error_trace",
@@ -212,7 +211,7 @@ public class HttpClient {
     ) {
         try (
             InputStream stream = new ByteArrayInputStream(bytesReference);
-            XContentParser parser = xContentType.xContent().createParser(registry, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)
+            XContentParser parser = xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, stream)
         ) {
             return responseParser.apply(parser);
         } catch (IOException ex) {

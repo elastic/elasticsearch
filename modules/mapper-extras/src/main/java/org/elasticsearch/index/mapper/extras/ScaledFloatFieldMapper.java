@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.ScaledFloatDocValuesField;
 import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -270,7 +271,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 return new ScaledFloatIndexFieldData(
                     scaledValues,
                     scalingFactor,
-                    (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
+                    ScaledFloatDocValuesField::new
                 );
             };
         }

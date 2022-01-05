@@ -8,11 +8,14 @@
 
 package org.elasticsearch.benchmark.xcontent;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -39,8 +42,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Fork(1)
-@Warmup(iterations = 2)
-@Measurement(iterations = 3)
+@Warmup(iterations = 1)
+@Measurement(iterations = 2)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
@@ -120,6 +123,47 @@ public class FilterContentBenchmark {
     public BytesReference filterWithNewParserConfig() throws IOException {
         XContentParserConfiguration contentParserConfiguration = buildParseConfig();
         return filter(contentParserConfiguration);
+    }
+
+    @Benchmark
+    public BytesReference filterWithMap() throws IOException {
+        Map<String, Object> sourceMap = XContentHelper.convertToMap(source, false).v2();
+        String[] includes;
+        String[] excludes;
+        if (inclusive) {
+            includes = filters.toArray(Strings.EMPTY_ARRAY);
+            excludes = null;
+        } else {
+            includes = null;
+            excludes = filters.toArray(Strings.EMPTY_ARRAY);
+        }
+        Map<String, Object> filterMap = XContentMapValues.filter(sourceMap, includes, excludes);
+        return FetchSourcePhase.objectToBytes(filterMap, XContentType.JSON, Math.min(1024, source.length()));
+    }
+
+    @Benchmark
+    public BytesReference filterWithBuilder() throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, source.length()));
+        Set<String> includes;
+        Set<String> excludes;
+        if (inclusive) {
+            includes = filters;
+            excludes = Set.of();
+        } else {
+            includes = Set.of();
+            excludes = filters;
+        }
+        XContentBuilder builder = new XContentBuilder(
+            XContentType.JSON.xContent(),
+            streamOutput,
+            includes,
+            excludes,
+            XContentType.JSON.toParsedMediaType()
+        );
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, source.streamInput())) {
+            builder.copyCurrentStructure(parser);
+            return BytesReference.bytes(builder);
+        }
     }
 
     private XContentParserConfiguration buildParseConfig() {

@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.junit.After;
 
 import java.util.Arrays;
@@ -210,7 +211,10 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         ).actionGet();
         client().execute(
             PutTrainedModelVocabularyAction.INSTANCE,
-            new PutTrainedModelVocabularyAction.Request(TRAINED_MODEL_ID, List.of("these", "are", "my", "words"))
+            new PutTrainedModelVocabularyAction.Request(
+                TRAINED_MODEL_ID,
+                List.of("these", "are", "my", "words", BertTokenizer.PAD_TOKEN, BertTokenizer.UNKNOWN_TOKEN)
+            )
         ).actionGet();
         client().execute(StartTrainedModelDeploymentAction.INSTANCE, new StartTrainedModelDeploymentAction.Request(TRAINED_MODEL_ID))
             .actionGet();
@@ -286,26 +290,18 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private void putTrainedModelIngestPipeline(String pipelineId) throws Exception {
-        client().execute(
-            PutPipelineAction.INSTANCE,
-            new PutPipelineRequest(
-                pipelineId,
-                new BytesArray(
-                    "{\n"
-                        + "    \"processors\": [\n"
-                        + "      {\n"
-                        + "        \"inference\": {\n"
-                        + "          \"inference_config\": {\"classification\":{}},\n"
-                        + "          \"model_id\": \"lang_ident_model_1\",\n"
-                        + "          \"field_map\": {}\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    ]\n"
-                        + "  }"
-                ),
-                XContentType.JSON
-            )
-        ).actionGet();
+        client().execute(PutPipelineAction.INSTANCE, new PutPipelineRequest(pipelineId, new BytesArray("""
+            {
+                "processors": [
+                  {
+                    "inference": {
+                      "inference_config": {"classification":{}},
+                      "model_id": "lang_ident_model_1",
+                      "field_map": {}
+                    }
+                  }
+                ]
+              }"""), XContentType.JSON)).actionGet();
     }
 
     private void indexDocForInference(String pipelineId) {

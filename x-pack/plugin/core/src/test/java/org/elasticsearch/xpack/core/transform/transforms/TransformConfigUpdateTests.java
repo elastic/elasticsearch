@@ -113,7 +113,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         TimeValue frequency = TimeValue.timeValueSeconds(10);
         SyncConfig syncConfig = new TimeSyncConfig("time_field", TimeValue.timeValueSeconds(30));
         String newDescription = "new description";
-        SettingsConfig settings = new SettingsConfig(4_000, 4_000.400F, true, true);
+        SettingsConfig settings = new SettingsConfig(4_000, 4_000.400F, true, true, true);
         Map<String, Object> newMetadata = randomMetadata();
         RetentionPolicyConfig retentionPolicyConfig = new TimeRetentionPolicyConfig("time_field", new TimeValue(60_000));
         update = new TransformConfigUpdate(
@@ -168,7 +168,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             null,
             null,
-            new SettingsConfig(4_000, null, (Boolean) null, null),
+            new SettingsConfig(4_000, null, (Boolean) null, null, null),
             null,
             null
         );
@@ -187,7 +187,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             null,
             null,
-            new SettingsConfig(null, 43.244F, (Boolean) null, null),
+            new SettingsConfig(null, 43.244F, (Boolean) null, null, null),
             null,
             null
         );
@@ -198,14 +198,32 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         assertThat(updatedConfig.getSettings().getAlignCheckpoints(), equalTo(config.getSettings().getAlignCheckpoints()));
 
         // now reset to default using the magic -1
-        update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(-1, null, (Boolean) null, null), null, null);
+        update = new TransformConfigUpdate(
+            null,
+            null,
+            null,
+            null,
+            null,
+            new SettingsConfig(-1, null, (Boolean) null, null, null),
+            null,
+            null
+        );
         updatedConfig = update.apply(updatedConfig);
         assertNull(updatedConfig.getSettings().getMaxPageSearchSize());
         assertThat(updatedConfig.getSettings().getDocsPerSecond(), equalTo(43.244F));
         assertThat(updatedConfig.getSettings().getDatesAsEpochMillis(), equalTo(config.getSettings().getDatesAsEpochMillis()));
         assertThat(updatedConfig.getSettings().getAlignCheckpoints(), equalTo(config.getSettings().getAlignCheckpoints()));
 
-        update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(-1, -1F, (Boolean) null, null), null, null);
+        update = new TransformConfigUpdate(
+            null,
+            null,
+            null,
+            null,
+            null,
+            new SettingsConfig(-1, -1F, (Boolean) null, null, null),
+            null,
+            null
+        );
         updatedConfig = update.apply(updatedConfig);
         assertNull(updatedConfig.getSettings().getMaxPageSearchSize());
         assertNull(updatedConfig.getSettings().getDocsPerSecond());

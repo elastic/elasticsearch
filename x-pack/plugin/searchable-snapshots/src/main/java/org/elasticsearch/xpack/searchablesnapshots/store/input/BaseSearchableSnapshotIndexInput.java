@@ -210,7 +210,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
      */
     private int getPartNumberForPosition(long position) {
         ensureValidPosition(position);
-        final int part = Math.toIntExact(position / fileInfo.partSize().getBytes());
+        final int part = fileInfo.numberOfParts() == 1 ? 0 : Math.toIntExact(position / fileInfo.partSize().getBytes());
         assert part <= fileInfo.numberOfParts() : "part number [" + part + "] exceeds number of parts: " + fileInfo.numberOfParts();
         assert part >= 0 : "part number [" + part + "] is negative";
         return part;
@@ -300,12 +300,8 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
             // Cache prewarming also runs on a dedicated thread pool.
             || threadName.contains('[' + SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME + ']')
 
-            // Unit tests access the blob store on the main test thread, or via an asynchronous
-            // checkindex call;
-            // simplest just to permit this rather than have them override this
-            // method somehow.
+            // Unit tests access the blob store on the main test thread; simplest just to permit this rather than have them override this
             || threadName.startsWith("TEST-")
-            || threadName.startsWith("async-check-index")
             || threadName.startsWith("LuceneTestCase") : "current thread [" + Thread.currentThread() + "] may not read " + fileInfo;
         return true;
     }

@@ -446,13 +446,8 @@ public class SearchAfterIT extends ESIntegTestCase {
         if (randomBoolean()) {
             indexSettings.put("sort.field", "timestamp").put("sort.order", randomFrom("desc", "asc"));
         }
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(indexSettings)
-                .setMapping("{\"properties\":{\"timestamp\":{\"type\": \"date\", \"format\": \"epoch_millis\"}}}")
-        );
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings).setMapping("""
+            {"properties":{"timestamp":{"type": "date", "format": "epoch_millis"}}}"""));
         Randomness.shuffle(timestamps);
         final BulkRequestBuilder bulk = client().prepareBulk();
         bulk.setRefreshPolicy(IMMEDIATE);

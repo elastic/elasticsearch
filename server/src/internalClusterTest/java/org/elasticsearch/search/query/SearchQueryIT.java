@@ -1366,17 +1366,29 @@ public class SearchQueryIT extends ESIntegTestCase {
             client().prepareIndex("test").setId("1").setSource("description", "it's cold outside, there's no kind of atmosphere")
         );
 
-        String json = "{ \"intervals\" : "
-            + "{ \"description\": { "
-            + "       \"all_of\" : {"
-            + "           \"ordered\" : \"true\","
-            + "           \"intervals\" : ["
-            + "               { \"any_of\" : {"
-            + "                   \"intervals\" : ["
-            + "                       { \"match\" : { \"query\" : \"cold\" } },"
-            + "                       { \"match\" : { \"query\" : \"outside\" } } ] } },"
-            + "               { \"match\" : { \"query\" : \"atmosphere\" } } ],"
-            + "           \"max_gaps\" : 30 } } } }";
+        String json = """
+            {
+              "intervals": {
+                "description": {
+                  "all_of": {
+                    "ordered": "true",
+                    "intervals": [
+                      {
+                        "any_of": {
+                          "intervals": [ { "match": { "query": "cold" } }, { "match": { "query": "outside" } } ]
+                        }
+                      },
+                      {
+                        "match": {
+                          "query": "atmosphere"
+                        }
+                      }
+                    ],
+                    "max_gaps": 30
+                  }
+                }
+              }
+            }""";
         SearchResponse response = client().prepareSearch("test").setQuery(wrapperQuery(json)).get();
         assertHitCount(response, 1L);
     }

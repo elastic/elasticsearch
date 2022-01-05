@@ -7,18 +7,25 @@
 
 package org.elasticsearch.xpack.ml.job.snapshot.upgrader;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.license.LicensedAllocatedPersistentTask;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.process.autodetect.JobModelSnapshotUpgrader;
 
 import java.util.Map;
 
 public class SnapshotUpgradeTask extends LicensedAllocatedPersistentTask {
 
+    private static final Logger logger = LogManager.getLogger(SnapshotUpgradeTask.class);
+
     private final String jobId;
     private final String snapshotId;
+    // Not volatile as only used in synchronized methods
+    private JobModelSnapshotUpgrader jobModelSnapshotUpgrader;
 
     public SnapshotUpgradeTask(
         String jobId,
@@ -51,5 +58,19 @@ public class SnapshotUpgradeTask extends LicensedAllocatedPersistentTask {
 
     public String getSnapshotId() {
         return snapshotId;
+    }
+
+    @Override
+    protected synchronized void onCancelled() {
+        if (jobModelSnapshotUpgrader != null) {
+            String reason = getReasonCancelled();
+            logger.trace("[{}] Cancelling snapshot upgrade [{}] task because: {}", jobId, snapshotId, reason);
+            jobModelSnapshotUpgrader.killProcess(reason);
+            jobModelSnapshotUpgrader = null;
+        }
+    }
+
+    public synchronized void setJobModelSnapshotUpgrader(JobModelSnapshotUpgrader jobModelSnapshotUpgrader) {
+        this.jobModelSnapshotUpgrader = jobModelSnapshotUpgrader;
     }
 }

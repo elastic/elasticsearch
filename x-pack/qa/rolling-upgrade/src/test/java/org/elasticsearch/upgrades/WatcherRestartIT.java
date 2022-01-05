@@ -145,8 +145,8 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
                     Map<String, Object> responseLevel = entityAsMap(response);
                     assertNotNull(responseLevel);
 
-                    assertThat(responseLevel.containsKey(".watches"), is(false));
-                    assertThat(responseLevel.containsKey(".triggered_watches"), is(false));
+                    assertThat(responseLevel.containsKey(".watches"), is(true));
+                    assertThat(responseLevel.containsKey(".triggered_watches"), is(true));
                     assertThat(responseLevel.containsKey(".watch-history-9"), is(false));
                 } catch (ResponseException e) {
                     // Not found is fine

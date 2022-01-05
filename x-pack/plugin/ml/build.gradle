@@ -22,7 +22,7 @@ repositories {
           artifact()
         }
         patternLayout {
-          artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/ml-cpp-[revision].[ext]"
+          artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/[artifact]-[revision].[ext]"
         }
       }
     }
@@ -36,7 +36,15 @@ configurations {
   nativeBundle {
     resolutionStrategy.dependencySubstitution {
       if (findProject(':ml-cpp') != null) {
-        substitute module("org.elasticsearch.ml:ml-cpp") with project(":ml-cpp")
+        substitute module("org.elasticsearch.ml:ml-cpp-nodeps") with project(":ml-cpp")
+      }
+    }
+    resolutionStrategy.cacheChangingModulesFor 2, 'hours'
+  }
+  nativeDepsBundle {
+    resolutionStrategy.dependencySubstitution {
+      if (findProject(':ml-cpp') != null) {
+        substitute module("org.elasticsearch.ml:ml-cpp-deps") with project(":ml-cpp")
       }
     }
     resolutionStrategy.cacheChangingModulesFor 2, 'hours'
@@ -44,9 +52,14 @@ configurations {
 }
 
 tasks.named("bundlePlugin").configure {
-  dependsOn configurations.nativeBundle
+  dependsOn configurations.nativeBundle, configurations.nativeDepsBundle
   from {
     project.zipTree(configurations.nativeBundle.singleFile)
+    duplicatesStrategy 'exclude'
+  }
+  from {
+    project.zipTree(configurations.nativeDepsBundle.singleFile)
+    duplicatesStrategy 'exclude'
   }
 
   // We don't ship the individual nativeBundle licenses - instead
@@ -72,7 +85,10 @@ dependencies {
   // ml deps
   api project(':libs:elasticsearch-grok')
   api "org.apache.commons:commons-math3:3.6.1"
-  nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}@zip") {
+  nativeBundle("org.elasticsearch.ml:ml-cpp-nodeps:${project.version}@zip") {
+    changing = true
+  }
+  nativeDepsBundle("org.elasticsearch.ml:ml-cpp-deps:${project.version}@zip") {
     changing = true
   }
   testImplementation 'org.ini4j:ini4j:0.5.2'

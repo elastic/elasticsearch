@@ -37,7 +37,7 @@ setup:
                 source: "field('const').get('doremi') + '_' + $('keyword', 'dne')"
             constTwo:
               script:
-                source: "field('const2').get('fasola') + '-' + $('keyword', 'dne')"
+                source: "field('const2').get(0, 'fasola') + '-' + $('keyword', 'dne')"
 
   - match: { hits.hits.0.fields.constOne.0: "the_same_everywhere_def" }
   - match: { hits.hits.0.fields.constTwo.0: "the_same_but_different-def" }

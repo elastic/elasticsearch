@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
@@ -18,6 +16,8 @@ import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.core.TimeValue;
+import org.elasticsearch.xpack.sql.proto.core.Tuple;
 
 import java.sql.SQLException;
 import java.util.ArrayList;

@@ -124,12 +124,12 @@ public class NlpTask {
         String inputField = input.getFieldNames().get(0);
         Object inputValue = XContentMapValues.extractValue(inputField, doc);
         if (inputValue == null) {
-            throw ExceptionsHelper.badRequestException("no value could be found for input field [{}]", inputField);
+            throw ExceptionsHelper.badRequestException("Input field [{}] does not exist in the source document", inputField);
         }
         if (inputValue instanceof String) {
             return (String) inputValue;
         }
-        throw ExceptionsHelper.badRequestException("input value [{}] for field [{}] is not a string", inputValue, inputField);
+        throw ExceptionsHelper.badRequestException("Input value [{}] for field [{}] must be a string", inputValue, inputField);
     }
 
     public static class Request {

@@ -51,10 +51,9 @@ import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_F
  * be called for each settings update.
  */
 public final class IndexSettings {
-    public static final Setting<List<String>> DEFAULT_FIELD_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> DEFAULT_FIELD_SETTING = Setting.stringListSetting(
         "index.query.default_field",
         Collections.singletonList("*"),
-        Function.identity(),
         Property.IndexScope,
         Property.Dynamic
     );

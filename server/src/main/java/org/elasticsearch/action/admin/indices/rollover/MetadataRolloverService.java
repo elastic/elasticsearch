@@ -35,6 +35,7 @@ import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -107,6 +108,7 @@ public class MetadataRolloverService {
         String newIndexName,
         CreateIndexRequest createIndexRequest,
         List<Condition<?>> metConditions,
+        Instant now,
         boolean silent,
         boolean onlyValidate
     ) throws Exception {
@@ -131,6 +133,7 @@ public class MetadataRolloverService {
                     rolloverTarget,
                     createIndexRequest,
                     metConditions,
+                    now,
                     silent,
                     onlyValidate
                 );
@@ -252,6 +255,7 @@ public class MetadataRolloverService {
         String dataStreamName,
         CreateIndexRequest createIndexRequest,
         List<Condition<?>> metConditions,
+        Instant now,
         boolean silent,
         boolean onlyValidate
     ) throws Exception {
@@ -292,7 +296,8 @@ public class MetadataRolloverService {
             dataStreamName,
             newWriteIndexName,
             createIndexRequest,
-            systemDataStreamDescriptor
+            systemDataStreamDescriptor,
+            now
         );
         ClusterState newState = createIndexService.applyCreateIndexRequest(
             currentState,
@@ -335,11 +340,13 @@ public class MetadataRolloverService {
         final String dataStreamName,
         final String targetIndexName,
         CreateIndexRequest createIndexRequest,
-        final SystemDataStreamDescriptor descriptor
+        final SystemDataStreamDescriptor descriptor,
+        Instant now
     ) {
         Settings settings = descriptor != null ? Settings.EMPTY : HIDDEN_INDEX_SETTINGS;
         return prepareCreateIndexRequest(targetIndexName, targetIndexName, "rollover_data_stream", createIndexRequest, settings)
             .dataStreamName(dataStreamName)
+            .nameResolvedInstant(now.toEpochMilli())
             .systemDataStreamDescriptor(descriptor);
     }
 

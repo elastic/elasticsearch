@@ -11,7 +11,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.action.Protocol;
 
 import java.util.List;
 

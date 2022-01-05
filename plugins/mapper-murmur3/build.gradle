@@ -11,10 +11,21 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 esplugin {
   description 'The Mapper Murmur3 plugin allows to compute hashes of a field\'s values at index-time and to store them in the index.'
   classname 'org.elasticsearch.plugin.mapper.MapperMurmur3Plugin'
+  extendedPlugins = ['lang-painless']
+}
+
+dependencies {
+  compileOnly project(':modules:lang-painless:spi')
+  testImplementation project(':modules:lang-painless')
 }
 
 restResources {
   restApi {
     include '_common', 'indices', 'index', 'search'
   }
+}
+
+testClusters.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'false'
 }

@@ -1446,3 +1446,81 @@ setup:
               script:
                 source: "int value = field('dne').get(1, 1); value"
   - match: { hits.hits.0.fields.field.0: 1 }
+
+---
+"version and sequence number":
+  - do:
+      indices.create:
+        index: versiontest
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 3000
+        version: 50
+        version_type: external
+        body:
+          keyword: "3k"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 3000 } }
+          script_fields:
+            ver:
+              script:
+                source: "field('_version').get(10000)"
+            seq:
+              script:
+                source: "field('_seq_no').get(10000)"
+  - match: { hits.hits.0.fields.ver.0: 50 }
+  - match: { hits.hits.0.fields.seq.0: 3 }
+
+  - do:
+      index:
+        index: test
+        id: 3000
+        version: 60
+        version_type: external
+        body:
+          keyword: "3k+1"
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch:      conflict
+      index:
+        index: test
+        id: 3000
+        version: 55
+        version_type: external
+        body:
+          keyword: "3k+2"
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 3000 } }
+          script_fields:
+            ver:
+              script:
+                source: "field('_version').get(10000)"
+            seq:
+              script:
+                source: "field('_seq_no').get(10000)"
+  - match: { hits.hits.0.fields.ver.0: 60 }
+  - match: { hits.hits.0.fields.seq.0: 4 }

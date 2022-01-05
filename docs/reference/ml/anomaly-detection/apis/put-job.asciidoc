@@ -63,10 +63,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=analysis-config]
 `bucket_span`:::
 (<<time-units,time units>>)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-span]
-+
-deprecated:[8.1, "Setting `bucket_span` to a value that is neither an integral multiple
-nor divisor of the number of seconds in a day is deprecated and will be disallowed in a
-future major version."]
 
 `categorization_analyzer`:::
 (object or string)

@@ -25,7 +25,7 @@ config directory, so the plugin can have the read permissions for the token.
 
 [source,bash]
 ----
-mkdir -p /etc/elasticsearch/repository-s3
+mkdir -p "${ES_PATH_CONF}/repository-s3"
 ln -s $AWS_WEB_IDENTITY_TOKEN_FILE /etc/elasticsearch/repository-s3/aws-web-identity-token-file
 ----
 

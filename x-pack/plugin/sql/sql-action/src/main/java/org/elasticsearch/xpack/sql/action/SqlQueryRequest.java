@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.sql.action.ProtoShim.toProto;
 import static org.elasticsearch.xpack.sql.action.Protocol.BINARY_FORMAT_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.COLUMNAR_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.DEFAULT_KEEP_ALIVE;
@@ -308,26 +309,30 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test round-trip compatibility with proto.SqlQueryRequest
-        return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(
-            query(),
-            params(),
-            zoneId(),
-            catalog(),
-            fetchSize(),
-            ProtoShim.toProto(requestTimeout()),
-            ProtoShim.toProto(pageTimeout()),
-            filter(),
-            columnar(),
-            cursor(),
-            requestInfo(),
-            fieldMultiValueLeniency(),
-            indexIncludeFrozen(),
-            binaryCommunication(),
-            runtimeMappings(),
-            ProtoShim.toProto(waitForCompletionTimeout()),
-            keepOnCompletion(),
-            ProtoShim.toProto(keepAlive())
-        ).toXContent(builder, params);
+        return ProtoShim.fromProto(
+            new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(
+                query(),
+                params(),
+                zoneId(),
+                catalog(),
+                fetchSize(),
+                toProto(requestTimeout()),
+                toProto(pageTimeout()),
+                toProto(filter()),
+                columnar(),
+                cursor(),
+                requestInfo(),
+                fieldMultiValueLeniency(),
+                indexIncludeFrozen(),
+                binaryCommunication(),
+                runtimeMappings(),
+                toProto(waitForCompletionTimeout()),
+                keepOnCompletion(),
+                toProto(keepAlive())
+            ),
+            builder,
+            params
+        );
     }
 
     public static SqlQueryRequest fromXContent(XContentParser parser) {

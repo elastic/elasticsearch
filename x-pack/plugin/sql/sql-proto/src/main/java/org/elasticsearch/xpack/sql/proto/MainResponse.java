@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.sql.proto.xcontent.ObjectParser;
+import org.elasticsearch.xpack.sql.proto.xcontent.ParseField;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentParser;
 
 import java.util.Objects;
 

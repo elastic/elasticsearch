@@ -15,6 +15,7 @@ import java.io.IOException;
 /**
  * Script value class.
  * TODO(stu): implement {@code Comparable<Version>} based on {@code VersionEncoder#prefixDigitGroupsWithLength(String, BytesRefBuilder)}
+ * See: https://github.com/elastic/elasticsearch/issues/82287
  */
 public class Version implements ToXContent {
     protected String version;

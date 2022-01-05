@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.sql.proto.xcontent;
 
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.proto.core.CheckedConsumer;
 import org.elasticsearch.xpack.sql.proto.core.RestApiVersion;
 
@@ -89,6 +90,7 @@ public class XContentBuilder implements Closeable, Flushable {
     private static final Map<Class<?>, Writer> WRITERS;
     private static final Map<Class<?>, HumanReadableTransformer> HUMAN_READABLE_TRANSFORMERS;
     private static final Map<Class<?>, Function<Object, Object>> DATE_TRANSFORMERS;
+
     static {
         Map<Class<?>, Writer> writers = new HashMap<>();
         writers.put(Boolean.class, (b, v) -> b.value((Boolean) v));
@@ -122,9 +124,29 @@ public class XContentBuilder implements Closeable, Flushable {
         // treat strings as already converted
         dateTransformers.put(String.class, Function.identity());
 
+        writers.putAll(getXContentWriters());
+        dateTransformers.putAll(getDateTransformers());
+
         WRITERS = Collections.unmodifiableMap(writers);
         HUMAN_READABLE_TRANSFORMERS = Collections.unmodifiableMap(humanReadableTransformer);
         DATE_TRANSFORMERS = Collections.unmodifiableMap(dateTransformers);
+    }
+
+    //
+    // previously as XContentSqlExtension
+    //
+    private static Map<Class<?>, XContentBuilder.Writer> getXContentWriters() {
+        Map<Class<?>, XContentBuilder.Writer> writers = new HashMap<>();
+        writers.put(Date.class, (b, v) -> b.value(((Date) v).getTime()));
+        writers.put(ZonedDateTime.class, (b, v) -> b.value(StringUtils.toString(v)));
+        return writers;
+    }
+
+    private static Map<Class<?>, Function<Object, Object>> getDateTransformers() {
+        Map<Class<?>, Function<Object, Object>> transformers = new HashMap<>();
+        transformers.put(Date.class, d -> ((Date) d).getTime());
+        transformers.put(ZonedDateTime.class, StringUtils::toString);
+        return transformers;
     }
 
     @FunctionalInterface

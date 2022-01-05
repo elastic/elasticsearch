@@ -58,7 +58,7 @@ precedence.
 (Optional, string) Default catalog (cluster) for queries. If unspecified, the
 queries execute on the data in the local cluster only.
 +
-experimental:[] See <<modules-cross-cluster-search, cross cluster search>>.
+experimental:[] See <<modules-cross-cluster-search,{ccs}>>.
 
 `columnar`::
 (Optional, boolean) If `true`, returns results in a columnar format. Defaults to

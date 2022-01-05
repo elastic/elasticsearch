@@ -999,9 +999,9 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         List<Map<String, Object>> preview = (List<Map<String, Object>>) previewTransformResponse.get("preview");
         // Pipeline failed for all the docs so the preview is empty
         assertThat(preview, is(empty()));
-        assertThat(createPreviewResponse.getWarnings(), hasSize(1));
+        assertThat(createPreviewResponse.getWarnings(), is(not(empty())));
         assertThat(
-            createPreviewResponse.getWarnings().get(0),
+            createPreviewResponse.getWarnings().get(createPreviewResponse.getWarnings().size() - 1),
             allOf(containsString("Pipeline returned 100 errors, first error:"), containsString("type=script_exception"))
         );
     }

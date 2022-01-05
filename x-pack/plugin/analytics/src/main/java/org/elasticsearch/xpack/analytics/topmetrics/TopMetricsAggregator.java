@@ -13,13 +13,13 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -76,7 +76,8 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     ) throws IOException {
         super(name, context, parent, metadata);
         this.size = size;
-        this.metrics = new TopMetricsAggregator.Metrics(metricValues);
+        // In case of failure we are releasing this objects outside therefore we need to set it at the end.
+        TopMetricsAggregator.Metrics metrics = new TopMetricsAggregator.Metrics(metricValues);
         /*
          * If we're only collecting a single value then only provided *that*
          * value to the sort so that swaps and loads are just a little faster
@@ -84,6 +85,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
          */
         BucketedSort.ExtraData values = metrics.values.length == 1 ? metrics.values[0] : metrics;
         this.sort = context.buildBucketedSort(sort, size, values);
+        this.metrics = metrics;
     }
 
     @Override
@@ -231,7 +233,9 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         }
 
         abstract boolean needsScores();
+
         abstract double doubleValue(long index);
+
         abstract InternalTopMetrics.MetricValue metricValue(long index) throws IOException;
     }
 

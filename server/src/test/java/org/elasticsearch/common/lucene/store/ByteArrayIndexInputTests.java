@@ -74,4 +74,3 @@ public class ByteArrayIndexInputTests extends ESIndexInputTestCase {
     }
 
 }
-

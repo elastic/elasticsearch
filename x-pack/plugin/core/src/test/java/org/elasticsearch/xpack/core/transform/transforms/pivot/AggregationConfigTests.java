@@ -11,16 +11,16 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.MockDeprecatedAggregationBuilder;
 import org.junit.Before;
@@ -111,12 +111,13 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
     }
 
     public void testFailOnStrictPassOnLenient() throws IOException {
-        String source = "{\n"
-            + "          \"avg_rating\": { \"some_removed_agg\": { \"field\": \"rating\" } }\n"
-            + "        },\n"
-            + "        {\n"
-            + "          \"max_rating\": { \"max_rating\" : { \"field\" : \"rating\" } }\n"
-            + "        }";
+        String source = """
+            {
+                      "avg_rating": { "some_removed_agg": { "field": "rating" } }
+                    },
+                    {
+                      "max_rating": { "max_rating" : { "field" : "rating" } }
+                    }""";
 
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
@@ -133,7 +134,9 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
     }
 
     public void testDeprecation() throws IOException {
-        String source = "{\"dep_agg\": {\"" + MockDeprecatedAggregationBuilder.NAME + "\" : {}}}";
+        String source = """
+            {"dep_agg": {"%s" : {}}}
+            """.formatted(MockDeprecatedAggregationBuilder.NAME);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             AggregationConfig agg = AggregationConfig.fromXContent(parser, false);
             assertNull(agg.validate(null));

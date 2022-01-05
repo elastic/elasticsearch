@@ -22,7 +22,7 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.internal-available-ports'
 
-final Project hdfsFixtureProject = project(':test:fixtures:hdfs-fixture')
+final Project hdfsFixtureProject = project(':test:fixtures:hdfs2-fixture')
 final Project krbFixtureProject = project(':test:fixtures:krb5kdc-fixture')
 final Project hdfsRepoPluginProject = project(':plugins:repository-hdfs')
 

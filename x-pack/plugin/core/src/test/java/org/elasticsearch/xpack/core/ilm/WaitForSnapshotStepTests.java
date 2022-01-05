@@ -60,14 +60,18 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("action_time", Long.toString(randomLong())))
             .settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices =
-            ImmutableOpenMap.<String, IndexMetadata>builder().fPut(indexMetadata.getIndex().getName(), indexMetadata);
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
+            .fPut(indexMetadata.getIndex().getName(), indexMetadata);
         Metadata.Builder meta = Metadata.builder().indices(indices.build());
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
         WaitForSnapshotStep instance = createRandomInstance();
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> instance.isConditionMet(indexMetadata.getIndex(),
-            clusterState));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> instance.isConditionMet(indexMetadata.getIndex(), clusterState)
+        );
         assertTrue(e.getMessage().contains(instance.getPolicy()));
     }
 
@@ -77,16 +81,20 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             .setModifiedDate(randomLong())
             .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", null, null))
             .build();
-        SnapshotLifecycleMetadata smlMetadata = new SnapshotLifecycleMetadata(Map.of(instance.getPolicy(), slmPolicy),
-            OperationMode.RUNNING, null);
-
+        SnapshotLifecycleMetadata smlMetadata = new SnapshotLifecycleMetadata(
+            Map.of(instance.getPolicy(), slmPolicy),
+            OperationMode.RUNNING,
+            null
+        );
 
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("action_time", Long.toString(randomLong())))
             .settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices =
-            ImmutableOpenMap.<String, IndexMetadata>builder().fPut(indexMetadata.getIndex().getName(), indexMetadata);
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
+            .fPut(indexMetadata.getIndex().getName(), indexMetadata);
         Metadata.Builder meta = Metadata.builder().indices(indices.build()).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
         ClusterStateWaitStep.Result result = instance.isConditionMet(indexMetadata.getIndex(), clusterState);
@@ -116,19 +124,29 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         SnapshotLifecyclePolicyMetadata slmPolicy = SnapshotLifecyclePolicyMetadata.builder()
             .setModifiedDate(randomLong())
             .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", null, null))
-            .setLastSuccess(new SnapshotInvocationRecord("",
-                phaseTime + (startTimeAfterPhaseTime ? 10 : -100),
-                phaseTime + (finishTimeAfterPhaseTime ? 100 : -10), ""))
+            .setLastSuccess(
+                new SnapshotInvocationRecord(
+                    "",
+                    phaseTime + (startTimeAfterPhaseTime ? 10 : -100),
+                    phaseTime + (finishTimeAfterPhaseTime ? 100 : -10),
+                    ""
+                )
+            )
             .build();
-        SnapshotLifecycleMetadata smlMetadata = new SnapshotLifecycleMetadata(Map.of(instance.getPolicy(), slmPolicy),
-            OperationMode.RUNNING, null);
+        SnapshotLifecycleMetadata smlMetadata = new SnapshotLifecycleMetadata(
+            Map.of(instance.getPolicy(), slmPolicy),
+            OperationMode.RUNNING,
+            null
+        );
 
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("action_time", Long.toString(phaseTime)))
             .settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices =
-            ImmutableOpenMap.<String, IndexMetadata>builder().fPut(indexMetadata.getIndex().getName(), indexMetadata);
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
+            .fPut(indexMetadata.getIndex().getName(), indexMetadata);
         Metadata.Builder meta = Metadata.builder().indices(indices.build()).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
         ClusterStateWaitStep.Result result = instance.isConditionMet(indexMetadata.getIndex(), clusterState);
@@ -148,23 +166,28 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         SnapshotLifecyclePolicyMetadata slmPolicy = SnapshotLifecyclePolicyMetadata.builder()
             .setModifiedDate(randomLong())
             .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", null, null))
-            .setLastSuccess(new SnapshotInvocationRecord("",
-                null,
-                phaseTime + 100, ""))
+            .setLastSuccess(new SnapshotInvocationRecord("", null, phaseTime + 100, ""))
             .build();
-        SnapshotLifecycleMetadata smlMetadata = new SnapshotLifecycleMetadata(Map.of(instance.getPolicy(), slmPolicy),
-            OperationMode.RUNNING, null);
+        SnapshotLifecycleMetadata smlMetadata = new SnapshotLifecycleMetadata(
+            Map.of(instance.getPolicy(), slmPolicy),
+            OperationMode.RUNNING,
+            null
+        );
 
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("phase_time", Long.toString(phaseTime)))
             .settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices =
-            ImmutableOpenMap.<String, IndexMetadata>builder().fPut(indexMetadata.getIndex().getName(), indexMetadata);
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
+            .fPut(indexMetadata.getIndex().getName(), indexMetadata);
         Metadata.Builder meta = Metadata.builder().indices(indices.build()).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> instance.isConditionMet(indexMetadata.getIndex(),
-            clusterState));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> instance.isConditionMet(indexMetadata.getIndex(), clusterState)
+        );
         assertTrue(e.getMessage().contains("no information about ILM action start"));
     }
 

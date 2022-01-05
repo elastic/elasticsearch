@@ -82,9 +82,11 @@ public class Concat extends BinaryScalarFunction {
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
-                paramsBuilder().variable(field.exactAttribute().name()).build(),
-                dataType());
+        return new ScriptTemplate(
+            processScript(Scripts.DOC_VALUE),
+            paramsBuilder().variable(field.exactAttribute().name()).build(),
+            dataType()
+        );
     }
 
     @Override

@@ -16,10 +16,10 @@ import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.EnsembleTests;
 import org.elasticsearch.client.ml.inference.trainedmodel.tree.TreeTests;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 
 public class TrainedModelDefinitionTests extends AbstractXContentTestCase<TrainedModelDefinition> {
 
@@ -54,19 +53,22 @@ public class TrainedModelDefinitionTests extends AbstractXContentTestCase<Traine
 
     public static TrainedModelDefinition.Builder createRandomBuilder(TargetType targetType) {
         int numberOfProcessors = randomIntBetween(1, 10);
-        return new TrainedModelDefinition.Builder()
-            .setPreProcessors(
-                randomBoolean() ? null :
-                    Stream.generate(() -> randomFrom(
+        return new TrainedModelDefinition.Builder().setPreProcessors(
+            randomBoolean()
+                ? null
+                : Stream.generate(
+                    () -> randomFrom(
                         FrequencyEncodingTests.createRandom(),
                         OneHotEncodingTests.createRandom(),
                         TargetMeanEncodingTests.createRandom(),
                         NGramTests.createRandom(),
-                        MultiTests.createRandom()))
-                        .limit(numberOfProcessors)
-                        .collect(Collectors.toList()))
-            .setTrainedModel(randomFrom(TreeTests.buildRandomTree(Arrays.asList("foo", "bar"), 6, targetType),
-                EnsembleTests.createRandom(targetType)));
+                        MultiTests.createRandom()
+                    )
+                ).limit(numberOfProcessors).collect(Collectors.toList())
+        )
+            .setTrainedModel(
+                randomFrom(TreeTests.buildRandomTree(Arrays.asList("foo", "bar"), 6, targetType), EnsembleTests.createRandom(targetType))
+            );
     }
 
     @Override

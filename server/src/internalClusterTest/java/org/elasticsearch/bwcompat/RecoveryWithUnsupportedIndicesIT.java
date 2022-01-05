@@ -65,8 +65,7 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
         Files.move(src, dest);
         assertFalse(Files.exists(src));
         assertTrue(Files.exists(dest));
-        Settings.Builder builder = Settings.builder()
-            .put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath());
+        Settings.Builder builder = Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath());
 
         return builder.build();
     }
@@ -76,8 +75,12 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
 
         logger.info("Checking static index {}", indexName);
         Settings nodeSettings = prepareBackwardsDataDir(getDataPath("/indices/bwc").resolve(indexName + ".zip"));
-        assertThat(ExceptionsHelper.unwrap(
-            expectThrows(Exception.class, () -> internalCluster().startNode(nodeSettings)), CorruptStateException.class).getMessage(),
-            containsString("Format version is not supported"));
+        assertThat(
+            ExceptionsHelper.unwrap(
+                expectThrows(Exception.class, () -> internalCluster().startNode(nodeSettings)),
+                CorruptStateException.class
+            ).getMessage(),
+            containsString("Format version is not supported")
+        );
     }
 }

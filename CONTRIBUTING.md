@@ -69,6 +69,8 @@ cycle.
 * Lines that are not part of your change should not be edited (e.g. don't format
   unchanged lines, don't reorder existing imports)
 * Add the appropriate [license headers](#license-headers) to any new files
+* For contributions involving the elasticsearch build you can find (details about the build setup in the
+* [BUILDING](BUILDING.md) file
 
 ### Submitting your changes
 
@@ -118,8 +120,7 @@ JDK 16 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 11 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 11.
 
-> Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
-and `JAVA11_HOME`, `JAVA12_HOME`, `JAVA13_HOME`, `JAVA14_HOME`, and `JAVA15_HOME`
+> Note: It is also required to have `JAVA8_HOME`, `JAVA11_HOME`, and `JAVA17_HOME`
 available so that the tests can pass.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
@@ -128,7 +129,7 @@ script on Windows in the root of the repository. The examples below show the
 usage on Unix.
 
 We support development in IntelliJ versions IntelliJ 2020.1 and
-onwards and Eclipse 2020-3 and onwards.
+onwards and Eclipse 2021-12 and onwards.
 
 [Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
 
@@ -191,26 +192,19 @@ need them.
    2. Click "Use the Eclipse Code Formatter"
    3. Under "Eclipse formatter config", select "Eclipse workspace/project
       folder or config file"
-   4. Click "Browse", and navigate to the file `build-tools-internal/formatterConfig.xml`
+   4. Click "Browse", and navigate to the file `build-conventions/formatterConfig.xml`
    5. **IMPORTANT** - make sure "Optimize Imports" is **NOT** selected.
    6. Click "OK"
 
 Note that only some sub-projects in the Elasticsearch project are currently
 fully-formatted. You can see a list of project that **are not**
 automatically formatted in
-[build-tools-internal/src/main/groovy/elasticsearch.formatting.gradle](build-tools-internal/src/main/groovy/elasticsearch.formatting.gradle).
+[FormattingPrecommitPlugin.java](build-conventions/src/main/java/org/elasticsearch/gradle/internal/conventions/precommit/FormattingPrecommitPlugin.java).
 
 ### Importing the project into Eclipse
 
-Elasticsearch builds using Gradle and Java 16. When importing into Eclipse you
-will either need to use an appropriate JDK to run Eclipse itself (e.g. by
-specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
-defining the JDK Gradle uses by setting **Preferences** > **Gradle** >
-**Advanced Options** > **Java home** to an appropriate version.
-
-IMPORTANT: If you have previously imported the project by running `./gradlew eclipse`
-           then you must build an entirely new workspace and `git clean -xdf` to
-           blow away *everything* that the gradle eclipse plugin made.
+Elasticsearch builds using Gradle and Java 17. You'll need to point
+[eclipse.ini](https://wiki.eclipse.org/Eclipse.ini)'s `-vm` to Java 17.
 
  - Select **File > Import...**
  - Select **Existing Gradle Project**
@@ -232,7 +226,7 @@ Next you'll want to import our auto-formatter:
  - Select **Window > Preferences**
  - Select **Java > Code Style > Formatter**
  - Click **Import**
- - Import the file at **build-tools-internal/formatterConfig.xml**
+ - Import the file at **build-conventions/formatterConfig.xml**
  - Make sure it is the **Active profile**
 
 Finally, set up import order:
@@ -240,7 +234,7 @@ Finally, set up import order:
  - Select **Window > Preferences**
  - Select **Java > Code Style > Organize Imports**
  - Click **Import...**
- - Import the file at **build-tools-internal/elastic.importorder**
+ - Import the file at **build-conventions/elastic.importorder**
  - Set the **Number of imports needed for `.*`** to ***9999***
  - Set the **Number of static imports needed for `.*`** to ***9999*** as well
  - Apply that
@@ -277,11 +271,12 @@ form.
 Java files in the Elasticsearch codebase are automatically formatted using
 the [Spotless Gradle] plugin. All new projects are automatically formatted,
 while existing projects are gradually being opted-in. The formatting check
-can be run explicitly with:
+is run automatically via the `precommit` task, but it can be run explicitly with:
 
     ./gradlew spotlessJavaCheck
 
-The code can be formatted with:
+It is usually more useful, and just as fast, to just reformat the project. You
+can do this with:
 
     ./gradlew spotlessApply
 
@@ -302,10 +297,9 @@ Please follow these formatting guidelines:
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause
   the build to fail.
 * If *absolutely* necessary, you can disable formatting for regions of code
-  with the `// tag::NAME` and `// end::NAME` directives, but note that
-  these are intended for use in documentation, so please make it clear what
-  you have done, and only do this where the benefit clearly outweighs the
-  decrease in consistency.
+  with the `// tag::noformat` and `// end::noformat` directives, but
+  only do this where the benefit clearly outweighs the decrease in formatting
+  consistency.
 * Note that Javadoc and block comments i.e. `/* ... */` are not formatted,
   but line comments i.e `// ...` are.
 * Negative boolean expressions must use the form `foo == false` instead of

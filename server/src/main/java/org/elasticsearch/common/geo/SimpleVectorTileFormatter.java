@@ -28,7 +28,7 @@ public class SimpleVectorTileFormatter implements GeoFormatterFactory.FormatterF
 
     @Override
     public Function<String, Function<List<GeoPoint>, List<Object>>> getFormatterBuilder() {
-        return  params -> {
+        return params -> {
             int[] parsed = parse(params);
             final SimpleFeatureFactory featureFactory = new SimpleFeatureFactory(parsed[0], parsed[1], parsed[2], parsed[3]);
             return points -> List.of(featureFactory.points(points));
@@ -49,9 +49,7 @@ public class SimpleVectorTileFormatter implements GeoFormatterFactory.FormatterF
         final int extent = parts.length == 2 ? Integer.parseInt(parts[1]) : 4096;
         final String[] tileBits = parts[0].split("/", 4);
         if (tileBits.length != 3) {
-            throw new IllegalArgumentException(
-                "Invalid tile string [" + parts[0] + "]. Must be three integers in a form \"zoom/x/y\"."
-            );
+            throw new IllegalArgumentException("Invalid tile string [" + parts[0] + "]. Must be three integers in a form \"zoom/x/y\".");
         }
         final int z = GeoTileUtils.checkPrecisionRange(Integer.parseInt(tileBits[0]));
         final int tiles = 1 << z;
@@ -60,6 +58,6 @@ public class SimpleVectorTileFormatter implements GeoFormatterFactory.FormatterF
         if (x < 0 || y < 0 || x >= tiles || y >= tiles) {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "Zoom/X/Y combination is not valid: %d/%d/%d", z, x, y));
         }
-        return new int[]{z, x, y, extent};
+        return new int[] { z, x, y, extent };
     }
 }

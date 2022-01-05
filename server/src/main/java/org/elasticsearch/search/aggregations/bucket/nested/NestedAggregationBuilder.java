@@ -11,8 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.nested;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -21,6 +19,8 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -82,14 +82,12 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
     }
 
     @Override
-    protected AggregatorFactory doBuild(AggregationContext context,
-                                            AggregatorFactory parent,
-                                            Builder subFactoriesBuilder) throws IOException {
+    protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
+        throws IOException {
         ObjectMapper childObjectMapper = context.getObjectMapper(path);
         if (childObjectMapper == null) {
             // in case the path has been unmapped:
-            return new NestedAggregatorFactory(name, null, null, context,
-                parent, subFactoriesBuilder, metadata);
+            return new NestedAggregatorFactory(name, null, null, context, parent, subFactoriesBuilder, metadata);
         }
 
         if (childObjectMapper.isNested() == false) {
@@ -97,8 +95,15 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
         }
         try {
             NestedObjectMapper parentObjectMapper = context.nestedScope().nextLevel((NestedObjectMapper) childObjectMapper);
-            return new NestedAggregatorFactory(name, parentObjectMapper, (NestedObjectMapper) childObjectMapper, context,
-                parent, subFactoriesBuilder, metadata);
+            return new NestedAggregatorFactory(
+                name,
+                parentObjectMapper,
+                (NestedObjectMapper) childObjectMapper,
+                context,
+                parent,
+                subFactoriesBuilder,
+                metadata
+            );
         } finally {
             context.nestedScope().previousLevel();
         }
@@ -124,8 +129,10 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
                 if (NestedAggregator.PATH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     path = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + aggregationName + "].");

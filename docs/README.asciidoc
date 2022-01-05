@@ -1,9 +1,37 @@
-The Elasticsearch docs are in AsciiDoc format and can be built using the
-Elasticsearch documentation build process.
+= Elasticsearch docs
 
-See: https://github.com/elastic/docs
+This is a guide for writing, editing, and building the following Elasticsearch
+docs:
 
-=== Adding API reference pages
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[Elasticsearch Guide]
+- https://www.elastic.co/guide/en/elasticsearch/painless/current/index.html[Painless Scripting Language]
+- https://www.elastic.co/guide/en/elasticsearch/plugins/current/index.html[Elasticsearch Plugins and Integrations]
+- https://www.elastic.co/guide/en/elasticsearch/resiliency/current/index.html[Elasticsearch Resiliency Status]
+- https://www.elastic.co/guide/en/elasticsearch/client/community/current/index.html[Community Contributed Clients]
+- https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/index.html[Java REST Client]
+
+== Build the docs
+
+The Elasticsearch docs consist of `.asciidoc` files, written in the
+https://docs.asciidoctor.org/asciidoc/latest/[Asciidoctor] flavor. You can build
+the docs locally using the steps in the
+https://github.com/elastic/docs#readme[elastic/docs README].
+
+=== Preview links for PRs
+
+For open PRs, the `elasticsearch-ci/docs` check generates a live preview of any
+docs changes. If the check runs successfully, you can find the preview at:
+
+`https://elasticsearch_<PR_NUM>.docs-preview.app.elstc.co/diff`
+
+`elasticsearch-ci/docs` runs automatically for PRs opened by Elastic employees.
+To run CI checks on PRs from external contributors, an Elastic employee can
+leave a GitHub comment containing `@elasticmachine ok to test`.
+
+To re-run `elasticsearch-ci/docs`, an Elastic employee can leave a GitHub
+comment containing `@elasticmachine run elasticsearch-ci/docs`.
+
+== Add API reference pages
 
 When you need to add a reference page for a new API:
 
@@ -30,7 +58,7 @@ Many of the API reference pages also use shared parameter definitions from
 https://github.com/elastic/elasticsearch/blob/master/docs/reference/rest-api/common-parms.asciidoc[elasticsearch/docs/reference/rest-api/common-parms].
 You don't have to do that. 
 
-=== Backporting doc fixes
+== Backport doc fixes
 
 * Doc changes should generally be made against master and backported through to the current version
   (as applicable).  
@@ -50,7 +78,7 @@ You don't have to do that.
   Backport the changes to any branch containing release notes for those
   versions, even if the branch is no longer maintained.
 
-=== Snippet testing
+== Test code snippets
 
 Snippets marked with `[source,console]` are automatically annotated with
 "VIEW IN CONSOLE" and "COPY AS CURL" in the documentation and are automatically

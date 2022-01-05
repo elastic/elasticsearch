@@ -37,8 +37,7 @@ class PropertyPlaceholder {
      * @param ignoreUnresolvablePlaceholders indicates whether unresolvable placeholders should be ignored
      *                                       (<code>true</code>) or cause an exception (<code>false</code>).
      */
-    PropertyPlaceholder(String placeholderPrefix, String placeholderSuffix,
-                               boolean ignoreUnresolvablePlaceholders) {
+    PropertyPlaceholder(String placeholderPrefix, String placeholderSuffix, boolean ignoreUnresolvablePlaceholders) {
         this.placeholderPrefix = Objects.requireNonNull(placeholderPrefix);
         this.placeholderSuffix = Objects.requireNonNull(placeholderSuffix);
         this.ignoreUnresolvablePlaceholders = ignoreUnresolvablePlaceholders;
@@ -58,8 +57,7 @@ class PropertyPlaceholder {
         return parseStringValue(value, placeholderResolver, new HashSet<>());
     }
 
-    private String parseStringValue(String strVal, PlaceholderResolver placeholderResolver,
-                                    Set<String> visitedPlaceholders) {
+    private String parseStringValue(String strVal, PlaceholderResolver placeholderResolver, Set<String> visitedPlaceholders) {
         StringBuilder buf = new StringBuilder(strVal);
 
         int startIndex = strVal.indexOf(this.placeholderPrefix);
@@ -68,8 +66,7 @@ class PropertyPlaceholder {
             if (endIndex != -1) {
                 String placeholder = buf.substring(startIndex + this.placeholderPrefix.length(), endIndex);
                 if (visitedPlaceholders.add(placeholder) == false) {
-                    throw new IllegalArgumentException(
-                            "Circular placeholder reference '" + placeholder + "' in property definitions");
+                    throw new IllegalArgumentException("Circular placeholder reference '" + placeholder + "' in property definitions");
                 }
                 // Recursive invocation, parsing placeholders contained in the placeholder key.
                 placeholder = parseStringValue(placeholder, placeholderResolver, visitedPlaceholders);

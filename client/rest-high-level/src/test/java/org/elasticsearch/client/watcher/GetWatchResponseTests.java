@@ -11,10 +11,10 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
@@ -78,18 +78,20 @@ public class GetWatchResponseTests extends AbstractResponseTestCase<GetWatchResp
             XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
             builder.startObject()
                 .startObject("trigger")
-                    .startObject("schedule")
-                        .field("interval", "10h")
-                    .endObject()
+                .startObject("schedule")
+                .field("interval", "10h")
+                .endObject()
                 .endObject()
                 .startObject("input")
-                    .startObject("none").endObject()
+                .startObject("none")
+                .endObject()
                 .endObject()
                 .startObject("actions")
-                    .startObject("logme")
-                        .field("text", "{{ctx.payload}}")
-                    .endObject()
-                .endObject().endObject();
+                .startObject("logme")
+                .field("text", "{{ctx.payload}}")
+                .endObject()
+                .endObject()
+                .endObject();
             return BytesReference.bytes(builder);
         } catch (IOException e) {
             throw new AssertionError(e);
@@ -144,15 +146,20 @@ public class GetWatchResponseTests extends AbstractResponseTestCase<GetWatchResp
         for (Map.Entry<String, org.elasticsearch.client.watcher.ActionStatus> entry : status.getActions().entrySet()) {
             actions.put(entry.getKey(), convertActionStatus(entry.getValue()));
         }
-        return new WatchStatus(status.version(),
+        return new WatchStatus(
+            status.version(),
             convertWatchStatusState(status.state()),
             status.getExecutionState() == null ? null : convertWatchStatus(status.getExecutionState()),
-            status.lastChecked(), status.lastMetCondition(), actions, status.getHeaders()
+            status.lastChecked(),
+            status.lastMetCondition(),
+            actions,
+            status.getHeaders()
         );
     }
 
     private static ActionStatus convertActionStatus(org.elasticsearch.client.watcher.ActionStatus actionStatus) {
-        return new ActionStatus(convertAckStatus(actionStatus.ackStatus()),
+        return new ActionStatus(
+            convertAckStatus(actionStatus.ackStatus()),
             actionStatus.lastExecution() == null ? null : convertActionStatusExecution(actionStatus.lastExecution()),
             actionStatus.lastSuccessfulExecution() == null ? null : convertActionStatusExecution(actionStatus.lastSuccessfulExecution()),
             actionStatus.lastThrottle() == null ? null : convertActionStatusThrottle(actionStatus.lastThrottle())
@@ -163,8 +170,7 @@ public class GetWatchResponseTests extends AbstractResponseTestCase<GetWatchResp
         return new ActionStatus.AckStatus(ackStatus.timestamp(), convertAckStatusState(ackStatus.state()));
     }
 
-    private static ActionStatus.AckStatus.State convertAckStatusState(
-        org.elasticsearch.client.watcher.ActionStatus.AckStatus.State state) {
+    private static ActionStatus.AckStatus.State convertAckStatusState(org.elasticsearch.client.watcher.ActionStatus.AckStatus.State state) {
         return ActionStatus.AckStatus.State.valueOf(state.name());
     }
 
@@ -176,8 +182,7 @@ public class GetWatchResponseTests extends AbstractResponseTestCase<GetWatchResp
         return ExecutionState.valueOf(executionState.name());
     }
 
-    private static ActionStatus.Execution convertActionStatusExecution(
-        org.elasticsearch.client.watcher.ActionStatus.Execution execution) {
+    private static ActionStatus.Execution convertActionStatusExecution(org.elasticsearch.client.watcher.ActionStatus.Execution execution) {
         if (execution.successful()) {
             return ActionStatus.Execution.successful(execution.timestamp());
         } else {

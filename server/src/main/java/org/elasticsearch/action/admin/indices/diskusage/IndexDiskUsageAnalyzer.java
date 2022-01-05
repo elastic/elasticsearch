@@ -9,14 +9,15 @@
 package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat;
+import org.apache.lucene.backward_codecs.lucene84.Lucene84PostingsFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.TermVectorsReader;
-import org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat;
-import org.apache.lucene.codecs.lucene84.Lucene84PostingsFormat;
+import org.apache.lucene.codecs.lucene90.Lucene90PostingsFormat;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
@@ -42,7 +43,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FutureArrays;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
@@ -53,6 +53,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -60,7 +62,7 @@ import java.util.Objects;
 /**
  * Analyze the disk usage of each field in the index.
  */
- final class IndexDiskUsageAnalyzer {
+final class IndexDiskUsageAnalyzer {
     private final Logger logger;
     private final IndexCommit commit;
     private final TrackingReadBytesDirectory directory;
@@ -169,8 +171,8 @@ import java.util.Objects;
         }
 
         @Override
-        public void stringField(FieldInfo fieldInfo, byte[] value) throws IOException {
-            trackField(fieldInfo, Integer.BYTES + value.length);
+        public void stringField(FieldInfo fieldInfo, String value) throws IOException {
+            trackField(fieldInfo, Integer.BYTES + value.getBytes(StandardCharsets.UTF_8).length);
         }
 
         @Override
@@ -199,9 +201,11 @@ import java.util.Objects;
         }
     }
 
-    private <DV extends DocIdSetIterator> DV iterateDocValues(int maxDocs,
-                                                              CheckedSupplier<DV, IOException> dvReader,
-                                                              CheckedConsumer<DV, IOException> valueAccessor) throws IOException {
+    private <DV extends DocIdSetIterator> DV iterateDocValues(
+        int maxDocs,
+        CheckedSupplier<DV, IOException> dvReader,
+        CheckedConsumer<DV, IOException> valueAccessor
+    ) throws IOException {
         // As we track the min/max positions of read bytes, we just visit the first and last values of the docValues iterator.
         // Here we use a binary search like to visit the right most index that has values
         DV dv = dvReader.get();
@@ -290,6 +294,10 @@ import java.util.Objects;
     private BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
         if (term != null && termsEnum.seekExact(term)) {
             final TermState termState = termsEnum.termState();
+            if (termState instanceof Lucene90PostingsFormat.IntBlockTermState) {
+                final Lucene90PostingsFormat.IntBlockTermState blockTermState = (Lucene90PostingsFormat.IntBlockTermState) termState;
+                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
+            }
             if (termState instanceof Lucene84PostingsFormat.IntBlockTermState) {
                 final Lucene84PostingsFormat.IntBlockTermState blockTermState = (Lucene84PostingsFormat.IntBlockTermState) termState;
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
@@ -342,7 +350,9 @@ import java.util.Objects;
             final BlockTermState minState = getBlockTermState(termsEnum, terms.getMin());
             if (minState != null) {
                 final BlockTermState maxState = Objects.requireNonNull(
-                    getBlockTermState(termsEnum, terms.getMax()), "can't retrieve the block term state of the max term");
+                    getBlockTermState(termsEnum, terms.getMax()),
+                    "can't retrieve the block term state of the max term"
+                );
                 final long skippedBytes = maxState.distance(minState);
                 stats.addInvertedIndex(field.name, skippedBytes);
                 termsEnum.seekExact(terms.getMax());
@@ -425,8 +435,8 @@ import java.util.Objects;
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
             for (int dim = 0; dim < numDims; dim++) {
                 int offset = dim * bytesPerDim;
-                if (FutureArrays.compareUnsigned(minPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) > 0 ||
-                    FutureArrays.compareUnsigned(maxPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) < 0) {
+                if (Arrays.compareUnsigned(minPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) > 0
+                    || Arrays.compareUnsigned(maxPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) < 0) {
                     return PointValues.Relation.CELL_OUTSIDE_QUERY;
                 }
             }
@@ -638,7 +648,6 @@ import java.util.Objects;
             maxPosition = Math.max(maxPosition, position + length - 1);
         }
 
-
         void resetBytesRead() {
             minPosition = Long.MAX_VALUE;
             maxPosition = Long.MIN_VALUE;
@@ -720,19 +729,33 @@ import java.util.Objects;
         long termVectorsTimeInNanos;
 
         long totalInNanos() {
-            return invertedIndexTimeInNanos + storedFieldsTimeInNanos + docValuesTimeInNanos
-                + pointsTimeInNanos + normsTimeInNanos + termVectorsTimeInNanos;
+            return invertedIndexTimeInNanos + storedFieldsTimeInNanos + docValuesTimeInNanos + pointsTimeInNanos + normsTimeInNanos
+                + termVectorsTimeInNanos;
         }
 
         @Override
         public String toString() {
-            return "total: " + totalInNanos() / 1000_000 + "ms" +
-                ", inverted index: " + invertedIndexTimeInNanos / 1000_000 + "ms" +
-                ", stored fields: " + storedFieldsTimeInNanos / 1000_000 + "ms" +
-                ", doc values: " + docValuesTimeInNanos / 1000_000 + "ms" +
-                ", points: " + pointsTimeInNanos / 1000_000 + "ms" +
-                ", norms: " + normsTimeInNanos / 1000_000 + "ms" +
-                ", term vectors: " + termVectorsTimeInNanos / 1000_000 + "ms";
+            return "total: "
+                + totalInNanos() / 1000_000
+                + "ms"
+                + ", inverted index: "
+                + invertedIndexTimeInNanos / 1000_000
+                + "ms"
+                + ", stored fields: "
+                + storedFieldsTimeInNanos / 1000_000
+                + "ms"
+                + ", doc values: "
+                + docValuesTimeInNanos / 1000_000
+                + "ms"
+                + ", points: "
+                + pointsTimeInNanos / 1000_000
+                + "ms"
+                + ", norms: "
+                + normsTimeInNanos / 1000_000
+                + "ms"
+                + ", term vectors: "
+                + termVectorsTimeInNanos / 1000_000
+                + "ms";
         }
     }
 }

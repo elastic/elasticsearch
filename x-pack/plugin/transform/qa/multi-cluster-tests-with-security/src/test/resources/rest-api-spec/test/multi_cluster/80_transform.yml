@@ -149,6 +149,17 @@ teardown:
   # we added test_index_2, which has 2 more docs:
   - match: { transforms.0.checkpointing.operations_behind: 2 }
 
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is joe
+      transform.preview_transform:
+        transform_id: "simple-remote-transform"
+
+  - do:
+      catch: /Cannot preview transform \[simple-remote-transform\] because user bob lacks all the required permissions for indices. \[my_remote_cluster:remote_test_index, my_remote_cluster:remote_test_index_2, simple-remote-transform\]/
+      headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
+      transform.preview_transform:
+        transform_id: "simple-remote-transform"
+
 ---
 "Batch transform preview from remote cluster":
   - do:

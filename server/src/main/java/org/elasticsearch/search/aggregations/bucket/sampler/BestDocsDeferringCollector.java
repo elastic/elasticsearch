@@ -18,10 +18,10 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
@@ -117,7 +117,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     public void postCollection() throws IOException {
         runDeferredAggs();
     }
-
 
     @Override
     public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {

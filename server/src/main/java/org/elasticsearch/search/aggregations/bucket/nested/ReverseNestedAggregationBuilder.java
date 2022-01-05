@@ -11,8 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.nested;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -22,6 +20,8 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -36,8 +36,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         super(name);
     }
 
-    public ReverseNestedAggregationBuilder(ReverseNestedAggregationBuilder clone,
-                                           Builder factoriesBuilder, Map<String, Object> map) {
+    public ReverseNestedAggregationBuilder(ReverseNestedAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> map) {
         super(clone, factoriesBuilder, map);
         this.path = clone.path;
     }
@@ -107,8 +106,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         NestedObjectMapper nestedMapper = (NestedObjectMapper) parentObjectMapper;
         try {
             nestedScope.nextLevel(nestedMapper);
-            return new ReverseNestedAggregatorFactory(name, false, nestedMapper, context, parent, subFactoriesBuilder,
-                    metadata);
+            return new ReverseNestedAggregatorFactory(name, false, nestedMapper, context, parent, subFactoriesBuilder, metadata);
         } finally {
             nestedScope.previousLevel();
         }
@@ -146,16 +144,17 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
                 if ("path".equals(currentFieldName)) {
                     path = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + aggregationName + "].");
             }
         }
 
-        ReverseNestedAggregationBuilder factory = new ReverseNestedAggregationBuilder(
-                aggregationName);
+        ReverseNestedAggregationBuilder factory = new ReverseNestedAggregationBuilder(aggregationName);
         if (path != null) {
             factory.path(path);
         }

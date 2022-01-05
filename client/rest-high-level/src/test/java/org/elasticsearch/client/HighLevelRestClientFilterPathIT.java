@@ -18,7 +18,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class HighLevelRestClientFilterPathIT extends ESRestHighLevelClientTestCase {
 
-    private static final String SAMPLE_DOCUMENT = "{\"name\":{\"first name\":\"Steve\",\"last name\":\"Jobs\"}}";
+    private static final String SAMPLE_DOCUMENT = """
+        {"name":{"first name":"Steve","last name":"Jobs"}}""";
     private static final String FILTER_PATH_PARAM = "filter_path";
     private static final String FILTER_PATH_PARAM_VALUE = "-hits.hits._index,-hits.hits._type,-hits.hits.matched_queries";
 
@@ -28,9 +29,7 @@ public class HighLevelRestClientFilterPathIT extends ESRestHighLevelClientTestCa
         client().performRequest(doc);
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
 
-        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
-            .addParameter(FILTER_PATH_PARAM, FILTER_PATH_PARAM_VALUE)
-            .build();
+        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder().addParameter(FILTER_PATH_PARAM, FILTER_PATH_PARAM_VALUE).build();
 
         SearchRequest searchRequest = new SearchRequest("company_one");
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync, requestOptions);

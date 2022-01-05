@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -125,10 +125,10 @@ public class OverallBucket implements ToXContentObject, Writeable {
         OverallBucket that = (OverallBucket) other;
 
         return Objects.equals(this.timestamp, that.timestamp)
-                && this.bucketSpan == that.bucketSpan
-                && this.overallScore == that.overallScore
-                && Objects.equals(this.jobs, that.jobs)
-                && this.isInterim == that.isInterim;
+            && this.bucketSpan == that.bucketSpan
+            && this.overallScore == that.overallScore
+            && Objects.equals(this.jobs, that.jobs)
+            && this.isInterim == that.isInterim;
     }
 
     public static class JobInfo implements ToXContentObject, Writeable, Comparable<JobInfo> {

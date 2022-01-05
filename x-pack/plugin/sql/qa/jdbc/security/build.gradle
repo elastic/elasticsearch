@@ -17,7 +17,7 @@ subprojects {
     testArtifacts testArtifact(project(mainProject.path))
   }
 
-  testClusters.all {
+  testClusters.configureEach {
     testDistribution = 'DEFAULT'
     // Setup auditing so we can use it in some tests
     setting 'xpack.security.audit.enabled', 'true'

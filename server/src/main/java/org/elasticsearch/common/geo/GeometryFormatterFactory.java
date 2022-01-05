@@ -40,7 +40,8 @@ public class GeometryFormatterFactory {
                     geometries.forEach((shape) -> objects.add(WellKnownText.toWKT(toGeometry.apply(shape))));
                     return objects;
                 };
-            default:  throw new IllegalArgumentException("Unrecognized geometry format [" + name + "].");
+            default:
+                throw new IllegalArgumentException("Unrecognized geometry format [" + name + "].");
         }
     }
 }

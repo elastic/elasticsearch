@@ -73,6 +73,87 @@
   - match: {aggregations.class.buckets.1.sig_terms.buckets.0.key: "good"}
 
 ---
+"Test background filter count ":
+  - skip:
+      version: " - 7.14.99"
+      reason: bugfix introduced in 7.15.0
+
+  - do:
+      indices.create:
+        index:  goodbad
+        body:
+          settings:
+            number_of_shards: "1"
+          mappings:
+            properties:
+              text:
+                type: text
+                fielddata: true
+              class:
+                type: keyword
+  - do:
+      indices.create:
+        index: goodbad-2
+        body:
+          settings:
+            number_of_shards: "1"
+          mappings:
+            properties:
+              text:
+                type: text
+                fielddata: true
+              class:
+                type: keyword
+
+  - do:
+      index:
+        index: goodbad-2
+        id: 1
+        body: { class: "bad" }
+  - do:
+      index:
+        index: goodbad-2
+        id: 2
+        body: { class: "bad" }
+
+  - do:
+      index:
+        index:  goodbad
+        id:     1
+        body:   { text: "good", class: "good" }
+  - do:
+      index:
+        index:  goodbad
+        id:     2
+        body:   { text: "good", class: "good" }
+  - do:
+      index:
+        index:  goodbad
+        id:     3
+        body:   { text: "bad", class: "bad" }
+  - do:
+      index:
+        index:  goodbad
+        id:     4
+        body:   { text: "bad", class: "bad" }
+
+  - do:
+      indices.refresh:
+        index: [goodbad, goodbad-2]
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: goodbad*
+
+  - match: {hits.total: 6}
+
+  - do:
+      search:
+        index: goodbad*
+        body: {"aggs": {"sig_terms": {"significant_terms": {"field": "text", "background_filter": {"bool": {"filter": [{"term": {"class": "good" }}]}}}}}}
+  - match: { aggregations.sig_terms.bg_count: 2 }
+---
 "IP test":
   - do:
       indices.create:

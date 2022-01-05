@@ -54,9 +54,18 @@ public class SslConfig {
     public static final String SSL_TRUSTSTORE_TYPE = "ssl.truststore.type";
     private static final String SSL_TRUSTSTORE_TYPE_DEFAULT = "JKS";
 
-    static final Set<String> OPTION_NAMES = new LinkedHashSet<>(Arrays.asList(SSL, SSL_PROTOCOL,
-            SSL_KEYSTORE_LOCATION, SSL_KEYSTORE_PASS, SSL_KEYSTORE_TYPE,
-            SSL_TRUSTSTORE_LOCATION, SSL_TRUSTSTORE_PASS, SSL_TRUSTSTORE_TYPE));
+    static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
+        Arrays.asList(
+            SSL,
+            SSL_PROTOCOL,
+            SSL_KEYSTORE_LOCATION,
+            SSL_KEYSTORE_PASS,
+            SSL_KEYSTORE_TYPE,
+            SSL_TRUSTSTORE_LOCATION,
+            SSL_TRUSTSTORE_PASS,
+            SSL_TRUSTSTORE_TYPE
+        )
+    );
 
     private final boolean enabled;
     private final String protocol, keystoreLocation, keystorePass, keystoreType;
@@ -121,14 +130,14 @@ public class SslConfig {
         return kmFactory.getKeyManagers();
     }
 
-
     private KeyStore loadKeyStore(String source, char[] pass, String keyStoreType) throws GeneralSecurityException, IOException {
         KeyStore keyStore = KeyStore.getInstance(keyStoreType);
         Path path = Paths.get(source);
 
         if (Files.exists(path) == false) {
-           throw new ClientException(
-                    "Expected to find keystore file at [" + source + "] but was unable to. Make sure you have specified a valid URI.");
+            throw new ClientException(
+                "Expected to find keystore file at [" + source + "] but was unable to. Make sure you have specified a valid URI."
+            );
         }
 
         try (InputStream in = Files.newInputStream(Paths.get(source), StandardOpenOption.READ)) {
@@ -166,13 +175,13 @@ public class SslConfig {
 
         SslConfig other = (SslConfig) obj;
         return Objects.equals(enabled, other.enabled)
-                && Objects.equals(protocol, other.protocol)
-                && Objects.equals(keystoreLocation, other.keystoreLocation)
-                && Objects.equals(keystorePass, other.keystorePass)
-                && Objects.equals(keystoreType, other.keystoreType)
-                && Objects.equals(truststoreLocation, other.truststoreLocation)
-                && Objects.equals(truststorePass, other.truststorePass)
-                && Objects.equals(truststoreType, other.truststoreType);
+            && Objects.equals(protocol, other.protocol)
+            && Objects.equals(keystoreLocation, other.keystoreLocation)
+            && Objects.equals(keystorePass, other.keystorePass)
+            && Objects.equals(keystoreType, other.keystoreType)
+            && Objects.equals(truststoreLocation, other.truststoreLocation)
+            && Objects.equals(truststorePass, other.truststorePass)
+            && Objects.equals(truststoreType, other.truststoreType);
     }
 
     @Override

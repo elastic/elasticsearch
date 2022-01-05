@@ -13,8 +13,8 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class InternalPercentilesRanksTestCase<T extends InternalAggregation & PercentileRanks>
-        extends AbstractPercentilesTestCase<T> {
+public abstract class InternalPercentilesRanksTestCase<T extends InternalAggregation & PercentileRanks> extends AbstractPercentilesTestCase<
+    T> {
 
     @Override
     protected final void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) {

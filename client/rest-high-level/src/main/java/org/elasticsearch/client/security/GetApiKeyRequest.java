@@ -9,10 +9,10 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -32,12 +32,16 @@ public final class GetApiKeyRequest implements Validatable, ToXContentObject {
     }
 
     // pkg scope for testing
-    GetApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
-                     @Nullable String apiKeyName, boolean ownedByAuthenticatedUser) {
+    GetApiKeyRequest(
+        @Nullable String realmName,
+        @Nullable String userName,
+        @Nullable String apiKeyId,
+        @Nullable String apiKeyName,
+        boolean ownedByAuthenticatedUser
+    ) {
         if (Strings.hasText(apiKeyId) || Strings.hasText(apiKeyName)) {
             if (Strings.hasText(realmName) || Strings.hasText(userName)) {
-                throwValidationError(
-                        "username or realm name must not be specified when the api key id or api key name is specified");
+                throwValidationError("username or realm name must not be specified when the api key id or api key name is specified");
             }
         }
         if (ownedByAuthenticatedUser) {

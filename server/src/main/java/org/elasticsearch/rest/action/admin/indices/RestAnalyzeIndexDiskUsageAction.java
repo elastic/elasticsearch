@@ -6,31 +6,12 @@
  * Side Public License, v 1.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -60,8 +41,9 @@ public class RestAnalyzeIndexDiskUsageAction extends BaseRestHandler {
     public BaseRestHandler.RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (Booleans.parseBoolean(request.param("run_expensive_tasks"), false) == false) {
             throw new IllegalArgumentException(
-                "analyzing the disk usage of an index is expensive and resource-intensive, " +
-                    "the parameter [run_expensive_tasks] must be set to [true] in order for the task to be performed.");
+                "analyzing the disk usage of an index is expensive and resource-intensive, "
+                    + "the parameter [run_expensive_tasks] must be set to [true] in order for the task to be performed."
+            );
         }
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS);

@@ -28,19 +28,14 @@ public class Platforms {
      */
     public static Path nativeControllerPath(Path plugin) {
         if (Constants.MAC_OS_X) {
-            return plugin
-                .resolve("platform")
+            return plugin.resolve("platform")
                 .resolve(PLATFORM_NAME)
                 .resolve(PROGRAM_NAME + ".app")
                 .resolve("Contents")
                 .resolve("MacOS")
                 .resolve(PROGRAM_NAME);
         }
-        return plugin
-                .resolve("platform")
-                .resolve(PLATFORM_NAME)
-                .resolve("bin")
-                .resolve(PROGRAM_NAME);
+        return plugin.resolve("platform").resolve(PLATFORM_NAME).resolve("bin").resolve(PROGRAM_NAME);
     }
 
     /**

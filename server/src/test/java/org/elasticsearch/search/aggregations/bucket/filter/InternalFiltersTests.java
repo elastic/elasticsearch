@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters.InternalBucket;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -63,14 +63,15 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
         final Map<String, Long> expectedCounts = new TreeMap<>();
         for (InternalFilters input : inputs) {
             for (InternalFilters.InternalBucket bucket : input.getBuckets()) {
-                expectedCounts.compute(bucket.getKeyAsString(),
-                        (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
+                expectedCounts.compute(
+                    bucket.getKeyAsString(),
+                    (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount()
+                );
             }
         }
         final Map<String, Long> actualCounts = new TreeMap<>();
         for (InternalFilters.InternalBucket bucket : reduced.getBuckets()) {
-            actualCounts.compute(bucket.getKeyAsString(),
-                    (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
+            actualCounts.compute(bucket.getKeyAsString(), (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
     }
@@ -86,22 +87,22 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
         List<InternalBucket> buckets = instance.getBuckets();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            buckets = new ArrayList<>(buckets);
-            buckets.add(new InternalFilters.InternalBucket("test", randomIntBetween(0, 1000), InternalAggregations.EMPTY, keyed));
-            break;
-        case 2:
-        default:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                buckets = new ArrayList<>(buckets);
+                buckets.add(new InternalFilters.InternalBucket("test", randomIntBetween(0, 1000), InternalAggregations.EMPTY, keyed));
+                break;
+            case 2:
+            default:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
         }
         return new InternalFilters(name, buckets, keyed, metadata);
     }
@@ -123,7 +124,7 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
         InternalFilters test = createTestInstance("test", emptyMap(), sub);
         PipelineAggregator mockPipeline = new PipelineAggregator(null, null, null) {
             @Override
-            public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+            public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
                 return dummy;
             }
         };

@@ -4,7 +4,7 @@
       "url": "https://www.elastic.co/guide/en/elasticsearch/painless/master/painless-contexts.html",
       "description":"Returns all script contexts."
     },
-    "stability":"experimental",
+    "stability":"stable",
     "visibility":"public",
     "headers":{
       "accept": [ "application/json"]

@@ -10,10 +10,10 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.sql.action.ProtoShim.toProto;
 
 /**
  * Request for the sql action for translating SQL queries into ES requests
@@ -35,9 +36,18 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
         super();
     }
 
-    public SqlTranslateRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, Map<String, Object> runtimeMappings,
-                               ZoneId zoneId, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
-        super(query, params, filter, runtimeMappings, zoneId, fetchSize, requestTimeout, pageTimeout, requestInfo);
+    public SqlTranslateRequest(
+        String query,
+        List<SqlTypedParamValue> params,
+        QueryBuilder filter,
+        Map<String, Object> runtimeMappings,
+        ZoneId zoneId,
+        int fetchSize,
+        TimeValue requestTimeout,
+        TimeValue pageTimeout,
+        RequestInfo requestInfo
+    ) {
+        super(query, params, filter, runtimeMappings, zoneId, null, fetchSize, requestTimeout, pageTimeout, requestInfo);
     }
 
     public SqlTranslateRequest(StreamInput in) throws IOException {
@@ -67,17 +77,29 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test parsing of SqlTranslateRequest, so we can reuse SqlQuerySerialization
-        return new SqlQueryRequest(query(), params(), zoneId(), fetchSize(), requestTimeout(), pageTimeout(),
-            filter(),
-            null,
-            null,
-            requestInfo(),
-            false,
-            false,
-            null,
-            runtimeMappings(),
-            null,
-            false,
-            null).toXContent(builder, params);
+        return ProtoShim.fromProto(
+            new SqlQueryRequest(
+                query(),
+                params(),
+                zoneId(),
+                null,
+                fetchSize(),
+                toProto(requestTimeout()),
+                toProto(pageTimeout()),
+                toProto(filter()),
+                null,
+                null,
+                requestInfo(),
+                false,
+                false,
+                null,
+                runtimeMappings(),
+                null,
+                false,
+                null
+            ),
+            builder,
+            params
+        );
     }
 }

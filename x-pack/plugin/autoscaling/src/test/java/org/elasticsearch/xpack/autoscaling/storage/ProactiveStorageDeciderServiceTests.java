@@ -124,6 +124,9 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             public SnapshotShardSizeInfo snapshotShardSizeInfo() {
                 return null;
             }
+
+            @Override
+            public void ensureNotCancelled() {}
         };
         AutoscalingDeciderResult deciderResult = service.scale(Settings.EMPTY, context);
 
@@ -293,7 +296,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     private ClusterState randomAllocate(ClusterState state) {
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(List.of()),
-            new RoutingNodes(state, false),
+            state.mutableRoutingNodes(),
             state,
             null,
             null,
@@ -324,7 +327,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     private ClusterState startAll(ClusterState state) {
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(List.of()),
-            new RoutingNodes(state, false),
+            state.mutableRoutingNodes(),
             state,
             null,
             null,
@@ -384,10 +387,11 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         long decrement
     ) {
         Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
-        List<IndexMetadata> indices = ds.getIndices();
+        List<Index> indices = ds.getIndices();
         long start = last - (decrement * (indices.size() - 1));
         for (int i = 0; i < indices.size(); ++i) {
-            metadataBuilder.put(IndexMetadata.builder(indices.get(i)).creationDate(start + (i * decrement)).build(), false);
+            IndexMetadata previousInstance = state.metadata().index(indices.get(i));
+            metadataBuilder.put(IndexMetadata.builder(previousInstance).creationDate(start + (i * decrement)).build(), false);
         }
         return builder.metadata(metadataBuilder);
     }

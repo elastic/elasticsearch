@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.regression;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.FoldValues;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
@@ -32,13 +32,18 @@ public class ValidationLoss implements ToXContentObject, Writeable {
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<ValidationLoss, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<ValidationLoss, Void> parser = new ConstructingObjectParser<>("regression_validation_loss",
-                ignoreUnknownFields,
-            a -> new ValidationLoss((String) a[0], (List<FoldValues>) a[1]));
+        ConstructingObjectParser<ValidationLoss, Void> parser = new ConstructingObjectParser<>(
+            "regression_validation_loss",
+            ignoreUnknownFields,
+            a -> new ValidationLoss((String) a[0], (List<FoldValues>) a[1])
+        );
 
         parser.declareString(ConstructingObjectParser.constructorArg(), LOSS_TYPE);
-        parser.declareObjectArray(ConstructingObjectParser.constructorArg(),
-            (p, c) -> FoldValues.fromXContent(p, ignoreUnknownFields), FOLD_VALUES);
+        parser.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> FoldValues.fromXContent(p, ignoreUnknownFields),
+            FOLD_VALUES
+        );
         return parser;
     }
 

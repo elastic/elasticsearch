@@ -172,10 +172,18 @@ public final class ShardSearchStats implements SearchOperationListener {
 
         SearchStats.Stats stats() {
             return new SearchStats.Stats(
-                    queryMetric.count(), TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()), queryCurrent.count(),
-                    fetchMetric.count(), TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()), fetchCurrent.count(),
-                    scrollMetric.count(), TimeUnit.MICROSECONDS.toMillis(scrollMetric.sum()), scrollCurrent.count(),
-                    suggestMetric.count(), TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()), suggestCurrent.count()
+                queryMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()),
+                queryCurrent.count(),
+                fetchMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()),
+                fetchCurrent.count(),
+                scrollMetric.count(),
+                TimeUnit.MICROSECONDS.toMillis(scrollMetric.sum()),
+                scrollCurrent.count(),
+                suggestMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()),
+                suggestCurrent.count()
             );
         }
     }

@@ -10,16 +10,15 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -148,8 +147,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext context) throws IOException {
-        try (XContentParser qSourceParser = XContentFactory.xContent(source)
-                .createParser(context.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, source)) {
+        try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(context.getParserConfig(), source)) {
 
             final QueryBuilder queryBuilder = parseInnerQueryBuilder(qSourceParser).rewrite(context);
             if (boost() != DEFAULT_BOOST || queryName() != null) {
@@ -160,6 +158,5 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
             return queryBuilder;
         }
     }
-
 
 }

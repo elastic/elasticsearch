@@ -9,12 +9,12 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -24,8 +24,7 @@ public class DeleteUserResponseTests extends ESTestCase {
         XContentType contentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentFactory.contentBuilder(contentType).startObject().endObject();
         BytesReference bytes = BytesReference.bytes(builder);
-        XContentParser parser = XContentFactory.xContent(contentType)
-            .createParser(NamedXContentRegistry.EMPTY, null, bytes.streamInput());
+        XContentParser parser = XContentFactory.xContent(contentType).createParser(NamedXContentRegistry.EMPTY, null, bytes.streamInput());
         parser.nextToken();
         expectThrows(IllegalArgumentException.class, () -> DeleteUserResponse.fromXContent(parser));
     }

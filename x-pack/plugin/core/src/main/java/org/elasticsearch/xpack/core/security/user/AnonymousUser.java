@@ -23,14 +23,28 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 public class AnonymousUser extends User {
 
     public static final String DEFAULT_ANONYMOUS_USERNAME = "_anonymous";
-    public static final Setting<String> USERNAME_SETTING =
-            new Setting<>(setting("authc.anonymous.username"), DEFAULT_ANONYMOUS_USERNAME, s -> s, Property.NodeScope);
-    public static final Setting<List<String>> ROLES_SETTING =
-            Setting.listSetting(setting("authc.anonymous.roles"), Collections.emptyList(), s -> s, Property.NodeScope);
+    public static final Setting<String> USERNAME_SETTING = new Setting<>(
+        setting("authc.anonymous.username"),
+        DEFAULT_ANONYMOUS_USERNAME,
+        s -> s,
+        Property.NodeScope
+    );
+    public static final Setting<List<String>> ROLES_SETTING = Setting.listSetting(
+        setting("authc.anonymous.roles"),
+        Collections.emptyList(),
+        s -> s,
+        Property.NodeScope
+    );
 
     public AnonymousUser(Settings settings) {
-        super(USERNAME_SETTING.get(settings), ROLES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY), null, null,
-                MetadataUtils.DEFAULT_RESERVED_METADATA, isAnonymousEnabled(settings));
+        super(
+            USERNAME_SETTING.get(settings),
+            ROLES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY),
+            null,
+            null,
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            isAnonymousEnabled(settings)
+        );
     }
 
     public static boolean isAnonymousEnabled(Settings settings) {

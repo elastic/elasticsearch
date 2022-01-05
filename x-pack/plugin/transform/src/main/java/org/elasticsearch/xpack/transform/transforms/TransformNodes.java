@@ -11,13 +11,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
@@ -26,10 +24,8 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
-import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -39,7 +35,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -59,23 +54,15 @@ public final class TransformNodes {
         Set<String> assigned = new HashSet<>();
         Set<String> waitingForAssignment = new HashSet<>();
 
-        PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
+        Set<String> transformIdsSet = new HashSet<>(transformIds);
 
-        if (tasksMetadata != null) {
-            Set<String> transformIdsSet = new HashSet<>(transformIds);
-
-            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = tasksMetadata.findTasks(
-                TransformField.TASK_NAME,
-                t -> transformIdsSet.contains(t.getId())
-            );
-
-            for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks) {
-                if (task.isAssigned()) {
-                    executorNodes.add(task.getExecutorNode());
-                    assigned.add(task.getId());
-                } else {
-                    waitingForAssignment.add(task.getId());
-                }
+        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = TransformTask.findTransformTasks(transformIdsSet, clusterState);
+        for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks) {
+            if (task.isAssigned()) {
+                executorNodes.add(task.getExecutorNode());
+                assigned.add(task.getId());
+            } else {
+                waitingForAssignment.add(task.getId());
             }
         }
 
@@ -100,23 +87,16 @@ public final class TransformNodes {
         Set<String> assigned = new HashSet<>();
         Set<String> waitingForAssignment = new HashSet<>();
 
-        PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
-
-        if (tasksMetadata != null) {
-            Predicate<PersistentTask<?>> taskMatcher = Strings.isAllOrWildcard(new String[] { transformId }) ? t -> true : t -> {
-                TransformTaskParams transformParams = (TransformTaskParams) t.getParams();
-                return Regex.simpleMatch(transformId, transformParams.getId());
-            };
-
-            for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasksMetadata.findTasks(TransformField.TASK_NAME, taskMatcher)) {
-                if (task.isAssigned()) {
-                    executorNodes.add(task.getExecutorNode());
-                    assigned.add(task.getId());
-                } else {
-                    waitingForAssignment.add(task.getId());
-                }
+        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = TransformTask.findTransformTasks(transformId, clusterState);
+        for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks) {
+            if (task.isAssigned()) {
+                executorNodes.add(task.getExecutorNode());
+                assigned.add(task.getId());
+            } else {
+                waitingForAssignment.add(task.getId());
             }
         }
+
         return new TransformNodeAssignments(executorNodes, assigned, waitingForAssignment, Collections.emptySet());
     }
 
@@ -128,8 +108,7 @@ public final class TransformNodes {
      * @return {@link Assignment} of task
      */
     public static Assignment getAssignment(String transformId, ClusterState clusterState) {
-        PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
-        PersistentTask<?> task = tasksMetadata.getTask(transformId);
+        PersistentTask<?> task = TransformTask.getTransformTask(transformId, clusterState);
 
         if (task != null) {
             return task.getAssignment();
@@ -199,7 +178,8 @@ public final class TransformNodes {
                     appropriateNode.get(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, reader));
+                    new ActionListenerResponseHandler<>(listener, reader)
+                );
             } else {
                 Map<String, String> explain = new TreeMap<>();
                 for (DiscoveryNode node : nodes) {
@@ -209,7 +189,9 @@ public final class TransformNodes {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
                         "No appropriate node to run on, reasons [{}]",
-                        explain.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining("|"))));
+                        explain.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining("|"))
+                    )
+                );
             }
             return true;
         }
@@ -234,15 +216,19 @@ public final class TransformNodes {
             .findAny();
     }
 
-    public static boolean nodeCanRunThisTransform(DiscoveryNode node,
-                                                  Version minRequiredVersion,
-                                                  boolean requiresRemote,
-                                                  Map<String, String> explain) {
+    public static boolean nodeCanRunThisTransform(
+        DiscoveryNode node,
+        Version minRequiredVersion,
+        boolean requiresRemote,
+        Map<String, String> explain
+    ) {
         // version of the transform run on a node that has at least the same version
         if (node.getVersion().onOrAfter(minRequiredVersion) == false) {
             if (explain != null) {
                 explain.put(
-                    node.getId(), "node has version: " + node.getVersion() + " but transform requires at least " + minRequiredVersion);
+                    node.getId(),
+                    "node has version: " + node.getVersion() + " but transform requires at least " + minRequiredVersion
+                );
             }
             return false;
         }

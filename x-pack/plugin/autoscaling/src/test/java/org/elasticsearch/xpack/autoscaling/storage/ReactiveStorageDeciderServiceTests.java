@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import com.carrotsearch.hppc.IntHashSet;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
@@ -27,6 +25,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -52,10 +51,10 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -234,7 +233,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .shardRoutingTable(indexMetadata.getIndex().getName(), shardId);
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(List.of()),
-            new RoutingNodes(initialClusterState, false),
+            initialClusterState.mutableRoutingNodes(),
             initialClusterState,
             null,
             null,
@@ -327,7 +326,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .build();
         metaBuilder.put(indexMetadata, true);
         stateBuilder.metadata(metaBuilder);
-        stateBuilder.routingTable(RoutingTable.builder().addAsNewRestore(indexMetadata, recoverySource, new IntHashSet()).build());
+        stateBuilder.routingTable(RoutingTable.builder().addAsNewRestore(indexMetadata, recoverySource, new HashSet<>()).build());
         ClusterState clusterState = stateBuilder.build();
 
         int shardId = randomInt(indexMetadata.getNumberOfShards() - 1);
@@ -513,7 +512,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
     public ClusterState addPreference(IndexMetadata indexMetadata, ClusterState clusterState, String preference) {
         IndexMetadata indexMetadataWithPreference = IndexMetadata.builder(indexMetadata)
-            .settings(Settings.builder().put(indexMetadata.getSettings()).put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, preference))
+            .settings(Settings.builder().put(indexMetadata.getSettings()).put(DataTier.TIER_PREFERENCE, preference))
             .build();
 
         return ClusterState.builder(clusterState)
@@ -552,7 +551,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         Metadata.Builder metaBuilder = Metadata.builder();
         Settings.Builder settings = settings(Version.CURRENT);
         if (randomBoolean()) {
-            settings.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, randomBoolean() ? DataTier.DATA_HOT : "data_hot,data_warm");
+            settings.put(DataTier.TIER_PREFERENCE, randomBoolean() ? DataTier.DATA_HOT : "data_hot,data_warm");
         }
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(settings)

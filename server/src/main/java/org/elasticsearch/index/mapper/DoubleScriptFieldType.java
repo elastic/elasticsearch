@@ -15,11 +15,14 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
+import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
+import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.DoubleScriptFieldExistsQuery;
@@ -43,10 +46,12 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(String name,
-                                                   DoubleFieldScript.Factory factory,
-                                                   Script script,
-                                                   Map<String, String> meta) {
+        AbstractScriptFieldType<?> createFieldType(
+            String name,
+            DoubleFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta
+        ) {
             return new DoubleScriptFieldType(name, factory, script, meta);
         }
 
@@ -65,13 +70,14 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         return new Builder(name).createRuntimeField(DoubleFieldScript.PARSE_FROM_SOURCE);
     }
 
-    DoubleScriptFieldType(
-        String name,
-        DoubleFieldScript.Factory scriptFactory,
-        Script script,
-        Map<String, String> meta
-    ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
+    DoubleScriptFieldType(String name, DoubleFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+        super(
+            name,
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            script,
+            scriptFactory.isResultDeterministic(),
+            meta
+        );
     }
 
     @Override
@@ -86,9 +92,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
 
     @Override
     public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-        if (timeZone != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones");
-        }
+        checkNoTimeZone(timeZone);
         if (format == null) {
             return DocValueFormat.RAW;
         }
@@ -97,12 +101,16 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
 
     @Override
     public DoubleScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new DoubleScriptFieldData.Builder(name(), leafFactory(searchLookup.get()));
+        return new DoubleScriptFieldData.Builder(
+            name(),
+            leafFactory(searchLookup.get()),
+            (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
+        );
     }
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new DoubleScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
@@ -116,7 +124,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         DateMathParser parser,
         SearchExecutionContext context
     ) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return NumberType.doubleRangeQuery(
             lowerTerm,
             upperTerm,
@@ -128,7 +136,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
 
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new DoubleScriptFieldTermQuery(script, leafFactory(context), name(), NumberType.objectToDouble(value));
     }
 
@@ -141,7 +149,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         for (Object value : values) {
             terms.add(Double.doubleToLongBits(NumberType.objectToDouble(value)));
         }
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new DoubleScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
     }
 }

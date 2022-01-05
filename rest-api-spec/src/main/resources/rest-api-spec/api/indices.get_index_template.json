@@ -24,8 +24,8 @@
           ],
           "parts":{
             "name":{
-              "type":"list",
-              "description":"The comma separated names of the index templates"
+              "type":"string",
+              "description":"A pattern that returned template names must match"
             }
           }
         }

@@ -37,15 +37,15 @@ public class PolicyStatsTests extends AbstractWireSerializingTestCase<PolicyStat
         Map<String, PhaseStats> phaseStats = instance.getPhaseStats();
         int indicesManaged = instance.getIndicesManaged();
         switch (between(0, 1)) {
-        case 0:
-            phaseStats = new HashMap<>(instance.getPhaseStats());
-            phaseStats.put(randomAlphaOfLengthBetween(21, 25), PhaseStatsTests.createRandomInstance());
-            break;
-        case 1:
-            indicesManaged += randomIntBetween(1, 10);
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                phaseStats = new HashMap<>(instance.getPhaseStats());
+                phaseStats.put(randomAlphaOfLengthBetween(21, 25), PhaseStatsTests.createRandomInstance());
+                break;
+            case 1:
+                indicesManaged += randomIntBetween(1, 10);
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new PolicyStats(phaseStats, indicesManaged);
     }

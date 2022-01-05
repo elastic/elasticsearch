@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.protocol.xpack.license;
 
-import java.io.IOException;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
 
 /**
  * Status of an X-Pack license.

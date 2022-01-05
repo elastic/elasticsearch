@@ -21,13 +21,24 @@ import java.io.IOException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to delete an index. Best created with {@link org.elasticsearch.client.Requests#deleteIndexRequest(String)}.
+ * A request to delete an index. Best created with {@link org.elasticsearch.client.internal.Requests#deleteIndexRequest(String)}.
  */
 public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> implements IndicesRequest.Replaceable {
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(
+        false,
+        true,
+        true,
+        true,
+        false,
+        false,
+        true,
+        false
+    );
+
     private String[] indices;
     // Delete index should work by default on both open and closed indices.
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     public DeleteIndexRequest(StreamInput in) throws IOException {
         super(in);
@@ -35,8 +46,7 @@ public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> 
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
-    public DeleteIndexRequest() {
-    }
+    public DeleteIndexRequest() {}
 
     /**
      * Constructs a new delete index request for the specified index.
@@ -44,7 +54,7 @@ public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> 
      * @param index The index to delete. Use "_all" to delete all indices.
      */
     public DeleteIndexRequest(String index) {
-        this.indices = new String[]{index};
+        this.indices = new String[] { index };
     }
 
     /**

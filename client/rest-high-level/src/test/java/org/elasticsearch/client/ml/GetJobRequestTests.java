@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,7 +24,7 @@ public class GetJobRequestTests extends AbstractXContentTestCase<GetJobRequest> 
     }
 
     public void testNewWithJobId() {
-        Exception exception = expectThrows(NullPointerException.class, () -> new GetJobRequest("job",null));
+        Exception exception = expectThrows(NullPointerException.class, () -> new GetJobRequest("job", null));
         assertEquals(exception.getMessage(), "jobIds must not contain null values");
     }
 

@@ -65,9 +65,7 @@ public final class Message implements Element {
 
     @Override
     public String getSource() {
-        return sources.isEmpty()
-                ? SourceProvider.UNKNOWN_SOURCE.toString()
-                : Errors.convert(sources.get(sources.size() - 1)).toString();
+        return sources.isEmpty() ? SourceProvider.UNKNOWN_SOURCE.toString() : Errors.convert(sources.get(sources.size() - 1)).toString();
     }
 
     /**

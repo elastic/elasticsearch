@@ -22,12 +22,35 @@ setup:
           }
 
   - do:
+      security.put_role:
+        name: "terms_enum_alias_role"
+        body: >
+          {
+            "cluster": ["all"],
+            "indices": [
+              {
+                "names": ["my_remote_cluster:terms_enum_alias"],
+                "privileges": ["read"]
+              }
+            ]
+          }
+
+  - do:
       security.put_user:
         username: "joe_all"
         body: >
           {
             "password": "s3krit-password",
             "roles" : [ "terms_enum_all_role" ]
+          }
+
+  - do:
+      security.put_user:
+        username: "joe_alias"
+        body: >
+          {
+            "password": "s3krit-password",
+            "roles" : [ "terms_enum_alias_role" ]
           }
 
   - do:
@@ -84,6 +107,10 @@ teardown:
         ignore: 404
   - do:
       security.delete_user:
+        username: "joe_alias"
+        ignore: 404
+  - do:
+      security.delete_user:
         username: "joe_none"
         ignore: 404
   - do:
@@ -93,6 +120,10 @@ teardown:
   - do:
       security.delete_role:
         name: "terms_enum_all_role"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "terms_enum_alias_role"
         ignore: 404
   - do:
       security.delete_role:
@@ -122,6 +153,15 @@ teardown:
   - length: { terms:          1 }
   - match: { terms.0:     "zar" }
   - match: { complete:     true }
+
+  - do:
+      headers: { Authorization: "Basic am9lX2FsaWFzOnMza3JpdC1wYXNzd29yZA==" } # joe_alias can see all docs through alias
+      terms_enum:
+        index: my_remote_cluster:terms_enum_alias
+        body: { "field": "foo", "search_after": "foobar" }
+  - length: { terms: 1 }
+  - match: { terms.0: "zar" }
+  - match: { complete: true }
 
   - do:
       headers: { Authorization: "Basic am9lX25vbmU6czNrcml0LXBhc3N3b3Jk" } # joe_none can't see docs

@@ -11,11 +11,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,19 +35,20 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public void testValidateTimestampFieldMappingNoFieldMapping() {
         Exception e = expectThrows(IllegalStateException.class, () -> validateTimestampFieldMapping(createMappingLookup("{}")));
-        assertThat(e.getMessage(), equalTo("[_data_stream_timestamp] meta field has been disabled"));
-        String mapping1 = "{\n"
-            + "      \"_data_stream_timestamp\": {\n"
-            + "        \"enabled\": false\n"
-            + "      },"
-            + "      \"properties\": {\n"
-            + "        \"@timestamp\": {\n"
-            + "          \"type\": \"date\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }";
+        assertThat(e.getMessage(), equalTo("[" + DataStreamTimestampFieldMapper.NAME + "] meta field has been disabled"));
+        String mapping1 = """
+            {
+              "%s": {
+                "enabled": false
+              },
+              "properties": {
+                "@timestamp": {
+                  "type": "date"
+                }
+              }
+            }""".formatted(DataStreamTimestampFieldMapper.NAME);
         e = expectThrows(IllegalStateException.class, () -> validateTimestampFieldMapping(createMappingLookup(mapping1)));
-        assertThat(e.getMessage(), equalTo("[_data_stream_timestamp] meta field has been disabled"));
+        assertThat(e.getMessage(), equalTo("[" + DataStreamTimestampFieldMapper.NAME + "] meta field has been disabled"));
 
         String mapping2 = generateMapping("@timestamp2", "date");
         e = expectThrows(IllegalArgumentException.class, () -> validateTimestampFieldMapping(createMappingLookup(mapping2)));
@@ -74,7 +75,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             )
             .putMapping(mapping)
             .build();
-        IndicesModule indicesModule = new IndicesModule(List.of(new DataStreamsPlugin()));
+        IndicesModule indicesModule = new IndicesModule(List.of());
         MapperService mapperService = MapperTestUtils.newMapperService(
             xContentRegistry(),
             createTempDir(),

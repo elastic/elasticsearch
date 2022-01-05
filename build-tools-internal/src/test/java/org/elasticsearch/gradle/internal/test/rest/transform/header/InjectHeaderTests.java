@@ -9,12 +9,12 @@
 package org.elasticsearch.gradle.internal.test.rest.transform.header;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.feature.InjectFeatureTests;
 import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -60,7 +60,6 @@ public class InjectHeaderTests extends InjectFeatureTests {
         validateBodyHasHeaders(transformedTests, headers);
     }
 
-
     @Test
     public void testNotInjectingHeaders() throws Exception {
         String testName = "/rest/transform/header/with_operation_to_skip_adding_headers.yml";
@@ -68,8 +67,9 @@ public class InjectHeaderTests extends InjectFeatureTests {
         validateSetupExist(tests);
         validateBodyHasHeaders(tests, Map.of("foo", "bar"));
 
-        List<RestTestTransform<?>> transformations =
-            Collections.singletonList(new InjectHeaders(headers, Set.of(InjectHeaderTests::applyCondition)));
+        List<RestTestTransform<?>> transformations = Collections.singletonList(
+            new InjectHeaders(headers, Set.of(InjectHeaderTests::applyCondition))
+        );
         List<ObjectNode> transformedTests = transformTests(tests, transformations);
         printTest(testName, transformedTests);
         validateSetupAndTearDown(transformedTests);

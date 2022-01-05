@@ -9,23 +9,23 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * A query to boost scores based on their proximity to the given origin
@@ -43,15 +43,20 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
     private final String pivot;
 
     private static final ConstructingObjectParser<DistanceFeatureQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
-        "distance_feature", false,
+        "distance_feature",
+        false,
         args -> new DistanceFeatureQueryBuilder((String) args[0], (Origin) args[1], (String) args[2])
     );
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
         // origin: number or string for date and date_nanos fields; string, array, object for geo fields
-        PARSER.declareField(constructorArg(), DistanceFeatureQueryBuilder.Origin::originFromXContent,
-            ORIGIN_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_STRING_OR_NUMBER);
+        PARSER.declareField(
+            constructorArg(),
+            DistanceFeatureQueryBuilder.Origin::originFromXContent,
+            ORIGIN_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY_STRING_OR_NUMBER
+        );
         PARSER.declareString(constructorArg(), PIVOT_FIELD);
         declareStandardFields(PARSER);
     }
@@ -144,16 +149,18 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
         private static Origin originFromXContent(XContentParser parser) throws IOException {
             if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 return new Origin(parser.longValue());
-            } else if(parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+            } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return new Origin(parser.text());
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 return new Origin(GeoUtils.parseGeoPoint(parser));
             } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 return new Origin(GeoUtils.parseGeoPoint(parser));
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                    "Illegal type while parsing [origin]! Must be [number] or [string] for date and date_nanos fields;" +
-                    " or [string], [array], [object] for geo_point fields!");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Illegal type while parsing [origin]! Must be [number] or [string] for date and date_nanos fields;"
+                        + " or [string], [array], [object] for geo_point fields!"
+                );
             }
         }
 

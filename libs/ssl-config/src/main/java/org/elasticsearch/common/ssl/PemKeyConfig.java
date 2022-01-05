@@ -28,7 +28,6 @@ import java.util.Objects;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 
-
 /**
  * A {@link SslKeyConfig} that reads from PEM formatted paths.
  */
@@ -93,8 +92,7 @@ public final class PemKeyConfig implements SslKeyConfig {
             final KeyStore keyStore = KeyStoreUtil.buildKeyStore(certificates, privateKey, keyPassword);
             return KeyStoreUtil.createKeyManager(keyStore, keyPassword, KeyManagerFactory.getDefaultAlgorithm());
         } catch (GeneralSecurityException e) {
-            throw new SslConfigException(
-                "failed to load a KeyManager for certificate/key pair [" + certPath + "], [" + keyPath + "]", e);
+            throw new SslConfigException("failed to load a KeyManager for certificate/key pair [" + certPath + "], [" + keyPath + "]", e);
         }
     }
 
@@ -161,9 +159,9 @@ public final class PemKeyConfig implements SslKeyConfig {
             return false;
         }
         final PemKeyConfig that = (PemKeyConfig) o;
-        return Objects.equals(this.certificate, that.certificate) &&
-            Objects.equals(this.key, that.key) &&
-            Arrays.equals(this.keyPassword, that.keyPassword);
+        return Objects.equals(this.certificate, that.certificate)
+            && Objects.equals(this.key, that.key)
+            && Arrays.equals(this.keyPassword, that.keyPassword);
     }
 
     @Override

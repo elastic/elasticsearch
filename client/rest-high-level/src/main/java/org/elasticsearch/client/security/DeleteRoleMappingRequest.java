@@ -9,8 +9,8 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Objects;
 

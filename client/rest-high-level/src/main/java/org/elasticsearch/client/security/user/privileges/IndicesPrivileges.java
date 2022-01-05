@@ -8,21 +8,21 @@
 
 package org.elasticsearch.client.security.user.privileges;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Represents privileges over indices. There is a canonical set of privilege
@@ -34,8 +34,10 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public final class IndicesPrivileges extends AbstractIndicesPrivileges implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<IndicesPrivileges, Void> PARSER =
-        new ConstructingObjectParser<>("indices_privileges", false, constructorObjects -> {
+    static final ConstructingObjectParser<IndicesPrivileges, Void> PARSER = new ConstructingObjectParser<>(
+        "indices_privileges",
+        false,
+        constructorObjects -> {
             int i = 0;
             final List<String> indices = (List<String>) constructorObjects[i++];
             final List<String> privileges = (List<String>) constructorObjects[i++];
@@ -43,7 +45,8 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
             final FieldSecurity fields = (FieldSecurity) constructorObjects[i++];
             final String query = (String) constructorObjects[i];
             return new IndicesPrivileges(indices, privileges, allowRestrictedIndices, fields, query);
-        });
+        }
+    );
 
     static {
         PARSER.declareStringArray(constructorArg(), NAMES);
@@ -57,8 +60,13 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
     // missing query means all documents, i.e. no restrictions
     private final @Nullable String query;
 
-    private IndicesPrivileges(List<String> indices, List<String> privileges, boolean allowRestrictedIndices,
-                              @Nullable FieldSecurity fieldSecurity, @Nullable String query) {
+    private IndicesPrivileges(
+        List<String> indices,
+        List<String> privileges,
+        boolean allowRestrictedIndices,
+        @Nullable FieldSecurity fieldSecurity,
+        @Nullable String query
+    ) {
         super(indices, privileges, allowRestrictedIndices);
         this.fieldSecurity = fieldSecurity;
         this.query = query;
@@ -153,20 +161,14 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
 
     public static final class Builder {
 
-        private @Nullable
-        List<String> indices = null;
-        private @Nullable
-        List<String> privileges = null;
-        private @Nullable
-        List<String> grantedFields = null;
-        private @Nullable
-        List<String> deniedFields = null;
-        private @Nullable
-        String query = null;
+        private @Nullable List<String> indices = null;
+        private @Nullable List<String> privileges = null;
+        private @Nullable List<String> grantedFields = null;
+        private @Nullable List<String> deniedFields = null;
+        private @Nullable String query = null;
         boolean allowRestrictedIndices = false;
 
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder indices(String... indices) {
             return indices(Arrays.asList(Objects.requireNonNull(indices, "indices required")));

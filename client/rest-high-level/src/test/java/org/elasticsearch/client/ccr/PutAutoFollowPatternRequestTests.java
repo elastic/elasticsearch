@@ -11,7 +11,7 @@ package org.elasticsearch.client.ccr;
 import org.elasticsearch.client.AbstractRequestTestCase;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.io.IOException;
@@ -27,7 +27,8 @@ public class PutAutoFollowPatternRequestTests extends AbstractRequestTestCase<
     @Override
     protected PutAutoFollowPatternRequest createClientTestInstance() {
         // Name isn't serialized, because it specified in url path, so no need to randomly generate it here.
-        PutAutoFollowPatternRequest putAutoFollowPatternRequest = new PutAutoFollowPatternRequest("name",
+        PutAutoFollowPatternRequest putAutoFollowPatternRequest = new PutAutoFollowPatternRequest(
+            "name",
             randomAlphaOfLength(4),
             Arrays.asList(generateRandomStringArray(4, 4, false)),
             Arrays.asList(generateRandomStringArray(4, 4, false))

@@ -46,7 +46,7 @@ GET /_snapshot/my_repository
 `<repository>`::
 (Optional, string)
 Comma-separated list of snapshot repository names used to limit the request.
-Wildcard (`*`) expressions are supported.
+Wildcard (`*`) expressions are supported including combining wildcards with exclude patterns starting with `-`.
 +
 To get information about all snapshot repositories registered in the
 cluster, omit this parameter or use `*` or `_all`.

@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 
 import java.io.IOException;
@@ -34,7 +34,8 @@ public class Exponent implements StrictlyParsedOutputAggregator, LenientlyParsed
         ConstructingObjectParser<Exponent, Void> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            a -> new Exponent((List<Double>)a[0]));
+            a -> new Exponent((List<Double>) a[0])
+        );
         parser.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS);
         return parser;
     }

@@ -18,9 +18,11 @@ import org.elasticsearch.common.ssl.SslConfigurationLoader;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 
 import java.nio.file.Path;
+import java.security.KeyStore;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -48,8 +50,8 @@ public class SslSettingsLoader extends SslConfigurationLoader {
         setDefaultClientAuth(SslClientAuthenticationMode.REQUIRED);
     }
 
-    private <T> Map<String, Setting<? extends T>> mapOf(List<Setting<? extends T>> settings) {
-        return settings.stream().collect(Collectors.toMap(s -> s.getKey(), Function.identity()));
+    private <T> Map<String, Setting<? extends T>> mapOf(List<Setting<? extends T>> settingList) {
+        return settingList.stream().collect(Collectors.toMap(Setting::getKey, Function.identity()));
     }
 
     @Override
@@ -83,8 +85,13 @@ public class SslSettingsLoader extends SslConfigurationLoader {
             // This triggers deprecation warnings
             setting.get(settings);
         } else if (disabledSettings.containsKey(key) == false) {
-            throw new SslConfigException("The setting [" + key + "] is not supported, valid SSL settings are: ["
-                + Strings.collectionToCommaDelimitedString(standardSettings.keySet()) + "]");
+            throw new SslConfigException(
+                "The setting ["
+                    + key
+                    + "] is not supported, valid SSL settings are: ["
+                    + Strings.collectionToCommaDelimitedString(standardSettings.keySet())
+                    + "]"
+            );
         }
     }
 
@@ -92,8 +99,13 @@ public class SslSettingsLoader extends SslConfigurationLoader {
     protected char[] getSecureSetting(String key) {
         final Setting<? extends SecureString> setting = secureSettings.get(key);
         if (setting == null) {
-            throw new SslConfigException("The secure setting [" + key + "] is not supported, valid secure SSL settings are: ["
-                + Strings.collectionToCommaDelimitedString(secureSettings.keySet()) + "]");
+            throw new SslConfigException(
+                "The secure setting ["
+                    + key
+                    + "] is not supported, valid secure SSL settings are: ["
+                    + Strings.collectionToCommaDelimitedString(secureSettings.keySet())
+                    + "]"
+            );
         }
         return setting.exists(settings) ? setting.get(settings).getChars() : null;
     }
@@ -105,7 +117,7 @@ public class SslSettingsLoader extends SslConfigurationLoader {
         if (trustRestrictions == null) {
             return trustConfig;
         }
-        throw new IllegalArgumentException("SSL trust_restrictions are not currently supported");
+        return new RestrictedTrustConfig(trustRestrictions, trustConfig);
     }
 
     public SslConfiguration load(Environment env) {
@@ -113,7 +125,17 @@ public class SslSettingsLoader extends SslConfigurationLoader {
     }
 
     public static SslConfiguration load(Settings settings, String prefix, Environment env) {
+        return load(settings, prefix, env, null);
+    }
+
+    public static SslConfiguration load(
+        Settings settings,
+        String prefix,
+        Environment env,
+        @Nullable Function<KeyStore, KeyStore> keyStoreFilter
+    ) {
         final SslSettingsLoader settingsLoader = new SslSettingsLoader(settings, prefix, true);
+        settingsLoader.setKeyStoreFilter(keyStoreFilter);
         return settingsLoader.load(env);
     }
 

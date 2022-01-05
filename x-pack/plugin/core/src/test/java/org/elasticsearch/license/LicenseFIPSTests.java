@@ -14,7 +14,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
 public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
@@ -59,8 +59,10 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
         licenseService.start();
         PlainActionFuture<PutLicenseResponse> responseFuture = new PlainActionFuture<>();
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> licenseService.registerLicense(request, responseFuture));
-        assertThat(e.getMessage(),
-            containsString("Cannot install a [" + newLicense.operationMode() + "] license unless FIPS mode is disabled"));
+        assertThat(
+            e.getMessage(),
+            containsString("Cannot install a [" + newLicense.operationMode() + "] license unless FIPS mode is disabled")
+        );
         licenseService.stop();
 
         settings = Settings.builder()

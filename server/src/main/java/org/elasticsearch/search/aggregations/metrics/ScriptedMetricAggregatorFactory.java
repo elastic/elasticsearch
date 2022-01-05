@@ -111,15 +111,21 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
                 clonedList.add(deepCopyParams(o));
             }
             clone = (T) clonedList;
-        } else if (original instanceof String || original instanceof Integer || original instanceof Long || original instanceof Short
-            || original instanceof Byte || original instanceof Float || original instanceof Double || original instanceof Character
+        } else if (original instanceof String
+            || original instanceof Integer
+            || original instanceof Long
+            || original instanceof Short
+            || original instanceof Byte
+            || original instanceof Float
+            || original instanceof Double
+            || original instanceof Character
             || original instanceof Boolean) {
-            clone = original;
-        } else {
-            throw new IllegalArgumentException(
-                "Can only clone primitives, String, ArrayList, and HashMap. Found: " + original.getClass().getCanonicalName()
-            );
-        }
+                clone = original;
+            } else {
+                throw new IllegalArgumentException(
+                    "Can only clone primitives, String, ArrayList, and HashMap. Found: " + original.getClass().getCanonicalName()
+                );
+            }
         return clone;
     }
 
@@ -130,12 +136,12 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
         // Add in agg params, throwing an exception if any conflicts are detected
         for (Map.Entry<String, Object> aggEntry : agg.entrySet()) {
             if (combined.putIfAbsent(aggEntry.getKey(), aggEntry.getValue()) != null) {
-                throw new IllegalArgumentException("Parameter name \"" + aggEntry.getKey() +
-                    "\" used in both aggregation and script parameters");
+                throw new IllegalArgumentException(
+                    "Parameter name \"" + aggEntry.getKey() + "\" used in both aggregation and script parameters"
+                );
             }
         }
 
         return combined;
     }
 }
-

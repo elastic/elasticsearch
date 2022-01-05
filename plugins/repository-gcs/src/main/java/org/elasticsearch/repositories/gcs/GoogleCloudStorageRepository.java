@@ -18,10 +18,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Map;
 import java.util.function.Function;
@@ -44,12 +44,16 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
 
     static final String TYPE = "gcs";
 
-    static final Setting<String> BUCKET =
-            simpleString("bucket", Property.NodeScope, Property.Dynamic);
-    static final Setting<String> BASE_PATH =
-            simpleString("base_path", Property.NodeScope, Property.Dynamic);
-    static final Setting<ByteSizeValue> CHUNK_SIZE =
-            byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, Property.NodeScope, Property.Dynamic);
+    static final Setting<String> BUCKET = simpleString("bucket", Property.NodeScope, Property.Dynamic);
+    static final Setting<String> BASE_PATH = simpleString("base_path", Property.NodeScope, Property.Dynamic);
+    static final Setting<ByteSizeValue> CHUNK_SIZE = byteSizeSetting(
+        "chunk_size",
+        MAX_CHUNK_SIZE,
+        MIN_CHUNK_SIZE,
+        MAX_CHUNK_SIZE,
+        Property.NodeScope,
+        Property.Dynamic
+    );
     static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
 
     private final GoogleCloudStorageService storageService;
@@ -63,16 +67,23 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         final GoogleCloudStorageService storageService,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings) {
-        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, buildBasePath(metadata),
-                buildLocation(metadata));
+        final RecoverySettings recoverySettings
+    ) {
+        super(
+            metadata,
+            namedXContentRegistry,
+            clusterService,
+            bigArrays,
+            recoverySettings,
+            buildBasePath(metadata),
+            buildLocation(metadata)
+        );
         this.storageService = storageService;
 
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);
         this.bucket = getSetting(BUCKET, metadata);
         this.clientName = CLIENT_NAME.get(metadata.settings());
-        logger.debug(
-            "using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
+        logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
     }
 
     private static BlobPath buildBasePath(RepositoryMetadata metadata) {
@@ -89,8 +100,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
-        return Map.of("base_path", BASE_PATH.get(metadata.settings()),
-            "bucket", getSetting(BUCKET, metadata));
+        return Map.of("base_path", BASE_PATH.get(metadata.settings()), "bucket", getSetting(BUCKET, metadata));
     }
 
     @Override

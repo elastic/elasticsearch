@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 
@@ -48,5 +48,5 @@ public interface Cursor extends NamedWriteable {
     /**
      *  Cleans the resources associated with the cursor
      */
-    void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener);
+    void clear(Client client, ActionListener<Boolean> listener);
 }

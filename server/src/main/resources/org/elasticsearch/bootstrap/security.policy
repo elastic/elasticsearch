@@ -144,14 +144,11 @@ grant {
   permission java.io.FilePermission "/proc/self/mountinfo", "read";
   permission java.io.FilePermission "/proc/diskstats", "read";
 
-  // control group stats on Linux
+  // control group stats on Linux. cgroup v2 stats are in an unpredicable
+  // location under `/sys/fs/cgroup`, so unfortunately we have to allow
+  // read access to the entire directory hierarchy.
   permission java.io.FilePermission "/proc/self/cgroup", "read";
-  permission java.io.FilePermission "/sys/fs/cgroup/cpu", "read";
-  permission java.io.FilePermission "/sys/fs/cgroup/cpu/-", "read";
-  permission java.io.FilePermission "/sys/fs/cgroup/cpuacct", "read";
-  permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
-  permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
-  permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/-", "read";
 
   // system memory on Linux systems affected by JDK bug (#66629)
   permission java.io.FilePermission "/proc/meminfo", "read";

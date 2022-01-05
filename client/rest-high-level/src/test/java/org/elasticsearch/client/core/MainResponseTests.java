@@ -12,9 +12,9 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Date;
@@ -30,10 +30,14 @@ public class MainResponseTests extends AbstractResponseTestCase<org.elasticsearc
         final String date = new Date(randomNonNegativeLong()).toString();
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Build build = new Build(
-            Build.Flavor.UNKNOWN, Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(),
+            Build.Flavor.UNKNOWN,
+            Build.Type.UNKNOWN,
+            randomAlphaOfLength(8),
+            date,
+            randomBoolean(),
             version.toString()
         );
-        return new org.elasticsearch.action.main.MainResponse(nodeName, version, clusterName, clusterUuid , build);
+        return new org.elasticsearch.action.main.MainResponse(nodeName, version, clusterName, clusterUuid, build);
     }
 
     @Override
@@ -54,9 +58,13 @@ public class MainResponseTests extends AbstractResponseTestCase<org.elasticsearc
         assertThat(serverTestInstance.getBuild().flavor().displayName(), equalTo(clientInstance.getVersion().getBuildFlavor()));
         assertThat(serverTestInstance.getBuild().type().displayName(), equalTo(clientInstance.getVersion().getBuildType()));
         assertThat(serverTestInstance.getVersion().luceneVersion.toString(), equalTo(clientInstance.getVersion().getLuceneVersion()));
-        assertThat(serverTestInstance.getVersion().minimumIndexCompatibilityVersion().toString(),
-            equalTo(clientInstance.getVersion().getMinimumIndexCompatibilityVersion()));
-        assertThat(serverTestInstance.getVersion().minimumCompatibilityVersion().toString(),
-            equalTo(clientInstance.getVersion().getMinimumWireCompatibilityVersion()));
+        assertThat(
+            serverTestInstance.getVersion().minimumIndexCompatibilityVersion().toString(),
+            equalTo(clientInstance.getVersion().getMinimumIndexCompatibilityVersion())
+        );
+        assertThat(
+            serverTestInstance.getVersion().minimumCompatibilityVersion().toString(),
+            equalTo(clientInstance.getVersion().getMinimumWireCompatibilityVersion())
+        );
     }
 }

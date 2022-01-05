@@ -34,9 +34,11 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
     }
 
     @Override
-    void disableFeatures(IndicesRequest indicesRequest,
-                         Map<String, IndicesAccessControl.IndexAccessControl> indexAccessControlByIndex,
-                         ActionListener<Void> listener) {
+    void disableFeatures(
+        IndicesRequest indicesRequest,
+        Map<String, IndicesAccessControl.IndexAccessControl> indexAccessControlByIndex,
+        ActionListener<Void> listener
+    ) {
         final SearchRequest request = (SearchRequest) indicesRequest;
         // The 7.11.2 version check is needed because request caching has a bug related to DLS/FLS
         // versions before 7.11.2. It is fixed by #69505. See also ESA-2021-08.
@@ -49,11 +51,19 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
 
         if (indexAccessControlByIndex.values().stream().anyMatch(iac -> iac.getDocumentPermissions().hasDocumentLevelPermissions())) {
             if (source != null && source.suggest() != null) {
-                listener.onFailure(new ElasticsearchSecurityException("Suggest isn't supported if document level security is enabled",
-                    RestStatus.BAD_REQUEST));
+                listener.onFailure(
+                    new ElasticsearchSecurityException(
+                        "Suggest isn't supported if document level security is enabled",
+                        RestStatus.BAD_REQUEST
+                    )
+                );
             } else if (source != null && source.profile()) {
-                listener.onFailure(new ElasticsearchSecurityException("A search request cannot be profiled if document level security " +
-                    "is enabled", RestStatus.BAD_REQUEST));
+                listener.onFailure(
+                    new ElasticsearchSecurityException(
+                        "A search request cannot be profiled if document level security " + "is enabled",
+                        RestStatus.BAD_REQUEST
+                    )
+                );
             } else {
                 listener.onResponse(null);
             }

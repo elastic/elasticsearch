@@ -202,8 +202,7 @@ public final class TransformAggregations {
      */
     public static Tuple<Map<String, String>, Map<String, String>> getAggregationInputAndOutputTypes(AggregationBuilder agg) {
         // todo: can this be removed?
-        if (agg instanceof PercentilesAggregationBuilder) {
-            PercentilesAggregationBuilder percentilesAgg = (PercentilesAggregationBuilder) agg;
+        if (agg instanceof PercentilesAggregationBuilder percentilesAgg) {
 
             // note: eclipse does not like p -> agg.getType()
             // the merge function (p1, p2) -> p1 ignores duplicates
@@ -224,20 +223,12 @@ public final class TransformAggregations {
                 outputFieldNames.get()
                     .stream()
                     .collect(
-                        Collectors.toMap(
-                            outputField -> agg.getName() + "." + outputField,
-                            outputField -> outputField,
-                            (v1, v2) -> v1
-                        )
+                        Collectors.toMap(outputField -> agg.getName() + "." + outputField, outputField -> outputField, (v1, v2) -> v1)
                     ),
                 outputFieldNames.get()
                     .stream()
                     .collect(
-                        Collectors.toMap(
-                            outputField -> agg.getName() + "." + outputField,
-                            outputField -> agg.getType(),
-                            (v1, v2) -> v1
-                        )
+                        Collectors.toMap(outputField -> agg.getName() + "." + outputField, outputField -> agg.getType(), (v1, v2) -> v1)
                     )
             );
         }

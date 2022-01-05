@@ -62,12 +62,13 @@ public class LocalCheckpointTracker {
     public LocalCheckpointTracker(final long maxSeqNo, final long localCheckpoint) {
         if (localCheckpoint < 0 && localCheckpoint != SequenceNumbers.NO_OPS_PERFORMED) {
             throw new IllegalArgumentException(
-                "local checkpoint must be non-negative or [" + SequenceNumbers.NO_OPS_PERFORMED + "] "
-                    + "but was [" + localCheckpoint + "]");
+                "local checkpoint must be non-negative or [" + SequenceNumbers.NO_OPS_PERFORMED + "] " + "but was [" + localCheckpoint + "]"
+            );
         }
         if (maxSeqNo < 0 && maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED) {
             throw new IllegalArgumentException(
-                "max seq. no. must be non-negative or [" + SequenceNumbers.NO_OPS_PERFORMED + "] but was [" + maxSeqNo + "]");
+                "max seq. no. must be non-negative or [" + SequenceNumbers.NO_OPS_PERFORMED + "] but was [" + maxSeqNo + "]"
+            );
         }
         nextSeqNo.set(maxSeqNo + 1);
         processedCheckpoint.set(localCheckpoint);
@@ -151,7 +152,6 @@ public class LocalCheckpointTracker {
         return nextSeqNo.get() - 1;
     }
 
-
     /**
      * constructs a {@link SeqNoStats} object, using local state and the supplied global checkpoint
      *
@@ -190,8 +190,8 @@ public class LocalCheckpointTracker {
      */
     private void updateCheckpoint(AtomicLong checkPoint, LongObjectHashMap<CountedBitSet> bitSetMap) {
         assert Thread.holdsLock(this);
-        assert getBitSetForSeqNo(bitSetMap, checkPoint.get() + 1).get(seqNoToBitSetOffset(checkPoint.get() + 1)) :
-                "updateCheckpoint is called but the bit following the checkpoint is not set";
+        assert getBitSetForSeqNo(bitSetMap, checkPoint.get() + 1).get(seqNoToBitSetOffset(checkPoint.get() + 1))
+            : "updateCheckpoint is called but the bit following the checkpoint is not set";
         // keep it simple for now, get the checkpoint one by one; in the future we can optimize and read words
         long bitSetKey = getBitSetKey(checkPoint.get());
         CountedBitSet current = bitSetMap.get(bitSetKey);

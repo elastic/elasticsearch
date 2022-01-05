@@ -29,8 +29,13 @@ public final class BulkRequestHandler {
     private final Retry retry;
     private final int concurrentRequests;
 
-    BulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy,
-                       BulkProcessor.Listener listener, Scheduler scheduler, int concurrentRequests) {
+    BulkRequestHandler(
+        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
+        BackoffPolicy backoffPolicy,
+        BulkProcessor.Listener listener,
+        Scheduler scheduler,
+        int concurrentRequests
+    ) {
         assert concurrentRequests >= 0;
         this.logger = LogManager.getLogger(getClass());
         this.consumer = consumer;

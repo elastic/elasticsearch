@@ -35,7 +35,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
 
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext searchContext) {
-        if (searchContext.innerHits() == null) {
+        if (searchContext.innerHits() == null || searchContext.innerHits().getInnerHits().isEmpty()) {
             return null;
         }
         Map<String, InnerHitsContext.InnerHitSubContext> innerHits = searchContext.innerHits().getInnerHits();
@@ -54,9 +54,8 @@ public final class InnerHitsPhase implements FetchSubPhase {
         };
     }
 
-    private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits,
-                            SearchHit hit,
-                            SourceLookup rootLookup) throws IOException {
+    private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits, SearchHit hit, SourceLookup rootLookup)
+        throws IOException {
         for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : innerHits.entrySet()) {
             InnerHitsContext.InnerHitSubContext innerHitsContext = entry.getValue();
             TopDocsAndMaxScore topDoc = innerHitsContext.topDocs(hit);

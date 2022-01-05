@@ -8,10 +8,10 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 
 import java.io.IOException;
@@ -55,10 +55,15 @@ public final class SearchContextIdForNode implements Writeable {
 
     @Override
     public String toString() {
-        return "SearchContextIdForNode{" +
-            "node='" + node + '\'' +
-            ", seachContextId=" + searchContextId +
-            ", clusterAlias='" + clusterAlias + '\'' +
-            '}';
+        return "SearchContextIdForNode{"
+            + "node='"
+            + node
+            + '\''
+            + ", seachContextId="
+            + searchContextId
+            + ", clusterAlias='"
+            + clusterAlias
+            + '\''
+            + '}';
     }
 }

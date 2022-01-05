@@ -26,7 +26,13 @@ import static java.util.Collections.emptySet;
  * <p>
  * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/rest-apis.html">
  * REST APIs on elastic.co</a> for more information.
+ *
+ * @deprecated The High Level Rest Client is deprecated in favor of the
+ * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/introduction.html">
+ * Elasticsearch Java API Client</a>
  */
+@Deprecated(since = "7.16.0", forRemoval = true)
+@SuppressWarnings("removal")
 public final class XPackClient {
 
     private final RestHighLevelClient restHighLevelClient;
@@ -45,8 +51,13 @@ public final class XPackClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public XPackInfoResponse info(XPackInfoRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, XPackRequestConverters::info, options,
-            XPackInfoResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            XPackRequestConverters::info,
+            options,
+            XPackInfoResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -58,10 +69,15 @@ public final class XPackClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable infoAsync(XPackInfoRequest request, RequestOptions options,
-                                 ActionListener<XPackInfoResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, XPackRequestConverters::info, options,
-            XPackInfoResponse::fromXContent, listener, emptySet());
+    public Cancellable infoAsync(XPackInfoRequest request, RequestOptions options, ActionListener<XPackInfoResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            XPackRequestConverters::info,
+            options,
+            XPackInfoResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -71,8 +87,13 @@ public final class XPackClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public XPackUsageResponse usage(XPackUsageRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, XPackRequestConverters::usage, options,
-            XPackUsageResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            XPackRequestConverters::usage,
+            options,
+            XPackUsageResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -82,7 +103,13 @@ public final class XPackClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable usageAsync(XPackUsageRequest request, RequestOptions options, ActionListener<XPackUsageResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, XPackRequestConverters::usage, options,
-            XPackUsageResponse::fromXContent, listener, emptySet());
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            XPackRequestConverters::usage,
+            options,
+            XPackUsageResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 }

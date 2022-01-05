@@ -12,10 +12,10 @@ import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.client.graph.GraphExploreRequest;
 import org.elasticsearch.client.graph.Hop;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.HashMap;
 import java.util.Map;

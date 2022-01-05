@@ -8,6 +8,7 @@ package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -41,16 +42,12 @@ public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends WatcherYa
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("watcher_manager", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecureString(TEST_ADMIN_PASSWORD.toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }

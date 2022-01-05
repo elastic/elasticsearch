@@ -682,17 +682,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     private static void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
         final SnapshotsInProgress snapshots = clusterState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-        for (SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
-            if (repository.equals(snapshot.snapshot().getRepository())) {
-                throw newRepositoryInUseException(repository, "snapshot is in progress");
-            }
+        if (snapshots.forRepo(repository).isEmpty() == false) {
+            throw newRepositoryConflictException(repository, "snapshot is in progress");
         }
         for (SnapshotDeletionsInProgress.Entry entry : clusterState.custom(
             SnapshotDeletionsInProgress.TYPE,
             SnapshotDeletionsInProgress.EMPTY
         ).getEntries()) {
             if (entry.repository().equals(repository)) {
-                throw newRepositoryInUseException(repository, "snapshot deletion is in progress");
+                throw newRepositoryConflictException(repository, "snapshot deletion is in progress");
             }
         }
         for (RepositoryCleanupInProgress.Entry entry : clusterState.custom(
@@ -700,12 +698,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             RepositoryCleanupInProgress.EMPTY
         ).entries()) {
             if (entry.repository().equals(repository)) {
-                throw newRepositoryInUseException(repository, "repository clean up is in progress");
+                throw newRepositoryConflictException(repository, "repository clean up is in progress");
             }
         }
         for (RestoreInProgress.Entry entry : clusterState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
             if (repository.equals(entry.snapshot().getRepository())) {
-                throw newRepositoryInUseException(repository, "snapshot restore is in progress");
+                throw newRepositoryConflictException(repository, "snapshot restore is in progress");
             }
         }
     }
@@ -725,7 +723,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             }
         }
         if (indices != null && indices.isEmpty() == false) {
-            throw newRepositoryInUseException(
+            throw newRepositoryConflictException(
                 repositoryMetadata.name(),
                 "found "
                     + count
@@ -748,8 +746,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return false;
     }
 
-    private static IllegalStateException newRepositoryInUseException(String repository, String reason) {
-        return new IllegalStateException(
+    private static RepositoryConflictException newRepositoryConflictException(String repository, String reason) {
+        return new RepositoryConflictException(
+            repository,
+            "trying to modify or unregister repository that is currently used (" + reason + ')',
             "trying to modify or unregister repository [" + repository + "] that is currently used (" + reason + ')'
         );
     }

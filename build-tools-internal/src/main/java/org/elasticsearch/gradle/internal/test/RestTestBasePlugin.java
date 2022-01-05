@@ -70,7 +70,9 @@ public class RestTestBasePlugin implements Plugin<Project> {
             }
         });
 
-        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(project.getTasks().withType(RestIntegTestTask.class)));
+        project.getTasks()
+            .named(JavaBasePlugin.CHECK_TASK_NAME)
+            .configure(check -> check.dependsOn(project.getTasks().withType(RestIntegTestTask.class)));
         project.getTasks()
             .withType(StandaloneRestIntegTestTask.class)
             .configureEach(t -> t.finalizedBy(project.getTasks().withType(FixtureStop.class)));

@@ -34,9 +34,6 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
   setting 'xpack.security.authc.token.enabled', 'true'
-  // Disable monitoring exporters for the docs tests
-  setting 'xpack.monitoring.exporters._local.type', 'local'
-  setting 'xpack.monitoring.exporters._local.enabled', 'false'
   // disable the ILM history for doc tests to avoid potential lingering tasks that'd cause test flakiness
   setting 'indices.lifecycle.history_index_enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'

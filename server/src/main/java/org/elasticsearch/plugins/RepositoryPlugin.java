@@ -10,10 +10,10 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collections;
 import java.util.Map;
@@ -31,9 +31,13 @@ public interface RepositoryPlugin {
      * The key of the returned {@link Map} is the type name of the repository and
      * the value is a factory to construct the {@link Repository} interface.
      */
-    default Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                            ClusterService clusterService, BigArrays bigArrays,
-                                                            RecoverySettings recoverySettings) {
+    default Map<String, Repository.Factory> getRepositories(
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings
+    ) {
         return Collections.emptyMap();
     }
 
@@ -46,8 +50,12 @@ public interface RepositoryPlugin {
      * The key of the returned {@link Map} is the type name of the repository and
      * the value is a factory to construct the {@link Repository} interface.
      */
-    default Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                                    ClusterService clusterService, RecoverySettings recoverySettings) {
+    default Map<String, Repository.Factory> getInternalRepositories(
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        RecoverySettings recoverySettings
+    ) {
         return Collections.emptyMap();
     }
 

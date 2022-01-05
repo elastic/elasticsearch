@@ -13,7 +13,6 @@ public class CidrTests extends ScriptTestCase {
         Object bool = exec("CIDR c = new CIDR('10.1.1.0/23'); c.contains('10.1.1.128') && c.contains('10.1.0.255')");
         assertEquals(Boolean.TRUE, bool);
 
-
         bool = exec("CIDR c = new CIDR('10.1.1.0/25'); c.contains('10.1.1.127')");
         assertEquals(Boolean.TRUE, bool);
 
@@ -44,7 +43,8 @@ public class CidrTests extends ScriptTestCase {
         e = expectScriptThrows(IllegalArgumentException.class, () -> exec("new CIDR('2001:0db8:85a3:0000:0000:8a2e:0370:733g')"));
         assertEquals("'2001:0db8:85a3:0000:0000:8a2e:0370:733g' is not an IP string literal.", e.getMessage());
 
-        e = expectScriptThrows(IllegalArgumentException.class,
+        e = expectScriptThrows(
+            IllegalArgumentException.class,
             () -> exec("new CIDR('2001:0db8:85a3::/64').contains('2001:0db8:85a3:0000:0000:8a2g:0370:7334')")
         );
         assertEquals("'2001:0db8:85a3:0000:0000:8a2g:0370:7334' is not an IP string literal.", e.getMessage());

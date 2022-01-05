@@ -34,28 +34,38 @@ public class RestSearchActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
-            .withMethod(RestRequest.Method.GET)
-            .withPath("/some_index/some_type/_search")
-            .build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
+        ).withMethod(RestRequest.Method.GET).withPath("/some_index/some_type/_search").build();
 
         dispatchRequest(request);
-        assertWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeParameter() {
         Map<String, String> params = new HashMap<>();
         params.put("type", "some_type");
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
-            .withMethod(RestRequest.Method.GET)
-            .withPath("/some_index/_search")
-            .withParams(params)
-            .build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
+        ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
 
         dispatchRequest(request);
-        assertWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    /**
+     * Using an illegal search type on the request should throw an error
+     */
+    public void testIllegalSearchType() {
+        Map<String, String> params = new HashMap<>();
+        params.put("search_type", "some_search_type");
+
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
+        ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
+
+        Exception ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
+        assertEquals("No search type for [some_search_type]", ex.getMessage());
     }
 }

@@ -40,19 +40,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
-        Batch fold = new Batch("Fold queries",
-                new FoldProject(),
-                new FoldFilter(),
-                new FoldOrderBy(),
-                new FoldLimit()
-        );
-        Batch finish = new Batch("Finish query", Limiter.ONCE,
-                new PlanOutputToQueryRef()
-        );
+        Batch fold = new Batch("Fold queries", new FoldProject(), new FoldFilter(), new FoldOrderBy(), new FoldLimit());
+        Batch finish = new Batch("Finish query", Limiter.ONCE, new PlanOutputToQueryRef());
 
         return Arrays.asList(fold, finish);
     }
-
 
     private static class FoldProject extends QueryFoldingRule<ProjectExec> {
 
@@ -94,8 +86,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 String lookup = Expressions.id(orderExpression);
 
                 // field
-                if (orderExpression instanceof FieldAttribute) {
-                    FieldAttribute fa = (FieldAttribute) orderExpression;
+                if (orderExpression instanceof FieldAttribute fa) {
                     qContainer = qContainer.addSort(lookup, new AttributeSort(fa, direction, missing));
                 }
                 // unknown
@@ -114,12 +105,10 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         protected PhysicalPlan rule(LimitWithOffsetExec limit) {
             PhysicalPlan plan = limit;
             PhysicalPlan child = limit.child();
-            if (child instanceof EsQueryExec) {
-                EsQueryExec query = (EsQueryExec) child;
+            if (child instanceof EsQueryExec query) {
                 plan = query.with(query.queryContainer().with(limit.limit()));
             }
-            if (child instanceof SequenceExec) {
-                SequenceExec exec = (SequenceExec) child;
+            if (child instanceof SequenceExec exec) {
                 plan = exec.with(limit.limit());
             }
             return plan;

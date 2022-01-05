@@ -9,17 +9,7 @@
             "description": "distilbert-base-uncased-finetuned-sst-2-english.pt",
             "model_type": "pytorch",
             "inference_config": {
-              "ner": {
-                "vocabulary": {
-                  "index": "vocab_index",
-                  "id": "vocab_doc"
-                }
-              }
-            },
-            "location": {
-              "index": {
-                "name": "big_model"
-              }
+              "ner": { }
             }
           }
 

@@ -8,14 +8,14 @@
 
 package org.elasticsearch.common.blobstore.url;
 
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.BufferedInputStream;
 import java.io.FileNotFoundException;
@@ -124,10 +124,8 @@ public class URLBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName,
-                          boolean failIfAlreadyExists,
-                          boolean atomic,
-                          CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+    public void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic, CheckedConsumer<OutputStream, IOException> writer)
+        throws IOException {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 

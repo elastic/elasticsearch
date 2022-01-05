@@ -16,6 +16,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -80,8 +83,10 @@ public class StashTests extends ESTestCase {
         map.put("key", map2);
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> stash.replaceStashedValues(map));
-        assertEquals(e.getMessage(), "Unstashing has caused a key conflict! The map is [{foobar=whatever}] and the key is ["
-                            + key + "] which unstashes to [foobar]");
+        assertEquals(
+            e.getMessage(),
+            "Unstashing has caused a key conflict! The map is [{foobar=whatever}] and the key is [" + key + "] which unstashes to [foobar]"
+        );
     }
 
     public void testReplaceStashedValuesStashKeyInList() throws IOException {
@@ -155,4 +160,25 @@ public class StashTests extends ESTestCase {
         assertEquals(expected, actual);
         assertThat(actual, not(sameInstance(map)));
     }
+
+    public void testEscapeExtendedKey() throws IOException {
+        Stash stash = new Stash();
+
+        Map<String, Object> map = new HashMap<>();
+        map.put("key", singletonMap("a", "foo\\${bar}"));
+
+        Map<String, Object> actual = stash.replaceStashedValues(map);
+        assertMap(actual, matchesMap().entry("key", matchesMap().entry("a", "foo${bar}")));
+        assertThat(actual, not(sameInstance(map)));
+    }
+
+    public void testMultipleVariableNamesInPath() throws Exception {
+        var stash = new Stash();
+        stash.stashValue("body", Map.of(".ds-k8s-2021-12-15-1", Map.of("data_stream", "k8s", "settings", Map.of(), "mappings", Map.of())));
+        stash.stashValue("backing_index", ".ds-k8s-2021-12-15-1");
+        assertThat(stash.getValue("$body.$backing_index.data_stream"), equalTo("k8s"));
+        assertThat(stash.getValue("$body.$backing_index.settings"), equalTo(Map.of()));
+        assertThat(stash.getValue("$body.$backing_index.mappings"), equalTo(Map.of()));
+    }
+
 }

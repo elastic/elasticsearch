@@ -7,13 +7,13 @@
  */
 
 package org.elasticsearch.ingest.useragent;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
 
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -23,10 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 import static org.elasticsearch.ingest.useragent.UserAgentParser.VersionedName;
-
-
 import static org.elasticsearch.ingest.useragent.UserAgentParser.readParserConfigurations;
 import static org.hamcrest.Matchers.is;
 
@@ -35,8 +32,8 @@ public class DeviceTypeParserTests extends ESTestCase {
     private static DeviceTypeParser deviceTypeParser;
 
     private ArrayList<HashMap<String, String>> readTestDevices(InputStream regexStream, String keyName) throws IOException {
-        XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML).createParser(NamedXContentRegistry.EMPTY,
-            LoggingDeprecationHandler.INSTANCE, regexStream);
+        XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML)
+            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, regexStream);
 
         XContentParser.Token token = yamlParser.nextToken();
 
@@ -67,7 +64,7 @@ public class DeviceTypeParserTests extends ESTestCase {
         return testDevices;
     }
 
-    private static VersionedName getVersionName(String name){
+    private static VersionedName getVersionName(String name) {
         return new VersionedName(name, null, null, null, null);
     }
 
@@ -135,7 +132,11 @@ public class DeviceTypeParserTests extends ESTestCase {
     public void testRobotAgentString() throws Exception {
 
         String deviceType = deviceTypeParser.findDeviceType(
-            "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:63.0.247) Gecko/20100101 Firefox/63.0.247 Site24x7", null, null, null);
+            "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:63.0.247) Gecko/20100101 Firefox/63.0.247 Site24x7",
+            null,
+            null,
+            null
+        );
 
         assertThat(deviceType, is("Robot"));
     }

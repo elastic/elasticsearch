@@ -3,27 +3,36 @@
 
 [partintro]
 
-Elasticsearch uses jUnit for testing, it also uses randomness in the
-tests, that can be set using a seed, the following is a cheatsheet of
-options for running the tests for ES.
+Elasticsearch uses JUnit for testing. It also generated random inputs into
+tests, either using a random seed, or one that is set via a system
+property. The following is a cheatsheet of options for running the
+Elasticsearch tests.
 
 == Creating packages
 
-To create a distribution without running the tests, simply run the
-following:
+To build a distribution for your local OS and print its output location upon completion, run:
 
 -----------------------------
-./gradlew assemble
+./gradlew localDistro
 -----------------------------
 
-To create a platform-specific build including the x-pack modules, use the
-following depending on your operating system:
+To create a platform-specific build, use the following depending on your
+operating system:
 
 -----------------------------
 ./gradlew :distribution:archives:linux-tar:assemble
-./gradlew :distribution:archives:darwin-tar:assemble
+./gradlew :distribution:archives:darwin(-aarch64)-tar:assemble
 ./gradlew :distribution:archives:windows-zip:assemble
 -----------------------------
+
+You can build a Docker image with:
+
+-----------------------------
+./gradlew build(Aarch64)DockerImage
+-----------------------------
+
+Note: you almost certainly don't want to run `./gradlew assemble` as this
+will attempt build every single Elasticsearch distribtion.
 
 === Running Elasticsearch from a checkout
 
@@ -55,6 +64,15 @@ NOTE: If you have imported the project into IntelliJ according to the instructio
 link:/CONTRIBUTING.md#importing-the-project-into-intellij-idea[CONTRIBUTING.md] then a debug run configuration
 named "Debug Elasticsearch" will be created for you and configured appropriately.
 
+==== Disabling assertions
+
+When running Elasticsearch with `./gradlew run`, assertions are enabled by
+default. To disable them, add the following command line option:
+
+-------------------------
+-Dtests.jvm.argline="-da"
+-------------------------
+
 ==== Distribution
 
 By default a node is started with the zip distribution.
@@ -83,12 +101,12 @@ password: `elastic-password`.
 ==== Other useful arguments
 
 - In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
-- In order to disable assertions add: `-Dtests.asserts=false`
 - In order to use a custom data directory: `--data-dir=/tmp/foo`
 - In order to preserve data in between executions: `--preserve-data`
 - In order to remotely attach a debugger to the process: `--debug-jvm`
 - In order to set a different keystore password: `--keystore-password`
 - In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
+- In order to pass a JVM seting, e.g. to disable assertions: `-Dtests.jvm.argline="-da"`
 
 === Test case filtering.
 
@@ -283,6 +301,36 @@ memory or some of the containers will fail to start. You can tell that you
 are short of memory if containers are exiting quickly after starting with
 code 137 (128 + 9, where 9 means SIGKILL).
 
+== Debugging tests
+
+If you would like to debug your tests themselves, simply pass the `--debug-jvm`
+flag to the testing task and connect a debugger on the default port of `5005`.
+
+---------------------------------------------------------------------------
+./gradlew :server:test --debug-jvm
+---------------------------------------------------------------------------
+
+For REST tests, if you'd like to debug the Elasticsearch server itself, and
+not your test code, use the `--debug-server-jvm` flag and use the
+"Debug Elasticsearch" run configuration in IntelliJ to listen on the default
+port of `5007`.
+
+---------------------------------------------------------------------------
+./gradlew :rest-api-spec:yamlRestTest --debug-server-jvm
+---------------------------------------------------------------------------
+
+NOTE: In the case of test clusters using multiple nodes, multiple debuggers
+will need to be attached on incrementing ports. For example, for a 3 node
+cluster ports `5007`, `5008`, and `5009` will attempt to attach to a listening
+debugger.
+
+You can also use a combination of both flags to debug both tests and server.
+This is only applicable to Java REST tests.
+
+---------------------------------------------------------------------------
+./gradlew :modules:kibana:javaRestTest --debug-jvm --debug-server-jvm
+---------------------------------------------------------------------------
+
 == Testing the REST layer
 
 The REST layer is tested through specific tests that are executed against
@@ -324,7 +372,7 @@ A specific test case can be run with the following command:
 ---------------------------------------------------------------------------
 ./gradlew ':rest-api-spec:yamlRestTest' \
   --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT" \
-  -Dtests.method="test {p0=cat.segments/10_basic/Help}"
+  -Dtests.method="test {yaml=cat.segments/10_basic/Help}"
 ---------------------------------------------------------------------------
 
 The YAML REST tests support all the options provided by the randomized runner, plus the following:

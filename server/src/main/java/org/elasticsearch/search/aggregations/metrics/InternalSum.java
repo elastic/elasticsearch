@@ -9,9 +9,10 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -21,7 +22,7 @@ import java.util.Objects;
 public class InternalSum extends InternalNumericMetricsAggregation.SingleValue implements Sum {
     private final double sum;
 
-    public  InternalSum(String name, double sum, DocValueFormat formatter, Map<String, Object> metadata) {
+    public InternalSum(String name, double sum, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, metadata);
         this.sum = sum;
         this.format = formatter;
@@ -58,7 +59,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalSum reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalSum reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
         CompensatedSum kahanSummation = new CompensatedSum(0, 0);

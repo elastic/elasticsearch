@@ -8,12 +8,12 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -23,8 +23,8 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class GeoIpStatsResponse implements ToXContentObject {
 
@@ -33,15 +33,23 @@ public class GeoIpStatsResponse implements ToXContentObject {
         Map<String, Object> stats = (Map<String, Object>) a[0];
         List<Tuple<String, NodeInfo>> nodes = (List<Tuple<String, NodeInfo>>) a[1];
 
-        return new GeoIpStatsResponse((int) stats.get("successful_downloads"), (int) stats.get("failed_downloads"),
-            ((Number) stats.get("total_download_time")).longValue(), (int) stats.get("databases_count"), (int) stats.get("skipped_updates"),
-            nodes.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
+        return new GeoIpStatsResponse(
+            (int) stats.get("successful_downloads"),
+            (int) stats.get("failed_downloads"),
+            ((Number) stats.get("total_download_time")).longValue(),
+            (int) stats.get("databases_count"),
+            (int) stats.get("skipped_updates"),
+            nodes.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2))
+        );
     });
 
     static {
         PARSER.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("stats"));
-        PARSER.declareNamedObjects(constructorArg(), (p, c, name) -> Tuple.tuple(name, NodeInfo.PARSER.apply(p, c)),
-            new ParseField("nodes"));
+        PARSER.declareNamedObjects(
+            constructorArg(),
+            (p, c, name) -> Tuple.tuple(name, NodeInfo.PARSER.apply(p, c)),
+            new ParseField("nodes")
+        );
     }
 
     private final int successfulDownloads;
@@ -51,8 +59,14 @@ public class GeoIpStatsResponse implements ToXContentObject {
     private final int skippedDownloads;
     private final Map<String, NodeInfo> nodes;
 
-    public GeoIpStatsResponse(int successfulDownloads, int failedDownloads, long totalDownloadTime, int databasesCount,
-                              int skippedDownloads, Map<String, NodeInfo> nodes) {
+    public GeoIpStatsResponse(
+        int successfulDownloads,
+        int failedDownloads,
+        long totalDownloadTime,
+        int databasesCount,
+        int skippedDownloads,
+        Map<String, NodeInfo> nodes
+    ) {
         this.successfulDownloads = successfulDownloads;
         this.failedDownloads = failedDownloads;
         this.totalDownloadTime = totalDownloadTime;
@@ -128,8 +142,10 @@ public class GeoIpStatsResponse implements ToXContentObject {
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<NodeInfo, Void> PARSER = new ConstructingObjectParser<>("node_info", a -> {
             List<DatabaseInfo> databases = (List<DatabaseInfo>) a[1];
-            return new NodeInfo((Collection<String>) a[0], databases.stream().collect(Collectors.toMap(DatabaseInfo::getName,
-                Function.identity())));
+            return new NodeInfo(
+                (Collection<String>) a[0],
+                databases.stream().collect(Collectors.toMap(DatabaseInfo::getName, Function.identity()))
+            );
         });
 
         static {
@@ -156,11 +172,11 @@ public class GeoIpStatsResponse implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("files_in_temp", filesInTemp);
-            builder.field("databases", databases.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .map(Map.Entry::getValue)
-                .collect(Collectors.toList()));
+            builder.stringListField("files_in_temp", filesInTemp);
+            builder.field(
+                "databases",
+                databases.entrySet().stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).collect(Collectors.toList())
+            );
             builder.endObject();
             return builder;
         }
@@ -181,8 +197,10 @@ public class GeoIpStatsResponse implements ToXContentObject {
 
     public static final class DatabaseInfo implements ToXContentObject {
 
-        private static final ConstructingObjectParser<DatabaseInfo, Void> PARSER = new ConstructingObjectParser<>("database_info",
-            a -> new DatabaseInfo((String) a[0]));
+        private static final ConstructingObjectParser<DatabaseInfo, Void> PARSER = new ConstructingObjectParser<>(
+            "database_info",
+            a -> new DatabaseInfo((String) a[0])
+        );
 
         static {
             PARSER.declareString(constructorArg(), new ParseField("name"));

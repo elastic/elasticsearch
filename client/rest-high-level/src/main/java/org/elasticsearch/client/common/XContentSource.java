@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.common;
 
-import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentUtils;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.util.List;

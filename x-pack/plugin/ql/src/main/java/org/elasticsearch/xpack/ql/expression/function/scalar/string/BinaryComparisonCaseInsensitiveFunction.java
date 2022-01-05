@@ -61,7 +61,6 @@ public abstract class BinaryComparisonCaseInsensitiveFunction extends CaseInsens
         return DataTypes.BOOLEAN;
     }
 
-
     @Override
     public boolean foldable() {
         return left.foldable() && right.foldable();
@@ -76,17 +75,19 @@ public abstract class BinaryComparisonCaseInsensitiveFunction extends CaseInsens
     }
 
     protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("%s.%s(%s,%s,%s)"),
-            Scripts.classPackageAsPrefix(getClass()),
-            scriptMethodName(),
-            leftScript.template(),
-            rightScript.template(),
-            "{}"),
-            paramsBuilder()
-                .script(leftScript.params())
-                .script(rightScript.params())
-                .variable(isCaseInsensitive())
-                .build(), dataType());
+        return new ScriptTemplate(
+            format(
+                Locale.ROOT,
+                formatTemplate("%s.%s(%s,%s,%s)"),
+                Scripts.classPackageAsPrefix(getClass()),
+                scriptMethodName(),
+                leftScript.template(),
+                rightScript.template(),
+                "{}"
+            ),
+            paramsBuilder().script(leftScript.params()).script(rightScript.params()).variable(isCaseInsensitive()).build(),
+            dataType()
+        );
     }
 
     protected String scriptMethodName() {

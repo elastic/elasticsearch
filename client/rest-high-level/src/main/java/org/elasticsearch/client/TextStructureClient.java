@@ -7,20 +7,25 @@
  */
 package org.elasticsearch.client;
 
-import java.io.IOException;
-import java.util.Collections;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.textstructure.FindStructureRequest;
 import org.elasticsearch.client.textstructure.FindStructureResponse;
 
+import java.io.IOException;
+import java.util.Collections;
 
 /**
  * Text Structure API client wrapper for the {@link RestHighLevelClient}
  * <p>
  * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/find-structure.html">
  * X-Pack Text Structure APIs </a> for additional information.
+ *
+ * @deprecated The High Level Rest Client is deprecated in favor of the
+ * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/introduction.html">
+ * Elasticsearch Java API Client</a>
  */
+@Deprecated(since = "7.16.0", forRemoval = true)
+@SuppressWarnings("removal")
 public final class TextStructureClient {
 
     private final RestHighLevelClient restHighLevelClient;
@@ -42,11 +47,13 @@ public final class TextStructureClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public FindStructureResponse findStructure(FindStructureRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
             TextStructureRequestConverters::findFileStructure,
             options,
             FindStructureResponse::fromXContent,
-            Collections.emptySet());
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -61,14 +68,19 @@ public final class TextStructureClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable findStructureAsync(FindStructureRequest request, RequestOptions options,
-                                          ActionListener<FindStructureResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
+    public Cancellable findStructureAsync(
+        FindStructureRequest request,
+        RequestOptions options,
+        ActionListener<FindStructureResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
             TextStructureRequestConverters::findFileStructure,
             options,
             FindStructureResponse::fromXContent,
             listener,
-            Collections.emptySet());
+            Collections.emptySet()
+        );
     }
 
 }

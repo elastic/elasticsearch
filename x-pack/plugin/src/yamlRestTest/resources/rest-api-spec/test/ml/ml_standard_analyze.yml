@@ -1,11 +1,11 @@
 ---
-"Test analyze API with the standard 7.14 ML analyzer":
+"Test analyze API with the standard 7.16 ML analyzer":
   - do:
       indices.analyze:
         body:  >
           {
             "char_filter" : [
-              "first_non_blank_line"
+              "first_line_with_letters"
             ],
             "tokenizer" : "ml_standard",
             "filter" : [
@@ -85,13 +85,13 @@
   - match: { tokens.15.position: 22 }
 
 ---
-"Test 7.14 analyzer with blank lines":
+"Test 7.16 analyzer with blank lines":
   - do:
       indices.analyze:
         body:  >
           {
             "char_filter" : [
-              "first_non_blank_line"
+              "first_line_with_letters"
             ],
             "tokenizer" : "ml_standard",
             "filter" : [
@@ -115,13 +115,13 @@
   - match: { tokens.1.position: 1 }
 
 ---
-"Test 7.14 analyzer with multiple multiline messages":
+"Test 7.16 analyzer with multiple multiline messages":
   - do:
       indices.analyze:
         body:  >
           {
             "char_filter" : [
-              "first_non_blank_line"
+              "first_line_with_letters"
             ],
             "tokenizer" : "ml_standard",
             "filter" : [
@@ -168,13 +168,13 @@
   - match: { tokens.6.position: 106 }
 
 ---
-"Test 7.14 analyzer with stop words in messages":
+"Test 7.16 analyzer with stop words in messages":
   - do:
       indices.analyze:
         body:  >
           {
             "char_filter" : [
-              "first_non_blank_line"
+              "first_line_with_letters"
             ],
             "tokenizer" : "ml_standard",
             "filter" : [
@@ -214,4 +214,52 @@
   - match: { tokens.5.token: "two" }
   - match: { tokens.5.start_offset: 92 }
   - match: { tokens.5.end_offset: 95 }
+  - match: { tokens.5.position: 119 }
+---
+"Test 7.16 analyzer with stop words in messages and strange lines without letters":
+  - do:
+      indices.analyze:
+        body:  >
+          {
+            "char_filter" : [
+              "first_line_with_letters"
+            ],
+            "tokenizer" : "ml_standard",
+            "filter" : [
+              { "type" : "stop", "stopwords": [
+                "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+                "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+                "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+                "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+                "GMT", "UTC"
+              ] }
+            ],
+            "text" : [
+              "\n-----\nMay 27, 2021 @ 19:51:15.288 UTC log message one\n-----\n",
+              "\n-----\nMay 27, 2021 @ 19:52:25.288 UTC log message two\n-----\n"
+            ]
+          }
+  - match: { tokens.0.token: "log" }
+  - match: { tokens.0.start_offset: 39 }
+  - match: { tokens.0.end_offset: 42 }
+  - match: { tokens.0.position: 7 }
+  - match: { tokens.1.token: "message" }
+  - match: { tokens.1.start_offset: 43 }
+  - match: { tokens.1.end_offset: 50 }
+  - match: { tokens.1.position: 8 }
+  - match: { tokens.2.token: "one" }
+  - match: { tokens.2.start_offset: 51 }
+  - match: { tokens.2.end_offset: 61 }
+  - match: { tokens.2.position: 9 }
+  - match: { tokens.3.token: "log" }
+  - match: { tokens.3.start_offset: 101 }
+  - match: { tokens.3.end_offset: 104 }
+  - match: { tokens.3.position: 117 }
+  - match: { tokens.4.token: "message" }
+  - match: { tokens.4.start_offset: 105 }
+  - match: { tokens.4.end_offset: 112 }
+  - match: { tokens.4.position: 118 }
+  - match: { tokens.5.token: "two" }
+  - match: { tokens.5.start_offset: 113 }
+  - match: { tokens.5.end_offset: 123 }
   - match: { tokens.5.position: 119 }

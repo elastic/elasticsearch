@@ -9,7 +9,6 @@
 package org.elasticsearch.core;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.core.PathUtils;
 
 import java.nio.file.FileSystem;
 

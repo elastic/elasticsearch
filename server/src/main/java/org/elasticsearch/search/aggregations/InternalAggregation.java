@@ -11,13 +11,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -26,110 +24,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.IntConsumer;
-import java.util.function.Supplier;
-
-import static java.util.Objects.requireNonNull;
 
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  */
 public abstract class InternalAggregation implements Aggregation, NamedWriteable {
-    /**
-     * Builds {@link ReduceContext}.
-     */
-    public interface ReduceContextBuilder {
-        /**
-         * Build a {@linkplain ReduceContext} to perform a partial reduction.
-         */
-        ReduceContext forPartialReduction();
-        /**
-         * Build a {@linkplain ReduceContext} to perform the final reduction.
-         */
-        ReduceContext forFinalReduction();
-    }
-    public static class ReduceContext {
-        private final BigArrays bigArrays;
-        private final ScriptService scriptService;
-        private final IntConsumer multiBucketConsumer;
-        private final PipelineTree pipelineTreeRoot;
-        /**
-         * Supplies the pipelines when the result of the reduce is serialized
-         * to node versions that need pipeline aggregators to be serialized
-         * to them.
-         */
-        private final Supplier<PipelineTree> pipelineTreeForBwcSerialization;
-
-        /**
-         * Build a {@linkplain ReduceContext} to perform a partial reduction.
-         */
-        public static ReduceContext forPartialReduction(BigArrays bigArrays, ScriptService scriptService,
-                Supplier<PipelineTree> pipelineTreeForBwcSerialization) {
-            return new ReduceContext(bigArrays, scriptService, (s) -> {}, null, pipelineTreeForBwcSerialization);
-        }
-
-        /**
-         * Build a {@linkplain ReduceContext} to perform the final reduction.
-         * @param pipelineTreeRoot The root of tree of pipeline aggregations for this request
-         */
-        public static ReduceContext forFinalReduction(BigArrays bigArrays, ScriptService scriptService,
-                IntConsumer multiBucketConsumer, PipelineTree pipelineTreeRoot) {
-            return new ReduceContext(bigArrays, scriptService, multiBucketConsumer,
-                    requireNonNull(pipelineTreeRoot, "prefer EMPTY to null"), () -> pipelineTreeRoot);
-        }
-
-        private ReduceContext(BigArrays bigArrays, ScriptService scriptService, IntConsumer multiBucketConsumer,
-                PipelineTree pipelineTreeRoot, Supplier<PipelineTree> pipelineTreeForBwcSerialization) {
-            this.bigArrays = bigArrays;
-            this.scriptService = scriptService;
-            this.multiBucketConsumer = multiBucketConsumer;
-            this.pipelineTreeRoot = pipelineTreeRoot;
-            this.pipelineTreeForBwcSerialization = pipelineTreeForBwcSerialization;
-        }
-
-        /**
-         * Returns <code>true</code> iff the current reduce phase is the final reduce phase. This indicates if operations like
-         * pipeline aggregations should be applied or if specific features like {@code minDocCount} should be taken into account.
-         * Operations that are potentially losing information can only be applied during the final reduce phase.
-         */
-        public boolean isFinalReduce() {
-            return pipelineTreeRoot != null;
-        }
-
-        public BigArrays bigArrays() {
-            return bigArrays;
-        }
-
-        public ScriptService scriptService() {
-            return scriptService;
-        }
-
-        /**
-         * The root of the tree of pipeline aggregations for this request.
-         */
-        public PipelineTree pipelineTreeRoot() {
-            return pipelineTreeRoot;
-        }
-
-        /**
-         * Supplies the pipelines when the result of the reduce is serialized
-         * to node versions that need pipeline aggregators to be serialized
-         * to them.
-         */
-        public Supplier<PipelineTree> pipelineTreeForBwcSerialization() {
-            return pipelineTreeForBwcSerialization;
-        }
-
-        /**
-         * Adds {@code count} buckets to the global count for the request and fails if this number is greater than
-         * the maximum number of buckets allowed in a response
-         */
-        public void consumeBucketsAndMaybeBreak(int size) {
-            multiBucketConsumer.accept(size);
-        }
-
-    }
-
     protected final String name;
 
     protected final Map<String, Object> metadata;
@@ -186,7 +85,8 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      */
     public InternalAggregation copyWithRewritenBuckets(Function<InternalAggregations, InternalAggregations> rewriter) {
         throw new IllegalStateException(
-                "Aggregation [" + getName() + "] must be a bucket aggregation but was [" + getWriteableName() + "]");
+            "Aggregation [" + getName() + "] must be a bucket aggregation but was [" + getWriteableName() + "]"
+        );
     }
 
     /**
@@ -199,7 +99,10 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * be called after all aggregations have been fully reduced
      */
     public InternalAggregation reducePipelines(
-            InternalAggregation reducedAggs, ReduceContext reduceContext, PipelineTree pipelinesForThisAgg) {
+        InternalAggregation reducedAggs,
+        AggregationReduceContext reduceContext,
+        PipelineTree pipelinesForThisAgg
+    ) {
         assert reduceContext.isFinalReduce();
         for (PipelineAggregator pipelineAggregator : pipelinesForThisAgg.aggregators()) {
             reducedAggs = pipelineAggregator.reduce(reducedAggs, reduceContext);
@@ -215,7 +118,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      *
      * @see #mustReduceOnSingleInternalAgg()
      */
-    public abstract InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
+    public abstract InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext);
 
     /**
      * Signal the framework if the {@linkplain InternalAggregation#reduce(List, ReduceContext)} phase needs to be called
@@ -302,11 +205,12 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        if (obj == this) { return true; }
+        if (obj == this) {
+            return true;
+        }
 
         InternalAggregation other = (InternalAggregation) obj;
-        return Objects.equals(name, other.name) &&
-                Objects.equals(metadata, other.metadata);
+        return Objects.equals(name, other.name) && Objects.equals(metadata, other.metadata);
     }
 
     @Override

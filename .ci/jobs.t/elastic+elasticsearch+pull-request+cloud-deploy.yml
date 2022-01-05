@@ -1,0 +1,50 @@
+---
+- job:
+    name: "elastic+elasticsearch+pull-request+cloud-deploy"
+    display-name: "elastic / elasticsearch - pull request cloud-deploy"
+    description: "Testing of Elasticsearch pull requests - cloud-deploy"
+    workspace: "/dev/shm/elastic+elasticsearch+pull-request+cloud-deploy"
+    node: "general-purpose && docker"
+    scm:
+      - git:
+          refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
+          branches:
+            - "${ghprbActualCommit}"
+    triggers:
+      - github-pull-request:
+          org-list:
+            - elastic
+          allow-whitelist-orgs-as-admins: true
+          trigger-phrase: '.*run\W+elasticsearch-ci/cloud-deploy.*'
+          github-hooks: true
+          status-context: elasticsearch-ci/cloud-deploy
+          cancel-builds-on-update: true
+          black-list-target-branches:
+            - 6.8
+          excluded-regions:
+            - ^docs/.*
+          white-list-labels:
+            - 'cloud-deploy'
+    builders:
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          $WORKSPACE/.ci/scripts/run-gradle.sh buildCloudDockerImage
+      - shell: |
+          #!/bin/bash
+          set +x
+          VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id=$VAULT_ROLE_ID secret_id=$VAULT_SECRET_ID)
+          export VAULT_TOKEN
+          export DOCKER_REGISTRY_USERNAME="$(vault read -field=username secret/elasticsearch-ci/prod_docker_registry_credentials)"
+          export DOCKER_REGISTRY_PASSWORD="$(vault read -field=password secret/elasticsearch-ci/prod_docker_registry_credentials)"
+          export ES_VERSION=$(grep 'elasticsearch' build-tools-internal/version.properties | awk '{print $3}')
+          export DOCKER_TAG=docker.elastic.co/elasticsearch-ci/elasticsearch-cloud:${ES_VERSION}-${ghprbActualCommit:0:7}
+          docker tag elasticsearch-cloud:test $DOCKER_TAG
+          echo $DOCKER_REGISTRY_PASSWORD | docker login -u $DOCKER_REGISTRY_USERNAME --password-stdin docker.elastic.co
+          unset VAULT_TOKEN DOCKER_REGISTRY_USERNAME DOCKER_REGISTRY_PASSWORD
+          set -x
+          docker push $DOCKER_TAG

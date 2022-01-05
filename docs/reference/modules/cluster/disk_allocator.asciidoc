@@ -63,7 +63,7 @@ You can use the following settings to control disk-based allocation:
 
 [[cluster-routing-disk-threshold]]
 // tag::cluster-routing-disk-threshold-tag[]
-`cluster.routing.allocation.disk.threshold_enabled` {ess-icon}::
+`cluster.routing.allocation.disk.threshold_enabled`::
 (<<dynamic-cluster-setting,Dynamic>>)
 Defaults to `true`. Set to `false` to disable the disk allocation decider.
 // end::cluster-routing-disk-threshold-tag[]
@@ -145,7 +145,7 @@ gigabytes free, and updating the information about the cluster every minute:
 --------------------------------------------------
 PUT _cluster/settings
 {
-  "transient": {
+  "persistent": {
     "cluster.routing.allocation.disk.watermark.low": "100gb",
     "cluster.routing.allocation.disk.watermark.high": "50gb",
     "cluster.routing.allocation.disk.watermark.flood_stage": "10gb",

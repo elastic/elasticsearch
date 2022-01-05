@@ -28,12 +28,12 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.StringScriptFieldData;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
-import org.elasticsearch.index.fielddata.StringScriptFieldData;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -263,7 +263,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
                     searcher.count(
-                        simpleMappedFieldType().regexpQuery("ca.+", 0, 0, Operations.DEFAULT_MAX_DETERMINIZED_STATES, null, mockContext())
+                        simpleMappedFieldType().regexpQuery("ca.+", 0, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, null, mockContext())
                     ),
                     equalTo(2)
                 );
@@ -323,6 +323,18 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().wildcardQuery("a*b", null, mockContext())), equalTo(1));
+            }
+        }
+    }
+
+    // Normalized WildcardQueries are requested by the QueryStringQueryParser
+    public void testNormalizedWildcardQuery() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aab\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                assertThat(searcher.count(simpleMappedFieldType().normalizedWildcardQuery("a*b", null, mockContext())), equalTo(1));
             }
         }
     }

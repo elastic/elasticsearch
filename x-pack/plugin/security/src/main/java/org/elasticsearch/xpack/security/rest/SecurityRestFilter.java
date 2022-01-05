@@ -12,12 +12,10 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.MediaType;
-import org.elasticsearch.common.xcontent.MediaTypeRegistry;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -26,6 +24,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.MediaTypeRegistry;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
@@ -46,8 +46,31 @@ public class SecurityRestFilter implements RestHandler {
     private final ThreadContext threadContext;
     private final boolean extractClientCertificate;
 
-    public SecurityRestFilter(Settings settings, ThreadContext threadContext, AuthenticationService authenticationService,
-                              SecondaryAuthenticator secondaryAuthenticator, RestHandler restHandler, boolean extractClientCertificate) {
+    public enum ActionType {
+        Authentication("Authentication"),
+        SecondaryAuthentication("Secondary authentication"),
+        RequestHandling("Request handling");
+
+        private final String name;
+
+        ActionType(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    public SecurityRestFilter(
+        Settings settings,
+        ThreadContext threadContext,
+        AuthenticationService authenticationService,
+        SecondaryAuthenticator secondaryAuthenticator,
+        RestHandler restHandler,
+        boolean extractClientCertificate
+    ) {
         this.settings = settings;
         this.threadContext = threadContext;
         this.authenticationService = authenticationService;
@@ -76,44 +99,50 @@ public class SecurityRestFilter implements RestHandler {
             }
 
             final String requestUri = request.uri();
-            authenticationService.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(
-                authentication -> {
-                    if (authentication == null) {
-                        logger.trace("No authentication available for REST request [{}]", requestUri);
-                    } else {
-                        logger.trace("Authenticated REST request [{}] as {}", requestUri, authentication);
+            authenticationService.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(authentication -> {
+                if (authentication == null) {
+                    logger.trace("No authentication available for REST request [{}]", requestUri);
+                } else {
+                    logger.trace("Authenticated REST request [{}] as {}", requestUri, authentication);
+                }
+                secondaryAuthenticator.authenticateAndAttachToContext(request, ActionListener.wrap(secondaryAuthentication -> {
+                    if (secondaryAuthentication != null) {
+                        logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, requestUri);
                     }
-                    secondaryAuthenticator.authenticateAndAttachToContext(request, ActionListener.wrap(
-                        secondaryAuthentication -> {
-                            if (secondaryAuthentication != null) {
-                                logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, requestUri);
-                            }
-                            RemoteHostHeader.process(request, threadContext);
-                            restHandler.handleRequest(request, channel, client);
-                        },
-                        e -> handleException("Secondary authentication", request, channel, e)));
-                }, e -> handleException("Authentication", request, channel, e)));
+                    RemoteHostHeader.process(request, threadContext);
+                    try {
+                        restHandler.handleRequest(request, channel, client);
+                    } catch (Exception e) {
+                        handleException(ActionType.RequestHandling, request, channel, e);
+                    }
+                }, e -> handleException(ActionType.SecondaryAuthentication, request, channel, e)));
+            }, e -> handleException(ActionType.Authentication, request, channel, e)));
         } else {
             restHandler.handleRequest(request, channel, client);
         }
     }
 
-    private void handleException(String actionType, RestRequest request, RestChannel channel, Exception e) {
+    protected void handleException(ActionType actionType, RestRequest request, RestChannel channel, Exception e) {
         logger.debug(new ParameterizedMessage("{} failed for REST request [{}]", actionType, request.uri()), e);
         final RestStatus restStatus = ExceptionsHelper.status(e);
         try {
             channel.sendResponse(new BytesRestResponse(channel, restStatus, e) {
 
                 @Override
-                protected boolean skipStackTrace() { return restStatus == RestStatus.UNAUTHORIZED; }
+                protected boolean skipStackTrace() {
+                    return restStatus == RestStatus.UNAUTHORIZED;
+                }
 
                 @Override
                 public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
-                    if (headers.containsKey("Warning")) {
-                        headers = Maps.copyMapWithRemovedEntry(headers, "Warning");
-                    }
-                    if (headers.containsKey("X-elastic-product")) {
-                        headers = Maps.copyMapWithRemovedEntry(headers, "X-elastic-product");
+                    if (actionType != ActionType.RequestHandling
+                        || (restStatus == RestStatus.UNAUTHORIZED || restStatus == RestStatus.FORBIDDEN)) {
+                        if (headers.containsKey("Warning")) {
+                            headers = Maps.copyMapWithRemovedEntry(headers, "Warning");
+                        }
+                        if (headers.containsKey("X-elastic-product")) {
+                            headers = Maps.copyMapWithRemovedEntry(headers, "X-elastic-product");
+                        }
                     }
                     return headers;
                 }
@@ -121,8 +150,10 @@ public class SecurityRestFilter implements RestHandler {
             });
         } catch (Exception inner) {
             inner.addSuppressed(e);
-            logger.error((Supplier<?>) () ->
-                new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()), inner);
+            logger.error(
+                (Supplier<?>) () -> new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()),
+                inner
+            );
         }
     }
 
@@ -148,7 +179,7 @@ public class SecurityRestFilter implements RestHandler {
 
     private RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {
         if (restHandler instanceof RestRequestFilter) {
-            return ((RestRequestFilter)restHandler).getFilteredRequest(restRequest);
+            return ((RestRequestFilter) restHandler).getFilteredRequest(restRequest);
         }
         return restRequest;
     }

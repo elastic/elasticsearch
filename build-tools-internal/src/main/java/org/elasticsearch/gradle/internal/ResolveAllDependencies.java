@@ -16,9 +16,10 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.internal.deprecation.DeprecatableConfiguration;
 
-import javax.inject.Inject;
 import java.util.Collection;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.DistributionDownloadPlugin.DISTRO_EXTRACTED_CONFIG_PREFIX;
 import static org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin.BWC_MINOR_CONFIG_NAME;

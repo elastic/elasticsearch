@@ -10,8 +10,8 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -130,7 +130,6 @@ public class CancellableThreads {
         }
         threads.clear();
     }
-
 
     public interface Interruptible {
         void run() throws InterruptedException;

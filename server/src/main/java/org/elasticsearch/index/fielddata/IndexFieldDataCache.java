@@ -38,12 +38,12 @@ public interface IndexFieldDataCache {
         /**
          * Called after the fielddata is loaded during the cache phase
          */
-        default void onCache(ShardId shardId, String fieldName, Accountable ramUsage){}
+        default void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {}
 
         /**
          * Called after the fielddata is unloaded
          */
-        default void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes){}
+        default void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {}
     }
 
     class None implements IndexFieldDataCache {
@@ -56,17 +56,15 @@ public interface IndexFieldDataCache {
 
         @Override
         @SuppressWarnings("unchecked")
-        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
-                                                                                          IFD indexFieldData) throws Exception {
+        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader, IFD indexFieldData)
+            throws Exception {
             return (IFD) indexFieldData.loadGlobalDirect(indexReader);
         }
 
         @Override
-        public void clear() {
-        }
+        public void clear() {}
 
         @Override
-        public void clear(String fieldName) {
-        }
+        public void clear(String fieldName) {}
     }
 }

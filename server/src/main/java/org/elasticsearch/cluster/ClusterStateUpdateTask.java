@@ -8,8 +8,8 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.List;
@@ -18,7 +18,10 @@ import java.util.List;
  * A task that can update the cluster state.
  */
 public abstract class ClusterStateUpdateTask
-        implements ClusterStateTaskConfig, ClusterStateTaskExecutor<ClusterStateUpdateTask>, ClusterStateTaskListener {
+    implements
+        ClusterStateTaskConfig,
+        ClusterStateTaskExecutor<ClusterStateUpdateTask>,
+        ClusterStateTaskListener {
 
     private final Priority priority;
 
@@ -44,7 +47,7 @@ public abstract class ClusterStateUpdateTask
 
     @Override
     public final ClusterTasksResult<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks)
-            throws Exception {
+        throws Exception {
         ClusterState result = execute(currentState);
         return ClusterTasksResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result);
     }
@@ -70,7 +73,7 @@ public abstract class ClusterStateUpdateTask
     public abstract void onFailure(String source, Exception e);
 
     @Override
-    public final void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+    public final void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
         // final, empty implementation here as this method should only be defined in combination
         // with a batching executor as it will always be executed within the system context.
     }

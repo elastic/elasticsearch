@@ -17,8 +17,7 @@ import java.util.Iterator;
 
 public final class HppcMaps {
 
-    private HppcMaps() {
-    }
+    private HppcMaps() {}
 
     /**
      * Returns a new map with the given number of expected elements.

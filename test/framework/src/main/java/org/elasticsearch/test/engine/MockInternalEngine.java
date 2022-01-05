@@ -20,7 +20,7 @@ final class MockInternalEngine extends InternalEngine {
     private MockEngineSupport support;
     private Class<? extends FilterDirectoryReader> wrapperClass;
 
-    MockInternalEngine(EngineConfig config,  Class<? extends FilterDirectoryReader> wrapper) throws EngineException {
+    MockInternalEngine(EngineConfig config, Class<? extends FilterDirectoryReader> wrapper) throws EngineException {
         super(config);
         wrapperClass = wrapper;
 

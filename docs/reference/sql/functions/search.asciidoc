@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[sql-functions-search]]
 === Full-Text Search Functions
 
@@ -7,6 +6,11 @@ Search functions should be used when performing full-text search, namely
 when the `MATCH` or `QUERY` predicates are being used.
 Outside a, so-called, search context, these functions will return default values
 such as `0` or `NULL`.
+
+{es-sql} optimizes all queries executed against {es} depending on the scoring needs.
+Using <<_track_scores,`track_scores`>> on the search request or <<sort-search-results,`_doc` sorting>> that
+disables scores calculation, {es-sql} instructs {es} not to compute scores when these are not needed.
+For example, every time a `SCORE()` function is encountered in the SQL query, the scores are computed.
 
 [[sql-functions-search-match]]
 ==== `MATCH`

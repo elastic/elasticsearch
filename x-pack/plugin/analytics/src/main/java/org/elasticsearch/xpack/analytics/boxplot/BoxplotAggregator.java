@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.analytics.boxplot;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -36,8 +36,15 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
     protected ObjectArray<TDigestState> states;
     protected final double compression;
 
-    BoxplotAggregator(String name, ValuesSource valuesSource, DocValueFormat formatter, double compression,
-                      AggregationContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+    BoxplotAggregator(
+        String name,
+        ValuesSource valuesSource,
+        DocValueFormat formatter,
+        double compression,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.format = formatter;
@@ -53,27 +60,26 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-                                                final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         if (valuesSource instanceof HistogramValuesSource.Histogram) {
-            final HistogramValues values = ((HistogramValuesSource.Histogram)valuesSource).getHistogramValues(ctx);
+            final HistogramValues values = ((HistogramValuesSource.Histogram) valuesSource).getHistogramValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
                     TDigestState state = getExistingOrNewHistogram(bigArrays(), bucket);
                     if (values.advanceExact(doc)) {
                         final HistogramValue sketch = values.histogram();
-                        while(sketch.next()) {
+                        while (sketch.next()) {
                             state.add(sketch.value(), sketch.count());
                         }
                     }
                 }
             };
         } else {
-            final SortedNumericDoubleValues values = ((ValuesSource.Numeric)valuesSource).doubleValues(ctx);
+            final SortedNumericDoubleValues values = ((ValuesSource.Numeric) valuesSource).doubleValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
@@ -120,7 +126,6 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
         }
         return InternalBoxplot.Metrics.resolve(name).value(state);
     }
-
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {

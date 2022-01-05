@@ -42,9 +42,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
             .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
 
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
-            .metadata(Metadata.builder()
-                .put(followerIndex)
-                .build())
+            .metadata(Metadata.builder().put(followerIndex).build())
             .build();
         ClusterState result = TransportUnfollowAction.unfollow("follow_index", current);
 
@@ -62,13 +60,13 @@ public class TransportUnfollowActionTests extends ESTestCase {
             .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
 
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
-            .metadata(Metadata.builder()
-                .put(followerIndex)
-                .build())
+            .metadata(Metadata.builder().put(followerIndex).build())
             .build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> TransportUnfollowAction.unfollow("follow_index", current));
-        assertThat(e.getMessage(),
-            equalTo("cannot convert the follower index [follow_index] to a non-follower, because it has not been closed"));
+        assertThat(
+            e.getMessage(),
+            equalTo("cannot convert the follower index [follow_index] to a non-follower, because it has not been closed")
+        );
     }
 
     public void testUnfollowRunningShardFollowTasks() {
@@ -78,7 +76,6 @@ public class TransportUnfollowActionTests extends ESTestCase {
             .numberOfReplicas(0)
             .state(IndexMetadata.State.CLOSE)
             .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
-
 
         ShardFollowTask params = new ShardFollowTask(
             null,
@@ -96,18 +93,30 @@ public class TransportUnfollowActionTests extends ESTestCase {
             TimeValue.timeValueMillis(10),
             Collections.emptyMap()
         );
-        PersistentTasksCustomMetadata.PersistentTask<?> task =
-            new PersistentTasksCustomMetadata.PersistentTask<>("id", ShardFollowTask.NAME, params, 0, null);
+        PersistentTasksCustomMetadata.PersistentTask<?> task = new PersistentTasksCustomMetadata.PersistentTask<>(
+            "id",
+            ShardFollowTask.NAME,
+            params,
+            0,
+            null
+        );
 
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
-            .metadata(Metadata.builder()
-                .put(followerIndex)
-                .putCustom(PersistentTasksCustomMetadata.TYPE, new PersistentTasksCustomMetadata(0, Collections.singletonMap("id", task)))
-                .build())
+            .metadata(
+                Metadata.builder()
+                    .put(followerIndex)
+                    .putCustom(
+                        PersistentTasksCustomMetadata.TYPE,
+                        new PersistentTasksCustomMetadata(0, Collections.singletonMap("id", task))
+                    )
+                    .build()
+            )
             .build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> TransportUnfollowAction.unfollow("follow_index", current));
-        assertThat(e.getMessage(),
-            equalTo("cannot convert the follower index [follow_index] to a non-follower, because it has not been paused"));
+        assertThat(
+            e.getMessage(),
+            equalTo("cannot convert the follower index [follow_index] to a non-follower, because it has not been paused")
+        );
     }
 
     public void testUnfollowMissingIndex() {
@@ -119,9 +128,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
             .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
 
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
-            .metadata(Metadata.builder()
-                .put(followerIndex)
-                .build())
+            .metadata(Metadata.builder().put(followerIndex).build())
             .build();
         expectThrows(IndexNotFoundException.class, () -> TransportUnfollowAction.unfollow("another_index", current));
     }
@@ -134,9 +141,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
             .state(IndexMetadata.State.CLOSE);
 
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
-            .metadata(Metadata.builder()
-                .put(followerIndex)
-                .build())
+            .metadata(Metadata.builder().put(followerIndex).build())
             .build();
         expectThrows(IllegalArgumentException.class, () -> TransportUnfollowAction.unfollow("follow_index", current));
     }

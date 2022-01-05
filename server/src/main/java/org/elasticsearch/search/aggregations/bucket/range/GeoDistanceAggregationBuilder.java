@@ -8,17 +8,12 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -30,6 +25,11 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,14 +62,26 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
             }
         }, (p, c) -> GeoDistanceAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
 
-        PARSER.declareField(GeoDistanceAggregationBuilder::unit, p -> DistanceUnit.fromString(p.text()),
-                UNIT_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(
+            GeoDistanceAggregationBuilder::unit,
+            p -> DistanceUnit.fromString(p.text()),
+            UNIT_FIELD,
+            ObjectParser.ValueType.STRING
+        );
 
-        PARSER.declareField(GeoDistanceAggregationBuilder::distanceType, p -> GeoDistance.fromString(p.text()),
-                DISTANCE_TYPE_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(
+            GeoDistanceAggregationBuilder::distanceType,
+            p -> GeoDistance.fromString(p.text()),
+            DISTANCE_TYPE_FIELD,
+            ObjectParser.ValueType.STRING
+        );
 
-        PARSER.declareField(GeoDistanceAggregationBuilder::origin, GeoDistanceAggregationBuilder::parseGeoPoint,
-                ORIGIN_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
+        PARSER.declareField(
+            GeoDistanceAggregationBuilder::origin,
+            GeoDistanceAggregationBuilder::parseGeoPoint,
+            ORIGIN_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING
+        );
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
@@ -127,8 +139,10 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
                 } else if (Double.isNaN(lat)) {
                     lat = parser.doubleValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "malformed [" + ORIGIN_FIELD.getPreferredName()
-                        + "]: a geo point array must be of the form [lon, lat]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "malformed [" + ORIGIN_FIELD.getPreferredName() + "]: a geo point array must be of the form [lon, lat]"
+                    );
                 }
             }
             return new GeoPoint(lat, lon);
@@ -149,8 +163,10 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
                 }
             }
             if (Double.isNaN(lat) || Double.isNaN(lon)) {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "malformed [" + currentFieldName + "] geo point object. either [lat] or [lon] (or both) are " + "missing");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "malformed [" + currentFieldName + "] geo point object. either [lat] or [lon] (or both) are " + "missing"
+                );
             }
             return new GeoPoint(lat, lon);
         }
@@ -224,12 +240,14 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         }
     }
 
-    private GeoDistanceAggregationBuilder(String name, GeoPoint origin,
-                                          InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> rangeFactory) {
+    private GeoDistanceAggregationBuilder(
+        String name,
+        GeoPoint origin,
+        InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> rangeFactory
+    ) {
         super(name);
         this.origin = origin;
     }
-
 
     /**
      * Read from a stream.
@@ -423,20 +441,33 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       Builder subFactoriesBuilder) throws IOException {
-        GeoDistanceAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+    protected ValuesSourceAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        Builder subFactoriesBuilder
+    ) throws IOException {
+        GeoDistanceAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
         Range[] ranges = this.ranges.toArray(new Range[this.range().size()]);
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
 
-        return new GeoDistanceRangeAggregatorFactory(name, config, origin, ranges, unit, distanceType, keyed, context, parent,
-                subFactoriesBuilder, metadata, aggregatorSupplier);
+        return new GeoDistanceRangeAggregatorFactory(
+            name,
+            config,
+            origin,
+            ranges,
+            unit,
+            distanceType,
+            keyed,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            aggregatorSupplier
+        );
     }
 
     @Override
@@ -461,10 +492,10 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         if (super.equals(obj) == false) return false;
         GeoDistanceAggregationBuilder other = (GeoDistanceAggregationBuilder) obj;
         return Objects.equals(origin, other.origin)
-                && Objects.equals(ranges, other.ranges)
-                && Objects.equals(keyed, other.keyed)
-                && Objects.equals(distanceType, other.distanceType)
-                && Objects.equals(unit, other.unit);
+            && Objects.equals(ranges, other.ranges)
+            && Objects.equals(keyed, other.keyed)
+            && Objects.equals(distanceType, other.distanceType)
+            && Objects.equals(unit, other.unit);
     }
 
 }

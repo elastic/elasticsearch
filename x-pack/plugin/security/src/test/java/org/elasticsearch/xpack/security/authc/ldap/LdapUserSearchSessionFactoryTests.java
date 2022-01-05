@@ -14,14 +14,15 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import com.unboundid.ldap.sdk.SingleServerSet;
+
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -85,12 +86,11 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     public void testSupportsUnauthenticatedSessions() throws Exception {
         final boolean useAttribute = randomBoolean();
         Settings.Builder builder = Settings.builder()
-                .put(globalSettings)
-                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, "", LdapSearchScope.SUB_TREE))
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), "")
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
-                    "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, "", LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), "")
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
         final boolean useLegacyBindPassword = configureBindPassword(builder);
         if (useAttribute) {
             builder.put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE), "cn");
@@ -120,12 +120,11 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
         final boolean useAttribute = randomBoolean();
         Settings.Builder builder = Settings.builder()
-                .put(globalSettings)
-                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
-                    "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
         final boolean useLegacyBindPassword = configureBindPassword(builder);
         if (useAttribute) {
             builder.put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE), "cn");
@@ -147,7 +146,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 assertThat(dn, containsString(user));
             }
 
-            //lookup
+            // lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
                 assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
                 String dn = ldap.userDn();
@@ -166,13 +165,12 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
         final boolean useAttribute = randomBoolean();
         Settings.Builder builder = Settings.builder()
-                .put(globalSettings)
-                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
-                    "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_SCOPE), LdapSearchScope.BASE)
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_SCOPE), LdapSearchScope.BASE)
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
         final boolean useLegacyBindPassword = configureBindPassword(builder);
         if (useAttribute) {
             builder.put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE), "cn");
@@ -201,13 +199,12 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String userSearchBase = "cn=William Bush,ou=people,o=sevenSeas";
 
         Settings.Builder builder = Settings.builder()
-                .put(globalSettings)
-                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
-                    "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_SCOPE), LdapSearchScope.BASE)
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_SCOPE), LdapSearchScope.BASE)
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
         final boolean useLegacyBindPassword = configureBindPassword(builder);
         final boolean useAttribute = randomBoolean();
         if (useAttribute) {
@@ -230,7 +227,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 assertThat(dn, containsString(user));
             }
 
-            //lookup
+            // lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
                 assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
                 String dn = ldap.userDn();
@@ -248,14 +245,15 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String userSearchBase = "o=sevenSeas";
 
         Settings.Builder builder = Settings.builder()
-                .put(globalSettings)
-                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
-                    "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_SCOPE),
-                    LdapSearchScope.ONE_LEVEL)
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+            .put(
+                getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_SCOPE),
+                LdapSearchScope.ONE_LEVEL
+            )
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
         final boolean useLegacyBindPassword = configureBindPassword(builder);
         final boolean useAttribute = randomBoolean();
         if (useAttribute) {
@@ -285,14 +283,15 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String userSearchBase = "ou=people,o=sevenSeas";
 
         Settings.Builder builder = Settings.builder()
-                .put(globalSettings)
-                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
-                    "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_SCOPE),
-                    LdapSearchScope.ONE_LEVEL)
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+            .put(
+                getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_SCOPE),
+                LdapSearchScope.ONE_LEVEL
+            )
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
         final boolean useLegacyBindPassword = configureBindPassword(builder);
         final boolean useAttribute = randomBoolean();
         if (useAttribute) {
@@ -308,14 +307,14 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         SecureString userPass = new SecureString("pass");
 
         try {
-            //auth
+            // auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
                 assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
 
-            //lookup
+            // lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
                 assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
                 String dn = ldap.userDn();
@@ -333,12 +332,11 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String userSearchBase = "o=sevenSeas";
 
         Settings.Builder builder = Settings.builder()
-                .put(globalSettings)
-                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
-                    "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
         final boolean useLegacyBindPassword = configureBindPassword(builder);
         final boolean useAttribute = randomBoolean();
         if (useAttribute) {
@@ -368,12 +366,11 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String userSearchBase = "o=sevenSeas";
 
         final Settings.Builder realmSettings = Settings.builder()
-                .put(globalSettings)
-                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
-                    "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
         final boolean useLegacyBindPassword = configureBindPassword(realmSettings);
         RealmConfig config = getRealmConfig(realmSettings.build());
 
@@ -383,14 +380,14 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         SecureString userPass = new SecureString("pass");
 
         try {
-            //auth
+            // auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
                 assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString("William Bush"));
             }
 
-            //lookup
+            // lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
                 assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
                 String dn = ldap.userDn();
@@ -407,23 +404,27 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
         final Settings.Builder realmSettings = Settings.builder()
-                .put(globalSettings)
-                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
-                    "cn=Horatio Hornblower,ou=people,o=sevenSeas");
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), "cn=Horatio Hornblower,ou=people,o=sevenSeas");
         configureBindPassword(realmSettings);
         RealmConfig config = getRealmConfig(realmSettings.build());
 
-        LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(config, new SingleServerSet("localhost",
-                        randomFrom(ldapServers).getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE,
-                new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"),
-                () -> "cn=Horatio Hornblower,ou=people,o=sevenSeas");
+        LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(
+            config,
+            new SingleServerSet("localhost", randomFrom(ldapServers).getListenPort()),
+            TimeValue.timeValueSeconds(5),
+            NoOpLogger.INSTANCE,
+            new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"),
+            () -> "cn=Horatio Hornblower,ou=people,o=sevenSeas"
+        );
         try {
-            assertThat(connectionPool.getCurrentAvailableConnections(),
-                    is(PoolingSessionFactorySettings.DEFAULT_CONNECTION_POOL_INITIAL_SIZE));
-            assertThat(connectionPool.getMaximumAvailableConnections(),
-                    is(PoolingSessionFactorySettings.DEFAULT_CONNECTION_POOL_SIZE));
+            assertThat(
+                connectionPool.getCurrentAvailableConnections(),
+                is(PoolingSessionFactorySettings.DEFAULT_CONNECTION_POOL_INITIAL_SIZE)
+            );
+            assertThat(connectionPool.getMaximumAvailableConnections(), is(PoolingSessionFactorySettings.DEFAULT_CONNECTION_POOL_SIZE));
             assertEquals(connectionPool.getHealthCheck().getClass(), GetEntryLDAPConnectionPoolHealthCheck.class);
             GetEntryLDAPConnectionPoolHealthCheck healthCheck = (GetEntryLDAPConnectionPoolHealthCheck) connectionPool.getHealthCheck();
             assertThat(healthCheck.getEntryDN(), is("cn=Horatio Hornblower,ou=people,o=sevenSeas"));
@@ -437,21 +438,24 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
         final Settings.Builder realmSettings = Settings.builder()
-                .put(globalSettings)
-                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
-                    "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.POOL_INITIAL_SIZE), 10)
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.POOL_SIZE), 12)
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.HEALTH_CHECK_ENABLED), false);
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.POOL_INITIAL_SIZE), 10)
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.POOL_SIZE), 12)
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.HEALTH_CHECK_ENABLED), false);
         configureBindPassword(realmSettings);
         RealmConfig config = getRealmConfig(realmSettings.build());
 
-        LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(config, new SingleServerSet("localhost",
-                        randomFrom(ldapServers).getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE,
-                new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"),
-                () -> "cn=Horatio Hornblower,ou=people,o=sevenSeas");
+        LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(
+            config,
+            new SingleServerSet("localhost", randomFrom(ldapServers).getListenPort()),
+            TimeValue.timeValueSeconds(5),
+            NoOpLogger.INSTANCE,
+            new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"),
+            () -> "cn=Horatio Hornblower,ou=people,o=sevenSeas"
+        );
         try {
             assertThat(connectionPool.getCurrentAvailableConnections(), is(10));
             assertThat(connectionPool.getMaximumAvailableConnections(), is(12));
@@ -516,12 +520,16 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
         final Settings.Builder realmSettings = Settings.builder()
-                .put(globalSettings)
-                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase);
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase);
         final boolean useLegacyBindPassword = configureBindPassword(realmSettings);
-        RealmConfig config = new RealmConfig(REALM_IDENTIFIER, realmSettings.build(),
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig(
+            REALM_IDENTIFIER,
+            realmSettings.build(),
+            TestEnvironment.newEnvironment(globalSettings),
+            new ThreadContext(globalSettings)
+        );
         try (LdapUserSearchSessionFactory searchSessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool)) {
             assertThat(searchSessionFactory.bindCredentials, notNullValue());
             assertThat(searchSessionFactory.bindCredentials.getBindDN(), is(emptyString()));
@@ -533,13 +541,17 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
         final Settings.Builder realmSettings = Settings.builder()
-                .put(globalSettings)
-                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), "cn=ironman")
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase);
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), "cn=ironman")
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase);
         final boolean useLegacyBindPassword = configureBindPassword(realmSettings);
-        RealmConfig config = new RealmConfig(REALM_IDENTIFIER, realmSettings.build(),
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig(
+            REALM_IDENTIFIER,
+            realmSettings.build(),
+            TestEnvironment.newEnvironment(globalSettings),
+            new ThreadContext(globalSettings)
+        );
         try (LdapUserSearchSessionFactory searchSessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool)) {
             assertThat(searchSessionFactory.bindCredentials, notNullValue());
             assertThat(searchSessionFactory.bindCredentials.getBindDN(), is("cn=ironman"));
@@ -557,16 +569,15 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         inMemoryDirectoryServer.shutDown(true);
 
         final Settings.Builder ldapSettingsBuilder = Settings.builder()
-                .put(globalSettings)
-                .put(LdapTestCase.buildLdapSettings(new String[]{ldapUrl}, Strings.EMPTY_ARRAY,
-                        groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), "ironman@ad.test.elasticsearch.com")
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE), "cn")
-                .put("timeout.tcp_connect", "500ms")
-                .put("type", "ldap")
-                .put("user_search.pool.health_check.enabled", false)
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
+            .put(globalSettings)
+            .put(LdapTestCase.buildLdapSettings(new String[] { ldapUrl }, Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
+            .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), "ironman@ad.test.elasticsearch.com")
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE), "cn")
+            .put("timeout.tcp_connect", "500ms")
+            .put("type", "ldap")
+            .put("user_search.pool.health_check.enabled", false)
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean());
 
         final boolean useLegacyBindPassword = configureBindPassword(ldapSettingsBuilder);
         RealmConfig config = getRealmConfig(ldapSettingsBuilder.build());
@@ -585,14 +596,15 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     private void assertDeprecationWarnings(RealmConfig.RealmIdentifier realmIdentifier, boolean useAttribute, boolean legacyBindPassword) {
         List<Setting<?>> deprecatedSettings = new ArrayList<>();
         if (useAttribute) {
-            deprecatedSettings.add(LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE
-                    .getConcreteSettingForNamespace(realmIdentifier.getName())
+            deprecatedSettings.add(
+                LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE.getConcreteSettingForNamespace(realmIdentifier.getName())
             );
         }
         if (legacyBindPassword) {
-            deprecatedSettings.add(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD
-                    .apply(realmIdentifier.getType())
-                    .getConcreteSettingForNamespace(realmIdentifier.getName()));
+            deprecatedSettings.add(
+                PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD.apply(realmIdentifier.getType())
+                    .getConcreteSettingForNamespace(realmIdentifier.getName())
+            );
         }
         if (deprecatedSettings.size() > 0) {
             assertSettingDeprecationsAndWarnings(deprecatedSettings.toArray(new Setting<?>[deprecatedSettings.size()]));
@@ -611,7 +623,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     }
 
     static LdapUserSearchSessionFactory getLdapUserSearchSessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool)
-            throws LDAPException {
+        throws LDAPException {
         LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService, threadPool);
         if (sessionFactory.getConnectionPool() != null) {
             // don't use this in production

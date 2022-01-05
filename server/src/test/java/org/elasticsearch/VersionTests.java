@@ -85,10 +85,8 @@ public class VersionTests extends ESTestCase {
     public void testMinimumIndexCompatibilityVersion() {
         assertEquals(Version.fromId(5000099), Version.fromId(6000099).minimumIndexCompatibilityVersion());
         assertEquals(Version.fromId(2000099), Version.fromId(5000099).minimumIndexCompatibilityVersion());
-        assertEquals(Version.fromId(2000099),
-                Version.fromId(5010000).minimumIndexCompatibilityVersion());
-        assertEquals(Version.fromId(2000099),
-                Version.fromId(5000001).minimumIndexCompatibilityVersion());
+        assertEquals(Version.fromId(2000099), Version.fromId(5010000).minimumIndexCompatibilityVersion());
+        assertEquals(Version.fromId(2000099), Version.fromId(5000001).minimumIndexCompatibilityVersion());
     }
 
     public void testVersionConstantPresent() {
@@ -107,8 +105,11 @@ public class VersionTests extends ESTestCase {
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
             if (version != Version.CURRENT) {
-                assertThat("Version: " + version + " should be before: " + Version.CURRENT + " but wasn't",
-                    version.before(Version.CURRENT), is(true));
+                assertThat(
+                    "Version: " + version + " should be before: " + Version.CURRENT + " but wasn't",
+                    version.before(Version.CURRENT),
+                    is(true)
+                );
             }
         }
     }
@@ -155,8 +156,11 @@ public class VersionTests extends ESTestCase {
         // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()
         Version lastVersion = Version.fromString("6.8.0"); // TODO: remove this once min compat version is a constant instead of method
         assertEquals(lastVersion.major, Version.V_7_0_0.minimumCompatibilityVersion().major);
-        assertEquals("did you miss to bump the minor in Version#minimumCompatibilityVersion()",
-                lastVersion.minor, Version.V_7_0_0.minimumCompatibilityVersion().minor);
+        assertEquals(
+            "did you miss to bump the minor in Version#minimumCompatibilityVersion()",
+            lastVersion.minor,
+            Version.V_7_0_0.minimumCompatibilityVersion().minor
+        );
         assertEquals(0, Version.V_7_0_0.minimumCompatibilityVersion().revision);
     }
 
@@ -180,24 +184,19 @@ public class VersionTests extends ESTestCase {
             assertEquals(version, parsedVersion);
         }
 
-        expectThrows(IllegalArgumentException.class, () -> {
-            Version.fromString("5.0.0-alph2");
-        });
+        expectThrows(IllegalArgumentException.class, () -> { Version.fromString("5.0.0-alph2"); });
         assertSame(Version.CURRENT, Version.fromString(Version.CURRENT.toString()));
 
         assertEquals(Version.fromString("2.0.0-SNAPSHOT"), Version.fromId(2000099));
 
-        expectThrows(IllegalArgumentException.class, () -> {
-            Version.fromString("5.0.0-SNAPSHOT");
-        });
+        expectThrows(IllegalArgumentException.class, () -> { Version.fromString("5.0.0-SNAPSHOT"); });
     }
 
     public void testParseLenient() {
         // note this is just a silly sanity check, we test it in lucene
         for (Version version : VersionUtils.allReleasedVersions()) {
             org.apache.lucene.util.Version luceneVersion = version.luceneVersion;
-            String string = luceneVersion.toString().toUpperCase(Locale.ROOT)
-                    .replaceFirst("^LUCENE_(\\d+)_(\\d+)$", "$1.$2");
+            String string = luceneVersion.toString().toUpperCase(Locale.ROOT).replaceFirst("^LUCENE_(\\d+)_(\\d+)$", "$1.$2");
             assertThat(luceneVersion, Matchers.equalTo(Lucene.parseVersionLenient(string, null)));
         }
     }
@@ -210,7 +209,7 @@ public class VersionTests extends ESTestCase {
             if (field.getName().matches("_ID")) {
                 assertTrue(field.getName() + " should be static", Modifier.isStatic(field.getModifiers()));
                 assertTrue(field.getName() + " should be final", Modifier.isFinal(field.getModifiers()));
-                int versionId = (Integer)field.get(Version.class);
+                int versionId = (Integer) field.get(Version.class);
 
                 String constantName = field.getName().substring(0, field.getName().indexOf("_ID"));
                 java.lang.reflect.Field versionConstant = Version.class.getField(constantName);
@@ -239,8 +238,10 @@ public class VersionTests extends ESTestCase {
                         // Current is weird - it counts as released even though it shouldn't.
                         continue;
                     }
-                    assertFalse("Version " + maxBranchVersion + " cannot be a snapshot because version " + v + " exists",
-                            VersionUtils.allUnreleasedVersions().contains(maxBranchVersion));
+                    assertFalse(
+                        "Version " + maxBranchVersion + " cannot be a snapshot because version " + v + " exists",
+                        VersionUtils.allUnreleasedVersions().contains(maxBranchVersion)
+                    );
                     maxBranchVersions.put(branchName, v);
                 }
             }
@@ -252,8 +253,7 @@ public class VersionTests extends ESTestCase {
         for (Version version : VersionUtils.allReleasedVersions()) {
             for (Version other : VersionUtils.allReleasedVersions()) {
                 if (other.onOrAfter(version)) {
-                    assertTrue("lucene versions must be "  + other + " >= " + version,
-                        other.luceneVersion.onOrAfter(version.luceneVersion));
+                    assertTrue("lucene versions must be " + other + " >= " + version, other.luceneVersion.onOrAfter(version.luceneVersion));
                 }
                 if (other.major == version.major && other.minor == version.minor) {
                     assertEquals(version + " vs. " + other, other.luceneVersion.major, version.luceneVersion.major);
@@ -265,8 +265,10 @@ public class VersionTests extends ESTestCase {
     }
 
     public static void assertUnknownVersion(Version version) {
-        assertFalse("Version " + version + " has been releaed don't use a new instance of this version",
-            VersionUtils.allReleasedVersions().contains(version));
+        assertFalse(
+            "Version " + version + " has been releaed don't use a new instance of this version",
+            VersionUtils.allReleasedVersions().contains(version)
+        );
     }
 
     public void testIsCompatible() {
@@ -283,30 +285,24 @@ public class VersionTests extends ESTestCase {
         } else {
             currentOrNextMajorVersion = currentMajorVersion;
         }
-        final Version lastMinorFromPreviousMajor =
-                VersionUtils
-                        .allVersions()
-                        .stream()
-                        .filter(v -> v.major == currentOrNextMajorVersion.major - 1)
-                        .max(Version::compareTo)
-                        .orElseThrow(
-                                () -> new IllegalStateException("expected previous minor version for [" + currentOrNextMajorVersion + "]"));
+        final Version lastMinorFromPreviousMajor = VersionUtils.allVersions()
+            .stream()
+            .filter(v -> v.major == currentOrNextMajorVersion.major - 1)
+            .max(Version::compareTo)
+            .orElseThrow(() -> new IllegalStateException("expected previous minor version for [" + currentOrNextMajorVersion + "]"));
         final Version previousMinorVersion = VersionUtils.getPreviousMinorVersion();
 
-        boolean isCompatible =
-                previousMinorVersion.major == currentOrNextMajorVersion.major
-                        || previousMinorVersion.minor == lastMinorFromPreviousMajor.minor;
+        boolean isCompatible = previousMinorVersion.major == currentOrNextMajorVersion.major
+            || previousMinorVersion.minor == lastMinorFromPreviousMajor.minor;
 
         final String message = String.format(
-                Locale.ROOT,
-                "[%s] should %s be compatible with [%s]",
-                previousMinorVersion,
-                isCompatible ? "" : " not",
-                currentOrNextMajorVersion);
-        assertThat(
-                message,
-                isCompatible(VersionUtils.getPreviousMinorVersion(), currentOrNextMajorVersion),
-                equalTo(isCompatible));
+            Locale.ROOT,
+            "[%s] should %s be compatible with [%s]",
+            previousMinorVersion,
+            isCompatible ? "" : " not",
+            currentOrNextMajorVersion
+        );
+        assertThat(message, isCompatible(VersionUtils.getPreviousMinorVersion(), currentOrNextMajorVersion), equalTo(isCompatible));
 
         assertFalse(isCompatible(Version.fromId(5000099), Version.fromString("6.0.0")));
         assertFalse(isCompatible(Version.fromId(5000099), Version.fromString("7.0.0")));
@@ -325,7 +321,6 @@ public class VersionTests extends ESTestCase {
         versionsByMinCompat.sort(Comparator.comparing(Version::minimumIndexCompatibilityVersion));
         assertThat(versionsByMinCompat, equalTo(allVersions()));
     }
-
 
     public boolean isCompatible(Version left, Version right) {
         boolean result = left.isCompatible(right);

@@ -13,14 +13,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -28,6 +25,7 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
@@ -85,39 +83,26 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
-import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.SWITCH_TO_FIELDS_API_VERSION;
+import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.INTRODUCING_MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION;
 
 // TODO: add retry/back-off
 public class Querier {
     private static final Logger log = LogManager.getLogger(Querier.class);
 
-    private final PlanExecutor planExecutor;
     private final SqlConfiguration cfg;
-    private final TimeValue keepAlive, timeout;
-    private final int size;
     private final Client client;
-    @Nullable
-    private final QueryBuilder filter;
+    private final PlanExecutor planExecutor;
 
-    public Querier(SqlSession sqlSession) {
-        this.planExecutor = sqlSession.planExecutor();
-        this.client = sqlSession.client();
-        this.cfg = sqlSession.configuration();
-        this.keepAlive = cfg.requestTimeout();
-        this.timeout = cfg.pageTimeout();
-        this.filter = cfg.filter();
-        this.size = cfg.pageSize();
+    public Querier(SqlSession session) {
+        this.client = session.client();
+        this.planExecutor = session.planExecutor();
+        this.cfg = session.configuration();
     }
 
     public void query(List<Attribute> output, QueryContainer query, String index, ActionListener<Page> listener) {
         // prepare the request
-        SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, filter, size);
-        // set query timeout
-        if (timeout.getSeconds() > 0) {
-            sourceBuilder.timeout(timeout);
-        }
+        SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, cfg.filter(), cfg.pageSize());
 
-        // set runtime mappings
         if (this.cfg.runtimeMappings() != null) {
             sourceBuilder.runtimeMappings(this.cfg.runtimeMappings());
         }
@@ -126,8 +111,12 @@ public class Querier {
             log.trace("About to execute query {} on {}", StringUtils.toString(sourceBuilder), index);
         }
 
-        SearchRequest search = prepareRequest(client, sourceBuilder, timeout, query.shouldIncludeFrozen(),
-                Strings.commaDelimitedListToStringArray(index));
+        SearchRequest search = prepareRequest(
+            sourceBuilder,
+            cfg.requestTimeout(),
+            query.shouldIncludeFrozen(),
+            Strings.commaDelimitedListToStringArray(index)
+        );
 
         @SuppressWarnings("rawtypes")
         List<Tuple<Integer, Comparator>> sortingColumns = query.sortingColumns();
@@ -141,7 +130,7 @@ public class Querier {
                 l = new CompositeActionListener(listener, client, cfg, output, query, search);
             }
         } else {
-            search.scroll(keepAlive);
+            search.scroll(cfg.pageTimeout());
             l = new ScrollActionListener(listener, client, cfg, output, query);
         }
 
@@ -152,16 +141,16 @@ public class Querier {
         client.search(search, l);
     }
 
-    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
-            String... indices) {
+    public static SearchRequest prepareRequest(SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen, String... indices) {
         source.timeout(timeout);
 
-        SearchRequest searchRequest = new SearchRequest(SWITCH_TO_FIELDS_API_VERSION);
+        SearchRequest searchRequest = new SearchRequest(INTRODUCING_MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION);
         searchRequest.indices(indices);
         searchRequest.source(source);
         searchRequest.allowPartialSearchResults(false);
         searchRequest.indicesOptions(
-            includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS);
+            includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
+        );
 
         return searchRequest;
     }
@@ -176,18 +165,20 @@ public class Querier {
             aggsNames.append(aggs.get(i).getName() + (i + 1 == aggs.size() ? "" : ", "));
         }
 
-        logger.trace("Got search response [hits {} {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
+        logger.trace(
+            "Got search response [hits {} {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
                 + "{} successful shards, {} total shards, took {}, timed out [{}]]",
-                response.getHits().getTotalHits().relation.toString(),
-                response.getHits().getTotalHits().value,
-                aggs.size(),
-                aggsNames,
-                response.getFailedShards(),
-                response.getSkippedShards(),
-                response.getSuccessfulShards(),
-                response.getTotalShards(),
-                response.getTook(),
-                response.isTimedOut());
+            response.getHits().getTotalHits().relation.toString(),
+            response.getHits().getTotalHits().value,
+            aggs.size(),
+            aggsNames,
+            response.getFailedShards(),
+            response.getSkippedShards(),
+            response.getSuccessfulShards(),
+            response.getTotalShards(),
+            response.getTook(),
+            response.isTimedOut()
+        );
     }
 
     /**
@@ -230,8 +221,8 @@ public class Querier {
             // schema is set on the first page (as the rest don't hold the schema anymore)
             if (schema == null) {
                 RowSet rowSet = page.rowSet();
-                if (rowSet instanceof SchemaRowSet) {
-                    schema = ((SchemaRowSet) rowSet).schema();
+                if (rowSet instanceof SchemaRowSet schemaRowSet) {
+                    schema = schemaRowSet.schema();
                 } else {
                     onFailure(new SqlIllegalArgumentException("No schema found inside {}", rowSet.getClass()));
                     return;
@@ -247,7 +238,7 @@ public class Querier {
             // 1a. trigger a next call if there's still data
             if (cursor != Cursor.EMPTY) {
                 // trigger a next call
-                planExecutor.nextPage(cfg, cursor, this);
+                planExecutor.nextPageInternal(cfg, cursor, this);
                 // make sure to bail out afterwards as we'll get called by a different thread
                 return;
             }
@@ -264,8 +255,12 @@ public class Querier {
                 rrs.forEachResultColumn(row::add);
                 // if the queue overflows and no limit was specified, throw an error
                 if (data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement())) != null && noLimit) {
-                    onFailure(new SqlIllegalArgumentException(
-                            "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT", MAXIMUM_SIZE));
+                    onFailure(
+                        new SqlIllegalArgumentException(
+                            "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT",
+                            MAXIMUM_SIZE
+                        )
+                    );
                     return false;
                 }
             }
@@ -310,8 +305,14 @@ public class Querier {
             }
         });
 
-        ImplicitGroupActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
-                QueryContainer query, SearchRequest request) {
+        ImplicitGroupActionListener(
+            ActionListener<Page> listener,
+            Client client,
+            SqlConfiguration cfg,
+            List<Attribute> output,
+            QueryContainer query,
+            SearchRequest request
+        ) {
             super(listener, client, cfg, output, query, request);
         }
 
@@ -324,8 +325,8 @@ public class Querier {
             Aggregations aggs = response.getAggregations();
             if (aggs != null) {
                 Aggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);
-                if (agg instanceof Filters) {
-                    handleBuckets(((Filters) agg).getBuckets(), response);
+                if (agg instanceof Filters filters) {
+                    handleBuckets(filters.getBuckets(), response);
                 } else {
                     throw new SqlIllegalArgumentException("Unrecognized root group found; {}", agg.getClass());
                 }
@@ -352,12 +353,13 @@ public class Querier {
             } else if (buckets.isEmpty()) {
                 delegate.onResponse(Page.last(Rows.empty(schema)));
             } else {
-                throw new SqlIllegalArgumentException("Too many groups returned by the implicit group; expected 1, received {}",
-                        buckets.size());
+                throw new SqlIllegalArgumentException(
+                    "Too many groups returned by the implicit group; expected 1, received {}",
+                    buckets.size()
+                );
             }
         }
     }
-
 
     /**
      * Dedicated listener for composite aggs/group-by results.
@@ -366,29 +368,69 @@ public class Querier {
 
         private final boolean isPivot;
 
-        CompositeActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
-                QueryContainer query, SearchRequest request) {
+        CompositeActionListener(
+            ActionListener<Page> listener,
+            Client client,
+            SqlConfiguration cfg,
+            List<Attribute> output,
+            QueryContainer query,
+            SearchRequest request
+        ) {
             super(listener, client, cfg, output, query, request);
 
-            isPivot = query.fields().stream().anyMatch(t -> t.v1() instanceof PivotColumnRef);
+            isPivot = query.fields().stream().anyMatch(t -> t.extraction() instanceof PivotColumnRef);
         }
 
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
 
-            Supplier<CompositeAggRowSet> makeRowSet = isPivot ? () -> new PivotRowSet(schema, initBucketExtractors(response), mask,
-                    response, query.sortingColumns().isEmpty() ? query.limit() : -1, null) : () -> new SchemaCompositeAggRowSet(schema,
-                            initBucketExtractors(response), mask, response, query.sortingColumns().isEmpty() ? query.limit() : -1);
+            Supplier<CompositeAggRowSet> makeRowSet = isPivot
+                ? () -> new PivotRowSet(
+                    schema,
+                    initBucketExtractors(response),
+                    mask,
+                    response,
+                    query.sortingColumns().isEmpty() ? query.limit() : -1,
+                    null
+                )
+                : () -> new SchemaCompositeAggRowSet(
+                    schema,
+                    initBucketExtractors(response),
+                    mask,
+                    response,
+                    query.sortingColumns().isEmpty() ? query.limit() : -1
+                );
 
             BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor = isPivot ? (q, r) -> {
                 Map<String, Object> lastAfterKey = r instanceof PivotRowSet ? ((PivotRowSet) r).lastAfterKey() : null;
-                return new PivotCursor(lastAfterKey, q, r.extractors(), r.mask(), r.remainingData(), query.shouldIncludeFrozen(),
-                        request.indices());
-            } : (q, r) -> new CompositeAggCursor(q, r.extractors(), r.mask(), r.remainingData, query.shouldIncludeFrozen(),
-                    request.indices());
+                return new PivotCursor(
+                    lastAfterKey,
+                    q,
+                    r.extractors(),
+                    r.mask(),
+                    r.remainingData(),
+                    query.shouldIncludeFrozen(),
+                    request.indices()
+                );
+            }
+                : (q, r) -> new CompositeAggCursor(
+                    q,
+                    r.extractors(),
+                    r.mask(),
+                    r.remainingData,
+                    query.shouldIncludeFrozen(),
+                    request.indices()
+                );
 
-            CompositeAggCursor.handle(response, request.source(), makeRowSet, makeCursor, () -> client.search(request, this), listener,
-                    schema);
+            CompositeAggCursor.handle(
+                response,
+                request.source(),
+                makeRowSet,
+                makeCursor,
+                () -> client.search(request, this),
+                listener,
+                schema
+            );
         }
     }
 
@@ -397,8 +439,14 @@ public class Querier {
         final SearchRequest request;
         final BitSet mask;
 
-        BaseAggActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
-                QueryContainer query, SearchRequest request) {
+        BaseAggActionListener(
+            ActionListener<Page> listener,
+            Client client,
+            SqlConfiguration cfg,
+            List<Attribute> output,
+            QueryContainer query,
+            SearchRequest request
+        ) {
             super(listener, client, cfg, output);
 
             this.query = query;
@@ -408,34 +456,30 @@ public class Querier {
 
         protected List<BucketExtractor> initBucketExtractors(SearchResponse response) {
             // create response extractors for the first time
-            List<Tuple<FieldExtraction, String>> refs = query.fields();
+            List<QueryContainer.FieldInfo> refs = query.fields();
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
             ConstantExtractor totalCount = new ConstantExtractor(response.getHits().getTotalHits().value);
-            for (Tuple<FieldExtraction, String> ref : refs) {
-                exts.add(createExtractor(ref.v1(), totalCount));
+            for (QueryContainer.FieldInfo ref : refs) {
+                exts.add(createExtractor(ref.extraction(), totalCount));
             }
             return exts;
         }
 
         private BucketExtractor createExtractor(FieldExtraction ref, BucketExtractor totalCount) {
-            if (ref instanceof GroupByRef) {
-                GroupByRef r = (GroupByRef) ref;
+            if (ref instanceof GroupByRef r) {
                 return new CompositeKeyExtractor(r.key(), r.property(), cfg.zoneId(), r.isDateTimeBased());
             }
 
-            if (ref instanceof MetricAggRef) {
-                MetricAggRef r = (MetricAggRef) ref;
+            if (ref instanceof MetricAggRef r) {
                 return new MetricAggExtractor(r.name(), r.property(), r.innerKey(), cfg.zoneId(), r.dataType());
             }
 
-            if (ref instanceof TopHitsAggRef) {
-                TopHitsAggRef r = (TopHitsAggRef) ref;
+            if (ref instanceof TopHitsAggRef r) {
                 return new TopHitsAggExtractor(r.name(), r.fieldDataType(), cfg.zoneId());
             }
 
-            if (ref instanceof PivotColumnRef) {
-                PivotColumnRef r = (PivotColumnRef) ref;
+            if (ref instanceof PivotColumnRef r) {
                 return new PivotExtractor(createExtractor(r.pivot(), totalCount), createExtractor(r.agg(), totalCount), r.value());
             }
 
@@ -443,8 +487,8 @@ public class Querier {
                 return totalCount;
             }
 
-            if (ref instanceof ComputedRef) {
-                Pipe proc = ((ComputedRef) ref).processor();
+            if (ref instanceof ComputedRef computedRef) {
+                Pipe proc = computedRef.processor();
 
                 // wrap only agg inputs
                 proc = proc.transformDown(AggPathInput.class, l -> {
@@ -467,8 +511,13 @@ public class Querier {
         private final BitSet mask;
         private final boolean multiValueFieldLeniency;
 
-        ScrollActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
-                QueryContainer query) {
+        ScrollActionListener(
+            ActionListener<Page> listener,
+            Client client,
+            SqlConfiguration cfg,
+            List<Attribute> output,
+            QueryContainer query
+        ) {
             super(listener, client, cfg, output);
             this.query = query;
             this.mask = query.columnMask(output);
@@ -478,31 +527,33 @@ public class Querier {
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
             // create response extractors for the first time
-            List<Tuple<FieldExtraction, String>> refs = query.fields();
+            List<QueryContainer.FieldInfo> refs = query.fields();
 
             List<HitExtractor> exts = new ArrayList<>(refs.size());
-            for (Tuple<FieldExtraction, String> ref : refs) {
-                exts.add(createExtractor(ref.v1()));
+            for (QueryContainer.FieldInfo ref : refs) {
+                exts.add(createExtractor(ref.extraction()));
             }
 
-            ScrollCursor.handle(response, () -> new SchemaSearchHitRowSet(schema, exts, mask, query.limit(), response),
-                    p -> listener.onResponse(p),
-                    p -> clear(response.getScrollId(), wrap(success -> listener.onResponse(p), listener::onFailure)), schema);
+            ScrollCursor.handle(
+                response,
+                () -> new SchemaSearchHitRowSet(schema, exts, mask, query.limit(), response),
+                p -> listener.onResponse(p),
+                p -> clear(response.getScrollId(), wrap(success -> listener.onResponse(p), listener::onFailure)),
+                schema
+            );
         }
 
         private HitExtractor createExtractor(FieldExtraction ref) {
-            if (ref instanceof SearchHitFieldRef) {
-                SearchHitFieldRef f = (SearchHitFieldRef) ref;
+            if (ref instanceof SearchHitFieldRef f) {
                 return new FieldHitExtractor(f.name(), f.getDataType(), cfg.zoneId(), f.hitName(), multiValueFieldLeniency);
             }
 
-            if (ref instanceof ScriptFieldRef) {
-                ScriptFieldRef f = (ScriptFieldRef) ref;
+            if (ref instanceof ScriptFieldRef f) {
                 return new FieldHitExtractor(f.name(), null, cfg.zoneId(), multiValueFieldLeniency);
             }
 
-            if (ref instanceof ComputedRef) {
-                Pipe proc = ((ComputedRef) ref).processor();
+            if (ref instanceof ComputedRef computedRef) {
+                Pipe proc = computedRef.processor();
                 // collect hitNames
                 Set<String> hitNames = new LinkedHashSet<>();
                 proc = proc.transformDown(ReferenceInput.class, l -> {
@@ -534,7 +585,6 @@ public class Querier {
 
         final Client client;
         final SqlConfiguration cfg;
-        final TimeValue keepAlive;
         final Schema schema;
 
         BaseActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output) {
@@ -542,7 +592,6 @@ public class Querier {
 
             this.client = client;
             this.cfg = cfg;
-            this.keepAlive = cfg.requestTimeout();
             this.schema = Rows.schema(output);
         }
 
@@ -566,12 +615,13 @@ public class Querier {
         // clean-up the scroll in case of exception
         protected final void cleanup(SearchResponse response, Exception ex) {
             if (response != null && response.getScrollId() != null) {
-                client.prepareClearScroll().addScrollId(response.getScrollId())
-                        // in case of failure, report the initial exception instead of the one resulting from cleaning the scroll
-                        .execute(ActionListener.wrap(r -> delegate.onFailure(ex), e -> {
-                            ex.addSuppressed(e);
-                            delegate.onFailure(ex);
-                        }));
+                client.prepareClearScroll()
+                    .addScrollId(response.getScrollId())
+                    // in case of failure, report the initial exception instead of the one resulting from cleaning the scroll
+                    .execute(ActionListener.wrap(r -> delegate.onFailure(ex), e -> {
+                        ex.addSuppressed(e);
+                        delegate.onFailure(ex);
+                    }));
             } else {
                 delegate.onFailure(ex);
             }
@@ -579,8 +629,14 @@ public class Querier {
 
         protected final void clear(String scrollId, ActionListener<Boolean> listener) {
             if (scrollId != null) {
-                client.prepareClearScroll().addScrollId(scrollId).execute(ActionListener
-                        .wrap(clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()), listener::onFailure));
+                client.prepareClearScroll()
+                    .addScrollId(scrollId)
+                    .execute(
+                        ActionListener.wrap(
+                            clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()),
+                            listener::onFailure
+                        )
+                    );
             } else {
                 listener.onResponse(false);
             }

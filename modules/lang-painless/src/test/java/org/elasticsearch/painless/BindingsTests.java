@@ -45,7 +45,7 @@ public class BindingsTests extends ScriptTestCase {
         }
 
         public int addWithState(int istateless, double dstateless) {
-            return istateless + state + (int)dstateless;
+            return istateless + state + (int) dstateless;
         }
     }
 
@@ -59,7 +59,7 @@ public class BindingsTests extends ScriptTestCase {
         }
 
         public int addThisWithState(int istateless, double dstateless) {
-            return istateless + state + (int)dstateless + bindingsTestScript.getTestValue();
+            return istateless + state + (int) dstateless + bindingsTestScript.getTestValue();
         }
     }
 
@@ -82,8 +82,8 @@ public class BindingsTests extends ScriptTestCase {
             this.value = value;
         }
 
-        public void setInstanceBindingValue(int value) {
-            this.value = value;
+        public void setInstanceBindingValue(int instanceBindingValue) {
+            this.value = instanceBindingValue;
         }
 
         public int getInstanceBindingValue() {
@@ -97,11 +97,17 @@ public class BindingsTests extends ScriptTestCase {
 
     public abstract static class BindingsTestScript {
         public static final String[] PARAMETERS = { "test", "bound" };
-        public int getTestValue() {return 7;}
+
+        public int getTestValue() {
+            return 7;
+        }
+
         public abstract int execute(int test, int bound);
+
         public interface Factory {
             BindingsTestScript newInstance();
         }
+
         public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("bindings_test", Factory.class);
     }
 
@@ -112,18 +118,41 @@ public class BindingsTests extends ScriptTestCase {
         whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.test"));
 
         InstanceBindingTestClass instanceBindingTestClass = new InstanceBindingTestClass(1);
-        WhitelistInstanceBinding getter = new WhitelistInstanceBinding("test", instanceBindingTestClass,
-                "setInstanceBindingValue", "void", Collections.singletonList("int"), Collections.emptyList());
-        WhitelistInstanceBinding setter = new WhitelistInstanceBinding("test", instanceBindingTestClass,
-                "getInstanceBindingValue", "int", Collections.emptyList(), Collections.emptyList());
-        WhitelistInstanceBinding mul = new WhitelistInstanceBinding("test", instanceBindingTestClass,
-                "instanceMul", "int", List.of("int", "int"), List.of(CompileTimeOnlyAnnotation.INSTANCE));
+        WhitelistInstanceBinding getter = new WhitelistInstanceBinding(
+            "test",
+            instanceBindingTestClass,
+            "setInstanceBindingValue",
+            "void",
+            Collections.singletonList("int"),
+            Collections.emptyList()
+        );
+        WhitelistInstanceBinding setter = new WhitelistInstanceBinding(
+            "test",
+            instanceBindingTestClass,
+            "getInstanceBindingValue",
+            "int",
+            Collections.emptyList(),
+            Collections.emptyList()
+        );
+        WhitelistInstanceBinding mul = new WhitelistInstanceBinding(
+            "test",
+            instanceBindingTestClass,
+            "instanceMul",
+            "int",
+            List.of("int", "int"),
+            List.of(CompileTimeOnlyAnnotation.INSTANCE)
+        );
         List<WhitelistInstanceBinding> instanceBindingsList = new ArrayList<>();
         instanceBindingsList.add(getter);
         instanceBindingsList.add(setter);
         instanceBindingsList.add(mul);
-        Whitelist instanceBindingsWhitelist = new Whitelist(instanceBindingTestClass.getClass().getClassLoader(),
-                Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), instanceBindingsList);
+        Whitelist instanceBindingsWhitelist = new Whitelist(
+            instanceBindingTestClass.getClass().getClassLoader(),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            instanceBindingsList
+        );
         whitelists.add(instanceBindingsWhitelist);
 
         contexts.put(BindingsTestScript.CONTEXT, whitelists);

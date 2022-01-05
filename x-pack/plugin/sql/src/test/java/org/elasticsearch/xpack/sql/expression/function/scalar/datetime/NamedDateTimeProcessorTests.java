@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.junit.Assume;
@@ -75,7 +75,7 @@ public class NamedDateTimeProcessorTests extends AbstractSqlWireSerializingTestC
 
     public void testValidMonthNamesInUTC() {
         assumeJava9PlusAndCompatLocaleProviderSetting();
-        NamedDateTimeProcessor proc  = new NamedDateTimeProcessor(NameExtractor.MONTH_NAME, UTC);
+        NamedDateTimeProcessor proc = new NamedDateTimeProcessor(NameExtractor.MONTH_NAME, UTC);
         assertEquals("January", proc.process(dateTime(0)));
         assertEquals("September", proc.process(dateTime(-64165813612338L)));
         assertEquals("April", proc.process(dateTime(64164233612338L)));
@@ -115,7 +115,7 @@ public class NamedDateTimeProcessorTests extends AbstractSqlWireSerializingTestC
         String beforeJava9CompatibleLocale = System.getProperty("java.locale.providers");
         // and COMPAT setting needs to be first on the list
         boolean isBeforeJava9Compatible = beforeJava9CompatibleLocale != null
-                && Strings.tokenizeToStringArray(beforeJava9CompatibleLocale, ",")[0].equals("COMPAT");
+            && Strings.tokenizeToStringArray(beforeJava9CompatibleLocale, ",")[0].equals("COMPAT");
         Assume.assumeTrue(isBeforeJava9Compatible);
     }
 }

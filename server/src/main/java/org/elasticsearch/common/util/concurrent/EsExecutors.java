@@ -9,10 +9,10 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
 
 import java.util.List;
@@ -42,7 +42,8 @@ public class EsExecutors {
         Runtime.getRuntime().availableProcessors(),
         1,
         Runtime.getRuntime().availableProcessors(),
-        Property.NodeScope);
+        Property.NodeScope
+    );
 
     /**
      * Returns the number of allocated processors. Defaults to {@link Runtime#availableProcessors()} but can be overridden by passing a
@@ -56,11 +57,12 @@ public class EsExecutors {
     }
 
     public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(
-            String name,
-            ThreadFactory threadFactory,
-            ThreadContext contextHolder,
-            ScheduledExecutorService timer,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher starvationWatcher) {
+        String name,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder,
+        ScheduledExecutorService timer,
+        PrioritizedEsThreadPoolExecutor.StarvationWatcher starvationWatcher
+    ) {
         return new PrioritizedEsThreadPoolExecutor(
             name,
             1,
@@ -70,20 +72,43 @@ public class EsExecutors {
             threadFactory,
             contextHolder,
             timer,
-            starvationWatcher);
+            starvationWatcher
+        );
     }
 
-    public static EsThreadPoolExecutor newScaling(String name, int min, int max, long keepAliveTime, TimeUnit unit,
-                                                  ThreadFactory threadFactory, ThreadContext contextHolder) {
+    public static EsThreadPoolExecutor newScaling(
+        String name,
+        int min,
+        int max,
+        long keepAliveTime,
+        TimeUnit unit,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder
+    ) {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
-        EsThreadPoolExecutor executor =
-            new EsThreadPoolExecutor(name, min, max, keepAliveTime, unit, queue, threadFactory, new ForceQueuePolicy(), contextHolder);
+        EsThreadPoolExecutor executor = new EsThreadPoolExecutor(
+            name,
+            min,
+            max,
+            keepAliveTime,
+            unit,
+            queue,
+            threadFactory,
+            new ForceQueuePolicy(),
+            contextHolder
+        );
         queue.executor = executor;
         return executor;
     }
 
-    public static EsThreadPoolExecutor newFixed(String name, int size, int queueCapacity,
-                                                ThreadFactory threadFactory, ThreadContext contextHolder, boolean trackEWMA) {
+    public static EsThreadPoolExecutor newFixed(
+        String name,
+        int size,
+        int queueCapacity,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder,
+        boolean trackEWMA
+    ) {
         BlockingQueue<Runnable> queue;
         if (queueCapacity < 0) {
             queue = ConcurrentCollections.newBlockingQueue();
@@ -91,11 +116,30 @@ public class EsExecutors {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
         if (trackEWMA) {
-            return new EWMATrackingEsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
-                queue, TimedRunnable::new, threadFactory, new EsAbortPolicy(), contextHolder);
+            return new EWMATrackingEsThreadPoolExecutor(
+                name,
+                size,
+                size,
+                0,
+                TimeUnit.MILLISECONDS,
+                queue,
+                TimedRunnable::new,
+                threadFactory,
+                new EsAbortPolicy(),
+                contextHolder
+            );
         } else {
-            return new EsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
-                queue, threadFactory, new EsAbortPolicy(), contextHolder);
+            return new EsThreadPoolExecutor(
+                name,
+                size,
+                size,
+                0,
+                TimeUnit.MILLISECONDS,
+                queue,
+                threadFactory,
+                new EsAbortPolicy(),
+                contextHolder
+            );
         }
     }
 
@@ -120,9 +164,7 @@ public class EsExecutors {
                  * exception to ensure that there is not a buried error anywhere. We assume that a general exception has been
                  * handled by the executed task or the task submitter.
                  */
-                assert e instanceof CancellationException
-                    || e instanceof InterruptedException
-                    || e instanceof ExecutionException : e;
+                assert e instanceof CancellationException || e instanceof InterruptedException || e instanceof ExecutionException : e;
                 final Optional<Error> maybeError = ExceptionsHelper.maybeError(e);
                 if (maybeError.isPresent()) {
                     // throw this error where it will propagate to the uncaught exception handler
@@ -222,15 +264,12 @@ public class EsExecutors {
         EsThreadFactory(String namePrefix) {
             this.namePrefix = namePrefix;
             SecurityManager s = System.getSecurityManager();
-            group = (s != null) ? s.getThreadGroup() :
-                    Thread.currentThread().getThreadGroup();
+            group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
         }
 
         @Override
         public Thread newThread(Runnable r) {
-            Thread t = new Thread(group, r,
-                    namePrefix + "[T#" + threadNumber.getAndIncrement() + "]",
-                    0);
+            Thread t = new Thread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0);
             t.setDaemon(true);
             return t;
         }
@@ -240,15 +279,13 @@ public class EsExecutors {
     /**
      * Cannot instantiate.
      */
-    private EsExecutors() {
-    }
+    private EsExecutors() {}
 
     static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {
 
         ThreadPoolExecutor executor;
 
-        ExecutorScalingQueue() {
-        }
+        ExecutorScalingQueue() {}
 
         @Override
         public boolean offer(E e) {

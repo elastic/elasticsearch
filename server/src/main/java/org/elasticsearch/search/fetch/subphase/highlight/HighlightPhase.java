@@ -44,7 +44,11 @@ public class HighlightPhase implements FetchSubPhase {
     public FetchSubPhaseProcessor getProcessor(FetchContext context, SearchHighlightContext highlightContext, Query query) {
         Map<String, Object> sharedCache = new HashMap<>();
         Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders = contextBuilders(
-            context, highlightContext, query, sharedCache);
+            context,
+            highlightContext,
+            query,
+            sharedCache
+        );
 
         return new FetchSubPhaseProcessor() {
             @Override
@@ -63,8 +67,7 @@ public class HighlightPhase implements FetchSubPhase {
                         // Note that we make sure to use the original field name in the response. This is because the
                         // original field could be an alias, and highlighter implementations may instead reference the
                         // concrete field it points to.
-                        highlightFields.put(field,
-                            new HighlightField(field, highlightField.fragments()));
+                        highlightFields.put(field, new HighlightField(field, highlightField.fragments()));
                     }
                 }
                 hitContext.hit().highlightFields(highlightFields);
@@ -79,16 +82,17 @@ public class HighlightPhase implements FetchSubPhase {
         }
         Highlighter highlighter = highlighters.get(highlighterType);
         if (highlighter == null) {
-            throw new IllegalArgumentException("unknown highlighter type [" + highlighterType
-                + "] for the field [" + field.field() + "]");
+            throw new IllegalArgumentException("unknown highlighter type [" + highlighterType + "] for the field [" + field.field() + "]");
         }
         return highlighter;
     }
 
-    private Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders(FetchContext context,
-                                                                                     SearchHighlightContext highlightContext,
-                                                                                     Query query,
-                                                                                     Map<String, Object> sharedCache) {
+    private Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders(
+        FetchContext context,
+        SearchHighlightContext highlightContext,
+        Query query,
+        Map<String, Object> sharedCache
+    ) {
         Map<String, Function<HitContext, FieldHighlightContext>> builders = new LinkedHashMap<>();
         for (SearchHighlightContext.Field field : highlightContext.fields()) {
             Highlighter highlighter = getHighlighter(field);
@@ -96,8 +100,7 @@ public class HighlightPhase implements FetchSubPhase {
 
             if (highlightContext.forceSource(field)) {
                 if (context.getSearchExecutionContext().isSourceEnabled() == false) {
-                    throw new IllegalArgumentException("source is forced for fields " + fieldNamesToHighlight
-                        + " but _source is disabled");
+                    throw new IllegalArgumentException("source is forced for fields " + fieldNamesToHighlight + " but _source is disabled");
                 }
             }
 
@@ -114,8 +117,8 @@ public class HighlightPhase implements FetchSubPhase {
                 // If the field was explicitly given we assume that whoever issued the query knew
                 // what they were doing and try to highlight anyway.
                 if (fieldNameContainsWildcards) {
-                    if (fieldType.typeName().equals(TextFieldMapper.CONTENT_TYPE) == false &&
-                        fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false) {
+                    if (fieldType.typeName().equals(TextFieldMapper.CONTENT_TYPE) == false
+                        && fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false) {
                         continue;
                     }
                     if (highlighter.canHighlight(fieldType) == false) {
@@ -126,9 +129,19 @@ public class HighlightPhase implements FetchSubPhase {
                 Query highlightQuery = field.fieldOptions().highlightQuery();
 
                 boolean forceSource = highlightContext.forceSource(field);
-                builders.put(fieldName,
-                    hc -> new FieldHighlightContext(fieldType.name(), field, fieldType, context, hc,
-                        highlightQuery == null ? query : highlightQuery, forceSource, sharedCache));
+                builders.put(
+                    fieldName,
+                    hc -> new FieldHighlightContext(
+                        fieldType.name(),
+                        field,
+                        fieldType,
+                        context,
+                        hc,
+                        highlightQuery == null ? query : highlightQuery,
+                        forceSource,
+                        sharedCache
+                    )
+                );
             }
         }
         return builders;

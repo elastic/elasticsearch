@@ -10,7 +10,7 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -46,8 +46,11 @@ public class AvgBucketPipelineAggregationBuilder extends BucketMetricsPipelineAg
 
     public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
         @Override
-        protected AvgBucketPipelineAggregationBuilder buildFactory(String pipelineAggregatorName,
-                String bucketsPath, Map<String, Object> params) {
+        protected AvgBucketPipelineAggregationBuilder buildFactory(
+            String pipelineAggregatorName,
+            String bucketsPath,
+            Map<String, Object> params
+        ) {
             return new AvgBucketPipelineAggregationBuilder(pipelineAggregatorName, bucketsPath);
         }
     };

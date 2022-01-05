@@ -6,12 +6,13 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
-import javax.crypto.SecretKeyFactory;
 
 import java.security.NoSuchAlgorithmException;
+
+import javax.crypto.SecretKeyFactory;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -47,14 +48,20 @@ public class XPackSettingsTests extends ESTestCase {
         if (isPBKDF2Available) {
             assertEquals(pbkdf2Algo, XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
         } else {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings)
+            );
             assertThat(e.getMessage(), containsString("Support for PBKDF2WithHMACSHA512 must be available"));
         }
 
         final String bcryptAlgo = randomFrom("BCRYPT", "BCRYPT11");
-        assertEquals(bcryptAlgo, XPackSettings.PASSWORD_HASHING_ALGORITHM.get(
-            Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), bcryptAlgo).build()));
+        assertEquals(
+            bcryptAlgo,
+            XPackSettings.PASSWORD_HASHING_ALGORITHM.get(
+                Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), bcryptAlgo).build()
+            )
+        );
     }
 
     public void testDefaultPasswordHashingAlgorithmInFips() {
@@ -83,14 +90,20 @@ public class XPackSettingsTests extends ESTestCase {
         if (isPBKDF2Available) {
             assertEquals(pbkdf2Algo, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(settings));
         } else {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(settings));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(settings)
+            );
             assertThat(e.getMessage(), containsString("Support for PBKDF2WithHMACSHA512 must be available"));
         }
 
         final String bcryptAlgo = randomFrom("BCRYPT", "BCRYPT11");
-        assertEquals(bcryptAlgo, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(
-            Settings.builder().put(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.getKey(), bcryptAlgo).build()));
+        assertEquals(
+            bcryptAlgo,
+            XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(
+                Settings.builder().put(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.getKey(), bcryptAlgo).build()
+            )
+        );
     }
 
     public void testDefaultServiceTokenHashingAlgorithm() {

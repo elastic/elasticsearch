@@ -8,11 +8,12 @@
 
 package org.elasticsearch.env;
 
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.PathUtils;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -40,19 +41,25 @@ public class Environment {
     private static final Path[] EMPTY_PATH_ARRAY = new Path[0];
 
     public static final Setting<String> PATH_HOME_SETTING = Setting.simpleString("path.home", Property.NodeScope);
-    public static final Setting<String> PATH_DATA_SETTING =
-            Setting.simpleString("path.data", Property.NodeScope);
-    public static final Setting<String> PATH_LOGS_SETTING =
-            new Setting<>("path.logs", "", Function.identity(), Property.NodeScope);
-    public static final Setting<List<String>> PATH_REPO_SETTING =
-        Setting.listSetting("path.repo", Collections.emptyList(), Function.identity(), Property.NodeScope);
-    public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data",
-        Property.NodeScope);
+    public static final Setting<List<String>> PATH_DATA_SETTING = Setting.listSetting(
+        "path.data",
+        Collections.emptyList(),
+        Function.identity(),
+        Property.NodeScope
+    );
+    public static final Setting<String> PATH_LOGS_SETTING = new Setting<>("path.logs", "", Function.identity(), Property.NodeScope);
+    public static final Setting<List<String>> PATH_REPO_SETTING = Setting.listSetting(
+        "path.repo",
+        Collections.emptyList(),
+        Function.identity(),
+        Property.NodeScope
+    );
+    public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
     public static final Setting<String> NODE_PIDFILE_SETTING = Setting.simpleString("node.pidfile", Property.NodeScope);
 
     private final Settings settings;
 
-    private final Path dataFile;
+    private final Path[] dataFiles;
 
     private final Path[] repoFiles;
 
@@ -101,14 +108,14 @@ public class Environment {
 
         pluginsFile = homeFile.resolve("plugins");
 
-        if (PATH_DATA_SETTING.exists(settings)) {
-            String rawDataPath = PATH_DATA_SETTING.get(settings);
-            if (rawDataPath.startsWith("[")) {
-                throw new IllegalArgumentException("[path.data] is a list. Specify as a string value.");
+        List<String> dataPaths = PATH_DATA_SETTING.get(settings);
+        if (dataPaths.isEmpty() == false) {
+            dataFiles = new Path[dataPaths.size()];
+            for (int i = 0; i < dataPaths.size(); i++) {
+                dataFiles[i] = PathUtils.get(dataPaths.get(i)).toAbsolutePath().normalize();
             }
-            dataFile = PathUtils.get(rawDataPath).toAbsolutePath().normalize();
         } else {
-            dataFile = homeFile.resolve("data");
+            dataFiles = new Path[] { homeFile.resolve("data") };
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
             sharedDataFile = PathUtils.get(PATH_SHARED_DATA_SETTING.get(settings)).toAbsolutePath().normalize();
@@ -144,14 +151,23 @@ public class Environment {
 
         final Settings.Builder finalSettings = Settings.builder().put(settings);
         if (PATH_DATA_SETTING.exists(settings)) {
-            finalSettings.put(PATH_DATA_SETTING.getKey(), dataFile.toString());
+            if (dataPathUsesList(settings)) {
+                finalSettings.putList(
+                    PATH_DATA_SETTING.getKey(),
+                    Arrays.stream(dataFiles).map(Path::toString).collect(Collectors.toList())
+                );
+            } else {
+                assert dataFiles.length == 1;
+                finalSettings.put(PATH_DATA_SETTING.getKey(), dataFiles[0]);
+            }
         }
         finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
         finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile.toString());
         if (PATH_REPO_SETTING.exists(settings)) {
             finalSettings.putList(
                 Environment.PATH_REPO_SETTING.getKey(),
-                Arrays.stream(repoFiles).map(Path::toString).collect(Collectors.toList()));
+                Arrays.stream(repoFiles).map(Path::toString).collect(Collectors.toList())
+            );
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
             assert sharedDataFile != null;
@@ -174,8 +190,8 @@ public class Environment {
     /**
      * The data location.
      */
-    public Path dataFile() {
-        return dataFile;
+    public Path[] dataFiles() {
+        return dataFiles;
     }
 
     /**
@@ -289,12 +305,57 @@ public class Environment {
 
     /** Ensure the configured temp directory is a valid directory */
     public void validateTmpFile() throws IOException {
-        if (Files.exists(tmpFile) == false) {
-            throw new FileNotFoundException("Temporary file directory [" + tmpFile + "] does not exist or is not accessible");
+        validateTemporaryDirectory("Temporary directory", tmpFile);
+    }
+
+    /**
+     * Ensure the temp directories needed for JNA are set up correctly.
+     */
+    public void validateNativesConfig() throws IOException {
+        validateTmpFile();
+        if (Constants.LINUX) {
+            validateTemporaryDirectory(LIBFFI_TMPDIR_ENVIRONMENT_VARIABLE + " environment variable", getLibffiTemporaryDirectory());
         }
-        if (Files.isDirectory(tmpFile) == false) {
-            throw new IOException("Configured temporary file directory [" + tmpFile + "] is not a directory");
+    }
+
+    private static void validateTemporaryDirectory(String description, Path path) throws IOException {
+        if (path == null) {
+            throw new NullPointerException(description + " was not specified");
         }
+        if (Files.exists(path) == false) {
+            throw new FileNotFoundException(description + " [" + path + "] does not exist or is not accessible");
+        }
+        if (Files.isDirectory(path) == false) {
+            throw new IOException(description + " [" + path + "] is not a directory");
+        }
+    }
+
+    private static final String LIBFFI_TMPDIR_ENVIRONMENT_VARIABLE = "LIBFFI_TMPDIR";
+
+    @SuppressForbidden(reason = "using PathUtils#get since libffi resolves paths without interference from the JVM")
+    private static Path getLibffiTemporaryDirectory() {
+        final String environmentVariable = System.getenv(LIBFFI_TMPDIR_ENVIRONMENT_VARIABLE);
+        if (environmentVariable == null) {
+            return null;
+        }
+        // Explicitly resolve into an absolute path since the working directory might be different from the one in which we were launched
+        // and it would be confusing to report that the given relative path doesn't exist simply because it's being resolved relative to a
+        // different location than the one the user expects.
+        final String workingDirectory = System.getProperty("user.dir");
+        if (workingDirectory == null) {
+            assert false;
+            return null;
+        }
+        return PathUtils.get(workingDirectory).resolve(environmentVariable);
+    }
+
+    /** Returns true if the data path is a list, false otherwise */
+    public static boolean dataPathUsesList(Settings settings) {
+        if (settings.hasValue(PATH_DATA_SETTING.getKey()) == false) {
+            return false;
+        }
+        String rawDataPath = settings.get(PATH_DATA_SETTING.getKey());
+        return rawDataPath.startsWith("[") || rawDataPath.contains(",");
     }
 
     public static FileStore getFileStore(final Path path) throws IOException {
@@ -316,7 +377,7 @@ public class Environment {
      * object which may contain different setting)
      */
     public static void assertEquivalent(Environment actual, Environment expected) {
-        assertEquals(actual.dataFile(), expected.dataFile(), "dataFiles");
+        assertEquals(actual.dataFiles(), expected.dataFiles(), "dataFiles");
         assertEquals(actual.repoFiles(), expected.repoFiles(), "repoFiles");
         assertEquals(actual.configFile(), expected.configFile(), "configFile");
         assertEquals(actual.pluginsFile(), expected.pluginsFile(), "pluginsFile");

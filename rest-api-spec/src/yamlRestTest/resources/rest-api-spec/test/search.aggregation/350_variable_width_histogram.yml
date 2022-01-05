@@ -28,7 +28,7 @@ setup:
 ---
 "basic":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.8.99"
       reason: added in 7.9.0
   - do:
       search:

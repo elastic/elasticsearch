@@ -31,5 +31,23 @@
           "path": "sequence"
         }
       }
+    },
+    "command_line": {
+      "type": "keyword"
+    },
+    "file_name": {
+      "type": "keyword"
+    },
+    "process_name": {
+      "type": "keyword"
+    },
+    "pid" : {
+      "type" : "long"
+    },
+    "ppid" : {
+      "type" : "long"
+    },
+    "source_address" : {
+      "type" : "ip"
     }
   }

@@ -9,9 +9,10 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -74,7 +75,7 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalAvg reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAvg reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         long count = 0;
         // Compute the sum of double values with Kahan summation algorithm which is more
@@ -107,8 +108,8 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         InternalAvg other = (InternalAvg) obj;
-        return Objects.equals(sum, other.sum) &&
-                Objects.equals(count, other.count) &&
-                Objects.equals(format.getWriteableName(), other.format.getWriteableName());
+        return Objects.equals(sum, other.sum)
+            && Objects.equals(count, other.count)
+            && Objects.equals(format.getWriteableName(), other.format.getWriteableName());
     }
 }

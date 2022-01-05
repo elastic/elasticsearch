@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.transform.checkpoint;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPositio
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+
+import java.time.Clock;
 
 /**
  * Transform Checkpoint Service
@@ -33,16 +35,19 @@ public class TransformCheckpointService {
 
     private static final Logger logger = LogManager.getLogger(TransformCheckpointService.class);
 
+    private final Clock clock;
     private final TransformConfigManager transformConfigManager;
     private final TransformAuditor transformAuditor;
     private final RemoteClusterResolver remoteClusterResolver;
 
     public TransformCheckpointService(
+        final Clock clock,
         final Settings settings,
         final ClusterService clusterService,
         final TransformConfigManager transformConfigManager,
         TransformAuditor transformAuditor
     ) {
+        this.clock = clock;
         this.transformConfigManager = transformConfigManager;
         this.transformAuditor = transformAuditor;
         this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
@@ -51,6 +56,7 @@ public class TransformCheckpointService {
     public CheckpointProvider getCheckpointProvider(final Client client, final TransformConfig transformConfig) {
         if (transformConfig.getSyncConfig() instanceof TimeSyncConfig) {
             return new TimeBasedCheckpointProvider(
+                clock,
                 client,
                 remoteClusterResolver,
                 transformConfigManager,
@@ -59,7 +65,14 @@ public class TransformCheckpointService {
             );
         }
 
-        return new DefaultCheckpointProvider(client, remoteClusterResolver, transformConfigManager, transformAuditor, transformConfig);
+        return new DefaultCheckpointProvider(
+            clock,
+            client,
+            remoteClusterResolver,
+            transformConfigManager,
+            transformAuditor,
+            transformConfig
+        );
     }
 
     /**

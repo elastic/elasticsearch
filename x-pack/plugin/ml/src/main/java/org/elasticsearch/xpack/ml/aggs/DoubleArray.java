@@ -11,7 +11,7 @@ import org.elasticsearch.common.Numbers;
 
 public final class DoubleArray {
 
-    private DoubleArray() { }
+    private DoubleArray() {}
 
     /**
      * Returns a NEW {@link double[]} that is the cumulative sum of the passed array

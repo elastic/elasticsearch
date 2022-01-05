@@ -80,6 +80,7 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
         this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
         return (Request) this;
     }
+
     public DiscoveryNode[] concreteNodes() {
         return concreteNodes;
     }

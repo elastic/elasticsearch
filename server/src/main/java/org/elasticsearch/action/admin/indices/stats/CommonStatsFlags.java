@@ -55,9 +55,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         fieldDataFields = in.readStringArray();
         completionDataFields = in.readStringArray();
         includeSegmentFileSizes = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            includeUnloadedSegments = in.readBoolean();
-        }
+        includeUnloadedSegments = in.readBoolean();
     }
 
     @Override
@@ -75,9 +73,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         out.writeStringArrayNullable(fieldDataFields);
         out.writeStringArrayNullable(completionDataFields);
         out.writeBoolean(includeSegmentFileSizes);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeBoolean(includeUnloadedSegments);
-        }
+        out.writeBoolean(includeUnloadedSegments);
     }
 
     /**
@@ -218,7 +214,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         RequestCache("request_cache", 15),
         Recovery("recovery", 16),
         Bulk("bulk", 17),
-        Shards("shards", 18);
+        Shards("shard_stats", 18);
 
         private final String restName;
         private final int index;

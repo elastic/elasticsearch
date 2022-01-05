@@ -38,12 +38,7 @@ public class DataCountsTracker {
     }
 
     public DataCounts report() {
-        return new DataCounts(
-            jobId,
-            trainingDocsCount,
-            testDocsCount,
-            skippedDocsCount
-        );
+        return new DataCounts(jobId, trainingDocsCount, testDocsCount, skippedDocsCount);
     }
 
     public void reset() {

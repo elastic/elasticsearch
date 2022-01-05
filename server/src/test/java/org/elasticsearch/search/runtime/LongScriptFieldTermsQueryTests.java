@@ -10,6 +10,7 @@ package org.elasticsearch.search.runtime;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
+
 import org.elasticsearch.script.Script;
 
 import static org.hamcrest.Matchers.equalTo;

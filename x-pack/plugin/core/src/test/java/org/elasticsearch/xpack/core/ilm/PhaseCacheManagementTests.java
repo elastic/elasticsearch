@@ -8,17 +8,19 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -31,6 +33,7 @@ import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.readStepKeys
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.refreshPhaseDefinition;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -41,38 +44,41 @@ public class PhaseCacheManagementTests extends ESTestCase {
     private static final String index = "eggplant";
 
     static {
-        REGISTRY = new NamedXContentRegistry(List.of(
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse))
+        REGISTRY = new NamedXContentRegistry(
+            List.of(
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse)
+            )
         );
     }
 
-    public void testRefreshPhaseJson() {
+    public void testRefreshPhaseJson() throws IOException {
         LifecycleExecutionState.Builder exState = LifecycleExecutionState.builder()
             .setPhase("hot")
             .setAction("rollover")
             .setStep("check-rollover-ready")
-            .setPhaseDefinition("{\n" +
-                "        \"policy\" : \"my-policy\",\n" +
-                "        \"phase_definition\" : {\n" +
-                "          \"min_age\" : \"20m\",\n" +
-                "          \"actions\" : {\n" +
-                "            \"rollover\" : {\n" +
-                "              \"max_age\" : \"5s\"\n" +
-                "            },\n" +
-                "            \"set_priority\" : {\n" +
-                "              \"priority\" : 150\n" +
-                "            }\n" +
-                "          }\n" +
-                "        },\n" +
-                "        \"version\" : 1,\n" +
-                "        \"modified_date_in_millis\" : 1578521007076\n" +
-                "      }");
+            .setPhaseDefinition("""
+                {
+                        "policy" : "my-policy",
+                        "phase_definition" : {
+                          "min_age" : "20m",
+                          "actions" : {
+                            "rollover" : {
+                              "max_age" : "5s"
+                            },
+                            "set_priority" : {
+                              "priority" : 150
+                            }
+                          }
+                        },
+                        "version" : 1,
+                        "modified_date_in_millis" : 1578521007076
+                      }""");
 
         IndexMetadata meta = buildIndexMetadata("my-policy", exState);
-        String index = meta.getIndex().getName();
+        String indexName = meta.getIndex().getName();
 
         Map<String, LifecycleAction> actions = new HashMap<>();
         actions.put("rollover", new RolloverAction(null, null, null, 1L));
@@ -83,14 +89,12 @@ public class PhaseCacheManagementTests extends ESTestCase {
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap(), 2L, 2L);
 
         ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
-                .put(meta, false)
-                .build())
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(meta, false).build())
             .build();
 
-        ClusterState changedState = refreshPhaseDefinition(existingState, index, policyMetadata);
+        ClusterState changedState = refreshPhaseDefinition(existingState, indexName, policyMetadata);
 
-        IndexMetadata newIdxMeta = changedState.metadata().index(index);
+        IndexMetadata newIdxMeta = changedState.metadata().index(indexName);
         LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);
         Map<String, String> beforeState = new HashMap<>(exState.build().asMap());
         beforeState.remove("phase_definition");
@@ -100,56 +104,72 @@ public class PhaseCacheManagementTests extends ESTestCase {
         assertThat(beforeState, equalTo(afterState));
 
         // Check that the phase definition has been refreshed
-        assertThat(afterExState.getPhaseDefinition(),
-            equalTo("{\"policy\":\"my-policy\",\"phase_definition\":{\"min_age\":\"0ms\",\"actions\":{\"rollover\":{\"max_docs\":1}," +
-                "\"set_priority\":{\"priority\":100}}},\"version\":2,\"modified_date_in_millis\":2}"));
+        assertThat(afterExState.getPhaseDefinition(), equalTo(XContentHelper.stripWhitespace("""
+            {
+              "policy": "my-policy",
+              "phase_definition": {
+                "min_age": "0ms",
+                "actions": {
+                  "rollover": {
+                    "max_docs": 1
+                  },
+                  "set_priority": {
+                    "priority": 100
+                  }
+                }
+              },
+              "version": 2,
+              "modified_date_in_millis": 2
+            }""")));
     }
 
     public void testEligibleForRefresh() {
         IndexMetadata meta = IndexMetadata.builder("index")
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)))
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+            )
             .build();
         assertFalse(eligibleToCheckForRefresh(meta));
 
         LifecycleExecutionState state = LifecycleExecutionState.builder().build();
         meta = IndexMetadata.builder("index")
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)))
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+            )
             .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
             .build();
         assertFalse(eligibleToCheckForRefresh(meta));
 
-        state = LifecycleExecutionState.builder()
-            .setPhase("phase")
-            .setAction("action")
-            .setStep("step")
-            .build();
+        state = LifecycleExecutionState.builder().setPhase("phase").setAction("action").setStep("step").build();
         meta = IndexMetadata.builder("index")
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)))
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+            )
             .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
             .build();
         assertFalse(eligibleToCheckForRefresh(meta));
 
-        state = LifecycleExecutionState.builder()
-            .setPhaseDefinition("{}")
-            .build();
+        state = LifecycleExecutionState.builder().setPhaseDefinition("{}").build();
         meta = IndexMetadata.builder("index")
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)))
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+            )
             .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
             .build();
         assertFalse(eligibleToCheckForRefresh(meta));
@@ -161,78 +181,88 @@ public class PhaseCacheManagementTests extends ESTestCase {
             .setPhaseDefinition("{}")
             .build();
         meta = IndexMetadata.builder("index")
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)))
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+            )
             .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
             .build();
         assertFalse(eligibleToCheckForRefresh(meta));
 
-        state = LifecycleExecutionState.builder()
-            .setPhase("phase")
-            .setAction("action")
-            .setStep("step")
-            .setPhaseDefinition("{}")
-            .build();
+        state = LifecycleExecutionState.builder().setPhase("phase").setAction("action").setStep("step").setPhaseDefinition("{}").build();
         meta = IndexMetadata.builder("index")
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)))
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+            )
             .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
             .build();
         assertTrue(eligibleToCheckForRefresh(meta));
     }
 
     public void testReadStepKeys() {
+        assertNull(readStepKeys(REGISTRY, client, null, "phase", null));
         assertNull(readStepKeys(REGISTRY, client, "{}", "phase", null));
         assertNull(readStepKeys(REGISTRY, client, "aoeu", "phase", null));
         assertNull(readStepKeys(REGISTRY, client, "", "phase", null));
 
-        assertThat(readStepKeys(REGISTRY, client, "{\n" +
-                "        \"policy\": \"my_lifecycle3\",\n" +
-                "        \"phase_definition\": { \n" +
-                "          \"min_age\": \"0ms\",\n" +
-                "          \"actions\": {\n" +
-                "            \"rollover\": {\n" +
-                "              \"max_age\": \"30s\"\n" +
-                "            }\n" +
-                "          }\n" +
-                "        },\n" +
-                "        \"version\": 3, \n" +
-                "        \"modified_date_in_millis\": 1539609701576 \n" +
-                "      }", "phase", null),
-            contains(new Step.StepKey("phase", "rollover", WaitForRolloverReadyStep.NAME),
+        assertThat(
+            readStepKeys(REGISTRY, client, """
+                {
+                        "policy": "my_lifecycle3",
+                        "phase_definition": {
+                          "min_age": "0ms",
+                          "actions": {
+                            "rollover": {
+                              "max_age": "30s"
+                            }
+                          }
+                        },
+                        "version": 3,
+                        "modified_date_in_millis": 1539609701576
+                }""", "phase", null),
+            contains(
+                new Step.StepKey("phase", "rollover", WaitForRolloverReadyStep.NAME),
                 new Step.StepKey("phase", "rollover", RolloverStep.NAME),
                 new Step.StepKey("phase", "rollover", WaitForActiveShardsStep.NAME),
                 new Step.StepKey("phase", "rollover", UpdateRolloverLifecycleDateStep.NAME),
-                new Step.StepKey("phase", "rollover", RolloverAction.INDEXING_COMPLETE_STEP_NAME)));
+                new Step.StepKey("phase", "rollover", RolloverAction.INDEXING_COMPLETE_STEP_NAME)
+            )
+        );
 
-        assertThat(readStepKeys(REGISTRY, client, "{\n" +
-                "        \"policy\" : \"my_lifecycle3\",\n" +
-                "        \"phase_definition\" : {\n" +
-                "          \"min_age\" : \"20m\",\n" +
-                "          \"actions\" : {\n" +
-                "            \"rollover\" : {\n" +
-                "              \"max_age\" : \"5s\"\n" +
-                "            },\n" +
-                "            \"set_priority\" : {\n" +
-                "              \"priority\" : 150\n" +
-                "            }\n" +
-                "          }\n" +
-                "        },\n" +
-                "        \"version\" : 1,\n" +
-                "        \"modified_date_in_millis\" : 1578521007076\n" +
-                "      }", "phase", null),
-            contains(new Step.StepKey("phase", "rollover", WaitForRolloverReadyStep.NAME),
+        assertThat(
+            readStepKeys(REGISTRY, client, """
+                {
+                        "policy" : "my_lifecycle3",
+                        "phase_definition" : {
+                          "min_age" : "20m",
+                          "actions" : {
+                            "rollover" : {
+                              "max_age" : "5s"
+                            },
+                            "set_priority" : {
+                              "priority" : 150
+                            }
+                          }
+                        },
+                        "version" : 1,
+                        "modified_date_in_millis" : 1578521007076
+                }""", "phase", null),
+            containsInAnyOrder(
+                new Step.StepKey("phase", "rollover", WaitForRolloverReadyStep.NAME),
                 new Step.StepKey("phase", "rollover", RolloverStep.NAME),
                 new Step.StepKey("phase", "rollover", WaitForActiveShardsStep.NAME),
                 new Step.StepKey("phase", "rollover", UpdateRolloverLifecycleDateStep.NAME),
                 new Step.StepKey("phase", "rollover", RolloverAction.INDEXING_COMPLETE_STEP_NAME),
-                new Step.StepKey("phase", "set_priority", SetPriorityAction.NAME)));
+                new Step.StepKey("phase", "set_priority", SetPriorityAction.NAME)
+            )
+        );
 
         Map<String, LifecycleAction> actions = new HashMap<>();
         actions.put("forcemerge", new ForceMergeAction(5, null));
@@ -241,7 +271,8 @@ public class PhaseCacheManagementTests extends ESTestCase {
         String phaseDef = Strings.toString(pei);
         logger.info("--> phaseDef: {}", phaseDef);
 
-        assertThat(readStepKeys(REGISTRY, client, phaseDef, "phase", null),
+        assertThat(
+            readStepKeys(REGISTRY, client, phaseDef, "phase", null),
             contains(
                 new Step.StepKey("phase", "allocate", AllocateAction.NAME),
                 new Step.StepKey("phase", "allocate", AllocationRoutedStep.NAME),
@@ -249,7 +280,9 @@ public class PhaseCacheManagementTests extends ESTestCase {
                 new Step.StepKey("phase", "forcemerge", CheckNotDataStreamWriteIndexStep.NAME),
                 new Step.StepKey("phase", "forcemerge", ReadOnlyAction.NAME),
                 new Step.StepKey("phase", "forcemerge", ForceMergeAction.NAME),
-                new Step.StepKey("phase", "forcemerge", SegmentCountStep.NAME)));
+                new Step.StepKey("phase", "forcemerge", SegmentCountStep.NAME)
+            )
+        );
     }
 
     public void testIndexCanBeSafelyUpdated() {
@@ -261,27 +294,26 @@ public class PhaseCacheManagementTests extends ESTestCase {
                 .setPhase("hot")
                 .setAction("rollover")
                 .setStep("check-rollover-ready")
-                .setPhaseDefinition("{\n" +
-                    "        \"policy\" : \"my-policy\",\n" +
-                    "        \"phase_definition\" : {\n" +
-                    "          \"min_age\" : \"20m\",\n" +
-                    "          \"actions\" : {\n" +
-                    "            \"rollover\" : {\n" +
-                    "              \"max_age\" : \"5s\"\n" +
-                    "            },\n" +
-                    "            \"set_priority\" : {\n" +
-                    "              \"priority\" : 150\n" +
-                    "            }\n" +
-                    "          }\n" +
-                    "        },\n" +
-                    "        \"version\" : 1,\n" +
-                    "        \"modified_date_in_millis\" : 1578521007076\n" +
-                    "      }")
+                .setPhaseDefinition("""
+                    {
+                            "policy" : "my-policy",
+                            "phase_definition" : {
+                              "min_age" : "20m",
+                              "actions" : {
+                                "rollover" : {
+                                  "max_age" : "5s"
+                                },
+                                "set_priority" : {
+                                  "priority" : 150
+                                }
+                              }
+                            },
+                            "version" : 1,
+                            "modified_date_in_millis" : 1578521007076
+                          }""")
                 .build();
 
-            IndexMetadata meta = mkMeta()
-                .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
-                .build();
+            IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
 
             Map<String, LifecycleAction> actions = new HashMap<>();
             actions.put("rollover", new RolloverAction(null, null, null, 1L));
@@ -299,27 +331,26 @@ public class PhaseCacheManagementTests extends ESTestCase {
                 .setPhase("hot")
                 .setAction("rollover")
                 .setStep("check-rollover-ready")
-                .setPhaseDefinition("{\n" +
-                    "        \"policy\" : \"my-policy\",\n" +
-                    "        \"phase_definition\" : {\n" +
-                    "          \"min_age\" : \"20m\",\n" +
-                    "          \"actions\" : {\n" +
-                    "            \"rollover\" : {\n" +
-                    "              \"max_age\" : \"5s\"\n" +
-                    "            },\n" +
-                    "            \"set_priority\" : {\n" +
-                    "              \"priority\" : 150\n" +
-                    "            }\n" +
-                    "          }\n" +
-                    "        },\n" +
-                    "        \"version\" : 1,\n" +
-                    "        \"modified_date_in_millis\" : 1578521007076\n" +
-                    "      }")
+                .setPhaseDefinition("""
+                    {
+                            "policy" : "my-policy",
+                            "phase_definition" : {
+                              "min_age" : "20m",
+                              "actions" : {
+                                "rollover" : {
+                                  "max_age" : "5s"
+                                },
+                                "set_priority" : {
+                                  "priority" : 150
+                                }
+                              }
+                            },
+                            "version" : 1,
+                            "modified_date_in_millis" : 1578521007076
+                          }""")
                 .build();
 
-            IndexMetadata meta = mkMeta()
-                .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
-                .build();
+            IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
 
             Map<String, LifecycleAction> actions = new HashMap<>();
             actions.put("set_priority", new SetPriorityAction(150));
@@ -336,27 +367,26 @@ public class PhaseCacheManagementTests extends ESTestCase {
                 .setPhase("hot")
                 .setAction("rollover")
                 .setStep("check-rollover-ready")
-                .setPhaseDefinition("{\n" +
-                    "        \"policy\" : \"my-policy\",\n" +
-                    "        \"phase_definition\" : {\n" +
-                    "          \"min_age\" : \"20m\",\n" +
-                    "          \"actions\" : {\n" +
-                    "            \"rollover\" : {\n" +
-                    "              \"max_age\" : \"5s\"\n" +
-                    "            },\n" +
-                    "            \"set_priority\" : {\n" +
-                    "              \"priority\" : 150\n" +
-                    "            }\n" +
-                    "          }\n" +
-                    "        },\n" +
-                    "        \"version\" : 1,\n" +
-                    "        \"modified_date_in_millis\" : 1578521007076\n" +
-                    "      }")
+                .setPhaseDefinition("""
+                    {
+                            "policy" : "my-policy",
+                            "phase_definition" : {
+                              "min_age" : "20m",
+                              "actions" : {
+                                "rollover" : {
+                                  "max_age" : "5s"
+                                },
+                                "set_priority" : {
+                                  "priority" : 150
+                                }
+                              }
+                            },
+                            "version" : 1,
+                            "modified_date_in_millis" : 1578521007076
+                          }""")
                 .build();
 
-            IndexMetadata meta = mkMeta()
-                .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
-                .build();
+            IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
 
             Map<String, LifecycleAction> actions = new HashMap<>();
             actions.put("rollover", new RolloverAction(null, null, TimeValue.timeValueSeconds(5), null));
@@ -369,28 +399,25 @@ public class PhaseCacheManagementTests extends ESTestCase {
 
         // Failure case, index doesn't have enough info to check
         {
-            LifecycleExecutionState exState = LifecycleExecutionState.builder()
-                .setPhaseDefinition("{\n" +
-                    "        \"policy\" : \"my-policy\",\n" +
-                    "        \"phase_definition\" : {\n" +
-                    "          \"min_age\" : \"20m\",\n" +
-                    "          \"actions\" : {\n" +
-                    "            \"rollover\" : {\n" +
-                    "              \"max_age\" : \"5s\"\n" +
-                    "            },\n" +
-                    "            \"set_priority\" : {\n" +
-                    "              \"priority\" : 150\n" +
-                    "            }\n" +
-                    "          }\n" +
-                    "        },\n" +
-                    "        \"version\" : 1,\n" +
-                    "        \"modified_date_in_millis\" : 1578521007076\n" +
-                    "      }")
-                .build();
+            LifecycleExecutionState exState = LifecycleExecutionState.builder().setPhaseDefinition("""
+                {
+                        "policy" : "my-policy",
+                        "phase_definition" : {
+                          "min_age" : "20m",
+                          "actions" : {
+                            "rollover" : {
+                              "max_age" : "5s"
+                            },
+                            "set_priority" : {
+                              "priority" : 150
+                            }
+                          }
+                        },
+                        "version" : 1,
+                        "modified_date_in_millis" : 1578521007076
+                      }""").build();
 
-            IndexMetadata meta = mkMeta()
-                .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
-                .build();
+            IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
 
             Map<String, LifecycleAction> actions = new HashMap<>();
             actions.put("rollover", new RolloverAction(null, null, null, 1L));
@@ -411,9 +438,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
                 .setPhaseDefinition("potato")
                 .build();
 
-            IndexMetadata meta = mkMeta()
-                .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
-                .build();
+            IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
 
             Map<String, LifecycleAction> actions = new HashMap<>();
             actions.put("rollover", new RolloverAction(null, null, null, 1L));
@@ -426,18 +451,31 @@ public class PhaseCacheManagementTests extends ESTestCase {
         }
     }
 
-    public void testUpdateIndicesForPolicy() {
+    public void testUpdateIndicesForPolicy() throws IOException {
         LifecycleExecutionState exState = LifecycleExecutionState.builder()
             .setPhase("hot")
             .setAction("rollover")
             .setStep("check-rollover-ready")
-            .setPhaseDefinition("{\"policy\":\"my-policy\",\"phase_definition\":{\"min_age\":\"0ms\",\"actions\":{\"rollover\":" +
-                "{\"max_docs\":1},\"set_priority\":{\"priority\":100}}},\"version\":1,\"modified_date_in_millis\":1578521007076}")
+            .setPhaseDefinition("""
+                {
+                  "policy": "my-policy",
+                  "phase_definition": {
+                    "min_age": "0ms",
+                    "actions": {
+                      "rollover": {
+                        "max_docs": 1
+                      },
+                      "set_priority": {
+                        "priority": 100
+                      }
+                    }
+                  },
+                  "version": 1,
+                  "modified_date_in_millis": 1578521007076
+                }""")
             .build();
 
-        IndexMetadata meta = mkMeta()
-            .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
-            .build();
+        IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
 
         assertTrue(eligibleToCheckForRefresh(meta));
 
@@ -459,9 +497,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         assertTrue(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
 
         ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
-                .put(meta, false)
-                .build())
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(meta, false).build())
             .build();
 
         logger.info("--> update for unchanged policy");
@@ -485,18 +521,18 @@ public class PhaseCacheManagementTests extends ESTestCase {
         assertThat(updatedState, equalTo(existingState));
 
         meta = IndexMetadata.builder(index)
-            .settings(Settings.builder()
-                .put(LifecycleSettings.LIFECYCLE_NAME, "my-policy")
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)))
+            .settings(
+                Settings.builder()
+                    .put(LifecycleSettings.LIFECYCLE_NAME, "my-policy")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+            )
             .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
             .build();
         existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
-                .put(meta, false)
-                .build())
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(meta, false).build())
             .build();
 
         logger.info("--> update with changed policy and this index has the policy");
@@ -512,9 +548,23 @@ public class PhaseCacheManagementTests extends ESTestCase {
         assertThat(beforeState, equalTo(afterState));
 
         // Check that the phase definition has been refreshed
-        assertThat(afterExState.getPhaseDefinition(),
-            equalTo("{\"policy\":\"my-policy\",\"phase_definition\":{\"min_age\":\"0ms\",\"actions\":{\"rollover\":{\"max_docs\":2}," +
-                "\"set_priority\":{\"priority\":150}}},\"version\":2,\"modified_date_in_millis\":2}"));
+        assertThat(afterExState.getPhaseDefinition(), equalTo(XContentHelper.stripWhitespace("""
+            {
+              "policy": "my-policy",
+              "phase_definition": {
+                "min_age": "0ms",
+                "actions": {
+                  "rollover": {
+                    "max_docs": 2
+                  },
+                  "set_priority": {
+                    "priority": 150
+                  }
+                }
+              },
+              "version": 2,
+              "modified_date_in_millis": 2
+            }""")));
     }
 
     private IndexMetadata buildIndexMetadata(String policy, LifecycleExecutionState.Builder lifecycleState) {
@@ -528,11 +578,13 @@ public class PhaseCacheManagementTests extends ESTestCase {
 
     private static IndexMetadata.Builder mkMeta() {
         return IndexMetadata.builder(index)
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)));
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+            );
     }
 
 }

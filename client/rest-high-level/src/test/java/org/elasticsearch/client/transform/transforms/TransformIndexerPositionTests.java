@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -20,14 +20,14 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class TransformIndexerPositionTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
-                TransformIndexerPositionTests::randomTransformIndexerPosition,
-                TransformIndexerPositionTests::toXContent,
-                TransformIndexerPosition::fromXContent)
-                .supportsUnknownFields(true)
-                .randomFieldsExcludeFilter(field -> field.equals("indexer_position") ||
-                    field.equals("bucket_position"))
-                .test();
+        xContentTester(
+            this::createParser,
+            TransformIndexerPositionTests::randomTransformIndexerPosition,
+            TransformIndexerPositionTests::toXContent,
+            TransformIndexerPosition::fromXContent
+        ).supportsUnknownFields(true)
+            .randomFieldsExcludeFilter(field -> field.equals("indexer_position") || field.equals("bucket_position"))
+            .test();
     }
 
     public static TransformIndexerPosition randomTransformIndexerPosition() {

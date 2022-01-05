@@ -127,7 +127,7 @@ return irrelevant results.
 
 For example, if the `max_gram` is `3` and search terms are truncated to three
 characters, the search term `apple` is shortened to `app`. This means searches
-for `apple` return any indexed terms matching `app`, such as `apply`, `snapped`,
+for `apple` return any indexed terms matching `app`, such as `apply`, `approximate`
 and `apple`.
 
 We recommend testing both approaches to see which best fits your

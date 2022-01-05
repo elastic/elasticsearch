@@ -20,8 +20,10 @@ import java.util.Map;
 
 public class WatcherPainlessExtension implements PainlessExtension {
 
-    private static final Whitelist WHITELIST =
-        WhitelistLoader.loadFromResourceFiles(WatcherPainlessExtension.class, "painless_whitelist.txt");
+    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(
+        WatcherPainlessExtension.class,
+        "painless_whitelist.txt"
+    );
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -22,7 +22,7 @@ import java.io.IOException;
  */
 public abstract class SecurityBaseRestHandler extends BaseRestHandler {
 
-    private final Settings settings;
+    protected final Settings settings;
     protected final XPackLicenseState licenseState;
 
     /**
@@ -69,7 +69,6 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
             return null;
         }
     }
-
 
     /**
      * Implementers should implement this method as they normally would for

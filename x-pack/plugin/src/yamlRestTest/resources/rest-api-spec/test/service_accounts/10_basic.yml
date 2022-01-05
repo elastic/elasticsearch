@@ -85,7 +85,7 @@ teardown:
 
   - match: { "error.type": "security_exception" }
   - match:
-      error.reason: "action [cluster:admin/xpack/security/user/delete] is unauthorized for user [elastic/fleet-server], this action is granted by the cluster privileges [manage_security,all]"
+      error.reason: "action [cluster:admin/xpack/security/user/delete] is unauthorized for service account [elastic/fleet-server], this action is granted by the cluster privileges [manage_security,all]"
 
   - do:
       headers:
@@ -108,7 +108,7 @@ teardown:
   - match: { "nodes_credentials._nodes.failed": 0 }
   - is_true: nodes_credentials.file_tokens.token1
   - is_true: nodes_credentials.file_tokens.token1.nodes
-  - match: { "nodes_credentials.file_tokens.token1.nodes.0" : "/(yamlRestTest-0|yamlRestCompatTest-0)/" }
+  - match: { "nodes_credentials.file_tokens.token1.nodes.0" : "/yamlRestTest.*-0/" }
 
   - do:
       security.clear_cached_service_tokens:

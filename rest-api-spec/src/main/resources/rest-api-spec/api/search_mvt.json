@@ -8,10 +8,10 @@
     "visibility": "public",
     "headers": {
       "accept": [
-        "application/json"
+        "application/vnd.mapbox-vector-tile"
       ],
       "content_type": [
-        "application/vnd.mapbox-vector-tile"
+        "application/json"
       ]
     },
     "url": {
@@ -19,8 +19,8 @@
         {
           "path": "/{index}/_mvt/{field}/{zoom}/{x}/{y}",
           "methods": [
-            "GET",
-            "POST"
+            "POST",
+            "GET"
           ],
           "parts": {
             "index": {
@@ -32,15 +32,15 @@
               "description": "Field containing geospatial data to return"
             },
             "zoom": {
-              "type": "integer",
+              "type": "int",
               "description": "Zoom level for the vector tile to search"
             },
             "x": {
-              "type": "integer",
+              "type": "int",
               "description": "X coordinate for the vector tile to search"
             },
             "y": {
-              "type": "integer",
+              "type": "int",
               "description": "Y coordinate for the vector tile to search"
             }
           }
@@ -54,12 +54,12 @@
         "default":false
       },
       "extent":{
-        "type":"number",
+        "type":"int",
         "description":"Size, in pixels, of a side of the vector tile.",
         "default":4096
       },
       "grid_precision":{
-        "type":"number",
+        "type":"int",
         "description":"Additional zoom levels available through the aggs layer. Accepts 0-8.",
         "default":8
       },
@@ -67,15 +67,20 @@
         "type":"enum",
         "options":[
           "grid",
-          "point"
+          "point",
+          "centroid"
         ],
         "description":"Determines the geometry type for features in the aggs layer.",
         "default":"grid"
       },
       "size":{
-        "type":"number",
+        "type":"int",
         "description":"Maximum number of features to return in the hits layer. Accepts 0-10000.",
         "default":10000
+      },
+      "track_total_hits":{
+        "type":"boolean|long",
+        "description":"Indicate if the number of documents that match the query should be tracked. A number can also be specified, to accurately track the total hit count up to the number."
       }
     },
     "body":{

@@ -47,9 +47,14 @@ public class MlLifeCycleService {
     private final MlMemoryTracker memoryTracker;
     private volatile Instant shutdownStartTime;
 
-    MlLifeCycleService(ClusterService clusterService, DatafeedRunner datafeedRunner, MlController mlController,
-                       AutodetectProcessManager autodetectProcessManager, DataFrameAnalyticsManager analyticsManager,
-                       MlMemoryTracker memoryTracker) {
+    MlLifeCycleService(
+        ClusterService clusterService,
+        DatafeedRunner datafeedRunner,
+        MlController mlController,
+        AutodetectProcessManager autodetectProcessManager,
+        DataFrameAnalyticsManager analyticsManager,
+        MlMemoryTracker memoryTracker
+    ) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.datafeedRunner = Objects.requireNonNull(datafeedRunner);
         this.mlController = Objects.requireNonNull(mlController);
@@ -100,8 +105,8 @@ public class MlLifeCycleService {
         // TODO: currently only considering anomaly detection jobs - could extend in the future
         // Ignore failed jobs - the persistent task still exists to remember the failure (because no
         // persistent task means closed), but these don't need to be relocated to another node.
-        return MlTasks.nonFailedJobTasksOnNode(tasks, nodeId).isEmpty() &&
-            MlTasks.nonFailedSnapshotUpgradeTasksOnNode(tasks, nodeId).isEmpty();
+        return MlTasks.nonFailedJobTasksOnNode(tasks, nodeId).isEmpty()
+            && MlTasks.nonFailedSnapshotUpgradeTasksOnNode(tasks, nodeId).isEmpty();
     }
 
     /**
@@ -123,7 +128,8 @@ public class MlLifeCycleService {
                 logger.info("Starting node shutdown sequence for ML");
             }
             datafeedRunner.vacateAllDatafeedsOnThisNode(
-                "previously assigned node [" + state.nodes().getLocalNode().getName() + "] is shutting down");
+                "previously assigned node [" + state.nodes().getLocalNode().getName() + "] is shutting down"
+            );
             autodetectProcessManager.vacateOpenJobsOnThisNode();
         }
     }

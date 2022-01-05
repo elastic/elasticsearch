@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -36,11 +36,25 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
     private final List<XPackUsageFeatureAction> usageActions;
 
     @Inject
-    public TransportXPackUsageAction(ThreadPool threadPool, TransportService transportService,
-                                     ClusterService clusterService, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver, NodeClient client) {
-        super(XPackUsageAction.NAME, transportService, clusterService, threadPool, actionFilters, XPackUsageRequest::new,
-            indexNameExpressionResolver, XPackUsageResponse::new, ThreadPool.Names.MANAGEMENT);
+    public TransportXPackUsageAction(
+        ThreadPool threadPool,
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        NodeClient client
+    ) {
+        super(
+            XPackUsageAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            XPackUsageRequest::new,
+            indexNameExpressionResolver,
+            XPackUsageResponse::new,
+            ThreadPool.Names.MANAGEMENT
+        );
         this.client = client;
         this.usageActions = usageActions();
     }
@@ -52,8 +66,9 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
 
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageResponse> listener) {
-        final ActionListener<List<XPackFeatureSet.Usage>> usageActionListener =
-                listener.delegateFailure((l, usages) -> l.onResponse(new XPackUsageResponse(usages)));
+        final ActionListener<List<XPackFeatureSet.Usage>> usageActionListener = listener.delegateFailure(
+            (l, usages) -> l.onResponse(new XPackUsageResponse(usages))
+        );
         final AtomicReferenceArray<Usage> featureSetUsages = new AtomicReferenceArray<>(usageActions.size());
         final AtomicInteger position = new AtomicInteger(0);
         final BiConsumer<XPackUsageFeatureAction, ActionListener<List<Usage>>> consumer = (featureUsageAction, iteratingListener) -> {
@@ -69,14 +84,13 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
             }));
         };
         IteratingActionListener<List<XPackFeatureSet.Usage>, XPackUsageFeatureAction> iteratingActionListener =
-                new IteratingActionListener<>(usageActionListener, consumer, usageActions,
-                        threadPool.getThreadContext(), (ignore) -> {
-                    final List<Usage> usageList = new ArrayList<>(featureSetUsages.length());
-                    for (int i = 0; i < featureSetUsages.length(); i++) {
-                        usageList.add(featureSetUsages.get(i));
-                    }
-                    return usageList;
-                }, (ignore) -> true);
+            new IteratingActionListener<>(usageActionListener, consumer, usageActions, threadPool.getThreadContext(), (ignore) -> {
+                final List<Usage> usageList = new ArrayList<>(featureSetUsages.length());
+                for (int i = 0; i < featureSetUsages.length(); i++) {
+                    usageList.add(featureSetUsages.get(i));
+                }
+                return usageList;
+            }, (ignore) -> true);
         iteratingActionListener.run();
     }
 

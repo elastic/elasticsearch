@@ -15,10 +15,10 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
@@ -90,9 +90,11 @@ public final class FieldPermissions implements Accountable, CacheKey {
 
     /** Constructor that enables field-level security based on include/exclude rules. Exclude rules
      *  have precedence over include rules. */
-    private FieldPermissions(FieldPermissionsDefinition fieldPermissionsDefinition,
-                             @Nullable FieldPermissionsDefinition limitedByFieldPermissionsDefinition,
-                             Automaton permittedFieldsAutomaton) {
+    private FieldPermissions(
+        FieldPermissionsDefinition fieldPermissionsDefinition,
+        @Nullable FieldPermissionsDefinition limitedByFieldPermissionsDefinition,
+        Automaton permittedFieldsAutomaton
+    ) {
         if (permittedFieldsAutomaton.isDeterministic() == false && permittedFieldsAutomaton.getNumStates() > 1) {
             // we only accept deterministic automata so that the CharacterRunAutomaton constructor
             // directly wraps the provided automaton
@@ -140,10 +142,9 @@ public final class FieldPermissions implements Accountable, CacheKey {
     public static Automaton initializePermittedFieldsAutomaton(FieldPermissionsDefinition fieldPermissionsDefinition) {
         Set<FieldGrantExcludeGroup> groups = fieldPermissionsDefinition.getFieldGrantExcludeGroups();
         assert groups.size() > 0 : "there must always be a single group for field inclusion/exclusion";
-        List<Automaton> automatonList =
-                groups.stream()
-                        .map(g -> FieldPermissions.buildPermittedFieldsAutomaton(g.getGrantedFields(), g.getExcludedFields()))
-                        .collect(Collectors.toList());
+        List<Automaton> automatonList = groups.stream()
+            .map(g -> FieldPermissions.buildPermittedFieldsAutomaton(g.getGrantedFields(), g.getExcludedFields()))
+            .collect(Collectors.toList());
         return Automatons.unionAndMinimize(automatonList);
     }
 
@@ -169,13 +170,17 @@ public final class FieldPermissions implements Accountable, CacheKey {
             deniedFieldsAutomaton = Automatons.patterns(deniedFields);
         }
 
-        grantedFieldsAutomaton = MinimizationOperations.minimize(grantedFieldsAutomaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
-        deniedFieldsAutomaton = MinimizationOperations.minimize(deniedFieldsAutomaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+        grantedFieldsAutomaton = MinimizationOperations.minimize(grantedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        deniedFieldsAutomaton = MinimizationOperations.minimize(deniedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
 
         if (subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
-            throw new ElasticsearchSecurityException("Exceptions for field permissions must be a subset of the " +
-                    "granted fields but " + Strings.arrayToCommaDelimitedString(deniedFields) + " is not a subset of " +
-                    Strings.arrayToCommaDelimitedString(grantedFields));
+            throw new ElasticsearchSecurityException(
+                "Exceptions for field permissions must be a subset of the "
+                    + "granted fields but "
+                    + Strings.arrayToCommaDelimitedString(deniedFields)
+                    + " is not a subset of "
+                    + Strings.arrayToCommaDelimitedString(grantedFields)
+            );
         }
 
         grantedFieldsAutomaton = Automatons.minusAndMinimize(grantedFieldsAutomaton, deniedFieldsAutomaton);
@@ -194,8 +199,8 @@ public final class FieldPermissions implements Accountable, CacheKey {
      */
     public FieldPermissions limitFieldPermissions(FieldPermissions limitedBy) {
         if (hasFieldLevelSecurity() && limitedBy != null && limitedBy.hasFieldLevelSecurity()) {
-            Automaton permittedFieldsAutomaton = Automatons.intersectAndMinimize(getIncludeAutomaton(), limitedBy.getIncludeAutomaton());
-            return new FieldPermissions(fieldPermissionsDefinition, limitedBy.fieldPermissionsDefinition, permittedFieldsAutomaton);
+            Automaton _permittedFieldsAutomaton = Automatons.intersectAndMinimize(getIncludeAutomaton(), limitedBy.getIncludeAutomaton());
+            return new FieldPermissions(fieldPermissionsDefinition, limitedBy.fieldPermissionsDefinition, _permittedFieldsAutomaton);
         } else if (limitedBy != null && limitedBy.hasFieldLevelSecurity()) {
             return new FieldPermissions(limitedBy.getFieldPermissionsDefinition(), limitedBy.getIncludeAutomaton());
         } else if (hasFieldLevelSecurity()) {
@@ -250,10 +255,8 @@ public final class FieldPermissions implements Accountable, CacheKey {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         FieldPermissions that = (FieldPermissions) o;
         return permittedFieldsAutomatonIsTotal == that.permittedFieldsAutomatonIsTotal
             && fieldPermissionsDefinition.equals(that.fieldPermissionsDefinition)

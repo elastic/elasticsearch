@@ -81,13 +81,11 @@ public class Params {
         int aggs = 0;
 
         for (Param<?> p : params) {
-            if (p instanceof Agg) {
-                Agg a = (Agg) p;
+            if (p instanceof Agg a) {
                 String s = a.aggProperty() != null ? a.aggProperty() : a.aggName();
                 map.put(p.prefix() + aggs++, s);
             }
-            if (p instanceof Grouping) {
-                Grouping g = (Grouping) p;
+            if (p instanceof Grouping g) {
                 map.put(p.prefix() + aggs++, g.groupName());
             }
         }
@@ -103,17 +101,13 @@ public class Params {
             for (Param<?> p : params) {
                 if (p instanceof Script) {
                     flatten.addAll(flatten(((Script) p).value().params));
-                }
-                else if (p instanceof Agg) {
+                } else if (p instanceof Agg) {
                     flatten.add(p);
-                }
-                else if (p instanceof Grouping) {
+                } else if (p instanceof Grouping) {
                     flatten.add(p);
-                }
-                else if (p instanceof Var) {
+                } else if (p instanceof Var) {
                     flatten.add(p);
-                }
-                else {
+                } else {
                     throw new QlIllegalArgumentException("Unsupported field {}", p);
                 }
             }
@@ -133,9 +127,9 @@ public class Params {
 
     @Override
     public boolean equals(Object obj) {
-        if ((obj instanceof  Params) == false) {
+        if ((obj instanceof Params) == false) {
             return false;
         }
-        return this.params.equals(((Params)obj).params);
+        return this.params.equals(((Params) obj).params);
     }
 }

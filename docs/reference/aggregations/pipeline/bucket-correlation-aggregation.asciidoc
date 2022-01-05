@@ -1,9 +1,8 @@
 [role="xpack"]
-[testenv="basic"]
 [[search-aggregations-bucket-correlation-aggregation]]
 === Bucket correlation aggregation
 ++++
-<titleabbrev>Bucket correlation aggregation</titleabbrev>
+<titleabbrev>Bucket correlation</titleabbrev>
 ++++
 
 experimental::[]

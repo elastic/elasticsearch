@@ -20,9 +20,9 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.action.DataStreamsStatsAction;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
@@ -230,11 +230,9 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
 
     private String createDataStream(boolean hidden) throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
-        Template idxTemplate = new Template(
-            null,
-            new CompressedXContent("{\"properties\":{\"" + timestampFieldName + "\":{\"type\":\"date\"},\"data\":{\"type\":\"keyword\"}}}"),
-            null
-        );
+        Template idxTemplate = new Template(null, new CompressedXContent("""
+            {"properties":{"%s":{"type":"date"},"data":{"type":"keyword"}}}
+            """.formatted(timestampFieldName)), null);
         ComposableIndexTemplate template = new ComposableIndexTemplate(
             List.of(dataStreamName + "*"),
             idxTemplate,
@@ -242,7 +240,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(hidden),
+            new ComposableIndexTemplate.DataStreamTemplate(hidden, false),
             null
         );
         assertTrue(

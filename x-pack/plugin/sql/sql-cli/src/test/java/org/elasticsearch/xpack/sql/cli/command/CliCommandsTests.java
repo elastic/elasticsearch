@@ -20,9 +20,9 @@ public class CliCommandsTests extends SqlCliTestCase {
         HttpClient httpClient = mock(HttpClient.class);
         CliSession cliSession = new CliSession(httpClient);
         CliCommands cliCommands = new CliCommands(
-                (terminal, session, line) -> line.equals("foo"),
-                (terminal, session, line) -> line.equals("bar"),
-                (terminal, session, line) -> line.equals("baz")
+            (terminal, session, line) -> line.equals("foo"),
+            (terminal, session, line) -> line.equals("bar"),
+            (terminal, session, line) -> line.equals("baz")
         );
 
         assertTrue(cliCommands.handle(testTerminal, cliSession, "foo"));

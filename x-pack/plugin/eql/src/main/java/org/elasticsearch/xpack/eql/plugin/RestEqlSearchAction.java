@@ -10,17 +10,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
@@ -37,15 +37,11 @@ public class RestEqlSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, SEARCH_PATH),
-            new Route(POST, SEARCH_PATH)
-        );
+        return List.of(new Route(GET, SEARCH_PATH), new Route(POST, SEARCH_PATH));
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
-        throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
 
         EqlSearchRequest eqlRequest;
         String indices;
@@ -56,12 +52,14 @@ public class RestEqlSearchAction extends BaseRestHandler {
             eqlRequest.indicesOptions(IndicesOptions.fromRequest(request, eqlRequest.indicesOptions()));
             if (request.hasParam("wait_for_completion_timeout")) {
                 eqlRequest.waitForCompletionTimeout(
-                    request.paramAsTime("wait_for_completion_timeout", eqlRequest.waitForCompletionTimeout()));
+                    request.paramAsTime("wait_for_completion_timeout", eqlRequest.waitForCompletionTimeout())
+                );
             }
             if (request.hasParam("keep_alive")) {
                 eqlRequest.keepAlive(request.paramAsTime("keep_alive", eqlRequest.keepAlive()));
             }
             eqlRequest.keepOnCompletion(request.paramAsBoolean("keep_on_completion", eqlRequest.keepOnCompletion()));
+            eqlRequest.ccsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", eqlRequest.ccsMinimizeRoundtrips()));
         }
 
         return channel -> {
@@ -87,8 +85,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
                      * contain as cause the VerificationException with "*,-*" pattern but we'll rewrite the INFE here with the initial
                      * pattern that failed resolving. More details here https://github.com/elastic/elasticsearch/issues/63529
                      */
-                    if (e instanceof IndexNotFoundException) {
-                        IndexNotFoundException infe = (IndexNotFoundException) e;
+                    if (e instanceof IndexNotFoundException infe) {
                         if (infe.getIndex() != null && infe.getIndex().getName().equals("Unknown index [*,-*]")) {
                             finalException = new IndexNotFoundException(indices, infe.getCause());
                         }

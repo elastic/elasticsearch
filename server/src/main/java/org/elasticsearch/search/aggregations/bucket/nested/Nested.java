@@ -12,5 +12,4 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 /**
  * A {@code nested} aggregation. Defines a single bucket that holds all the nested documents of a specific path.
  */
-public interface Nested extends SingleBucketAggregation {
-}
+public interface Nested extends SingleBucketAggregation {}

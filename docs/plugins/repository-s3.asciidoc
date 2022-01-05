@@ -16,18 +16,7 @@ include::install_remove.asciidoc[]
 The plugin provides a repository type named `s3` which may be used when creating
 a repository. The repository defaults to using
 https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html[ECS
-IAM Role] or
-https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[EC2
-IAM Role] credentials for authentication. If you want to use
-https://aws.amazon.com/blogs/opensource/introducing-fine-grained-iam-roles-service-accounts/[IAM roles for Kubernetes service accounts]
-credentials for authentication, you need add a symlink to the `$AWS_WEB_IDENTITY_TOKEN_FILE` environment variable in the plugin
-config directory, so the plugin can have the read permissions for the token.
-
-[source,bash]
-----
-mkdir -p "${ES_PATH_CONF}/repository-s3"
-ln -s $AWS_WEB_IDENTITY_TOKEN_FILE /etc/elasticsearch/repository-s3/aws-web-identity-token-file
-----
+IAM Role] credentials or <<web-identity-tokens,Web Identity Tokens>> for authentication.
 
 The only mandatory setting is the bucket name:
 
@@ -509,3 +498,21 @@ bandwidth of your VPC's NAT instance.
 
 Instances residing in a public subnet in an AWS VPC will connect to S3 via the
 VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.
+
+
+[[web-identity-tokens]]
+[discrete]
+==== Using Web Identity Tokens for authentication
+If you want to use https://aws.amazon.com/blogs/opensource/introducing-fine-grained-iam-roles-service-accounts/[AWS IAM Kubernetes service accounts]
+for authentication, you need add a symlink to the `$AWS_WEB_IDENTITY_TOKEN_FILE` environment variable in the ES plugin
+config directory, so the plugin can have the read permissions for the service account.
+
+[source,bash]
+----
+mkdir -p "${ES_PATH_CONF}/repository-s3"
+ln -s $AWS_WEB_IDENTITY_TOKEN_FILE "${ES_PATH_CONF}/repository-s3/aws-web-identity-token-file"
+----
+
+See the https://github.com/elastic/elasticsearch/pull/81255[Github PR] for implementation details, and the
+https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html[AWS Security Token Service API docs]
+to learn more about exchanging the web identity token for a session token.

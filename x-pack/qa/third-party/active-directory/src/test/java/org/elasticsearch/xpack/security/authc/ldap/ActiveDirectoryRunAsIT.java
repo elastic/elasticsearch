@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecuritySettingsSource;

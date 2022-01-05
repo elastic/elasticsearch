@@ -87,15 +87,11 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
             "2021-01-01T00:20:00.000Z", };
         indexRandom(
             true,
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[0], "dim", d1, "v", 1)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "dim", d1, "v", 2)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[2], "dim", d1, "v", 3)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[3], "dim", d1, "v", 4)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "dim", d2, "v", 5, "m", 6)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[0], "dim", d1, "m", 1)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "dim", d1, "m", 2)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[2], "dim", d1, "m", 3)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[3], "dim", d1, "m", 4))
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[0], "dim", d1, "v", 1, "m", 1)),
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "dim", d1, "v", 2, "m", 2)),
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[2], "dim", d1, "v", 3, "m", 3)),
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[3], "dim", d1, "v", 4, "m", 4)),
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "dim", d2, "v", 5, "m", 6))
         );
 
         assertMap(

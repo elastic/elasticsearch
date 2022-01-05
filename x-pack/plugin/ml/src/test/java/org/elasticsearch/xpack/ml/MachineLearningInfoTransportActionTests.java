@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
@@ -73,6 +75,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStatsTests;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
@@ -340,12 +343,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                 List.of(),
                 List.of(),
                 List.of(
-                    new AllocationStats("model_3", ByteSizeValue.ofMb(100), null, null, null, Instant.now(), List.of()).setState(
-                        AllocationState.STOPPING
-                    ),
+                    new AllocationStats("model_3", null, null, null, Instant.now(), List.of()).setState(AllocationState.STOPPING),
                     new AllocationStats(
                         "model_4",
-                        ByteSizeValue.ofMb(200),
                         2,
                         2,
                         1000,
@@ -377,6 +377,42 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                 2
             )
         );
+
+        final ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        TrainedModelAllocationMetadata.NAME,
+                        TrainedModelAllocationMetadata.Builder.empty()
+                            .addNewAllocation(
+                                "model_3",
+                                TrainedModelAllocation.Builder.empty(
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        "model_3",
+                                        ByteSizeValue.ofMb(100).getBytes(),
+                                        1,
+                                        1,
+                                        1024
+                                    )
+                                )
+                            )
+                            .addNewAllocation(
+                                "model_4",
+                                TrainedModelAllocation.Builder.empty(
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        "model_4",
+                                        ByteSizeValue.ofMb(200).getBytes(),
+                                        1,
+                                        1,
+                                        1024
+                                    )
+                                ).addNewRoutingEntry("foo").addNewRoutingEntry("bar")
+                            )
+                            .build()
+                    )
+            )
+            .build();
+        when(clusterService.state()).thenReturn(cs);
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();

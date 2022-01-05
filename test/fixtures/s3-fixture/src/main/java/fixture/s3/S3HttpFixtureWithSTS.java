@@ -22,10 +22,6 @@ import java.util.stream.Collectors;
 
 public class S3HttpFixtureWithSTS extends S3HttpFixture {
 
-    private static final String WEB_IDENTITY_TOKEN =
-        "Atza|IQEBLjAsAhRFiXuWpUXuRvQ9PZL3GMFcYevydwIUFAHZwXZXXXXXXXXJnrulxKDHwy87oGKPznh0D6bEQZTSCzyoCtL_8S07pLpr0zMbn6w1lfVZKNTBdDansF"
-            + "BmtGnIsIapjI6xKR02Yc_2bQ8LZbUXSGm6Ry6_BG7PrtLZtj_dfCTj92xNGed-CrKqjG7nPBjNIL016GGvuS5gSvPRUxWES3VYfm1wl7WTI7jn-Pcb6M-buCgHh"
-            + "FOzTQxod27L9CqnOLio7N3gZAGpsp6n1-AJBOCJckcyXe2c6uD0srOJeZlKUm2eTDVMf8IehDVI0r1QOnTV6KzzAI3OY87Vd_cVMQ";
     private static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
     private static final String ROLE_NAME = "sts-fixture-test";
 
@@ -37,6 +33,7 @@ public class S3HttpFixtureWithSTS extends S3HttpFixture {
     protected HttpHandler createHandler(final String[] args) {
         String accessKey = Objects.requireNonNull(args[4]);
         String sessionToken = Objects.requireNonNull(args[5], "session token is missing");
+        String webIdentityToken = Objects.requireNonNull(args[6], "web identity token is missing");
         final HttpHandler delegate = super.createHandler(args);
 
         return exchange -> {
@@ -55,7 +52,7 @@ public class S3HttpFixtureWithSTS extends S3HttpFixture {
                     return;
                 }
                 if (ROLE_NAME.equals(params.get("RoleSessionName")) == false
-                    || WEB_IDENTITY_TOKEN.equals(params.get("WebIdentityToken")) == false
+                    || webIdentityToken.equals(params.get("WebIdentityToken")) == false
                     || ROLE_ARN.equals(params.get("RoleArn")) == false) {
                     exchange.sendResponseHeaders(RestStatus.UNAUTHORIZED.getStatus(), 0);
                     exchange.close();
@@ -103,9 +100,9 @@ public class S3HttpFixtureWithSTS extends S3HttpFixture {
     }
 
     public static void main(final String[] args) throws Exception {
-        if (args == null || args.length < 6) {
+        if (args == null || args.length < 7) {
             throw new IllegalArgumentException(
-                "S3HttpFixtureWithSTS expects 6 arguments [address, port, bucket, base path, sts access id, sts session token]"
+                "S3HttpFixtureWithSTS expects 7 arguments [address, port, bucket, base path, sts access id, sts session token, web identity token]"
             );
         }
         final S3HttpFixtureWithSTS fixture = new S3HttpFixtureWithSTS(args);

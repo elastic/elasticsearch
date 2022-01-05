@@ -459,8 +459,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 pitContextCounter.decrementAndGet();
                 listener.onResponse((Response) response);
                 return;
-            } else if (request instanceof SearchRequest) {
-                SearchRequest searchRequest = (SearchRequest) request;
+            } else if (request instanceof SearchRequest searchRequest) {
 
                 // if pit is used and deleted-index is given throw index not found
                 if (searchRequest.pointInTimeBuilder() != null && Arrays.binarySearch(searchRequest.indices(), "deleted-index") >= 0) {

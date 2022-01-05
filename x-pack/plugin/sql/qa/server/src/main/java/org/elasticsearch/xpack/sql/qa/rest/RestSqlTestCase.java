@@ -24,6 +24,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.qa.ErrorsTestCase;
@@ -54,21 +55,21 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.xpack.ql.TestUtils.getNumberOfSearchContexts;
-import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNS_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_ASYNC_ID;
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_ASYNC_PARTIAL;
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_ASYNC_RUNNING;
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_CURSOR;
-import static org.elasticsearch.xpack.sql.proto.Protocol.ID_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.IS_PARTIAL_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.IS_RUNNING_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.ROWS_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_ASYNC_DELETE_REST_ENDPOINT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_ASYNC_REST_ENDPOINT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_ASYNC_STATUS_REST_ENDPOINT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
-import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_FORMAT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.COLUMNS_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_ASYNC_ID;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_ASYNC_PARTIAL;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_ASYNC_RUNNING;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_CURSOR;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ID_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.IS_PARTIAL_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.IS_RUNNING_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ROWS_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_ASYNC_DELETE_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_ASYNC_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_ASYNC_STATUS_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_FORMAT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -77,8 +78,8 @@ import static org.hamcrest.Matchers.containsString;
  */
 public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements ErrorsTestCase {
 
-    public static String SQL_QUERY_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
-    private static String SQL_TRANSLATE_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_TRANSLATE_REST_ENDPOINT;
+    public static String SQL_QUERY_REST_ENDPOINT = CoreProtocol.SQL_QUERY_REST_ENDPOINT;
+    private static String SQL_TRANSLATE_REST_ENDPOINT = CoreProtocol.SQL_TRANSLATE_REST_ENDPOINT;
 
     /**
      * Builds that map that is returned in the header for each column.

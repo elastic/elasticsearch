@@ -1215,6 +1215,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 if (cause.getFile() == null || cause.getFile().contains(".attach_pid") == false) {
                     throw new UncheckedIOException(cause);
                 }
+            } else {
+                throw e;
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Can't walk source " + sourceRoot, e);

@@ -152,6 +152,7 @@ public class InternalTestClusterTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82212")
     public void testBeforeTest() throws Exception {
         final boolean autoManageMinMasterNodes = randomBoolean();
         long clusterSeed = randomLong();

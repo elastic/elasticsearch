@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.scriptTransform;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -109,11 +110,10 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67908")
     public void testVars() throws Exception {
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId(watchId)
             .setSource(
-                watchBuilder().trigger(schedule(cron("0/1 * * * * ?")))
+                watchBuilder().trigger(schedule(interval("1h")))
                     .input(simpleInput("value", 5))
                     .condition(
                         new ScriptCondition(

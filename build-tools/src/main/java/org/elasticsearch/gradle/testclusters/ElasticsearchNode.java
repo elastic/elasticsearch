@@ -756,7 +756,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         credentials.add(cred);
     }
 
-
     private File getBuildPluginFile(String name) {
         return project.getRootProject().file("build-tools/src/main/resources/" + name);
     }

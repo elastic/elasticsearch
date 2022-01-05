@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.client;
 
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -17,14 +14,17 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.client.JreHttpUrlConnection.ResponseOrException;
 import org.elasticsearch.xpack.sql.proto.AbstractSqlRequest;
+import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.proto.SqlClearCursorResponse;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.proto.core.Streams;
+import org.elasticsearch.xpack.sql.proto.core.TimeValue;
+import org.elasticsearch.xpack.sql.proto.core.Tuple;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -69,7 +69,7 @@ public class HttpClient {
         SqlQueryRequest sqlRequest = new SqlQueryRequest(
             query,
             emptyList(),
-            Protocol.TIME_ZONE,
+            CoreProtocol.TIME_ZONE,
             null,
             fetchSize,
             TimeValue.timeValueMillis(cfg.queryTimeout()),
@@ -87,7 +87,7 @@ public class HttpClient {
     }
 
     public SqlQueryResponse query(SqlQueryRequest sqlRequest) throws SQLException {
-        return post(Protocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
+        return post(CoreProtocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
     }
 
     public SqlQueryResponse nextPage(String cursor) throws SQLException {
@@ -99,12 +99,12 @@ public class HttpClient {
             new RequestInfo(Mode.CLI),
             cfg.binaryCommunication()
         );
-        return post(Protocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
+        return post(CoreProtocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
     }
 
     public boolean queryClose(String cursor, Mode mode) throws SQLException {
         SqlClearCursorResponse response = post(
-            Protocol.CLEAR_CURSOR_REST_ENDPOINT,
+            CoreProtocol.CLEAR_CURSOR_REST_ENDPOINT,
             new SqlClearCursorRequest(cursor, new RequestInfo(mode)),
             SqlClearCursorResponse::fromXContent
         );

@@ -201,7 +201,9 @@ public class InstantiatingObjectParserTests extends ESTestCase {
         builder.declareString(constructorArg(), new ParseField("b"));
         builder.declareString(constructorArg(), new ParseField("c"));
         InstantiatingObjectParser<Annotations, Void> parser = builder.build();
-        try (XContentParser contentParser = createParser(JsonXContent.jsonXContent, "{\"a\": 5, \"b\":\"6\", \"c\": \"7\"}")) {
+        try (XContentParser contentParser = createParser(JsonXContent.jsonXContent, """
+            {"a": 5, "b":"6", "c": "7"}
+            """)) {
             assertThat(parser.parse(contentParser, null), equalTo(new Annotations(5, "6", 7)));
         }
     }
@@ -296,7 +298,9 @@ public class InstantiatingObjectParserTests extends ESTestCase {
         builder.declareString(constructorArg(), new ParseField("b"));
         builder.declareString(constructorArg(), new ParseField("c"));
         InstantiatingObjectParser<ContextArgument, String> parser = builder.build();
-        try (XContentParser contentParser = createParser(JsonXContent.jsonXContent, "{\"a\": 5, \"b\":\"6\", \"c\": \"7\"}")) {
+        try (XContentParser contentParser = createParser(JsonXContent.jsonXContent, """
+            {"a": 5, "b":"6", "c": "7"}
+            """)) {
             assertThat(parser.parse(contentParser, "context"), equalTo(new ContextArgument("context", 5, "6", 7)));
         }
     }

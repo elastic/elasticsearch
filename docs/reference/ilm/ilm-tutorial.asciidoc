@@ -215,19 +215,21 @@ is met.
   "indices": {
     ".ds-timeseries-2099.03.07-000001": {
       "index": ".ds-timeseries-2099.03.07-000001",
+      "index_creation_date_millis": 1538475653281,
+      "time_since_index_creation": "30s",        <1>
       "managed": true,
-      "policy": "timeseries_policy",             <1>
+      "policy": "timeseries_policy",             <2>
       "lifecycle_date_millis": 1538475653281,
-      "age": "30s",                              <2>
+      "age": "30s",                              <3>
       "phase": "hot",
       "phase_time_millis": 1538475653317,
       "action": "rollover",
       "action_time_millis": 1538475653317,
-      "step": "check-rollover-ready",            <3>
+      "step": "check-rollover-ready",            <4>
       "step_time_millis": 1538475653317,
       "phase_execution": {
         "policy": "timeseries_policy",
-        "phase_definition": {                    <4>
+        "phase_definition": {                    <5>
           "min_age": "0ms",
           "actions": {
             "rollover": {
@@ -245,10 +247,11 @@ is met.
 --------------------------------------------------
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
 
-<1> The policy used to manage the index
-<2> The age of the index
-<3> The step {ilm-init} is performing on the index
-<4> The definition of the current phase (the `hot` phase)
+<1> The age of the index used for calculating when to rollover the index via the `max_age`
+<2> The policy used to manage the index
+<3> The age of the indexed used to transition to the next phase (in this case it is the same with the age of the index).
+<4> The step {ilm-init} is performing on the index
+<5> The definition of the current phase (the `hot` phase)
 
 //////////////////////////
 

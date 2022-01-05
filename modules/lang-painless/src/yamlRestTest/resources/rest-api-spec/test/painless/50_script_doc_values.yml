@@ -53,7 +53,7 @@ setup:
                 date: 2017-01-01T12:11:12
                 nanos: 2015-01-01T12:10:30.123456789Z
                 geo_point: 41.12,-71.34
-                ip: 192.168.0.1
+                ip: 192.168.0.19
                 keyword: not split at all
                 long: 12348732141234
                 integer: 134134566
@@ -79,8 +79,10 @@ setup:
           body:
               rank: 3
               boolean: [true, false, true]
+              ip: ["10.1.2.3", "2001:db8::2:1"]
               date: [2017-01-01T12:11:12, 2018-01-01T12:11:12]
               nanos: [2015-01-01T12:10:30.123456789Z, 2015-01-01T12:10:30.987654321Z]
+              geo_point: [[-71.34,41.12],[60.32,21.25]]
               keyword: ["one string", "another string"]
               long: [1152921504606846976, 576460752303423488]
               integer: [5, 17, 29]
@@ -448,6 +450,78 @@ setup:
 
     - do:
         search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "field('geo_point').get(new GeoPoint())"
+    - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+    - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid yaml stash */ $('geo_point', new GeoPoint())"
+    - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+    - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 3 } }
+            script_fields:
+              field:
+                script:
+                  source: "field('geo_point').get(new GeoPoint())"
+    - match: { hits.hits.0.fields.field.0.lat: 21.249999990686774 }
+    - match: { hits.hits.0.fields.field.0.lon: 60.319999968633056 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 3 } }
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid yaml stash */ $('geo_point', new GeoPoint())"
+    - match: { hits.hits.0.fields.field.0.lat: 21.249999990686774 }
+    - match: { hits.hits.0.fields.field.0.lon: 60.319999968633056 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 3 } }
+            script_fields:
+              field:
+                script:
+                  source: "field('geo_point').get(1, new GeoPoint())"
+    - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+    - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 2 } }
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid yaml stash */ $('geo_point', new GeoPoint(1.0, 2.0))"
+    - match: { hits.hits.0.fields.field.0.lat: 1.0 }
+    - match: { hits.hits.0.fields.field.0.lon: 2.0 }
+
+    - do:
+        search:
             rest_total_hits_as_int: true
             body:
                 query: { term: { _id: 1 } }
@@ -526,7 +600,7 @@ setup:
                     field:
                         script:
                             source: "doc['ip'].get(0)"
-    - match: { hits.hits.0.fields.field.0: "192.168.0.1" }
+    - match: { hits.hits.0.fields.field.0: "192.168.0.19" }
 
     - do:
         search:
@@ -537,7 +611,76 @@ setup:
                     field:
                         script:
                             source: "doc['ip'].value"
-    - match: { hits.hits.0.fields.field.0: "192.168.0.1" }
+    - match: { hits.hits.0.fields.field.0: "192.168.0.19" }
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                sort: [ { rank: asc } ]
+                script_fields:
+                    field:
+                        script:
+                            source: "field('ip').get(new IPAddress('127.0.0.1'))"
+                    field_string:
+                        script:
+                            source: "field('ip').asString('127.0.0.1')"
+    - match: { hits.hits.0.fields.field.0: "192.168.0.19" }
+    - match: { hits.hits.0.fields.field_string.0: "192.168.0.19" }
+    - match: { hits.hits.1.fields.field.0: "127.0.0.1" }
+    - match: { hits.hits.1.fields.field_string.0: "127.0.0.1" }
+    - match: { hits.hits.2.fields.field.0: "10.1.2.3" }
+    - match: { hits.hits.2.fields.field_string.0: "10.1.2.3" }
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                sort: [ { rank: asc } ]
+                script_fields:
+                    field:
+                        script:
+                            source: "field('ip').get(1, new IPAddress('127.0.0.1'))"
+                    field_string:
+                        script:
+                            source: "field('ip').asString(1, '127.0.0.1')"
+    - match: { hits.hits.0.fields.field.0: "127.0.0.1" }
+    - match: { hits.hits.0.fields.field_string.0: "127.0.0.1" }
+    - match: { hits.hits.1.fields.field.0: "127.0.0.1" }
+    - match: { hits.hits.1.fields.field_string.0: "127.0.0.1" }
+    - match: { hits.hits.2.fields.field.0: "2001:db8::2:1" }
+    - match: { hits.hits.2.fields.field_string.0: "2001:db8::2:1" }
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                sort: [ { rank: asc } ]
+                script_fields:
+                    field:
+                        script:
+                            source: "String.join(',', field('ip').asStrings())"
+    - match: { hits.hits.0.fields.field.0: "192.168.0.19" }
+    - match: { hits.hits.1.fields.field.0: "" }
+    - match: { hits.hits.2.fields.field.0: "10.1.2.3,2001:db8::2:1" }
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                sort: [ { rank: asc } ]
+                runtime_mappings:
+                    ip_script_field:
+                        type: ip
+                        script:
+                            source: "for (IPAddress addr : field('ip')) { String ip = addr.toString(); emit(ip.substring(0, ip.length() - 1) + field('ip').size()) }"
+                script_fields:
+                    field:
+                        script:
+                            source: "field('ip_script_field').get(new IPAddress('1.2.3.4'))"
+    - match: { hits.hits.0.fields.field.0: "192.168.0.11" }
+    - match: { hits.hits.1.fields.field.0: "1.2.3.4" }
+    - match: { hits.hits.2.fields.field.0: "10.1.2.2" }
 
 ---
 "keyword":

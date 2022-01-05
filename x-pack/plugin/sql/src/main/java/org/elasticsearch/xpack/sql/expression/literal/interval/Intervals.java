@@ -66,8 +66,7 @@ public final class Intervals {
         Check.isTrue(fold instanceof Interval, "Expected interval, received [{}]", fold);
         TemporalAmount interval = ((Interval<?>) fold).interval();
         long millis = 0;
-        if (interval instanceof Period) {
-            Period p = (Period) interval;
+        if (interval instanceof Period p) {
             millis = p.toTotalMonths() * 30 * 24 * 60 * 60 * 1000;
         } else {
             Duration d = (Duration) interval;

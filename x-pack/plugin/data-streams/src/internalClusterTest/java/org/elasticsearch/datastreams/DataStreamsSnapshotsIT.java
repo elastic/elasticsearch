@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIn
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.common.settings.Settings;

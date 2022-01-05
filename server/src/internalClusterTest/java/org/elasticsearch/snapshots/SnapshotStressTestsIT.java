@@ -26,7 +26,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -312,7 +312,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
             }
 
             assertTrue(shouldStop.compareAndSet(false, true));
-            final long permitDeadlineMillis = threadPool.relativeTimeInMillis() + TimeUnit.SECONDS.toMillis(30);
+            final long permitDeadlineMillis = threadPool.relativeTimeInMillis() + TimeUnit.MINUTES.toMillis(2);
 
             final List<String> failedPermitAcquisitions = new ArrayList<>();
             acquirePermitsAtEnd(

@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,7 +38,7 @@ public class UnmappedSampler extends InternalSampler {
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         return new UnmappedSampler(name, metadata);
     }
 

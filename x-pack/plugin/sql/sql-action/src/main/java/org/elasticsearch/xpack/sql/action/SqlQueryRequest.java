@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
@@ -30,17 +29,17 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.DEFAULT_KEEP_ALIVE;
-import static org.elasticsearch.xpack.sql.proto.Protocol.DEFAULT_KEEP_ON_COMPLETION;
-import static org.elasticsearch.xpack.sql.proto.Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.INDEX_INCLUDE_FROZEN_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.KEEP_ALIVE_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.KEEP_ON_COMPLETION_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.MIN_KEEP_ALIVE;
-import static org.elasticsearch.xpack.sql.proto.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.BINARY_FORMAT_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.COLUMNAR_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.DEFAULT_KEEP_ALIVE;
+import static org.elasticsearch.xpack.sql.action.Protocol.DEFAULT_KEEP_ON_COMPLETION;
+import static org.elasticsearch.xpack.sql.action.Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT;
+import static org.elasticsearch.xpack.sql.action.Protocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.INDEX_INCLUDE_FROZEN_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.KEEP_ALIVE_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.KEEP_ON_COMPLETION_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.MIN_KEEP_ALIVE;
+import static org.elasticsearch.xpack.sql.action.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 
 /**
  * Request to perform an sql query
@@ -315,8 +314,8 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
             zoneId(),
             catalog(),
             fetchSize(),
-            requestTimeout(),
-            pageTimeout(),
+            ProtoShim.toProto(requestTimeout()),
+            ProtoShim.toProto(pageTimeout()),
             filter(),
             columnar(),
             cursor(),
@@ -325,9 +324,9 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
             indexIncludeFrozen(),
             binaryCommunication(),
             runtimeMappings(),
-            waitForCompletionTimeout(),
+            ProtoShim.toProto(waitForCompletionTimeout()),
             keepOnCompletion(),
-            keepAlive()
+            ProtoShim.toProto(keepAlive())
         ).toXContent(builder, params);
     }
 

@@ -88,12 +88,10 @@ public class SecurityActionFilter implements ActionFilter {
             - cluster:monitor/nodes/stats*
           */
         if (licenseState.isActive() == false && LICENSE_EXPIRATION_ACTION_MATCHER.test(action)) {
-            logger.error(
-                "blocking [{}] operation due to expired license. Cluster health, cluster stats and indices stats \n"
-                    + "operations are blocked on license expiration. All data operations (read and write) continue to work. \n"
-                    + "If you have a new license, please update it. Otherwise, please reach out to your support contact.",
-                action
-            );
+            logger.error("""
+                blocking [{}] operation due to expired license. Cluster health, cluster stats and indices stats\s
+                operations are blocked on license expiration. All data operations (read and write) continue to work.\s
+                If you have a new license, please update it. Otherwise, please reach out to your support contact.""", action);
             throw LicenseUtils.newComplianceException(XPackField.SECURITY);
         }
 

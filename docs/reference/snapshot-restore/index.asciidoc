@@ -31,8 +31,8 @@ recover or transfer its data.
 [[snapshot-contents]]
 == Snapshot contents
 
-By default, a snapshot of a cluster contains the cluster state, all data
-streams, and all indices, including system indices. The cluster state includes:
+By default, a snapshot of a cluster contains the cluster state, all regular data
+streams, and all regular indices. The cluster state includes:
 
 include::apis/restore-snapshot-api.asciidoc[tag=cluster-state-contents]
 
@@ -60,6 +60,9 @@ or system data streams>>. It may also include regular indices and data streams
 used by the feature. For example, a feature state may include a regular index
 that contains the feature's execution history. Storing this history in a regular
 index lets you more easily search it.
+
+In {es} 8.0 and later versions, feature states are the only way to back up and
+restore system indices and system data streams.
 
 [discrete]
 [[how-snapshots-work]]
@@ -166,8 +169,12 @@ Before you start, test the reindex from remote process with a subset of the data
 to estimate your time requirements.
 
 [discrete]
+[[snapshot-restore-warnings]]
+=== Warnings
+
+[discrete]
 [[other-backup-methods]]
-== Other backup methods
+=== Other backup methods
 
 // tag::backup-warning[]
 **Taking a snapshot is the only reliable and supported way to back up a
@@ -185,6 +192,25 @@ point in time. You cannot fix this by shutting down nodes while making the
 copies, nor by taking atomic filesystem-level snapshots, because {es} has
 consistency requirements that span the whole cluster. You must use the built-in
 snapshot functionality for cluster backups.
+
+[discrete]
+[[snapshot-repository-contents]]
+=== Repository contents
+
+**Don’t modify anything within the repository or run processes that might
+interfere with its contents.** If something other than {es} modifies the
+contents of the repository then future snapshot or restore operations may fail,
+reporting corruption or other data inconsistencies, or may appear to succeed
+having silently lost some of your data.
+
+You may however safely <<snapshots-repository-backup,restore a repository from
+a backup>> as long as
+
+. The repository is not registered with {es} while you are restoring its
+contents.
+
+. When you have finished restoring the repository its contents are exactly as
+they were when you took the backup.
 
 include::register-repository.asciidoc[]
 include::take-snapshot.asciidoc[]

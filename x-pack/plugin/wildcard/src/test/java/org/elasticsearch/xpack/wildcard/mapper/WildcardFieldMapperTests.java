@@ -859,8 +859,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     private Query unwrapAnyConstantScore(Query q) {
-        if (q instanceof ConstantScoreQuery) {
-            ConstantScoreQuery csq = (ConstantScoreQuery) q;
+        if (q instanceof ConstantScoreQuery csq) {
             return csq.getQuery();
         } else {
             return q;
@@ -868,8 +867,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     private Query unwrapAnyBoost(Query q) {
-        if (q instanceof BoostQuery) {
-            BoostQuery csq = (BoostQuery) q;
+        if (q instanceof BoostQuery csq) {
             return csq.getQuery();
         } else {
             return q;
@@ -911,9 +909,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     private Query rewriteFiltersToMustsForComparisonPurposes(Query q) {
         q = unwrapAnyBoost(q);
         q = unwrapAnyConstantScore(q);
-        if (q instanceof BooleanQuery) {
+        if (q instanceof BooleanQuery bq) {
             BooleanQuery.Builder result = new BooleanQuery.Builder();
-            BooleanQuery bq = (BooleanQuery) q;
             for (BooleanClause cq : bq.clauses()) {
                 Query rewritten = rewriteFiltersToMustsForComparisonPurposes(cq.getQuery());
                 if (cq.getOccur() == Occur.FILTER) {

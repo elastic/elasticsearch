@@ -28,9 +28,9 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
-import static org.elasticsearch.xpack.sql.proto.Protocol.ID_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.IS_PARTIAL_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.IS_RUNNING_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.ID_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.IS_PARTIAL_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.IS_RUNNING_NAME;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
 import static org.hamcrest.Matchers.hasSize;
 

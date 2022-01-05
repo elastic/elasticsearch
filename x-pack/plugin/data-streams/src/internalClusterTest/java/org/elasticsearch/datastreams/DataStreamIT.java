@@ -56,6 +56,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -417,16 +418,17 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testComposableTemplateOnlyMatchingWithDataStreamName() throws Exception {
         String dataStreamName = "logs-foobar";
 
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"baz_field\": {\n"
-            + "          \"type\": \"keyword\"\n"
-            + "        },\n"
-            + "        \"@timestamp\": {\n"
-            + "          \"type\": \"date\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+                  "properties": {
+                    "baz_field": {
+                      "type": "keyword"
+                    },
+                    "@timestamp": {
+                      "type": "date"
+                    }
+                  }
+                }""";
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id_1");
         request.indexTemplate(
             new ComposableIndexTemplate(
@@ -504,13 +506,14 @@ public class DataStreamIT extends ESIntegTestCase {
 
     public void testTimeStampValidationInvalidFieldMapping() throws Exception {
         // Adding a template with an invalid mapping for timestamp field and expect template creation to fail.
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"@timestamp\": {\n"
-            + "          \"type\": \"keyword\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "keyword"
+                    }
+                  }
+                }""";
         PutComposableIndexTemplateAction.Request createTemplateRequest = new PutComposableIndexTemplateAction.Request("logs-foo");
         createTemplateRequest.indexTemplate(
             new ComposableIndexTemplate(
@@ -568,14 +571,8 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, client().admin().indices().prepareRecoveries(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareGetAliases("dummy").addIndices(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareGetFieldMappings(dataStreamName), false);
-        verifyResolvability(
-            dataStreamName,
-            client().admin()
-                .indices()
-                .preparePutMapping(dataStreamName)
-                .setSource("{\"_doc\":{\"properties\": {\"my_field\":{\"type\":\"keyword\"}}}}", XContentType.JSON),
-            false
-        );
+        verifyResolvability(dataStreamName, client().admin().indices().preparePutMapping(dataStreamName).setSource("""
+            {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareGetMappings(dataStreamName), false);
         verifyResolvability(
             dataStreamName,
@@ -623,14 +620,8 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, client().admin().indices().prepareRecoveries(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareGetAliases(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareGetFieldMappings(wildcardExpression), false);
-        verifyResolvability(
-            wildcardExpression,
-            client().admin()
-                .indices()
-                .preparePutMapping(wildcardExpression)
-                .setSource("{\"_doc\":{\"properties\": {\"my_field\":{\"type\":\"keyword\"}}}}", XContentType.JSON),
-            false
-        );
+        verifyResolvability(wildcardExpression, client().admin().indices().preparePutMapping(wildcardExpression).setSource("""
+            {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareGetMappings(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareGetSettings(wildcardExpression), false);
         verifyResolvability(
@@ -992,17 +983,18 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testTimestampFieldCustomAttributes() throws Exception {
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"@timestamp\": {\n"
-            + "          \"type\": \"date\",\n"
-            + "          \"format\": \"yyyy-MM\",\n"
-            + "          \"meta\": {\n"
-            + "            \"x\": \"y\"\n"
-            + "          }\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "date",
+                      "format": "yyyy-MM",
+                      "meta": {
+                        "x": "y"
+                      }
+                    }
+                  }
+                }""";
         putComposableIndexTemplate("id1", mapping, List.of("logs-foo*"), null, null);
 
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
@@ -1032,7 +1024,7 @@ public class DataStreamIT extends ESIntegTestCase {
         Map<?, ?> expectedMapping = Map.of(
             "properties",
             Map.of("@timestamp", Map.of("type", "date")),
-            "_data_stream_timestamp",
+            DataStreamTimestampFieldMapper.NAME,
             Map.of("enabled", true)
         );
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("logs-foobar").get();
@@ -1043,7 +1035,7 @@ public class DataStreamIT extends ESIntegTestCase {
         expectedMapping = Map.of(
             "properties",
             Map.of("@timestamp", Map.of("type", "date"), "my_field", Map.of("type", "keyword")),
-            "_data_stream_timestamp",
+            DataStreamTimestampFieldMapper.NAME,
             Map.of("enabled", true)
         );
         client().admin()
@@ -1728,8 +1720,7 @@ public class DataStreamIT extends ESIntegTestCase {
                 assertThat(e.getMessage(), equalTo(expectedErrorMessage));
             }
         } else {
-            if (requestBuilder instanceof SearchRequestBuilder) {
-                SearchRequestBuilder searchRequestBuilder = (SearchRequestBuilder) requestBuilder;
+            if (requestBuilder instanceof SearchRequestBuilder searchRequestBuilder) {
                 assertHitCount(searchRequestBuilder.get(), expectedCount);
             } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
@@ -1810,7 +1801,12 @@ public class DataStreamIT extends ESIntegTestCase {
             List.of("logs"),
             new Template(
                 Settings.builder().put("index.number_of_shards", "3").put("index.routing_partition_size", "2").build(),
-                new CompressedXContent("{\n" + "      \"_routing\": {\n" + "        \"required\": true\n" + "      }\n" + "    }"),
+                new CompressedXContent("""
+                    {
+                          "_routing": {
+                            "required": true
+                          }
+                        }"""),
                 null
             ),
             null,
@@ -1831,7 +1827,12 @@ public class DataStreamIT extends ESIntegTestCase {
             List.of("logs"),
             new Template(
                 Settings.builder().put("index.number_of_shards", "3").put("index.routing_partition_size", "2").build(),
-                new CompressedXContent("{\n" + "      \"_routing\": {\n" + "        \"required\": true\n" + "      }\n" + "    }"),
+                new CompressedXContent("""
+                    {
+                          "_routing": {
+                            "required": true
+                          }
+                        }"""),
                 null
             ),
             null,
@@ -1868,7 +1869,12 @@ public class DataStreamIT extends ESIntegTestCase {
                     .put("index.number_of_routing_shards", "10")
                     .put("index.routing_partition_size", "4")
                     .build(),
-                new CompressedXContent("{\n" + "      \"_routing\": {\n" + "        \"required\": true\n" + "      }\n" + "    }"),
+                new CompressedXContent("""
+                    {
+                          "_routing": {
+                            "required": true
+                          }
+                        }"""),
                 null
             ),
             null,

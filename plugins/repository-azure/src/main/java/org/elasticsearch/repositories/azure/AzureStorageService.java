@@ -136,8 +136,8 @@ public class AzureStorageService {
         }
 
         final String secondaryHost = switch (locationMode) {
-            case PRIMARY_ONLY, SECONDARY_ONLY ->  null;
-            case PRIMARY_THEN_SECONDARY ->  secondaryUri;
+            case PRIMARY_ONLY, SECONDARY_ONLY -> null;
+            case PRIMARY_THEN_SECONDARY -> secondaryUri;
             case SECONDARY_THEN_PRIMARY -> primaryUri;
         };
 

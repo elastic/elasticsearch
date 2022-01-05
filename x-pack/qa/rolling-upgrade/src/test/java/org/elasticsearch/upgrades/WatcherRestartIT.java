@@ -113,8 +113,18 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
      * then the error messages can state which templates <strong>do</strong> exist, for debugging
      * purposes.
      */
-    @SuppressWarnings("unchecked")
     private void assertIndexTemplateExists(String expectedTemplate) throws IOException {
+
+        final List<String> templateNames = getIndexTemplateNames();
+        assertThat(
+            "For version " + UPGRADE_FROM_VERSION + ", template " + expectedTemplate + " not found in: " + templateNames,
+            templateNames,
+            hasItem(expectedTemplate)
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> getIndexTemplateNames() throws IOException {
         final Response response = client().performRequest(new Request("GET", "/_index_template"));
         assertOK(response);
 
@@ -126,18 +136,12 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
 
         List<Map<String, Object>> templates = (List<Map<String, Object>>) responseMap.get("index_templates");
 
-        final List<String> templateNames = templates.stream().map(each -> (String) each.get("name")).collect(Collectors.toList());
-
-        assertThat(
-            "For version " + UPGRADE_FROM_VERSION + ", template " + expectedTemplate + " not found in: " + templateNames,
-            templateNames,
-            hasItem(expectedTemplate)
-        );
+        return templates.stream().map(each -> (String) each.get("name")).collect(Collectors.toList());
     }
 
-    public void testEnsureWatcherDeletesLegacyTemplates() throws Exception {
+    public void testEnsureWatcherHasLegacyTemplates() throws Exception {
         if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
-            // legacy index template created in previous releases should not be present anymore
+            // legacy index template created in previous releases should be present
             assertBusy(() -> {
                 Request request = new Request("GET", "/_template/*watch*");
                 try {
@@ -147,7 +151,13 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
 
                     assertThat(responseLevel.containsKey(".watches"), is(true));
                     assertThat(responseLevel.containsKey(".triggered_watches"), is(true));
-                    assertThat(responseLevel.containsKey(".watch-history-9"), is(false));
+                    assertThat(
+                        responseLevel.containsKey(".watch-history-9")
+                            || responseLevel.containsKey(".watch-history-10")
+                            || responseLevel.containsKey(".watch-history-11")
+                            || getIndexTemplateNames().contains(".watch-history-12"),
+                        is(true)
+                    );
                 } catch (ResponseException e) {
                     // Not found is fine
                     assertThat(

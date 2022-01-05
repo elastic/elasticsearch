@@ -9,15 +9,3 @@ idp_user:
     - application: elastic-cloud
       resources: ["ec:123456:abcdefg"]
       privileges: ["sso:viewer"]
-
-_es_test_root:
-  cluster: [ "ALL" ]
-  indices:
-    - names: [ "*" ]
-      allow_restricted_indices: true
-      privileges: [ "ALL" ]
-  run_as: [ "*" ]
-  applications:
-    - application: "*"
-      privileges: [ "*" ]
-      resources: [ "*" ]

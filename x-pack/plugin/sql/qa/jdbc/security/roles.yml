@@ -89,10 +89,3 @@ no_get_index:
       privileges: [monitor]
     - names: bort
       privileges: [monitor]
-_es_test_root:
-  cluster: [ "ALL" ]
-  indices:
-    - names: [ "*" ]
-      allow_restricted_indices: true
-      privileges: [ "ALL" ]
-  run_as: [ "*" ]

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -134,7 +135,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
     public static final class ProxyS3RepositoryPlugin extends S3RepositoryPlugin {
 
         public ProxyS3RepositoryPlugin(Settings settings) {
-            super(settings, new ProxyS3Service());
+            super(settings);
         }
 
         @Override
@@ -153,6 +154,11 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             };
         }
 
+        @Override
+        S3Service s3Service(Environment environment) {
+            return new ProxyS3Service(environment);
+        }
+
         public static final class ClientAndCredentials extends AmazonS3Wrapper {
             final AWSCredentialsProvider credentials;
 
@@ -166,10 +172,14 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
             private static final Logger logger = LogManager.getLogger(ProxyS3Service.class);
 
+            ProxyS3Service(Environment environment) {
+                super(environment);
+            }
+
             @Override
             AmazonS3 buildClient(final S3ClientSettings clientSettings) {
                 final AmazonS3 client = super.buildClient(clientSettings);
-                return new ClientAndCredentials(client, buildCredentials(logger, clientSettings));
+                return new ClientAndCredentials(client, buildCredentials(logger, clientSettings, webIdentityTokenCredentialsProvider));
             }
 
         }

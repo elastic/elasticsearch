@@ -9,12 +9,14 @@ package org.elasticsearch.repositories.s3;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.Mockito;
 
 public class S3ServiceTests extends ESTestCase {
 
     public void testCachedClientsAreReleased() {
-        final S3Service s3Service = new S3Service();
+        final S3Service s3Service = new S3Service(Mockito.mock(Environment.class));
         final Settings settings = Settings.builder().put("endpoint", "http://first").build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
         final RepositoryMetadata metadata2 = new RepositoryMetadata("second", "s3", settings);

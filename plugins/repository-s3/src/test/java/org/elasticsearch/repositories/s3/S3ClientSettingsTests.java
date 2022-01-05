@@ -14,7 +14,9 @@ import com.amazonaws.services.s3.AmazonS3Client;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.Mockito;
 
 import java.util.Map;
 
@@ -174,7 +176,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         );
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").region, is(region));
-        try (S3Service s3Service = new S3Service()) {
+        try (S3Service s3Service = new S3Service(Mockito.mock(Environment.class))) {
             AmazonS3Client other = (AmazonS3Client) s3Service.buildClient(settings.get("other"));
             assertThat(other.getSignerRegionOverride(), is(region));
         }

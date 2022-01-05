@@ -31,8 +31,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.env.Environment;
 
 import java.io.Closeable;
 import java.nio.file.Files;
@@ -46,8 +45,6 @@ import static java.util.Collections.emptyMap;
 
 class S3Service implements Closeable {
     private static final Logger LOGGER = LogManager.getLogger(S3Service.class);
-    private static final CustomWebIdentityTokenCredentialsProvider WEB_IDENTITY_TOKEN_CREDENTIALS_PROVIDER =
-        new CustomWebIdentityTokenCredentialsProvider();
 
     private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = emptyMap();
 
@@ -64,6 +61,12 @@ class S3Service implements Closeable {
      * in the {@link RepositoryMetadata}.
      */
     private volatile Map<Settings, S3ClientSettings> derivedClientSettings = emptyMap();
+
+    final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
+
+    S3Service(Environment environment) {
+        webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(environment);
+    }
 
     /**
      * Refreshes the settings for the AmazonS3 clients and clears the cache of
@@ -143,7 +146,7 @@ class S3Service implements Closeable {
     // proxy for testing
     AmazonS3 buildClient(final S3ClientSettings clientSettings) {
         final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
-        builder.withCredentials(buildCredentials(LOGGER, clientSettings));
+        builder.withCredentials(buildCredentials(LOGGER, clientSettings, webIdentityTokenCredentialsProvider));
         builder.withClientConfiguration(buildConfiguration(clientSettings));
 
         String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
@@ -201,11 +204,6 @@ class S3Service implements Closeable {
     }
 
     // pkg private for tests
-    static AWSCredentialsProvider buildCredentials(Logger logger, S3ClientSettings clientSettings) {
-        return buildCredentials(logger, clientSettings, WEB_IDENTITY_TOKEN_CREDENTIALS_PROVIDER);
-    }
-
-    // pkg private for tests
     static AWSCredentialsProvider buildCredentials(
         Logger logger,
         S3ClientSettings clientSettings,
@@ -244,7 +242,7 @@ class S3Service implements Closeable {
     @Override
     public void close() {
         releaseCachedClients();
-        WEB_IDENTITY_TOKEN_CREDENTIALS_PROVIDER.shutdown();
+        webIdentityTokenCredentialsProvider.shutdown();
     }
 
     static class PrivilegedAWSCredentialsProvider implements AWSCredentialsProvider {
@@ -284,20 +282,19 @@ class S3Service implements Closeable {
         private STSAssumeRoleWithWebIdentitySessionCredentialsProvider credentialsProvider;
         private AWSSecurityTokenService stsClient;
 
-        @SuppressForbidden(reason = "Need to use PathUtils#get")
-        CustomWebIdentityTokenCredentialsProvider() {
+        CustomWebIdentityTokenCredentialsProvider(Environment environment) {
             // Check whether the original environment variable exists. If it doesn't,
             // the system doesn't support AWS web identity tokens
             if (System.getenv(AWS_WEB_IDENTITY_ENV_VAR) == null) {
                 return;
             }
-            String esPathConf = System.getProperty("es.path.conf");
+            // Make sure that a readable symlink to the token file exists in the plugin config directory
+            Path esPathConf = environment.configFile();
             if (esPathConf == null) {
-                // Should be always present, but bail out in case it doesn't
+                // Should be always present in the real ES environment, but is null in tests
                 return;
             }
-            // Make sure that a readable symlink to the token file exists in the plugin config directory
-            Path webIdentityTokenFileSymlink = PathUtils.get(esPathConf).resolve("repository-s3/aws-web-identity-token-file");
+            Path webIdentityTokenFileSymlink = esPathConf.resolve("repository-s3/aws-web-identity-token-file");
             if (Files.isReadable(webIdentityTokenFileSymlink) == false) {
                 return;
             }

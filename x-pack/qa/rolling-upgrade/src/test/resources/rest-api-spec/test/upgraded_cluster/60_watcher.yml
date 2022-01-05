@@ -1,8 +1,5 @@
 ---
 "CRUD watch APIs":
-  - skip:
-      version: "all"
-      reason: "https://github.com/elastic/elasticsearch/issues/81110"
   # no need to put watch, exists already
   - do:
       watcher.get_watch:
@@ -76,8 +73,3 @@
       watcher.stats: {}
   - match: { "manually_stopped": false }
   - match: { "stats.0.watcher_state": "started" }
-
----
-"Test do something":
-  - do: { ping: { } }
-  - is_true: ''

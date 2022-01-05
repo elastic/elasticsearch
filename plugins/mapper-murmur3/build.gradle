@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -11,6 +13,12 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 esplugin {
   description 'The Mapper Murmur3 plugin allows to compute hashes of a field\'s values at index-time and to store them in the index.'
   classname 'org.elasticsearch.plugin.mapper.MapperMurmur3Plugin'
+}
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("test").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
 }
 
 restResources {

@@ -93,8 +93,8 @@ public final class ExtractorUtils {
 
     public static DateHistogramValuesSourceBuilder getDateHistogramValuesSource(CompositeAggregationBuilder compositeAggregationBuilder) {
         for (CompositeValuesSourceBuilder<?> valuesSourceBuilder : compositeAggregationBuilder.sources()) {
-            if (valuesSourceBuilder instanceof DateHistogramValuesSourceBuilder) {
-                return (DateHistogramValuesSourceBuilder) valuesSourceBuilder;
+            if (valuesSourceBuilder instanceof DateHistogramValuesSourceBuilder dateHistogramValuesSourceBuilder) {
+                return dateHistogramValuesSourceBuilder;
             }
         }
         throw ExceptionsHelper.badRequestException("[composite] aggregations require exactly one [date_histogram] value source");
@@ -110,16 +110,12 @@ public final class ExtractorUtils {
      * @return The histogram interval
      */
     public static long getHistogramIntervalMillis(AggregationBuilder histogramAggregation) {
-        if (histogramAggregation instanceof HistogramAggregationBuilder) {
-            return (long) ((HistogramAggregationBuilder) histogramAggregation).interval();
-        } else if (histogramAggregation instanceof DateHistogramAggregationBuilder) {
-            return validateAndGetDateHistogramInterval(
-                DateHistogramAggOrValueSource.fromAgg((DateHistogramAggregationBuilder) histogramAggregation)
-            );
-        } else if (histogramAggregation instanceof CompositeAggregationBuilder) {
-            return validateAndGetDateHistogramInterval(
-                DateHistogramAggOrValueSource.fromCompositeAgg((CompositeAggregationBuilder) histogramAggregation)
-            );
+        if (histogramAggregation instanceof HistogramAggregationBuilder histo) {
+            return (long) histo.interval();
+        } else if (histogramAggregation instanceof DateHistogramAggregationBuilder dateHisto) {
+            return validateAndGetDateHistogramInterval(DateHistogramAggOrValueSource.fromAgg(dateHisto));
+        } else if (histogramAggregation instanceof CompositeAggregationBuilder composite) {
+            return validateAndGetDateHistogramInterval(DateHistogramAggOrValueSource.fromCompositeAgg(composite));
         } else {
             throw new IllegalStateException("Invalid histogram aggregation [" + histogramAggregation.getName() + "]");
         }

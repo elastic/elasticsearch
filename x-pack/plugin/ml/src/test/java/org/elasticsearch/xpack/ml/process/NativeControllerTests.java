@@ -37,9 +37,11 @@ public class NativeControllerTests extends ESTestCase {
 
     private static final String NODE_NAME = "native-controller-tests-node";
 
-    private static final String TEST_MESSAGE = "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\",\"pid\":10211,"
-        + "\"thread\":\"0x7fff7d2a8000\",\"message\":\"controller (64 bit): Version 6.0.0-alpha1-SNAPSHOT (Build a0d6ef8819418c) "
-        + "Copyright (c) 2017 Elasticsearch BV\",\"method\":\"main\",\"file\":\"Main.cc\",\"line\":123}\n";
+    private static final String TEST_MESSAGE = """
+        {"logger":"controller","timestamp":1478261151445,"level":"INFO","pid":10211,"thread":"0x7fff7d2a8000",\
+        "message":"controller (64 bit): Version 6.0.0-alpha1-SNAPSHOT (Build a0d6ef8819418c) Copyright (c) 2017 Elasticsearch BV",\
+        "method":"main","file":"Main.cc","line":123}
+        """;
 
     private final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
 
@@ -55,9 +57,8 @@ public class NativeControllerTests extends ESTestCase {
         when(namedPipeHelper.openNamedPipeInputStream(contains("log"), any(Duration.class))).thenReturn(logStream);
         ByteArrayOutputStream commandStream = new ByteArrayOutputStream();
         when(namedPipeHelper.openNamedPipeOutputStream(contains("command"), any(Duration.class))).thenReturn(commandStream);
-        ByteArrayInputStream outputStream = new ByteArrayInputStream(
-            "[{\"id\":1,\"success\":true,\"reason\":\"ok\"}]".getBytes(StandardCharsets.UTF_8)
-        );
+        ByteArrayInputStream outputStream = new ByteArrayInputStream("""
+            [{"id":1,"success":true,"reason":"ok"}]""".getBytes(StandardCharsets.UTF_8));
         when(namedPipeHelper.openNamedPipeInputStream(contains("output"), any(Duration.class))).thenReturn(outputStream);
 
         List<String> command = new ArrayList<>();
@@ -94,9 +95,8 @@ public class NativeControllerTests extends ESTestCase {
         when(namedPipeHelper.openNamedPipeInputStream(contains("log"), any(Duration.class))).thenReturn(logStream);
         ByteArrayOutputStream commandStream = new ByteArrayOutputStream();
         when(namedPipeHelper.openNamedPipeOutputStream(contains("command"), any(Duration.class))).thenReturn(commandStream);
-        ByteArrayInputStream outputStream = new ByteArrayInputStream(
-            "[{\"id\":1,\"success\":false,\"reason\":\"some problem\"}]".getBytes(StandardCharsets.UTF_8)
-        );
+        ByteArrayInputStream outputStream = new ByteArrayInputStream("""
+            [{"id":1,"success":false,"reason":"some problem"}]""".getBytes(StandardCharsets.UTF_8));
         when(namedPipeHelper.openNamedPipeInputStream(contains("output"), any(Duration.class))).thenReturn(outputStream);
 
         List<String> command = new ArrayList<>();

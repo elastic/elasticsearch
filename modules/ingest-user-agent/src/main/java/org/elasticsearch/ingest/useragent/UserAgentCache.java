@@ -40,9 +40,8 @@ class UserAgentCache {
 
         @Override
         public boolean equals(Object obj) {
-            if (obj != null && obj instanceof CompositeCacheKey) {
-                CompositeCacheKey s = (CompositeCacheKey) obj;
-                return parserName.equals(s.parserName) && userAgent.equals(s.userAgent);
+            if (obj instanceof CompositeCacheKey cck) {
+                return parserName.equals(cck.parserName) && userAgent.equals(cck.userAgent);
             }
             return false;
         }

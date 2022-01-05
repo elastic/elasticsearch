@@ -8,6 +8,7 @@
 
 package org.elasticsearch.test;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -148,6 +149,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -462,6 +464,37 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     protected abstract void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) throws IOException;
+
+    /**
+     * Calls {@link ToXContent#toXContent} on many threads and verifies that
+     * they produce the same result. Async search sometimes does this to
+     * aggregation responses and, in general, we think it's reasonable for
+     * everything that can convert itself to json to be able to do so
+     * concurrently.
+     */
+    public final void testConcurrentToXContent() throws IOException, InterruptedException, ExecutionException {
+        T testInstance = createTestInstanceForXContent();
+        ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
+        XContentType xContentType = randomFrom(XContentType.values());
+        boolean humanReadable = randomBoolean();
+        BytesRef firstTimeBytes = toXContent(testInstance, xContentType, params, humanReadable).toBytesRef();
+
+        /*
+         * 500 rounds seems to consistently reproduce the issue on Nik's
+         * laptop. Larger numbers are going to be slower but more likely
+         * to reproduce the issue.
+         */
+        int rounds = scaledRandomIntBetween(300, 5000);
+        concurrentTest(() -> {
+            try {
+                for (int r = 0; r < rounds; r++) {
+                    assertEquals(firstTimeBytes, toXContent(testInstance, xContentType, params, humanReadable).toBytesRef());
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+    }
 
     @SuppressWarnings("unchecked")
     protected <P extends ParsedAggregation> P parseAndAssert(

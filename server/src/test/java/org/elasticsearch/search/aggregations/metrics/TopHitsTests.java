@@ -173,25 +173,26 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
     }
 
     public void testFailWithSubAgg() throws Exception {
-        String source = "{\n"
-            + "    \"top-tags\": {\n"
-            + "      \"terms\": {\n"
-            + "        \"field\": \"tags\"\n"
-            + "      },\n"
-            + "      \"aggs\": {\n"
-            + "        \"top_tags_hits\": {\n"
-            + "          \"top_hits\": {},\n"
-            + "          \"aggs\": {\n"
-            + "            \"max\": {\n"
-            + "              \"max\": {\n"
-            + "                \"field\": \"age\"\n"
-            + "              }\n"
-            + "            }\n"
-            + "          }\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }\n"
-            + "}";
+        String source = """
+            {
+                "top-tags": {
+                  "terms": {
+                    "field": "tags"
+                  },
+                  "aggs": {
+                    "top_tags_hits": {
+                      "top_hits": {},
+                      "aggs": {
+                        "max": {
+                          "max": {
+                            "field": "age"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+            }""";
         XContentParser parser = createParser(JsonXContent.jsonXContent, source);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         Exception e = expectThrows(AggregationInitializationException.class, () -> AggregatorFactories.parseAggregators(parser));

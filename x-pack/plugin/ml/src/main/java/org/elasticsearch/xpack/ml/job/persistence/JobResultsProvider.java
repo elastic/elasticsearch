@@ -38,8 +38,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -216,8 +216,8 @@ public class JobResultsProvider {
                         Exception e = itemResponse.getFailure();
                         // There's a further complication, which is that msearch doesn't translate a
                         // closed index cluster block exception into a friendlier index closed exception
-                        if (e instanceof ClusterBlockException) {
-                            for (ClusterBlock block : ((ClusterBlockException) e).blocks()) {
+                        if (e instanceof ClusterBlockException cbe) {
+                            for (ClusterBlock block : cbe.blocks()) {
                                 if ("index closed".equals(block.description())) {
                                     SearchRequest searchRequest = msearch.request().requests().get(i);
                                     // Don't wrap the original exception, because then it would be the root cause

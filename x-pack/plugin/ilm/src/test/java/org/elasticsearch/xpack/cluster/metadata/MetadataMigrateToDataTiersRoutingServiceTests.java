@@ -1124,7 +1124,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             ClusterState ilmRunningState = ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(
-                    Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.RUNNING))
+                    Metadata.builder()
+                        .putCustom(
+                            IndexLifecycleMetadata.TYPE,
+                            new IndexLifecycleMetadata(org.elasticsearch.core.Map.of(), OperationMode.RUNNING)
+                        )
                 )
                 .build();
             migrateToDataTiersRouting(ilmRunningState, "data", "catch-all", REGISTRY, client, null, true);
@@ -1134,7 +1138,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             ClusterState ilmStoppingState = ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(
-                    Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.STOPPING))
+                    Metadata.builder()
+                        .putCustom(
+                            IndexLifecycleMetadata.TYPE,
+                            new IndexLifecycleMetadata(org.elasticsearch.core.Map.of(), OperationMode.STOPPING)
+                        )
                 )
                 .build();
             migrateToDataTiersRouting(ilmStoppingState, "data", "catch-all", REGISTRY, client, null, true);

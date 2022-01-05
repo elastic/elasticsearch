@@ -687,7 +687,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 try {
                     final Path source = from.toPath();
                     final String content = Files.readString(source, StandardCharsets.UTF_8);
-                    Files.writeString(dst, content + "\n", StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+                    Files.writeString(dst, content + System.lineSeparator(), StandardCharsets.UTF_8, StandardOpenOption.APPEND);
                     LOGGER.info("Appended roles file {} to {}", source, dst);
                 } catch (IOException e) {
                     throw new UncheckedIOException("Can't append roles file " + from + " to " + dst, e);
@@ -755,7 +755,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Override
-    public void securityRoles(File rolesYml) {
+    public void rolesFile(File rolesYml) {
         roleFiles.add(rolesYml);
     }
 
@@ -1400,6 +1400,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             files.add(distribution.getExtracted().getAsFileTree().matching(patternFilter));
         }
         return files;
+    }
+
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public List<File> getRoleFiles() {
+        return roleFiles;
     }
 
     @Nested

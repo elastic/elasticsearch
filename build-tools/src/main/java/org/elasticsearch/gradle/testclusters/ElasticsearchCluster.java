@@ -391,8 +391,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void securityRoles(File rolesYml) {
-        nodes.all(node -> node.securityRoles(rolesYml));
+    public void rolesFile(File rolesYml) {
+        nodes.all(node -> node.rolesFile(rolesYml));
     }
 
     private void writeUnicastHostsFiles() {

@@ -22,10 +22,12 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -60,6 +62,7 @@ import static org.elasticsearch.xpack.sql.action.Protocol.QUERY_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.REQUEST_TIMEOUT_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.TIME_ZONE_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.VERSION_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.RUNTIME_MAPPINGS_NAME;
 
 /**
  * Base class for requests that contain sql queries (Query and Translate)
@@ -510,5 +513,50 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
             filter,
             runtimeMappings
         );
+    }
+
+    // This is needed just to test round-trip compatibility with proto.SqlQueryRequest
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (query != null) {
+            builder.field(QUERY_NAME, query);
+        }
+        builder.field(MODE_NAME, mode().toString());
+
+        if (this.params != null && this.params.isEmpty() == false) {
+            builder.startArray(PARAMS_NAME);
+            /**
+             * @see org.elasticsearch.xpack.sql.proto.Payloads#generate(JsonGenerator, SqlTypedParamValue)
+             */
+            for (SqlTypedParamValue param : this.params) {
+                builder.startObject();
+                builder.field("type", param.type);
+                builder.field("value", param.value);
+                builder.endObject();
+            }
+            builder.endArray();
+        }
+        if (zoneId != null) {
+            builder.field(TIME_ZONE_NAME, zoneId.getId());
+        }
+        if (catalog != null) {
+            builder.field(CATALOG_NAME, catalog);
+        }
+        if (fetchSize != CoreProtocol.FETCH_SIZE) {
+            builder.field(FETCH_SIZE_NAME, fetchSize);
+        }
+        if (requestTimeout.equals(Protocol.REQUEST_TIMEOUT) == false) {
+            builder.field(REQUEST_TIMEOUT_NAME, requestTimeout.getStringRep());
+        }
+        if (pageTimeout.equals(Protocol.PAGE_TIMEOUT) == false) {
+            builder.field(PAGE_TIMEOUT_NAME, pageTimeout.getStringRep());
+        }
+        if (filter != null) {
+            builder.field(FILTER_NAME);
+            filter.toXContent(builder, params);
+        }
+        if (runtimeMappings.isEmpty() == false) {
+            builder.field(RUNTIME_MAPPINGS_NAME, runtimeMappings);
+        }
+        return builder;
     }
 }

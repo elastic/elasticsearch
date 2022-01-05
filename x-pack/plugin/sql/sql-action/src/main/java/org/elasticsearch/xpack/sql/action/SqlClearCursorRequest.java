@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -103,10 +105,21 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
         return Objects.hash(super.hashCode(), cursor);
     }
 
+    /**
+     * @see org.elasticsearch.xpack.sql.proto.Payloads#generate(JsonGenerator, org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest)
+     */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test round-trip compatibility with proto.SqlClearCursorRequest
-        return ProtoShim.fromProto(new org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest(cursor, requestInfo()), builder, params);
+        builder.field("cursor", cursor);
+        builder.field("mode", mode().toString());
+        if (clientId() != null) {
+            builder.field("client_id", clientId());
+        }
+        if (version() != null) {
+            builder.field("version", version().toString());
+        }
+        return builder;
     }
 
     public static SqlClearCursorRequest fromXContent(XContentParser parser) {

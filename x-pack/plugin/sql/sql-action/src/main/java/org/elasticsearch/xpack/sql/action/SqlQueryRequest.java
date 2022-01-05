@@ -29,7 +29,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xpack.sql.action.ProtoShim.toProto;
 import static org.elasticsearch.xpack.sql.action.Protocol.BINARY_FORMAT_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.COLUMNAR_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.DEFAULT_KEEP_ALIVE;
@@ -41,6 +40,7 @@ import static org.elasticsearch.xpack.sql.action.Protocol.KEEP_ALIVE_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.KEEP_ON_COMPLETION_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.MIN_KEEP_ALIVE;
 import static org.elasticsearch.xpack.sql.action.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.CURSOR_NAME;
 
 /**
  * Request to perform an sql query
@@ -309,30 +309,33 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test round-trip compatibility with proto.SqlQueryRequest
-        return ProtoShim.fromProto(
-            new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(
-                query(),
-                params(),
-                zoneId(),
-                catalog(),
-                fetchSize(),
-                toProto(requestTimeout()),
-                toProto(pageTimeout()),
-                toProto(filter()),
-                columnar(),
-                cursor(),
-                requestInfo(),
-                fieldMultiValueLeniency(),
-                indexIncludeFrozen(),
-                binaryCommunication(),
-                runtimeMappings(),
-                toProto(waitForCompletionTimeout()),
-                keepOnCompletion(),
-                toProto(keepAlive())
-            ),
-            builder,
-            params
-        );
+        super.toXContent(builder, params);
+
+        if (columnar != null) {
+            builder.field(COLUMNAR_NAME, columnar);
+        }
+        if (fieldMultiValueLeniency) {
+            builder.field(FIELD_MULTI_VALUE_LENIENCY_NAME, fieldMultiValueLeniency);
+        }
+        if (indexIncludeFrozen) {
+            builder.field(INDEX_INCLUDE_FROZEN_NAME, indexIncludeFrozen);
+        }
+        if (binaryCommunication != null) {
+            builder.field(BINARY_FORMAT_NAME, binaryCommunication);
+        }
+        if (cursor != null) {
+            builder.field(CURSOR_NAME, cursor);
+        }
+        if (waitForCompletionTimeout != null) {
+            builder.field(WAIT_FOR_COMPLETION_TIMEOUT_NAME, waitForCompletionTimeout.getStringRep());
+        }
+        if (keepOnCompletion) {
+            builder.field(KEEP_ON_COMPLETION_NAME, keepOnCompletion);
+        }
+        if (keepAlive != null) {
+            builder.field(KEEP_ALIVE_NAME, keepAlive.getStringRep());
+        }
+        return builder;
     }
 
     public static SqlQueryRequest fromXContent(XContentParser parser) {

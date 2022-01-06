@@ -48,6 +48,15 @@ import static org.hamcrest.Matchers.is;
 // TODO: dry up duplication across this suite and org.elasticsearch.snapshots.GetSnapshotsIT more
 public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
 
+    /**
+     * Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
+     * threads so that blocking some threads on one repository doesn't block other repositories from doing work
+     */
+    private static final Settings LARGE_SNAPSHOT_POOL_SETTINGS = Settings.builder()
+        .put("thread_pool.snapshot.core", 3)
+        .put("thread_pool.snapshot.max", 3)
+        .build();
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
@@ -186,14 +195,13 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
                     e -> e.getKey().getIndexName().equals("test-index-1") == false
                         || e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS
                 );
-            List<SnapshotsInProgress.ShardState> secondIndexStates = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+            boolean secondIndexIsBlocked = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
                 .asStream()
                 .flatMap(s -> s.shards().stream())
                 .filter(e -> e.getKey().getIndexName().equals("test-index-2"))
                 .map(e -> e.getValue().state())
-                .collect(Collectors.toList());
-            boolean secondIndexIsBlocked = secondIndexStates.stream().filter(e -> e == SnapshotsInProgress.ShardState.INIT).count() == 1
-                && secondIndexStates.stream().filter(e -> e == SnapshotsInProgress.ShardState.QUEUED == false).count() == 1;
+                .collect(Collectors.groupingBy(e -> e, Collectors.counting()))
+                .equals(Map.of(SnapshotsInProgress.ShardState.INIT, 1L, SnapshotsInProgress.ShardState.QUEUED, (long) inProgressCount - 1));
             return firstIndexSuccessfullySnapshot && secondIndexIsBlocked;
         });
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);

@@ -103,6 +103,9 @@ public class PolicyStepsRegistry {
     public void update(IndexLifecycleMetadata meta) {
         assert meta != null : "IndexLifecycleMetadata cannot be null when updating the policy steps registry";
 
+        // since the policies (may have) changed, the whole steps cache needs to be thrown out
+        cachedSteps.clear();
+
         DiffableUtils.MapDiff<String, LifecyclePolicyMetadata, Map<String, LifecyclePolicyMetadata>> mapDiff = DiffableUtils.diff(
             lifecyclePolicyMap,
             meta.getPolicyMetadatas(),

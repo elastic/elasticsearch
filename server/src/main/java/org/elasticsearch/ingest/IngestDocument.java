@@ -740,8 +740,7 @@ public final class IngestDocument {
     }
 
     public static Object deepCopy(Object value) {
-        if (value instanceof Map) {
-            Map<?, ?> mapValue = (Map<?, ?>) value;
+        if (value instanceof Map<?, ?> mapValue) {
             Map<Object, Object> copy = new HashMap<>(mapValue.size());
             for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
                 copy.put(entry.getKey(), deepCopy(entry.getValue()));

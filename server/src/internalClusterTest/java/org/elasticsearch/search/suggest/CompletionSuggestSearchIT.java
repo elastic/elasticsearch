@@ -1586,10 +1586,15 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public static boolean isReservedChar(char c) {
-        return switch (c) {
-            case '\u001F', TokenStreamToAutomaton.HOLE, 0x0, ContextSuggestField.CONTEXT_SEPARATOR -> true;
-            default -> false;
-        };
+        switch (c) {
+            case '\u001F':
+            case TokenStreamToAutomaton.HOLE:
+            case 0x0:
+            case ContextSuggestField.CONTEXT_SEPARATOR:
+                return true;
+            default:
+                return false;
+        }
     }
 
     private static String replaceReservedChars(String input, char replacement) {

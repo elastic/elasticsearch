@@ -740,6 +740,27 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return PARSER.parse(parser, new FieldSortBuilder(fieldName), null);
     }
 
+    public static FieldSortBuilder fromXContentObject(XContentParser parser, String fieldName) throws IOException {
+        FieldSortBuilder builder = null;
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                builder = fromXContent(parser, currentFieldName);
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] does not support [" + currentFieldName + "]");
+            }
+        }
+
+        if (builder == null) {
+            throw new ParsingException(parser.getTokenLocation(), "Invalid " + NAME);
+        }
+
+        return builder;
+    }
+
     private static final ObjectParser<FieldSortBuilder, Void> PARSER = new ObjectParser<>(NAME);
 
     static {

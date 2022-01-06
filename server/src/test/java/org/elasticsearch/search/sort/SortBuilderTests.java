@@ -103,6 +103,7 @@ public class SortBuilderTests extends ESTestCase {
         result = parseSort(json);
         assertEquals(1, result.size());
         sortBuilder = result.get(0);
+        assertWarnings("Deprecated field [_geoDistance] used, expected [_geo_distance] instead");
         assertEquals(new GeoDistanceSortBuilder("pin.location", 40, -70), sortBuilder);
 
         json = """

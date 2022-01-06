@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentParser;
@@ -33,7 +34,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -50,18 +50,6 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
     public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path").withAllDeprecated()
         .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
-
-    private static final Map<String, Parser<?>> PARSERS = Map.of(
-        ScriptSortBuilder.NAME,
-        ScriptSortBuilder::fromXContent,
-        GeoDistanceSortBuilder.NAME,
-        GeoDistanceSortBuilder::fromXContent,
-        GeoDistanceSortBuilder.ALTERNATIVE_NAME,
-        GeoDistanceSortBuilder::fromXContent,
-        // TODO: this can deadlock as it might access the ScoreSortBuilder (subclass) initializer from the SortBuilder initializer!!!
-        ScoreSortBuilder.NAME,
-        ScoreSortBuilder::fromXContent
-    );
 
     /**
      * Create a {@linkplain SortFieldAndFormat} from this builder.
@@ -140,9 +128,10 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
                     SortOrder order = SortOrder.fromString(parser.text());
                     sortFields.add(fieldOrScoreSort(fieldName).order(order));
                 } else {
-                    if (PARSERS.containsKey(fieldName)) {
-                        sortFields.add(PARSERS.get(fieldName).fromXContent(parser, fieldName));
-                    } else {
+                    try {
+                        SortBuilder<?> sort = parser.namedObject(SortBuilder.class, fieldName, null);
+                        sortFields.add(sort);
+                    } catch (NamedObjectNotFoundException err) {
                         sortFields.add(FieldSortBuilder.fromXContent(parser, fieldName));
                     }
                 }
@@ -269,11 +258,6 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         } catch (Exception e) {
             throw new ParsingException(parser.getTokenLocation(), "Expected " + FILTER_FIELD.getPreferredName() + " element.", e);
         }
-    }
-
-    @FunctionalInterface
-    private interface Parser<T extends SortBuilder<?>> {
-        T fromXContent(XContentParser parser, String elementName) throws IOException;
     }
 
     @Override

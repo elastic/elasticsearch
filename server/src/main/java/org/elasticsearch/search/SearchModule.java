@@ -85,6 +85,7 @@ import org.elasticsearch.plugins.SearchPlugin.RescorerSpec;
 import org.elasticsearch.plugins.SearchPlugin.ScoreFunctionSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 import org.elasticsearch.plugins.SearchPlugin.SignificanceHeuristicSpec;
+import org.elasticsearch.plugins.SearchPlugin.SortSpec;
 import org.elasticsearch.plugins.SearchPlugin.SuggesterSpec;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
@@ -302,7 +303,7 @@ public class SearchModule {
         registerScoreFunctions(plugins);
         registerQueryParsers(plugins);
         registerRescorers(plugins);
-        registerSorts();
+        registerSortParsers(plugins);
         registerValueFormats();
         registerSignificanceHeuristics(plugins);
         this.valuesSourceRegistry = registerAggregations(plugins);
@@ -811,13 +812,6 @@ public class SearchModule {
         namedWriteables.add(new NamedWriteableRegistry.Entry(RescorerBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
     }
 
-    private void registerSorts() {
-        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, ScoreSortBuilder.NAME, ScoreSortBuilder::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, ScriptSortBuilder.NAME, ScriptSortBuilder::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, FieldSortBuilder.NAME, FieldSortBuilder::new));
-    }
-
     private <T> void registerFromPlugin(List<SearchPlugin> plugins, Function<SearchPlugin, List<T>> producer, Consumer<T> consumer) {
         for (SearchPlugin plugin : plugins) {
             for (T t : producer.apply(plugin)) {
@@ -1129,6 +1123,20 @@ public class SearchModule {
         }
     }
 
+    private void registerSortParsers(List<SearchPlugin> plugins) {
+        registerSort(new SortSpec<>(FieldSortBuilder.NAME, FieldSortBuilder::new, FieldSortBuilder::fromXContentObject));
+        registerSort(new SortSpec<>(ScriptSortBuilder.NAME, ScriptSortBuilder::new, ScriptSortBuilder::fromXContent));
+        registerSort(
+            new SortSpec<>(
+                new ParseField(GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder.ALTERNATIVE_NAME),
+                GeoDistanceSortBuilder::new,
+                GeoDistanceSortBuilder::fromXContent
+            )
+        );
+        registerSort(new SortSpec<>(ScoreSortBuilder.NAME, ScoreSortBuilder::new, ScoreSortBuilder::fromXContent));
+        registerFromPlugin(plugins, SearchPlugin::getSorts, this::registerSort);
+    }
+
     private void registerIntervalsSourceProviders() {
         namedWriteables.addAll(getIntervalsSourceProviderNamedWritables());
     }
@@ -1192,6 +1200,18 @@ public class SearchModule {
                 QueryBuilder.class,
                 spec.getName(),
                 (p, c) -> spec.getParser().fromXContent(p),
+                spec.getName().getForRestApiVersion()
+            )
+        );
+    }
+
+    private void registerSort(SortSpec<?> spec) {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(
+                SortBuilder.class,
+                spec.getName(),
+                (p, c) -> spec.getParser().fromXContent(p, spec.getName().getPreferredName()),
                 spec.getName().getForRestApiVersion()
             )
         );

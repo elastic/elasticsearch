@@ -9,6 +9,7 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,6 +37,8 @@ import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortParser;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
@@ -105,6 +108,13 @@ public interface SearchPlugin {
      * The new {@link Query}s defined by this plugin.
      */
     default List<QuerySpec<?>> getQueries() {
+        return emptyList();
+    }
+
+    /**
+     * The new {@link Sort}s defined by this plugin.
+     */
+    default List<SortSpec<?>> getSorts() {
         return emptyList();
     }
 
@@ -267,6 +277,38 @@ public interface SearchPlugin {
          * @param parser the parser the reads the query builder from xcontent
          */
         public QuerySpec(String name, Writeable.Reader<T> reader, QueryParser<T> parser) {
+            super(name, reader, parser);
+        }
+    }
+
+    /**
+     * Specification of custom {@link Sort}.
+     */
+    class SortSpec<T extends SortBuilder<T>> extends SearchExtensionSpec<T, SortParser<T>> {
+        /**
+         * Specification of custom {@link Sort}.
+         *
+         * @param name holds the names by which this sort might be parsed. The {@link ParseField#getPreferredName()} is special as it
+         *        is the name by under which the reader is registered. So it is the name that the sort should use as its
+         *        {@link NamedWriteable#getWriteableName()} too.
+         * @param reader the reader registered for this sort's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the sort builder from xcontent
+         */
+        public SortSpec(ParseField name, Writeable.Reader<T> reader, SortParser<T> parser) {
+            super(name, reader, parser);
+        }
+
+        /**
+         * Specification of custom {@link Sort}.
+         *
+         * @param name the name by which this sort might be parsed or deserialized. Make sure that the query builder returns this name for
+         *        {@link NamedWriteable#getWriteableName()}.
+         * @param reader the reader registered for this sort's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the sort builder from xcontent
+         */
+        public SortSpec(String name, Writeable.Reader<T> reader, SortParser<T> parser) {
             super(name, reader, parser);
         }
     }

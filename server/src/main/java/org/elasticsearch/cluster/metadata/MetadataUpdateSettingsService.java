@@ -160,31 +160,27 @@ public class MetadataUpdateSettingsService {
                         }
                     }
 
-                    if (openIndices.isEmpty() == false) {
-                        updateIndexSettings(
-                            openIndices,
-                            metadataBuilder,
-                            (index, indexSettings) -> indexScopedSettings.updateDynamicSettings(
-                                openSettings,
-                                indexSettings,
-                                Settings.builder(),
-                                index.getName()
-                            )
-                        );
-                    }
+                    updateIndexSettings(
+                        openIndices,
+                        metadataBuilder,
+                        (index, indexSettings) -> indexScopedSettings.updateDynamicSettings(
+                            openSettings,
+                            indexSettings,
+                            Settings.builder(),
+                            index.getName()
+                        )
+                    );
 
-                    if (closeIndices.isEmpty() == false) {
-                        updateIndexSettings(
-                            closeIndices,
-                            metadataBuilder,
-                            (index, indexSettings) -> indexScopedSettings.updateSettings(
-                                closedSettings,
-                                indexSettings,
-                                Settings.builder(),
-                                index.getName()
-                            )
-                        );
-                    }
+                    updateIndexSettings(
+                        closeIndices,
+                        metadataBuilder,
+                        (index, indexSettings) -> indexScopedSettings.updateSettings(
+                            closedSettings,
+                            indexSettings,
+                            Settings.builder(),
+                            index.getName()
+                        )
+                    );
 
                     if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(normalizedSettings)
                         || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(normalizedSettings)) {

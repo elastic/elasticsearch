@@ -316,7 +316,9 @@ Defaults to `*`, which matches all fields eligible for
     Default <<ingest,ingest pipeline>> for the index. Index requests will fail
     if the default pipeline is set and the pipeline does not exist. The default may be
     overridden using the `pipeline` parameter. The special pipeline name `_none` indicates
-    no ingest pipeline should be run.
+    no ingest pipeline should be run. This pipeline doesn't apply to document
+    updates made using the <<docs-update,update API>> or the <<docs-bulk,bulk
+    API>>'s `update` action.
 
 [[index-final-pipeline]]
 `index.final_pipeline`::
@@ -324,7 +326,9 @@ Final <<ingest,ingest pipeline>> for the index. Indexing requests
 will fail if the final pipeline is set and the pipeline does not exist.
 The final pipeline always runs after the request pipeline (if specified) and
 the default pipeline (if it exists). The special pipeline name `_none`
-indicates no ingest pipeline will run.
+indicates no ingest pipeline will run. This pipeline doesn't apply to document
+updates made using the <<docs-update,update API>> or the <<docs-bulk,bulk
+API>>'s `update` action.
 +
 NOTE: You can't use a final pipeline to change the `_index` field. If the
 pipeline attempts to change the `_index` field, the indexing request will fail.

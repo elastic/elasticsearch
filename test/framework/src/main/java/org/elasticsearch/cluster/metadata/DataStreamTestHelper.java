@@ -292,7 +292,8 @@ public final class DataStreamTestHelper {
             Instant start = tuple.v1();
             Instant end = tuple.v2();
             Settings settings = Settings.builder()
-                .put("index.mode", "times_series")
+                .put("index.mode", "time_series")
+                .put("index.routing_path", "uid")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start))
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end))
                 .build();

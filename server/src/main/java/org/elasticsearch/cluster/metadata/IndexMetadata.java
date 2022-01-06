@@ -485,8 +485,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     @Nullable // since we store null if DataTier.TIER_PREFERENCE_SETTING failed validation
     private final List<String> tierPreference;
 
-    @Nullable
-    private final Integer shardsPerNodeLimit;
+    private final int shardsPerNodeLimit;
 
     private IndexMetadata(
         final Index index,
@@ -712,8 +711,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return this.aliases;
     }
 
-    @Nullable
-    public Integer getShardsPerNodeLimit() {
+    public int getShardsPerNodeLimit() {
         return shardsPerNodeLimit;
     }
 
@@ -1555,9 +1553,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 settings.getAsLong(SETTING_CREATION_DATE, -1L),
                 DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings),
                 tierPreference,
-                ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.exists(settings)
-                    ? ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings)
-                    : null
+                ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings)
             );
         }
 

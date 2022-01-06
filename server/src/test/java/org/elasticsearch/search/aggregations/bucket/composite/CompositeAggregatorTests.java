@@ -2909,8 +2909,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 } else if (value instanceof InetAddress) {
                     doc.add(new SortedSetDocValuesField(name, new BytesRef(InetAddressPoint.encode((InetAddress) value))));
                     doc.add(new InetAddressPoint(name, (InetAddress) value));
-                } else if (value instanceof GeoPoint) {
-                    GeoPoint point = (GeoPoint) value;
+                } else if (value instanceof GeoPoint point) {
                     doc.add(
                         new SortedNumericDocValuesField(
                             name,

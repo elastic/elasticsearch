@@ -1162,8 +1162,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             default -> throw new UnsupportedOperationException("No randomized exceptions generated for type [" + type + "]");
         }
 
-        if (actual instanceof ElasticsearchException) {
-            ElasticsearchException actualException = (ElasticsearchException) actual;
+        if (actual instanceof ElasticsearchException actualException) {
             if (randomBoolean()) {
                 int nbHeaders = randomIntBetween(1, 5);
                 Map<String, List<String>> randomHeaders = new HashMap<>(nbHeaders);

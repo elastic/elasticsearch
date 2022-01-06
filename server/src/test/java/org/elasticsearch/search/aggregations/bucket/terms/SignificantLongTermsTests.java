@@ -70,8 +70,7 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
 
     @Override
     protected InternalSignificantTerms<?, ?> mutateInstance(InternalSignificantTerms<?, ?> instance) {
-        if (instance instanceof SignificantLongTerms) {
-            SignificantLongTerms longTerms = (SignificantLongTerms) instance;
+        if (instance instanceof SignificantLongTerms longTerms) {
             String name = longTerms.getName();
             int requiredSize = longTerms.requiredSize;
             long minDocCount = longTerms.minDocCount;

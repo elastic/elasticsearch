@@ -52,8 +52,7 @@ public class StringRareTermsTests extends InternalRareTermsTestCase {
 
     @Override
     protected InternalRareTerms<?, ?> mutateInstance(InternalRareTerms<?, ?> instance) {
-        if (instance instanceof StringRareTerms) {
-            StringRareTerms stringRareTerms = (StringRareTerms) instance;
+        if (instance instanceof StringRareTerms stringRareTerms) {
             String name = stringRareTerms.getName();
             BucketOrder order = stringRareTerms.order;
             DocValueFormat format = stringRareTerms.format;

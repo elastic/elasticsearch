@@ -69,8 +69,7 @@ public class LongTermsTests extends InternalTermsTestCase {
 
     @Override
     protected InternalTerms<?, ?> mutateInstance(InternalTerms<?, ?> instance) {
-        if (instance instanceof LongTerms) {
-            LongTerms longTerms = (LongTerms) instance;
+        if (instance instanceof LongTerms longTerms) {
             String name = longTerms.getName();
             BucketOrder order = longTerms.order;
             int requiredSize = longTerms.requiredSize;

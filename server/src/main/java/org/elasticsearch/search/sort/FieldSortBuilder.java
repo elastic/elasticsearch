@@ -608,8 +608,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (minPackedValue == null) {
             return null;
         }
-        if (fieldType instanceof NumberFieldType) {
-            NumberFieldType numberFieldType = (NumberFieldType) fieldType;
+        if (fieldType instanceof NumberFieldType numberFieldType) {
             Number minPoint = numberFieldType.parsePoint(minPackedValue);
             Number maxPoint = numberFieldType.parsePoint(PointValues.getMaxPackedValue(reader, fieldName));
             return switch (IndexSortConfig.getSortFieldType(sortField)) {
@@ -619,8 +618,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 case FLOAT -> new MinAndMax<>(minPoint.floatValue(), maxPoint.floatValue());
                 default -> null;
             };
-        } else if (fieldType instanceof DateFieldType) {
-            DateFieldType dateFieldType = (DateFieldType) fieldType;
+        } else if (fieldType instanceof DateFieldType dateFieldType) {
             Function<byte[], Long> dateConverter = createDateConverter(sortBuilder, dateFieldType);
             Long min = dateConverter.apply(minPackedValue);
             Long max = dateConverter.apply(PointValues.getMaxPackedValue(reader, fieldName));

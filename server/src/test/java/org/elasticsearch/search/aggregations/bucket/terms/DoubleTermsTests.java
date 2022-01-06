@@ -69,8 +69,7 @@ public class DoubleTermsTests extends InternalTermsTestCase {
 
     @Override
     protected InternalTerms<?, ?> mutateInstance(InternalTerms<?, ?> instance) {
-        if (instance instanceof DoubleTerms) {
-            DoubleTerms doubleTerms = (DoubleTerms) instance;
+        if (instance instanceof DoubleTerms doubleTerms) {
             String name = doubleTerms.getName();
             BucketOrder order = doubleTerms.order;
             int requiredSize = doubleTerms.requiredSize;

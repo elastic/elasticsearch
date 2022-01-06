@@ -514,12 +514,10 @@ public abstract class InternalOrder extends BucketOrder {
          */
         public static void writeOrder(BucketOrder order, StreamOutput out) throws IOException {
             out.writeByte(order.id());
-            if (order instanceof Aggregation) {
-                Aggregation aggregationOrder = (Aggregation) order;
+            if (order instanceof Aggregation aggregationOrder) {
                 out.writeBoolean(aggregationOrder.order == SortOrder.ASC);
                 out.writeString(aggregationOrder.path().toString());
-            } else if (order instanceof CompoundOrder) {
-                CompoundOrder compoundOrder = (CompoundOrder) order;
+            } else if (order instanceof CompoundOrder compoundOrder) {
                 out.writeVInt(compoundOrder.orderElements.size());
                 for (BucketOrder innerOrder : compoundOrder.orderElements) {
                     innerOrder.writeTo(out);

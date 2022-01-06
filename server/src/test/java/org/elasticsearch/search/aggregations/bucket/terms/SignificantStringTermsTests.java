@@ -73,8 +73,7 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
 
     @Override
     protected InternalSignificantTerms<?, ?> mutateInstance(InternalSignificantTerms<?, ?> instance) {
-        if (instance instanceof SignificantStringTerms) {
-            SignificantStringTerms stringTerms = (SignificantStringTerms) instance;
+        if (instance instanceof SignificantStringTerms stringTerms) {
             String name = stringTerms.getName();
             int requiredSize = stringTerms.requiredSize;
             long minDocCount = stringTerms.minDocCount;

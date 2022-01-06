@@ -929,6 +929,13 @@ end::inference-config-classification-prediction-field-type[]
 
 tag::inference-config-nlp-tokenization[]
 Indicates the tokenization to perform and the desired settings.
+The default tokenization configuration is `bert`. Valid tokenization
+values are
++
+--
+* `bert`: Use for BERT-style models
+* `mpnet`: Use for MPNet-style models
+--
 end::inference-config-nlp-tokenization[]
 
 tag::inference-config-nlp-tokenization-bert[]
@@ -969,6 +976,19 @@ tag::inference-config-nlp-tokenization-bert-max-sequence-length[]
 Specifies the maximum number of tokens allowed to be output by the tokenizer.
 The default for BERT-style tokenization is `512`.
 end::inference-config-nlp-tokenization-bert-max-sequence-length[]
+
+tag::inference-config-nlp-tokenization-mpnet[]
+MPNet-style tokenization is to be performed with the enclosed settings.
+end::inference-config-nlp-tokenization-mpnet[]
+
+tag::inference-config-nlp-tokenization-mpnet-with-special-tokens[]
+Tokenize with special tokens. The tokens typically included in MPNet-style tokenization are:
++
+--
+* `<s>`: The first token of the sequence being classified.
+* `</s>`: Indicates sequence separation.
+--
+end::inference-config-nlp-tokenization-mpnet-with-special-tokens[]
 
 tag::inference-config-nlp-vocabulary[]
 The configuration for retreiving the vocabulary of the model. The vocabulary is

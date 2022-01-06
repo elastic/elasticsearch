@@ -419,9 +419,8 @@ public class Lucene {
     }
 
     public static void writeTopDocs(StreamOutput out, TopDocsAndMaxScore topDocs) throws IOException {
-        if (topDocs.topDocs instanceof TopFieldGroups) {
+        if (topDocs.topDocs instanceof TopFieldGroups topFieldGroups) {
             out.writeByte((byte) 2);
-            TopFieldGroups topFieldGroups = (TopFieldGroups) topDocs.topDocs;
 
             writeTotalHits(out, topDocs.topDocs.totalHits);
             out.writeFloat(topDocs.maxScore);
@@ -435,9 +434,8 @@ public class Lucene {
                 writeFieldDoc(out, (FieldDoc) doc);
                 writeSortValue(out, topFieldGroups.groupValues[i]);
             }
-        } else if (topDocs.topDocs instanceof TopFieldDocs) {
+        } else if (topDocs.topDocs instanceof TopFieldDocs topFieldDocs) {
             out.writeByte((byte) 1);
-            TopFieldDocs topFieldDocs = (TopFieldDocs) topDocs.topDocs;
 
             writeTotalHits(out, topDocs.topDocs.totalHits);
             out.writeFloat(topDocs.maxScore);
@@ -729,11 +727,9 @@ public class Lucene {
     public static SegmentReader segmentReader(LeafReader reader) {
         if (reader instanceof SegmentReader) {
             return (SegmentReader) reader;
-        } else if (reader instanceof FilterLeafReader) {
-            final FilterLeafReader fReader = (FilterLeafReader) reader;
+        } else if (reader instanceof final FilterLeafReader fReader) {
             return segmentReader(FilterLeafReader.unwrap(fReader));
-        } else if (reader instanceof FilterCodecReader) {
-            final FilterCodecReader fReader = (FilterCodecReader) reader;
+        } else if (reader instanceof final FilterCodecReader fReader) {
             return segmentReader(FilterCodecReader.unwrap(fReader));
         }
         // hard fail - we can't get a SegmentReader

@@ -33,7 +33,7 @@ public interface ErrorOnUnknown {
      */
     int priority();
 
-    private static ErrorOnUnknown findImplementation() {
+    static ErrorOnUnknown findImplementation() {
         ErrorOnUnknown best = new ErrorOnUnknown() {
             @Override
             public String errorMessage(String parserName, String unknownField, Iterable<String> candidates) {

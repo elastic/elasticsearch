@@ -20,6 +20,9 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.proto.content.ParserUtils.location;
 
+/**
+ * NB: cloned from the class with the same name in ES XContent.
+ */
 public class ConstructingObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> {
 
     @SuppressWarnings("unchecked")

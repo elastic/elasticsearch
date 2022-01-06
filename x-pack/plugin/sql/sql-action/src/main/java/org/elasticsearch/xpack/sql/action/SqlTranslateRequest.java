@@ -73,7 +73,7 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
     }
 
     @Override
-    // This is needed just to test parsing of SqlTranslateRequest, so we can reuse SqlQuerySerialization
+    // This is needed just to test parsing of SqlTranslateRequest
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return super.toXContent(builder, params);
     }

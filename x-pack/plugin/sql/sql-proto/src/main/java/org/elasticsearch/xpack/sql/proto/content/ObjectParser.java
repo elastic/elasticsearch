@@ -26,6 +26,9 @@ import static com.fasterxml.jackson.core.JsonToken.START_ARRAY;
 import static com.fasterxml.jackson.core.JsonToken.START_OBJECT;
 import static org.elasticsearch.xpack.sql.proto.content.ParserUtils.location;
 
+/**
+ * NB: cloned from the class with the same name in ES XContent.
+ */
 public class ObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> {
 
     private final Map<String, FieldParser> fieldParsers = new HashMap<>();
@@ -189,28 +192,14 @@ public class ObjectParser<Value, Context> extends AbstractObjectParser<Value, Co
         switch (token) {
             case START_OBJECT:
                 parseValue(parser, fieldParser, currentFieldName, value, context);
-                /*
-                 * Well behaving parsers should consume the entire object but
-                 * asserting that they do that is not something we can do
-                 * efficiently here. Instead we can check that they end on an
-                 * END_OBJECT. They could end on the *wrong* end object and
-                 * this test won't catch them, but that is the price that we pay
-                 * for having a cheap test.
-                 */
+
                 if (parser.currentToken() != JsonToken.END_OBJECT) {
                     throwMustEndOn(parser, currentFieldName, JsonToken.END_OBJECT);
                 }
                 break;
             case START_ARRAY:
                 parseArray(parser, fieldParser, currentFieldName, value, context);
-                /*
-                 * Well behaving parsers should consume the entire array but
-                 * asserting that they do that is not something we can do
-                 * efficiently here. Instead we can check that they end on an
-                 * END_ARRAY. They could end on the *wrong* end array and
-                 * this test won't catch them, but that is the price that we pay
-                 * for having a cheap test.
-                 */
+
                 if (parser.currentToken() != JsonToken.END_ARRAY) {
                     throwMustEndOn(parser, currentFieldName, JsonToken.END_ARRAY);
                 }

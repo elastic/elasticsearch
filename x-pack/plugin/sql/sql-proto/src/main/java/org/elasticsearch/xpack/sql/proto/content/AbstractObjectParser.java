@@ -35,6 +35,9 @@ import static org.elasticsearch.xpack.sql.proto.content.AbstractObjectParser.Val
 import static org.elasticsearch.xpack.sql.proto.content.AbstractObjectParser.ValueType.STRING;
 import static org.elasticsearch.xpack.sql.proto.content.ParserUtils.location;
 
+/**
+ * NB: cloned from the class with the same name in ES XContent.
+ */
 public abstract class AbstractObjectParser<Value, Context> implements BiFunction<JsonParser, Context, Value> {
 
     protected String name;

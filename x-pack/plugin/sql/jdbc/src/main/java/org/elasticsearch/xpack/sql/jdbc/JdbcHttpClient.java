@@ -112,8 +112,7 @@ class JdbcHttpClient {
             SqlVersion version = SqlVersion.fromString(mainResponse.getVersion());
             return new InfoResponse(mainResponse.getClusterName(), version);
         } catch (ClientException ex) {
-            // throw new SQLException(ex);
-            throw ex;
+            throw new SQLException(ex);
         }
     }
 

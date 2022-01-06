@@ -21,6 +21,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+/**
+ * Utility class providing equivalent functionality for XContentParser.
+ */
 public class ParserUtils {
 
     private ParserUtils() {}

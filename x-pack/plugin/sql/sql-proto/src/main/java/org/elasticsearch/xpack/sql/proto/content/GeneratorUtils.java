@@ -26,6 +26,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Utility class providing functionality in XContentBuilder.
+ */
 public class GeneratorUtils {
 
     @FunctionalInterface

@@ -141,8 +141,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             if (child != null) {
                 return child.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
-            // create a new child mapper
-            return new ObjectMapper.Builder(childName);
+            throw new IllegalArgumentException("Missing intermediate object " + fullChildName);
         }
 
         public Optional<Mapper.Builder> getBuilder(String name) {

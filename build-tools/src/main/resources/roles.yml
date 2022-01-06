@@ -1,3 +1,5 @@
+
+# The roles below are automatically defined by the "testcluster" setup
 _es_test_root:
   cluster: [ "ALL" ]
   indices:

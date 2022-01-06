@@ -209,7 +209,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         setTestDistribution(TestDistribution.INTEG_TEST);
         setVersion(VersionProperties.getElasticsearch());
         configureArtifactTransforms();
-        rolesFile(getBuildPluginFile("/roles.yml"));
     }
 
     @Input
@@ -675,6 +674,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     paramMap.entrySet().stream().flatMap(entry -> Stream.of(entry.getKey(), entry.getValue())).toArray(String[]::new)
                 )
             );
+
+            // If we added users, then also add the standard test roles
+            rolesFile(getBuildPluginFile("/roles.yml"));
         }
         if (roleFiles.isEmpty() == false) {
             logToProcessStdout("Setting up roles.yml");

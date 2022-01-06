@@ -519,7 +519,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final long creationDate,
         final boolean ignoreDiskWatermarks,
         @Nullable final List<String> tierPreference,
-        @Nullable final Integer shardsPerNodeLimit
+        final int shardsPerNodeLimit
     ) {
 
         this.index = index;

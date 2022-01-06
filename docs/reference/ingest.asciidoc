@@ -217,7 +217,7 @@ The API returns transformed documents:
 [[add-pipeline-to-indexing-request]]
 === Add a pipeline to an indexing request
 
-Use the `pipeline` parameter to apply a pipeline to documents in
+Use the `pipeline` query parameter to apply a pipeline to documents in
 <<docs-index_,individual>> or <<docs-bulk,bulk>> indexing requests.
 
 [source,console]
@@ -231,7 +231,7 @@ POST my-data-stream/_doc?pipeline=my-pipeline
 PUT my-data-stream/_bulk?pipeline=my-pipeline
 { "create":{ } }
 { "@timestamp": "2099-03-07T11:04:06.000Z", "my-keyword-field": "foo" }
-{ "create":{ "pipeline": "my-other-pipeline" } }
+{ "create":{ } }
 { "@timestamp": "2099-03-07T11:04:07.000Z", "my-keyword-field": "bar" }
 ----
 // TEST[setup:my_data_stream]
@@ -259,15 +259,12 @@ POST _reindex
 // TEST[setup:my_data_stream]
 // TEST[teardown:data_stream_cleanup]
 
-{es} doesn't apply pipelines to other document updates, such as those made using
-the <<docs-update,update API>> or the <<docs-bulk,bulk API>>'s `update` action.
-
 [discrete]
 [[set-default-pipeline]]
 === Set a default pipeline
 
 Use the <<index-default-pipeline,`index.default_pipeline`>> index setting to set
-a default pipeline. {es} applies this pipeline if no `pipeline` parameter
+a default pipeline. {es} applies this pipeline to <<docs-index_, index requests>> if no `pipeline` parameter
 is specified.
 
 [discrete]

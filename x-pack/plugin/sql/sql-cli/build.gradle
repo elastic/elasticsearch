@@ -28,16 +28,11 @@ dependencies {
 
   api xpackProject('plugin:sql:sql-client')
   api project(":libs:elasticsearch-cli")
-  api project(':libs:elasticsearch-x-content')
   runtimeOnly "net.java.dev.jna:jna:${versions.jna}"
   testImplementation project(":test:framework")
 }
 
 tasks.named("dependencyLicenses").configure {
-  mapping from: /jackson-.*/, to: 'jackson'
-  mapping from: /lucene-.*/, to: 'lucene'
-  mapping from: /sql-action.*/, to: 'elasticsearch'
-  mapping from: /sql-client.*/, to: 'elasticsearch'
   mapping from: /jline-.*/, to: 'jline'
 }
 

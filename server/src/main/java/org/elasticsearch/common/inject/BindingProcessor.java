@@ -272,8 +272,7 @@ class BindingProcessor extends AbstractProcessor {
      * @param binding  the binding to check (candidate for the exposed binding)
      */
     private boolean isOkayDuplicate(Binding<?> original, BindingImpl<?> binding) {
-        if (original instanceof ExposedBindingImpl) {
-            ExposedBindingImpl<?> exposed = (ExposedBindingImpl<?>) original;
+        if (original instanceof ExposedBindingImpl<?> exposed) {
             InjectorImpl exposedFrom = (InjectorImpl) exposed.getPrivateElements().getInjector();
             return (exposedFrom == binding.getInjector());
         }

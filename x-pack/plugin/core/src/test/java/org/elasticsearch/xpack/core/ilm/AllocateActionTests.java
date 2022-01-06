@@ -20,7 +20,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
+import static org.elasticsearch.xpack.core.ilm.AllocateAction.NUMBER_OF_REPLICAS_FIELD;
+import static org.elasticsearch.xpack.core.ilm.AllocateAction.TOTAL_SHARDS_PER_NODE_FIELD;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> {
 
@@ -57,7 +60,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
             requires = randomBoolean() ? null : Collections.emptyMap();
         }
         Integer numberOfReplicas = randomBoolean() ? null : randomIntBetween(0, 10);
-        Integer totalShardsPerNode = randomBoolean() ? null : randomIntBetween(-1, 300);
+        Integer totalShardsPerNode = randomBoolean() ? null : randomIntBetween(-1, 10);
         return new AllocateAction(numberOfReplicas, totalShardsPerNode, includes, excludes, requires);
     }
 
@@ -73,7 +76,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         Map<String, String> require = instance.getRequire();
         Integer numberOfReplicas = instance.getNumberOfReplicas();
         Integer totalShardsPerNode = instance.getTotalShardsPerNode();
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 4)) {
             case 0:
                 include = new HashMap<>(include);
                 include.put(randomAlphaOfLengthBetween(11, 15), randomAlphaOfLengthBetween(1, 20));
@@ -88,6 +91,9 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
                 break;
             case 3:
                 numberOfReplicas = randomIntBetween(11, 20);
+                break;
+            case 4:
+                totalShardsPerNode = randomIntBetween(11, 20);
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
@@ -110,8 +116,13 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
                 + AllocateAction.EXCLUDE_FIELD.getPreferredName()
                 + " or "
                 + AllocateAction.REQUIRE_FIELD.getPreferredName()
-                + "must contain attributes for action "
-                + AllocateAction.NAME,
+                + " must contain attributes for action "
+                + AllocateAction.NAME
+                + ". Otherwise the "
+                + NUMBER_OF_REPLICAS_FIELD.getPreferredName()
+                + " or the "
+                + TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName()
+                + " options must be configured.",
             exception.getMessage()
         );
     }
@@ -124,7 +135,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
             IllegalArgumentException.class,
             () -> new AllocateAction(randomIntBetween(-1000, -1), randomIntBetween(0, 300), include, exclude, require)
         );
-        assertEquals("[" + AllocateAction.NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0", exception.getMessage());
+        assertEquals("[" + NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0", exception.getMessage());
     }
 
     public void testInvalidTotalShardsPerNode() {
@@ -135,7 +146,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
             IllegalArgumentException.class,
             () -> new AllocateAction(randomIntBetween(0, 300), randomIntBetween(-1000, -2), include, exclude, require)
         );
-        assertEquals("[" + AllocateAction.TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName() + "] must be >= -1", exception.getMessage());
+        assertEquals("[" + TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName() + "] must be >= -1", exception.getMessage());
     }
 
     public static Map<String, String> randomAllocationRoutingMap(int minEntries, int maxEntries) {
@@ -206,6 +217,10 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         steps = action.toSteps(null, phase, nextStepKey);
         firstStep = (UpdateSettingsStep) steps.get(0);
         assertEquals(null, firstStep.getSettings().get(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()));
+
+        // allow an allocate action that only specifies total shards per node (don't expect any exceptions in this case)
+        action = new AllocateAction(null, 5, null, null, null);
+        assertThat(action.getTotalShardsPerNode(), is(5));
     }
 
 }

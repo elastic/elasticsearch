@@ -2385,8 +2385,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private void handleRefreshException(Exception e) {
         if (e instanceof AlreadyClosedException) {
             // ignore
-        } else if (e instanceof RefreshFailedEngineException) {
-            RefreshFailedEngineException rfee = (RefreshFailedEngineException) e;
+        } else if (e instanceof RefreshFailedEngineException rfee) {
             if (rfee.getCause() instanceof InterruptedException) {
                 // ignore, we are being shutdown
             } else if (rfee.getCause() instanceof ClosedByInterruptException) {

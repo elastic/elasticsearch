@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.sql.proto.xcontent.ToXContent;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentParser;
+import org.elasticsearch.xpack.sql.proto.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

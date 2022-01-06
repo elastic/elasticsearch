@@ -5,11 +5,12 @@ esplugin {
   name 'spatial'
   description 'A plugin for Basic Spatial features'
   classname 'org.elasticsearch.xpack.spatial.SpatialPlugin'
-  extendedPlugins = ['x-pack-core', 'legacy-geo']
+  extendedPlugins = ['x-pack-core', 'legacy-geo', 'lang-painless']
 }
 
 dependencies {
   compileOnly project(path: ':modules:legacy-geo')
+  compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('vector-tile'))

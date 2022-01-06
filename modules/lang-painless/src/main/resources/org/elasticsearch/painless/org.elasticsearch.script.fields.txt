@@ -100,3 +100,16 @@ class org.elasticsearch.script.field.IpDocValuesField @dynamic_type {
   String asString(String)
   String asString(int, String)
 }
+
+class org.elasticsearch.script.field.AbstractLongDocValuesField @dynamic_type {
+  long get(long)
+  long get(int, long)
+}
+
+# subclass of AbstractLongDocValuesField
+class org.elasticsearch.script.field.SeqNoDocValuesField @dynamic_type {
+}
+
+# subclass of AbstractLongDocValuesField
+class org.elasticsearch.script.field.VersionDocValuesField @dynamic_type {
+}

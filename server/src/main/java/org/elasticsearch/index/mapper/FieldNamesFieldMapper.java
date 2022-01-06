@@ -43,7 +43,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     public static class Defaults {
         public static final String NAME = FieldNamesFieldMapper.NAME;
 
-        public static final Explicit<Boolean> ENABLED = new Explicit<>(true, false);
+        public static final Explicit<Boolean> ENABLED = Explicit.IMPLICIT_TRUE;
         public static final FieldType FIELD_TYPE = new FieldType();
 
         static {

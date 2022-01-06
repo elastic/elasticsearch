@@ -11,26 +11,11 @@ tasks.named('forbiddenApisMain').configure {
 }
 
 dependencies {
-  api(xpackProject('plugin:sql:sql-client')) {
-    transitive = false
-  }
-  api(xpackProject('plugin:sql:sql-proto')) {
-    transitive = false
-  }
-  api(project(':libs:elasticsearch-x-content')) {
-      transitive = false
-  }
-  // required by x-content
-  runtimeOnly project(':libs:elasticsearch-core')
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api xpackProject('plugin:sql:sql-client')
   testImplementation project(":test:framework")
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-tasks.named("dependencyLicenses").configure {
-  mapping from: /jackson-.*/, to: 'jackson'
-}
 
 tasks.named("shadowJar").configure {
   relocate 'com.fasterxml', 'shadow.fasterxml'
@@ -38,13 +23,6 @@ tasks.named("shadowJar").configure {
     // Don't relocate the JDBC driver classes themselves as that's (mostly) public API
     exclude 'org.elasticsearch.xpack.sql.jdbc.*'
   }
-}
-
-tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses(
-          'com.fasterxml.jackson.databind.ObjectMapper',
-          'com.fasterxml.jackson.databind.cfg.MapperBuilder'
-  )
 }
 
 tasks.named("test").configure {

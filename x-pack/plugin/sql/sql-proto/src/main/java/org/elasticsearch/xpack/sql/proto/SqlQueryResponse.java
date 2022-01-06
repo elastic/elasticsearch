@@ -6,25 +6,25 @@
  */
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.proto.core.Nullable;
+import org.elasticsearch.xpack.sql.proto.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xpack.sql.proto.xcontent.ParseField;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.COLUMNS_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.CURSOR_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ID_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.IS_PARTIAL_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.IS_RUNNING_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ROWS_NAME;
+import static org.elasticsearch.xpack.sql.proto.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xpack.sql.proto.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.sql.proto.xcontent.ObjectParser.ValueType;
 
 /**
  * Response to perform an sql query for JDBC/CLI client

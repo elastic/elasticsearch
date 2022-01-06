@@ -190,9 +190,8 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             } else {
                 assertEquals(expected, actual);
             }
-        } else if (expected instanceof GeoPoint) {
+        } else if (expected instanceof GeoPoint point) {
             assertTrue(actual instanceof Map);
-            GeoPoint point = (GeoPoint) expected;
             @SuppressWarnings("unchecked")
             Map<String, Object> pointMap = (Map<String, Object>) actual;
             assertEquals(point.getLat(), pointMap.get("lat"));

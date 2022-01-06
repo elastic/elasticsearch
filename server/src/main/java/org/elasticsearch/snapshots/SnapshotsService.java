@@ -2166,7 +2166,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             return abortedEntry;
                         }
                         return existing;
-                    }).filter(Objects::nonNull).collect(Collectors.toUnmodifiableList())
+                    }).filter(Objects::nonNull).toList()
                 );
                 if (snapshotIdsRequiringCleanup.isEmpty()) {
                     // We only saw snapshots that could be removed from the cluster state right away, no need to update the deletions
@@ -2387,6 +2387,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             assert currentlyFinalizing.contains(deleteEntry.repository());
             final List<SnapshotId> snapshotIds = deleteEntry.getSnapshots();
             assert deleteEntry.state() == SnapshotDeletionsInProgress.State.STARTED : "incorrect state for entry [" + deleteEntry + "]";
+            if (snapshotIds.isEmpty()) {
+                // this deletion overlapped one or more deletions that were successfully processed and there is no remaining snapshot to
+                // delete now, we can avoid reaching to the repository and can complete the deletion.
+                removeSnapshotDeletionFromClusterState(deleteEntry, null, repositoryData);
+                return;
+            }
             repositoriesService.repository(deleteEntry.repository())
                 .deleteSnapshots(
                     snapshotIds,

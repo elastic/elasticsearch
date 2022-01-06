@@ -73,7 +73,7 @@ public class NodeMetadataTests extends ESTestCase {
         final NodeMetadata nodeMetadata = new NodeMetadata(
             nodeId,
             randomValueOtherThanMany(
-                v -> v.after(Version.CURRENT) || v.before(Version.CURRENT.minimumIndexCompatibilityVersion()),
+                v -> v.after(Version.CURRENT) || v.before(Version.CURRENT.minimumCompatibilityVersion()),
                 this::randomVersion
             )
         ).upgradeToCurrentVersion();
@@ -83,9 +83,15 @@ public class NodeMetadataTests extends ESTestCase {
 
     public void testUpgradesMissingVersion() {
         final String nodeId = randomAlphaOfLength(10);
-        final NodeMetadata nodeMetadata = new NodeMetadata(nodeId, Version.V_EMPTY).upgradeToCurrentVersion();
-        assertThat(nodeMetadata.nodeVersion(), equalTo(Version.CURRENT));
-        assertThat(nodeMetadata.nodeId(), equalTo(nodeId));
+
+        final IllegalStateException illegalStateException = expectThrows(
+            IllegalStateException.class,
+            () -> new NodeMetadata(nodeId, Version.V_EMPTY).upgradeToCurrentVersion()
+        );
+        assertThat(
+            illegalStateException.getMessage(),
+            equalTo("cannot upgrade a node from version [" + Version.V_EMPTY + "] directly to version [" + Version.CURRENT + "]")
+        );
     }
 
     public void testDoesNotUpgradeFutureVersion() {
@@ -110,12 +116,19 @@ public class NodeMetadataTests extends ESTestCase {
         );
     }
 
-    public void testUpgradeMarksPreviousVersion() {
+    public void testUpgradePreviousVersionButNotLatest() {
         final String nodeId = randomAlphaOfLength(10);
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_3_0, Version.V_7_16_0);
-        final NodeMetadata nodeMetadata = new NodeMetadata(nodeId, version).upgradeToCurrentVersion();
-        assertThat(nodeMetadata.nodeVersion(), equalTo(Version.CURRENT));
-        assertThat(nodeMetadata.previousNodeVersion(), equalTo(version));
+
+        final IllegalStateException illegalStateException = expectThrows(
+            IllegalStateException.class,
+            () -> new NodeMetadata(nodeId, version).upgradeToCurrentVersion()
+        );
+
+        assertThat(
+            illegalStateException.getMessage(),
+            equalTo("cannot upgrade a node from version [" + version + "] directly to version [" + Version.CURRENT + "]")
+        );
     }
 
     public static Version tooNewVersion() {

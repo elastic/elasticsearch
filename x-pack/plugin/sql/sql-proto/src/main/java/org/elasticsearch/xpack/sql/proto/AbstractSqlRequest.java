@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xpack.sql.proto.xcontent.ToXContentFragment;
 
 import java.util.Objects;
 

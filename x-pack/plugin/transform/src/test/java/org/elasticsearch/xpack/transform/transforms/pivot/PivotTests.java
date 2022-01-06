@@ -231,8 +231,7 @@ public class PivotTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
 
-            if (request instanceof SearchRequest) {
-                SearchRequest searchRequest = (SearchRequest) request;
+            if (request instanceof SearchRequest searchRequest) {
                 List<ShardSearchFailure> searchFailures = new ArrayList<>();
 
                 for (String index : searchRequest.indices()) {

@@ -127,11 +127,11 @@ public class ProfileServiceTests extends ESTestCase {
 
         final Map<String, Object> applicationData = new HashMap<>();
 
-        if (dataKeys == null || dataKeys.contains("app1")) {
+        if (dataKeys != null && dataKeys.contains("app1")) {
             applicationData.put("app1", Map.of("name", "app1"));
         }
 
-        if (dataKeys == null || dataKeys.contains("app2")) {
+        if (dataKeys != null && dataKeys.contains("app2")) {
             applicationData.put("app2", Map.of("name", "app2"));
         }
 

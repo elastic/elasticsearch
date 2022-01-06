@@ -90,6 +90,7 @@ setup:
               byte: [16, 32, 64, 8, 4]
               double: [3.141592653588, 2.141592653587]
               float: [1.123, 2.234]
+              half_float: [1.123, 2.234]
               scaled_float: [-3.5, 2.5]
 
 
@@ -1327,6 +1328,71 @@ setup:
                         script:
                             source: "doc['half_float'].value"
     - match: { hits.hits.0.fields.field.0: 3.140625 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('half_float').get(0.0)"
+    - match: { hits.hits.0.fields.field.0: 3.140625 }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - match: { hits.hits.2.fields.field.0: 1.123046875 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid stash */ $('half_float', 0.0)"
+    - match: { hits.hits.0.fields.field.0: 3.140625 }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - match: { hits.hits.2.fields.field.0: 1.123046875 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('half_float').get(1, 0.0)"
+    - match: { hits.hits.0.fields.field.0: 0.0 }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - match: { hits.hits.2.fields.field.0: 2.234375 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('half_float').asDouble(0.0)"
+    - match: { hits.hits.0.fields.field.0: 3.140625 }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - match: { hits.hits.2.fields.field.0: 1.123046875 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('half_float').asDouble(1, 0.0)"
+    - match: { hits.hits.0.fields.field.0: 0.0 }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - match: { hits.hits.2.fields.field.0: 2.234375 }
 
 ---
 "scaled_float":

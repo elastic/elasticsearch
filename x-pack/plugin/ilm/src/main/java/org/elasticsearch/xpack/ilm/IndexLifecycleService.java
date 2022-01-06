@@ -303,6 +303,7 @@ public class IndexLifecycleService
             } else {
                 // we were the master, and now we aren't
                 cancelJob();
+                policyRegistry.clear();
             }
         }
 

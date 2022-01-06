@@ -164,6 +164,18 @@ public class PolicyStepsRegistry {
     }
 
     /**
+     * Clear internal maps that were populated by update (and others).
+     */
+    public void clear() {
+        // this is potentially large, so it's important to clear it
+        cachedSteps.clear();
+        // these are relatively small, but there's no harm in clearing them
+        lifecyclePolicyMap.clear();
+        firstStepMap.clear();
+        stepMap.clear();
+    }
+
+    /**
      * Return all ordered steps for the current policy for the index. Does not
      * resolve steps using the phase caching, but only for the currently existing policy.
      */

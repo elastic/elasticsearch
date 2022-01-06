@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -484,6 +485,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     @Nullable // since we store null if DataTier.TIER_PREFERENCE_SETTING failed validation
     private final List<String> tierPreference;
 
+    private final int shardsPerNodeLimit;
+
     private IndexMetadata(
         final Index index,
         final long version,
@@ -515,7 +518,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final int priority,
         final long creationDate,
         final boolean ignoreDiskWatermarks,
-        @Nullable final List<String> tierPreference
+        @Nullable final List<String> tierPreference,
+        final int shardsPerNodeLimit
     ) {
 
         this.index = index;
@@ -556,6 +560,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.creationDate = creationDate;
         this.ignoreDiskWatermarks = ignoreDiskWatermarks;
         this.tierPreference = tierPreference;
+        this.shardsPerNodeLimit = shardsPerNodeLimit;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -594,7 +599,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.priority,
             this.creationDate,
             this.ignoreDiskWatermarks,
-            this.tierPreference
+            this.tierPreference,
+            this.shardsPerNodeLimit
         );
     }
 
@@ -703,6 +709,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public ImmutableOpenMap<String, AliasMetadata> getAliases() {
         return this.aliases;
+    }
+
+    public int getShardsPerNodeLimit() {
+        return shardsPerNodeLimit;
     }
 
     public List<String> getTierPreference() {
@@ -1542,7 +1552,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 IndexMetadata.INDEX_PRIORITY_SETTING.get(settings),
                 settings.getAsLong(SETTING_CREATION_DATE, -1L),
                 DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings),
-                tierPreference
+                tierPreference,
+                ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings)
             );
         }
 

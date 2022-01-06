@@ -156,8 +156,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             assertEquals(expectedTermQuery, query);
         }
 
-        if (query instanceof BooleanQuery) {
-            BooleanQuery bq = (BooleanQuery) query;
+        if (query instanceof BooleanQuery bq) {
             if (queryBuilder.minimumShouldMatch() != null) {
                 // calculate expected minimumShouldMatch value
                 int optionalClauses = 0;
@@ -174,9 +173,8 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             }
         }
 
-        if (query instanceof FuzzyQuery) {
+        if (query instanceof FuzzyQuery fuzzyQuery) {
             assertTrue(queryBuilder.fuzziness() != null);
-            FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
             // depending on analyzer being set or not we can have term lowercased along the way, so to simplify test we just
             // compare lowercased terms here
             String originalTermLc = queryBuilder.value().toString().toLowerCase(Locale.ROOT);

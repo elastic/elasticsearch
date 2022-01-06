@@ -90,8 +90,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 .or(instanceOf(AutomatonQuery.class))
         );
         MappedFieldType mapper = context.getFieldType(queryBuilder.fieldName());
-        if (query instanceof TermQuery) {
-            TermQuery termQuery = (TermQuery) query;
+        if (query instanceof TermQuery termQuery) {
 
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
             assertThat(termQuery.getTerm().field(), equalTo(expectedFieldName));
@@ -174,6 +173,23 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
             }""";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+    }
+
+    public void testParseFailsWithMultipleValues() {
+        String json = """
+            {
+              "term" : {
+                "message1" : {
+                  "value" : ["this", "that"]
+                }
+              }
+            }""";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals(
+            "[term] query does not support arrays for value - use a bool query with multiple term clauses "
+                + "in the should section or use a Terms query if scoring is not required",
+            e.getMessage()
+        );
     }
 
     public void testParseAndSerializeBigInteger() throws IOException {

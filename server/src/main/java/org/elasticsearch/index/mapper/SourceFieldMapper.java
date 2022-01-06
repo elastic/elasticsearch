@@ -143,7 +143,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.excludes = excludes;
         final boolean filtered = CollectionUtils.isEmpty(includes) == false || CollectionUtils.isEmpty(excludes) == false;
         if (enabled && filtered) {
-            final XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.of(includes), Set.of(excludes));
+            final XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
+                Set.of(includes),
+                Set.of(excludes)
+            );
             this.filter = (sourceBytes, contentType) -> {
                 BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, sourceBytes.length()));
                 XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput);

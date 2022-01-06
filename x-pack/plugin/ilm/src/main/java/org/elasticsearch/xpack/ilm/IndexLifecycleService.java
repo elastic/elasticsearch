@@ -298,8 +298,10 @@ public class IndexLifecycleService
         if (prevIsMaster != event.localNodeMaster()) {
             this.isMaster = event.localNodeMaster();
             if (this.isMaster) {
+                // we weren't the master, and now we are
                 onMaster(event.state());
             } else {
+                // we were the master, and now we aren't
                 cancelJob();
             }
         }

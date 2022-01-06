@@ -67,4 +67,8 @@ public class TrainedModelSizeStats implements ToXContentObject, Writeable {
     public int hashCode() {
         return Objects.hash(modelSizeBytes, requiredNativeMemoryBytes);
     }
+
+    public long getModelSizeBytes() {
+        return modelSizeBytes;
+    }
 }

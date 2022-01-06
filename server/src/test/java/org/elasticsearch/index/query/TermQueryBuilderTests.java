@@ -90,8 +90,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 .or(instanceOf(AutomatonQuery.class))
         );
         MappedFieldType mapper = context.getFieldType(queryBuilder.fieldName());
-        if (query instanceof TermQuery) {
-            TermQuery termQuery = (TermQuery) query;
+        if (query instanceof TermQuery termQuery) {
 
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
             assertThat(termQuery.getTerm().field(), equalTo(expectedFieldName));

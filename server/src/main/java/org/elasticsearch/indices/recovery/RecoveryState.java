@@ -702,8 +702,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         @Override
         public boolean equals(Object obj) {
-            if (obj instanceof FileDetail) {
-                FileDetail other = (FileDetail) obj;
+            if (obj instanceof FileDetail other) {
                 return name.equals(other.name)
                     && length == other.length()
                     && reused == other.reused()

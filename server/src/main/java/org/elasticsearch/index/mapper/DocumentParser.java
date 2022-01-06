@@ -536,8 +536,7 @@ public final class DocumentParser {
     static void parseObjectOrField(DocumentParserContext context, Mapper mapper) throws IOException {
         if (mapper instanceof ObjectMapper) {
             parseObjectOrNested(context, (ObjectMapper) mapper);
-        } else if (mapper instanceof FieldMapper) {
-            FieldMapper fieldMapper = (FieldMapper) mapper;
+        } else if (mapper instanceof FieldMapper fieldMapper) {
             fieldMapper.parse(context);
             List<String> copyToFields = fieldMapper.copyTo().copyToFields();
             if (context.isWithinCopyTo() == false && copyToFields.isEmpty() == false) {
@@ -896,7 +895,7 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(name, fullPath, new Explicit<>(true, false), Dynamic.RUNTIME, Collections.emptyMap());
+            super(name, fullPath, Explicit.IMPLICIT_TRUE, Dynamic.RUNTIME, Collections.emptyMap());
         }
     }
 

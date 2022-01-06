@@ -51,8 +51,7 @@ public class StringTermsTests extends InternalTermsTestCase {
 
     @Override
     protected InternalTerms<?, ?> mutateInstance(InternalTerms<?, ?> instance) {
-        if (instance instanceof StringTerms) {
-            StringTerms stringTerms = (StringTerms) instance;
+        if (instance instanceof StringTerms stringTerms) {
             String name = stringTerms.getName();
             BucketOrder order = stringTerms.order;
             int requiredSize = stringTerms.requiredSize;

@@ -226,7 +226,7 @@ public abstract class DocumentParserContext {
         return mappingLookup.isShadowed(field);
     }
 
-    public final ObjectMapper getObjectMapper(String name) {
+    public final ObjectMapper getDynamicObjectMapper(String name) {
         return dynamicObjectMappers.get(name);
     }
 
@@ -254,7 +254,7 @@ public abstract class DocumentParserContext {
      * @return a RootObjectMapper.Builder to be used to construct a dynamic mapping update
      */
     public final RootObjectMapper.Builder updateRoot() {
-        return mappingLookup.getMapping().getRoot().newBuilder();
+        return mappingLookup.getMapping().getRoot().newBuilder(indexSettings.getIndexVersionCreated());
     }
 
     public boolean isWithinCopyTo() {

@@ -91,7 +91,6 @@ public class NestedObjectMapper extends ObjectMapper {
     private Explicit<Boolean> includeInParent;
     private final String nestedTypePath;
     private final Query nestedTypeFilter;
-    private final Version indexVersionCreated;
 
     NestedObjectMapper(String name, String fullPath, Map<String, Mapper> mappers, Builder builder) {
         super(name, fullPath, builder.enabled, builder.dynamic, mappers);
@@ -103,7 +102,6 @@ public class NestedObjectMapper extends ObjectMapper {
         this.nestedTypeFilter = NestedPathFieldMapper.filter(builder.indexCreatedVersion, nestedTypePath);
         this.includeInParent = builder.includeInParent;
         this.includeInRoot = builder.includeInRoot;
-        this.indexVersionCreated = builder.indexCreatedVersion;
     }
 
     public Query nestedTypeFilter() {
@@ -140,7 +138,7 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public ObjectMapper.Builder newBuilder() {
+    public ObjectMapper.Builder newBuilder(Version indexVersionCreated) {
         NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(simpleName(), indexVersionCreated);
         builder.enabled = enabled;
         builder.dynamic = dynamic;

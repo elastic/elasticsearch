@@ -215,25 +215,25 @@ public final class DocumentParser {
     }
 
     private static void validatePath(String fullFieldPath) {
-        if (fullFieldPath.contains(".")) {
-            String[] parts = fullFieldPath.split("\\.");
-            if (parts.length == 0) {
-                throw new IllegalArgumentException("field name cannot contain only dots");
-            }
-            for (String part : parts) {
-                if (Strings.hasText(part) == false) {
-                    // check if the field name contains only whitespace
-                    if (Strings.isEmpty(part) == false) {
-                        throw new IllegalArgumentException("object field cannot contain only whitespace: ['" + fullFieldPath + "']");
-                    }
-                    throw new IllegalArgumentException(
-                        "object field starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]"
-                    );
+        if (Strings.isEmpty(fullFieldPath)) {
+            throw new IllegalArgumentException("field name cannot be an empty string");
+        }
+        if (fullFieldPath.contains(".") == false) {
+            return;
+        }
+        String[] parts = fullFieldPath.split("\\.");
+        if (parts.length == 0) {
+            throw new IllegalArgumentException("field name cannot contain only dots");
+        }
+        for (String part : parts) {
+            if (Strings.hasText(part) == false) {
+                // check if the field name contains only whitespace
+                if (Strings.isEmpty(part) == false) {
+                    throw new IllegalArgumentException("object field cannot contain only whitespace: ['" + fullFieldPath + "']");
                 }
-            }
-        } else {
-            if (Strings.isEmpty(fullFieldPath)) {
-                throw new IllegalArgumentException("field name cannot be an empty string");
+                throw new IllegalArgumentException(
+                    "object field starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]"
+                );
             }
         }
     }
@@ -615,7 +615,7 @@ public final class DocumentParser {
             parentMapper = context.mappingLookup().objectMappers().get(parentName);
             if (parentMapper == null) {
                 // If parentMapper is null, it means the parent of the current mapper is being dynamically created right now
-                parentMapper = context.getObjectMapper(parentName);
+                parentMapper = context.getDynamicObjectMapper(parentName);
                 if (parentMapper == null) {
                     // it can still happen that the path is ambiguous and we are not able to locate the parent
                     break;

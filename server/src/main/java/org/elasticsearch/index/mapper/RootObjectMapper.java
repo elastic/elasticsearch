@@ -276,7 +276,7 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public RootObjectMapper.Builder newBuilder() {
+    public RootObjectMapper.Builder newBuilder(Version indexVersionCreated) {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder(name());
         builder.enabled = enabled;
         builder.dynamic = dynamic;

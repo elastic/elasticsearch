@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -133,12 +134,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
             // does the child mapper already exist? if so, use that
             ObjectMapper child = context.mappingLookup().objectMappers().get(fullChildName);
             if (child != null) {
-                return child.newBuilder();
+                return child.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
             // has the child mapper been added as a dynamic update already?
-            child = context.getObjectMapper(fullChildName);
+            child = context.getDynamicObjectMapper(fullChildName);
             if (child != null) {
-                return child.newBuilder();
+                return child.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
             // create a new child mapper
             return new ObjectMapper.Builder(childName);
@@ -328,7 +329,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     /**
      * @return a Builder that will produce an empty ObjectMapper with the same configuration as this one
      */
-    public ObjectMapper.Builder newBuilder() {
+    public ObjectMapper.Builder newBuilder(Version indexVersionCreated) {
         ObjectMapper.Builder builder = new ObjectMapper.Builder(simpleName());
         builder.enabled = this.enabled;
         builder.dynamic = this.dynamic;

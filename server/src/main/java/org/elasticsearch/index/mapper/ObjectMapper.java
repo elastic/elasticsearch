@@ -369,8 +369,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             Mapper merged;
             if (mergeIntoMapper == null) {
                 merged = mergeWithMapper;
-            } else if (mergeIntoMapper instanceof ObjectMapper) {
-                ObjectMapper objectMapper = (ObjectMapper) mergeIntoMapper;
+            } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
                 merged = objectMapper.merge(mergeWithMapper, reason);
             } else {
                 assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;

@@ -536,8 +536,7 @@ public final class DocumentParser {
     static void parseObjectOrField(DocumentParserContext context, Mapper mapper) throws IOException {
         if (mapper instanceof ObjectMapper) {
             parseObjectOrNested(context, (ObjectMapper) mapper);
-        } else if (mapper instanceof FieldMapper) {
-            FieldMapper fieldMapper = (FieldMapper) mapper;
+        } else if (mapper instanceof FieldMapper fieldMapper) {
             fieldMapper.parse(context);
             List<String> copyToFields = fieldMapper.copyTo().copyToFields();
             if (context.isWithinCopyTo() == false && copyToFields.isEmpty() == false) {

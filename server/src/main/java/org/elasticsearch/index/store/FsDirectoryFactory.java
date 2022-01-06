@@ -68,8 +68,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             case HYBRIDFS:
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
-                if (primaryDirectory instanceof MMapDirectory) {
-                    MMapDirectory mMapDirectory = (MMapDirectory) primaryDirectory;
+                if (primaryDirectory instanceof MMapDirectory mMapDirectory) {
                     return new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions));
                 } else {
                     return primaryDirectory;

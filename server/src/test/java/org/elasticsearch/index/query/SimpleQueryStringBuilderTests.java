@@ -291,8 +291,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 if (disjunct instanceof BoostQuery) {
                     termQuery = ((BoostQuery) disjunct).getQuery();
                 }
-                if (termQuery instanceof TermQuery) {
-                    TermQuery inner = (TermQuery) termQuery;
+                if (termQuery instanceof TermQuery inner) {
                     assertThat(inner.getTerm().bytes().toString(), is(inner.getTerm().bytes().toString().toLowerCase(Locale.ROOT)));
                 } else {
                     assertThat(termQuery, instanceOf(MatchNoDocsQuery.class));

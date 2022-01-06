@@ -458,7 +458,7 @@ public class MockNioTransport extends TcpTransport {
                         "Slow execution on network thread [{} milliseconds]",
                         TimeUnit.NANOSECONDS.toMillis(elapsedTime)
                     ),
-                    new RuntimeException("Slow exception on network thread")
+                    new RuntimeException("Slow execution on network thread")
                 );
             }
         }

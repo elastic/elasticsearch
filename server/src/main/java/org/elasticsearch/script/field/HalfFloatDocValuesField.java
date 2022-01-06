@@ -13,7 +13,6 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -97,10 +96,10 @@ public class HalfFloatDocValuesField implements DocValuesField<Float>, ScriptDoc
      */
     public float get(int index, double defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {
-            return (float)defaultValue;
+            return (float) defaultValue;
         }
 
-        return (float)values[index];
+        return (float) values[index];
     }
 
     @Override
@@ -118,7 +117,7 @@ public class HalfFloatDocValuesField implements DocValuesField<Float>, ScriptDoc
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
-                return (float)values[index++];
+                return (float) values[index++];
             }
         };
     }

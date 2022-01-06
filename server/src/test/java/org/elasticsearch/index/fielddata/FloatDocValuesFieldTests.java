@@ -88,19 +88,19 @@ public class FloatDocValuesFieldTests extends ESTestCase {
             int d = between(0, values.length - 1);
             halfFloatField.setNextDocId(d);
             if (values[d].length > 0) {
-                assertEquals((float)values[d][0], halfFloatField.get(Float.MIN_VALUE), 0.0f);
-                assertEquals((float)values[d][0], halfFloatField.get(0, Float.MIN_VALUE), 0.0f);
+                assertEquals((float) values[d][0], halfFloatField.get(Float.MIN_VALUE), 0.0f);
+                assertEquals((float) values[d][0], halfFloatField.get(0, Float.MIN_VALUE), 0.0f);
                 assertEquals(values[d][0], halfFloatField.asDouble(Double.MIN_VALUE), 0.0);
                 assertEquals(values[d][0], halfFloatField.asDouble(0, Double.MIN_VALUE), 0.0);
             }
             assertEquals(values[d].length, halfFloatField.size());
             for (int i = 0; i < values[d].length; i++) {
-                assertEquals((float)values[d][i], halfFloatField.get(i, Float.MIN_VALUE), 0.0f);
+                assertEquals((float) values[d][i], halfFloatField.get(i, Float.MIN_VALUE), 0.0f);
                 assertEquals(values[d][i], halfFloatField.asDouble(i, Double.MIN_VALUE), 0.0);
             }
             int i = 0;
             for (float flt : halfFloatField) {
-                assertEquals((float)values[d][i++], flt, 0.0f);
+                assertEquals((float) values[d][i++], flt, 0.0f);
             }
             i = 0;
             for (double dbl : halfFloatField.asDoubles()) {

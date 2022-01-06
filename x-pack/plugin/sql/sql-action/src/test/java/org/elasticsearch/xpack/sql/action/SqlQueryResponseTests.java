@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
@@ -28,9 +29,9 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
-import static org.elasticsearch.xpack.sql.proto.Protocol.ID_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.IS_PARTIAL_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.IS_RUNNING_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.ID_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.IS_PARTIAL_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.IS_RUNNING_NAME;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -38,6 +39,12 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
 
     static String randomStringCursor() {
         return randomBoolean() ? "" : randomAlphaOfLength(10);
+    }
+
+    @Override
+    protected SqlQueryResponse createXContextTestInstance(XContentType xContentType) {
+        SqlTestUtils.assumeXContentJsonOrCbor(xContentType);
+        return super.createXContextTestInstance(xContentType);
     }
 
     @Override
@@ -157,7 +164,7 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
     @Override
     protected SqlQueryResponse doParseInstance(XContentParser parser) {
         org.elasticsearch.xpack.sql.proto.SqlQueryResponse response = org.elasticsearch.xpack.sql.proto.SqlQueryResponse.fromXContent(
-            parser
+            ProtoShim.toProto(parser)
         );
         return new SqlQueryResponse(
             response.cursor(),

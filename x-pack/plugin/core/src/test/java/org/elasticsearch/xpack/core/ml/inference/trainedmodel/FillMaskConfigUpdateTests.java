@@ -70,6 +70,7 @@ public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82279")
     public void testApply() {
         FillMaskConfig originalConfig = FillMaskConfigTests.createRandom();
 

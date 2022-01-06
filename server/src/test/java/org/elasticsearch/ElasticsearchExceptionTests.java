@@ -14,7 +14,7 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.client.transport.NoNodeAvailableException;
+import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -1179,8 +1179,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 throw new UnsupportedOperationException("No randomized exceptions generated for type [" + type + "]");
         }
 
-        if (actual instanceof ElasticsearchException) {
-            ElasticsearchException actualException = (ElasticsearchException) actual;
+        if (actual instanceof ElasticsearchException actualException) {
             if (randomBoolean()) {
                 int nbHeaders = randomIntBetween(1, 5);
                 Map<String, List<String>> randomHeaders = new HashMap<>(nbHeaders);

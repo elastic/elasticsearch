@@ -20,7 +20,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.List;
 
-import static org.elasticsearch.client.Requests.nodesInfoRequest;
+import static org.elasticsearch.client.internal.Requests.nodesInfoRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;

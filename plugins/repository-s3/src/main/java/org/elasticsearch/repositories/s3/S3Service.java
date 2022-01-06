@@ -289,12 +289,7 @@ class S3Service implements Closeable {
                 return;
             }
             // Make sure that a readable symlink to the token file exists in the plugin config directory
-            Path esPathConf = environment.configFile();
-            if (esPathConf == null) {
-                // Should be always present in the real ES environment, but is null in tests
-                return;
-            }
-            Path webIdentityTokenFileSymlink = esPathConf.resolve("repository-s3/aws-web-identity-token-file");
+            Path webIdentityTokenFileSymlink = environment.configFile().resolve("repository-s3/aws-web-identity-token-file");
             if (Files.isReadable(webIdentityTokenFileSymlink) == false) {
                 return;
             }

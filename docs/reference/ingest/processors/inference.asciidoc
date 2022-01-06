@@ -310,11 +310,14 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 
 [discrete]
 [[inference-processor-config-example]]
-==== `inference_config` examples
+==== {infer-cap} processor examples
 [source,js]
 --------------------------------------------------
 "inference":{
-  "model_id":"my_model_id"
+  "model_id": "my_model_id",
+  "field_map": {
+    "original_fieldname": "expected_fieldname"
+  },
   "inference_config": {
     "regression": {
       "results_field": "my_regression"
@@ -326,7 +329,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 
 This configuration specifies a `regression` inference and the results are
 written to the `my_regression` field contained in the `target_field` results
-object.
+object. The `field_map` configuration maps the field `original_fieldname` from
+the source document to the field expected by the model.
 
 
 [source,js]

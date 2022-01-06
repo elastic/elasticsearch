@@ -306,6 +306,10 @@ public class IndexLifecycleService
             }
         }
 
+        for (Index index : event.indicesDeleted()) {
+            policyRegistry.delete(index);
+        }
+
         final IndexLifecycleMetadata lifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
         if (this.isMaster && lifecycleMetadata != null) {
             triggerPolicies(event.state(), true);
@@ -323,9 +327,6 @@ public class IndexLifecycleService
                     || ilmMetadata != event.previousState().metadata().custom(IndexLifecycleMetadata.TYPE))) {
                 policyRegistry.update(ilmMetadata);
             }
-        }
-        for (Index index : event.indicesDeleted()) {
-            policyRegistry.delete(index);
         }
     }
 

@@ -27,14 +27,20 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Predicate;
 
 public class EvaluateDataFrameResponseTests extends AbstractXContentTestCase<EvaluateDataFrameResponse> {
+    private enum Evaluation {
+        OUTLIER_DETECTION,
+        CLASSIFICATION,
+        REGRESSION
+    }
 
     public static EvaluateDataFrameResponse randomResponse() {
         String evaluationName = randomFrom(OutlierDetection.NAME, Classification.NAME, Regression.NAME);
-        List<EvaluationMetric.Result> metrics = switch (evaluationName) {
-            case OutlierDetection.NAME -> randomSubsetOf(
+        List<EvaluationMetric.Result> metrics = switch (Evaluation.valueOf(evaluationName.toUpperCase(Locale.ROOT))) {
+            case OUTLIER_DETECTION -> randomSubsetOf(
                 Arrays.asList(
                     AucRocResultTests.randomResult(),
                     PrecisionMetricResultTests.randomResult(),
@@ -42,10 +48,10 @@ public class EvaluateDataFrameResponseTests extends AbstractXContentTestCase<Eva
                     ConfusionMatrixMetricResultTests.randomResult()
                 )
             );
-            case Regression.NAME -> randomSubsetOf(
+            case REGRESSION -> randomSubsetOf(
                 Arrays.asList(MeanSquaredErrorMetricResultTests.randomResult(), RSquaredMetricResultTests.randomResult())
             );
-            case Classification.NAME -> randomSubsetOf(
+            case CLASSIFICATION -> randomSubsetOf(
                 Arrays.asList(
                     AucRocResultTests.randomResult(),
                     AccuracyMetricResultTests.randomResult(),
@@ -54,7 +60,6 @@ public class EvaluateDataFrameResponseTests extends AbstractXContentTestCase<Eva
                     MulticlassConfusionMatrixMetricResultTests.randomResult()
                 )
             );
-            default -> throw new AssertionError("Please add missing \"case\" variant to the \"switch\" statement");
         };
         return new EvaluateDataFrameResponse(evaluationName, metrics);
     }

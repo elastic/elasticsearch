@@ -54,7 +54,6 @@ public class AllocationRoutedStepInfoTests extends AbstractXContentTestCase<Allo
             case 0 -> shardsToAllocate += between(1, 20);
             case 1 -> allShardsActive = allShardsActive == false;
             case 2 -> actualReplicas += between(1, 20);
-            case 3 -> message = randomValueOtherThan(message, () -> randomAlphaOfLengthBetween(5, 10));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new AllocationInfo(actualReplicas, shardsToAllocate, allShardsActive, message);

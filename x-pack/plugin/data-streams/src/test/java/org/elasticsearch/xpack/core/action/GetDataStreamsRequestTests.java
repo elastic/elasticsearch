@@ -19,20 +19,18 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected Request createTestInstance() {
-        final String[] searchParameter;
-        switch (randomIntBetween(1, 4)) {
-            case 1 -> searchParameter = generateRandomStringArray(3, 8, false, false);
+        return new Request(switch (randomIntBetween(1, 4)) {
+            case 1 -> generateRandomStringArray(3, 8, false, false);
             case 2 -> {
                 String[] parameters = generateRandomStringArray(3, 8, false, false);
                 for (int k = 0; k < parameters.length; k++) {
                     parameters[k] = parameters[k] + "*";
                 }
-                searchParameter = parameters;
+                yield parameters;
             }
-            case 3 -> searchParameter = new String[] { "*" };
-            default -> searchParameter = null;
-        }
-        return new Request(searchParameter);
+            case 3 -> new String[] { "*" };
+            default -> null;
+        });
     }
 
 }

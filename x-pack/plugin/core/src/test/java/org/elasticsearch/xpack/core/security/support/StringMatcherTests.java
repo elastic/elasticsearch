@@ -34,7 +34,8 @@ public class StringMatcherTests extends ESTestCase {
                 case 1 -> s;
                 case 2 -> s + "*";
                 case 3 -> "*" + s;
-                default -> "*" + s + "*";
+                case 4 -> "*" + s + "*";
+                default -> throw new AssertionError();
             };
         };
         final List<String> patterns = Stream.of(randomList(0, 3, randomPattern), List.of("*"), randomList(0, 3, randomPattern))

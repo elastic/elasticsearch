@@ -57,7 +57,6 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             case 2 -> color = newColor;
-            case 3 -> indexPrefix = randomAlphaOfLengthBetween(1, 10);
         }
 
         return new WaitForIndexColorStep(key, nextKey, color, indexPrefix);

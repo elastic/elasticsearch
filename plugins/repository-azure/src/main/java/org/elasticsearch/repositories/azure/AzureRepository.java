@@ -55,7 +55,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
             "default",
             Function.identity(),
             Property.NodeScope,
-            Property.Deprecated
+            Property.DeprecatedWarning
         );
         public static final Setting<String> CLIENT_NAME = new Setting<>("client", ACCOUNT_SETTING, Function.identity());
         public static final Setting<String> CONTAINER_SETTING = new Setting<>(

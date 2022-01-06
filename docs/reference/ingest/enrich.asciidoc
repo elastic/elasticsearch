@@ -1,4 +1,3 @@
-[testenv="basic"]
 [[ingest-enriching-data]]
 == Enrich your data
 

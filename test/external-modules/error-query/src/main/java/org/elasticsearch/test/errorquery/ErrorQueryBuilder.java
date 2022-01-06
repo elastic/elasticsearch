@@ -12,7 +12,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -82,7 +81,7 @@ public class ErrorQueryBuilder extends AbstractQueryBuilder<ErrorQueryBuilder> {
         }
         final String header = "[" + context.index().getName() + "][" + context.getShardId() + "]";
         if (error.getErrorType() == IndexError.ERROR_TYPE.WARNING) {
-            HeaderWarning.addWarning(DeprecationLogger.CRITICAL, header + " " + error.getMessage());
+            HeaderWarning.addWarning(header + " " + error.getMessage());
             return new MatchAllDocsQuery();
         } else {
             throw new RuntimeException(header + " " + error.getMessage());

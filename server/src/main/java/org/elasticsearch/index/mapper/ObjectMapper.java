@@ -62,7 +62,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public static class Builder extends Mapper.Builder {
 
-        protected Explicit<Boolean> enabled = new Explicit<>(true, false);
+        protected Explicit<Boolean> enabled = Explicit.IMPLICIT_TRUE;
 
         protected Dynamic dynamic;
 
@@ -73,7 +73,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         public Builder enabled(boolean enabled) {
-            this.enabled = new Explicit<>(enabled, true);
+            this.enabled = Explicit.explicitBoolean(enabled);
             return this;
         }
 
@@ -160,7 +160,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
                 return true;
             } else if (fieldName.equals("include_in_all")) {
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.MAPPINGS,
                     "include_in_all",
                     "[include_in_all] is deprecated, the _all field have been removed in this version"
@@ -369,8 +369,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             Mapper merged;
             if (mergeIntoMapper == null) {
                 merged = mergeWithMapper;
-            } else if (mergeIntoMapper instanceof ObjectMapper) {
-                ObjectMapper objectMapper = (ObjectMapper) mergeIntoMapper;
+            } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
                 merged = objectMapper.merge(mergeWithMapper, reason);
             } else {
                 assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;

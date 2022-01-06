@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.engine;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.apache.logging.log4j.Level;
@@ -411,11 +409,11 @@ public class InternalEngineTests extends EngineTestCase {
 
             final SegmentsStats stats1 = engine.segmentsStats(true, false);
             assertThat(stats1.getFiles().size(), greaterThan(0));
-            for (ObjectObjectCursor<String, SegmentsStats.FileStats> fileStats : stats1.getFiles()) {
-                assertThat(fileStats.value.getTotal(), greaterThan(0L));
-                assertThat(fileStats.value.getCount(), greaterThan(0L));
-                assertThat(fileStats.value.getMin(), greaterThan(0L));
-                assertThat(fileStats.value.getMax(), greaterThan(0L));
+            for (Map.Entry<String, SegmentsStats.FileStats> fileStats : stats1.getFiles().entrySet()) {
+                assertThat(fileStats.getValue().getTotal(), greaterThan(0L));
+                assertThat(fileStats.getValue().getCount(), greaterThan(0L));
+                assertThat(fileStats.getValue().getMin(), greaterThan(0L));
+                assertThat(fileStats.getValue().getMax(), greaterThan(0L));
             }
 
             ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
@@ -423,8 +421,8 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test");
 
             final SegmentsStats stats2 = engine.segmentsStats(true, false);
-            for (ObjectCursor<String> cursor : stats1.getFiles().keys()) {
-                final String extension = cursor.value;
+            for (Map.Entry<String, SegmentsStats.FileStats> cursor : stats1.getFiles().entrySet()) {
+                final String extension = cursor.getKey();
                 assertThat(stats2.getFiles().get(extension).getTotal(), greaterThan((stats1.getFiles().get(extension).getTotal())));
                 assertThat(stats2.getFiles().get(extension).getCount(), greaterThan((stats1.getFiles().get(extension).getCount())));
                 assertThat(stats2.getFiles().get(extension).getMin(), greaterThan((0L)));
@@ -1874,8 +1872,7 @@ public class InternalEngineTests extends EngineTestCase {
         );
         final Engine.Operation lastOpDoc1 = opsDoc1.get(opsDoc1.size() - 1);
         final String lastFieldValueDoc1;
-        if (lastOpDoc1 instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOpDoc1;
+        if (lastOpDoc1 instanceof Engine.Index index) {
             lastFieldValueDoc1 = index.docs().get(0).get("value");
         } else {
             // delete
@@ -1891,8 +1888,7 @@ public class InternalEngineTests extends EngineTestCase {
         );
         final Engine.Operation lastOpDoc2 = opsDoc2.get(opsDoc2.size() - 1);
         final String lastFieldValueDoc2;
-        if (lastOpDoc2 instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOpDoc2;
+        if (lastOpDoc2 instanceof Engine.Index index) {
             lastFieldValueDoc2 = index.docs().get(0).get("value");
         } else {
             // delete
@@ -1901,8 +1897,7 @@ public class InternalEngineTests extends EngineTestCase {
         // randomly interleave
         final AtomicLong seqNoGenerator = new AtomicLong();
         BiFunction<Engine.Operation, Long, Engine.Operation> seqNoUpdater = (operation, newSeqNo) -> {
-            if (operation instanceof Engine.Index) {
-                Engine.Index index = (Engine.Index) operation;
+            if (operation instanceof Engine.Index index) {
                 LuceneDocument doc = testDocumentWithTextField(index.docs().get(0).get("value"));
                 ParsedDocument parsedDocument = testParsedDocument(index.id(), index.routing(), doc, index.source(), null);
                 return new Engine.Index(
@@ -2109,8 +2104,7 @@ public class InternalEngineTests extends EngineTestCase {
                 versionConflict ? " (conflict " + conflictingVersion + ")" : "",
                 versionedOp ? " (versioned " + correctVersion + ", seqNo " + lastOpSeqNo + ", term " + lastOpTerm + " )" : ""
             );
-            if (op instanceof Engine.Index) {
-                final Engine.Index index = (Engine.Index) op;
+            if (op instanceof final Engine.Index index) {
                 if (versionConflict) {
                     // generate a conflict
                     final Engine.IndexResult result;
@@ -2231,8 +2225,7 @@ public class InternalEngineTests extends EngineTestCase {
         final List<Engine.Operation> ops = generateSingleDocHistory(false, versionType, 2, 2, 20, "1");
         final Engine.Operation lastOp = ops.get(ops.size() - 1);
         final String lastFieldValue;
-        if (lastOp instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOp;
+        if (lastOp instanceof Engine.Index index) {
             lastFieldValue = index.docs().get(0).get("value");
         } else {
             // delete
@@ -2253,8 +2246,7 @@ public class InternalEngineTests extends EngineTestCase {
                 op.seqNo(),
                 op.primaryTerm()
             );
-            if (op instanceof Engine.Index) {
-                final Engine.Index index = (Engine.Index) op;
+            if (op instanceof final Engine.Index index) {
                 Engine.IndexResult result = engine.index(index);
                 if (op.versionType().isVersionConflictForWrites(highestOpVersion, op.version(), docDeleted) == false) {
                     seqNo++;
@@ -2336,8 +2328,7 @@ public class InternalEngineTests extends EngineTestCase {
         final List<Engine.Operation> ops = generateSingleDocHistory(false, VersionType.EXTERNAL, 2, 100, 300, "1");
         final Engine.Operation lastOp = ops.get(ops.size() - 1);
         final String lastFieldValue;
-        if (lastOp instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOp;
+        if (lastOp instanceof Engine.Index index) {
             lastFieldValue = index.docs().get(0).get("value");
         } else {
             // delete

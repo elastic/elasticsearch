@@ -11,11 +11,12 @@ import org.apache.lucene.geo.GeoTestUtil;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
@@ -59,8 +60,7 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
     protected void assertSetValuesBruteAndRecursive(Geometry geometry) throws Exception {
         int precision = randomIntBetween(1, 4);
         UnboundedGeoTileGridTiler tiler = new UnboundedGeoTileGridTiler(precision);
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
-        geometry = indexer.prepareForIndexing(geometry);
+        geometry = GeometryNormalizer.apply(Orientation.CCW, geometry);
         GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
         GeoShapeCellValues recursiveValues = new GeoShapeCellValues(null, tiler, NOOP_BREAKER);
         int recursiveCount;

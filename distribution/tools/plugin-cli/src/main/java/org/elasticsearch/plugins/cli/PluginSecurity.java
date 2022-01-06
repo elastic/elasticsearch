@@ -27,6 +27,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Contains methods for displaying extended plugin permissions to the user, and confirming that
+ * plugin installation can proceed.
+ */
 public class PluginSecurity {
 
     /**
@@ -37,30 +41,45 @@ public class PluginSecurity {
         if (requested.isEmpty()) {
             terminal.println(Verbosity.VERBOSE, "plugin has a policy file with no additional permissions");
         } else {
-
             // sort permissions in a reasonable order
             Collections.sort(requested);
 
-            terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-            terminal.errorPrintln(Verbosity.NORMAL, "@     WARNING: plugin requires additional permissions     @");
-            terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-            // print all permissions:
-            for (String permission : requested) {
-                terminal.errorPrintln(Verbosity.NORMAL, "* " + permission);
+            if (terminal.isHeadless()) {
+                terminal.errorPrintln(
+                    "WARNING: plugin requires additional permissions: ["
+                        + requested.stream().map(each -> '\'' + each + '\'').collect(Collectors.joining(", "))
+                        + "]"
+                );
+                terminal.errorPrintln(
+                    "See https://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html"
+                        + " for descriptions of what these permissions allow and the associated risks."
+                );
+            } else {
+                terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+                terminal.errorPrintln(Verbosity.NORMAL, "@     WARNING: plugin requires additional permissions     @");
+                terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+                // print all permissions:
+                for (String permission : requested) {
+                    terminal.errorPrintln(Verbosity.NORMAL, "* " + permission);
+                }
+                terminal.errorPrintln(
+                    Verbosity.NORMAL,
+                    "See https://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html"
+                );
+                terminal.errorPrintln(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
+
+                if (batch == false) {
+                    prompt(terminal);
+                }
             }
-            terminal.errorPrintln(Verbosity.NORMAL, "See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
-            terminal.errorPrintln(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
-            prompt(terminal, batch);
         }
     }
 
-    private static void prompt(final Terminal terminal, final boolean batch) throws UserException {
-        if (batch == false) {
-            terminal.println(Verbosity.NORMAL, "");
-            String text = terminal.readText("Continue with installation? [y/N]");
-            if (text.equalsIgnoreCase("y") == false) {
-                throw new UserException(ExitCodes.DATA_ERROR, "installation aborted by user");
-            }
+    private static void prompt(final Terminal terminal) throws UserException {
+        terminal.println(Verbosity.NORMAL, "");
+        String text = terminal.readText("Continue with installation? [y/N]");
+        if (text.equalsIgnoreCase("y") == false) {
+            throw new UserException(ExitCodes.DATA_ERROR, "installation aborted by user");
         }
     }
 
@@ -103,7 +122,7 @@ public class PluginSecurity {
     /**
      * Extract a unique set of permissions from the plugin's policy file. Each permission is formatted for output to users.
      */
-    static Set<String> getPermissionDescriptions(PluginPolicyInfo pluginPolicyInfo, Path tmpDir) throws IOException {
+    public static Set<String> getPermissionDescriptions(PluginPolicyInfo pluginPolicyInfo, Path tmpDir) throws IOException {
         Set<Permission> allPermissions = new HashSet<>(PolicyUtil.getPolicyPermissions(null, pluginPolicyInfo.policy, tmpDir));
         for (URL jar : pluginPolicyInfo.jars) {
             Set<Permission> jarPermissions = PolicyUtil.getPolicyPermissions(jar, pluginPolicyInfo.policy, tmpDir);

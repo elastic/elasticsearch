@@ -881,4 +881,47 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertNotSame(currentState, clusterService.state());
     }
 
+    public void testAllSettingStringInterned() {
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+
+        final String index1 = "index-1";
+        final String index2 = "index-2";
+        createIndex(index1, index2);
+        final ClusterService clusterServiceMaster = internalCluster().getInstance(ClusterService.class, masterNode);
+        final ClusterService clusterServiceData = internalCluster().getInstance(ClusterService.class, dataNode);
+        final Settings index1SettingsMaster = clusterServiceMaster.state().metadata().index(index1).getSettings();
+        final Settings index1SettingsData = clusterServiceData.state().metadata().index(index1).getSettings();
+        assertNotSame(index1SettingsMaster, index1SettingsData);
+        assertSame(index1SettingsMaster.get(IndexMetadata.SETTING_INDEX_UUID), index1SettingsData.get(IndexMetadata.SETTING_INDEX_UUID));
+
+        // Create a list of not interned strings to make sure interning setting values works
+        final List<String> queryFieldsSetting = List.of(new String("foo"), new String("bar"), new String("bla"));
+        assertAcked(
+            admin().indices()
+                .prepareUpdateSettings(index1, index2)
+                .setSettings(Settings.builder().putList("query.default_field", queryFieldsSetting))
+        );
+        final Settings updatedIndex1SettingsMaster = clusterServiceMaster.state().metadata().index(index1).getSettings();
+        final Settings updatedIndex1SettingsData = clusterServiceData.state().metadata().index(index1).getSettings();
+        assertNotSame(updatedIndex1SettingsMaster, updatedIndex1SettingsData);
+        assertEqualsAndStringsInterned(queryFieldsSetting, updatedIndex1SettingsMaster);
+        assertEqualsAndStringsInterned(queryFieldsSetting, updatedIndex1SettingsData);
+        assertEqualsAndStringsInterned(queryFieldsSetting, clusterServiceMaster.state().metadata().index(index2).getSettings());
+        assertEqualsAndStringsInterned(queryFieldsSetting, clusterServiceData.state().metadata().index(index2).getSettings());
+    }
+
+    private void assertEqualsAndStringsInterned(List<String> queryFieldsSetting, Settings settings) {
+        final List<String> defaultFields = settings.getAsList("index.query.default_field");
+        assertEquals(queryFieldsSetting, defaultFields);
+        assertNotSame(queryFieldsSetting, defaultFields);
+        // all setting strings should be interned
+        assertSame("foo", defaultFields.get(0));
+        assertSame("bar", defaultFields.get(1));
+        assertSame("bla", defaultFields.get(2));
+        for (String key : settings.keySet()) {
+            assertSame(key, key.intern());
+        }
+    }
+
 }

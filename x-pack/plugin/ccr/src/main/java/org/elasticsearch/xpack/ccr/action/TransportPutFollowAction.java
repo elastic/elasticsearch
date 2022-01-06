@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -274,7 +274,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
     }
 
     private void initiateFollowing(
-        final Client client,
+        final Client clientWithHeaders,
         final PutFollowAction.Request request,
         final ActionListener<PutFollowAction.Response> listener
     ) {
@@ -283,7 +283,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
         resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
         resumeFollowRequest.setParameters(new FollowParameters(parameters));
-        client.execute(
+        clientWithHeaders.execute(
             ResumeFollowAction.INSTANCE,
             resumeFollowRequest,
             ActionListener.wrap(

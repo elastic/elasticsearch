@@ -117,9 +117,10 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
 
         Request bulkRequest = new Request("POST", "/_bulk");
         bulkRequest.setOptions(options);
-        bulkRequest.setJsonEntity(
-            "{\"update\": {\"_index\": \"index1\", \"_id\": \"1\"}}\n" + "{\"doc\": {\"bulk updated\":\"bulk updated\"}}\n"
-        );
+        bulkRequest.setJsonEntity("""
+            {"update": {"_index": "index1", "_id": "1"}}
+            {"doc": {"bulk updated":"bulk updated"}}
+            """);
         getRestClient().performRequest(bulkRequest);
 
         String afterBulk = EntityUtils.toString(getRestClient().performRequest(getRequest).getEntity());

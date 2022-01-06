@@ -27,6 +27,7 @@ public class AckWatchRequest implements Validatable {
         this.actionIds = actionIds;
     }
 
+    @SuppressWarnings("HiddenField")
     private void validateIds(String watchId, String... actionIds) {
         ValidationException exception = new ValidationException();
         if (watchId == null) {

@@ -39,7 +39,7 @@ import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -147,9 +147,13 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -501,10 +505,24 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
-     * are assumed to be at DeprecationLogger.CRITICAL level.
+     * are assumed to be at WARNING level.
      * @param expectedWarnings expected general deprecation warnings.
      */
     protected final void assertWarnings(String... expectedWarnings) {
+        assertWarnings(
+            true,
+            Arrays.stream(expectedWarnings)
+                .map(expectedWarning -> new DeprecationWarning(Level.WARN, expectedWarning))
+                .toArray(DeprecationWarning[]::new)
+        );
+    }
+
+    /**
+     * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
+     * are assumed to be at CRITICAL level.
+     * @param expectedWarnings expected general deprecation warnings.
+     */
+    protected final void assertCriticalWarnings(String... expectedWarnings) {
         assertWarnings(
             true,
             Arrays.stream(expectedWarnings)
@@ -586,6 +604,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         });
     }
 
+    // Tolerate the absence or otherwise denial of these specific lookup classes.
+    // At some future time, we should require the JDNI warning.
+    private static final List<String> LOG_4J_MSG_PREFIXES = List.of(
+        "JNDI lookup class is not available because this JRE does not support JNDI. "
+            + "JNDI string lookups will not be available, continuing configuration.",
+        "JMX runtime input lookup class is not available because this JRE does not support JMX. "
+            + "JMX lookups will not be available, continuing configuration. "
+    );
+
     // separate method so that this can be checked again after suite scoped cluster is shut down
     protected static void checkStaticState() throws Exception {
         LeakTracker.INSTANCE.reportLeak();
@@ -599,7 +626,11 @@ public abstract class ESTestCase extends LuceneTestCase {
                 // StatusData instances to Strings as otherwise their toString output is useless
                 assertThat(
                     statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
-                    empty()
+                    anyOf(
+                        emptyCollectionOf(String.class),
+                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(0)), startsWith(LOG_4J_MSG_PREFIXES.get(1))),
+                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(1)))
+                    )
                 );
             } finally {
                 // we clear the list so that status data from other tests do not interfere with tests within the same JVM
@@ -1670,7 +1701,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static final class DeprecationWarning {
-        private final Level level;
+        private final Level level; // Intentionally ignoring level for the sake of equality for now
         private final String message;
 
         public DeprecationWarning(Level level, String message) {
@@ -1680,7 +1711,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         @Override
         public int hashCode() {
-            return Objects.hash(level, message);
+            return Objects.hash(message);
         }
 
         @Override
@@ -1688,12 +1719,12 @@ public abstract class ESTestCase extends LuceneTestCase {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DeprecationWarning that = (DeprecationWarning) o;
-            return Objects.equals(level, that.level) && Objects.equals(message, that.message);
+            return Objects.equals(message, that.message);
         }
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "%s (%s): %s", level.name(), level.intLevel(), message);
+            return String.format(Locale.ROOT, "%s: %s", level.name(), message);
         }
     }
 }

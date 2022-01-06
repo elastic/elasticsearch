@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
+import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
@@ -31,27 +32,26 @@ public class GeometryDocValueTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testDimensionalShapeType() throws IOException {
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         assertDimensionalShapeType(randomPoint(false), DimensionalShapeType.POINT);
         assertDimensionalShapeType(randomMultiPoint(false), DimensionalShapeType.POINT);
         assertDimensionalShapeType(randomLine(false), DimensionalShapeType.LINE);
         assertDimensionalShapeType(randomMultiLine(false), DimensionalShapeType.LINE);
-        Geometry randoPoly = indexer.prepareForIndexing(randomValueOtherThanMany(g -> {
+        Geometry randoPoly = randomValueOtherThanMany(g -> {
             try {
-                Geometry newGeo = indexer.prepareForIndexing(g);
+                Geometry newGeo = GeometryNormalizer.apply(Orientation.CCW, g);
                 return newGeo.type() != ShapeType.POLYGON;
             } catch (Exception e) {
                 return true;
             }
-        }, () -> randomPolygon(false)));
-        Geometry randoMultiPoly = indexer.prepareForIndexing(randomValueOtherThanMany(g -> {
+        }, () -> randomPolygon(false));
+        Geometry randoMultiPoly = randomValueOtherThanMany(g -> {
             try {
-                Geometry newGeo = indexer.prepareForIndexing(g);
+                Geometry newGeo = GeometryNormalizer.apply(Orientation.CCW, g);
                 return newGeo.type() != ShapeType.MULTIPOLYGON;
             } catch (Exception e) {
                 return true;
             }
-        }, () -> randomMultiPolygon(false)));
+        }, () -> randomMultiPolygon(false));
         assertDimensionalShapeType(randoPoly, DimensionalShapeType.POLYGON);
         assertDimensionalShapeType(randoMultiPoly, DimensionalShapeType.POLYGON);
         assertDimensionalShapeType(
@@ -76,12 +76,17 @@ public class GeometryDocValueTests extends ESTestCase {
         );
         assertDimensionalShapeType(
             randomFrom(
-                new GeometryCollection<>(List.of(randomPoint(false), indexer.prepareForIndexing(randomLine(false)), randoPoly)),
+                new GeometryCollection<>(
+                    List.of(randomPoint(false), GeometryNormalizer.apply(Orientation.CCW, randomLine(false)), randoPoly)
+                ),
                 new GeometryCollection<>(List.of(randomMultiPoint(false), randoMultiPoly)),
                 new GeometryCollection<>(
                     Collections.singletonList(
                         new GeometryCollection<>(
-                            List.of(indexer.prepareForIndexing(randomLine(false)), indexer.prepareForIndexing(randoPoly))
+                            List.of(
+                                GeometryNormalizer.apply(Orientation.CCW, randomLine(false)),
+                                GeometryNormalizer.apply(Orientation.CCW, randoPoly)
+                            )
                         )
                     )
                 )

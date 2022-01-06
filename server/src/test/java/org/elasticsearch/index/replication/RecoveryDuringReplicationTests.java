@@ -132,7 +132,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 1,
                 randomNonNegativeLong(),
                 false,
-                new SourceToParse("index", "replica", new BytesArray("{}"), XContentType.JSON)
+                new SourceToParse("replica", new BytesArray("{}"), XContentType.JSON)
             );
             shards.promoteReplicaToPrimary(promotedReplica).get();
             oldPrimary.close("demoted", randomBoolean());
@@ -146,7 +146,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 promotedReplica.applyIndexOperationOnPrimary(
                     Versions.MATCH_ANY,
                     VersionType.INTERNAL,
-                    new SourceToParse("index", "primary", new BytesArray("{}"), XContentType.JSON),
+                    new SourceToParse("primary", new BytesArray("{}"), XContentType.JSON),
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
                     0,
                     IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
@@ -329,7 +329,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     }
 
     public void testResyncAfterPrimaryPromotion() throws Exception {
-        String mappings = "{ \"_doc\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";
+        String mappings = """
+            { "_doc": { "properties": { "f": { "type": "keyword"} }}}""";
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(2, mappings))) {
             shards.startAll();
             int initialDocs = randomInt(10);

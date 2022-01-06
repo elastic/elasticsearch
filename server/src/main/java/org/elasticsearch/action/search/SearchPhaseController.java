@@ -31,8 +31,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -64,10 +63,10 @@ import java.util.stream.Collectors;
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
-    private final BiFunction<Supplier<Boolean>, SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
+    private final BiFunction<Supplier<Boolean>, SearchRequest, AggregationReduceContext.Builder> requestToAggReduceContextBuilder;
 
     public SearchPhaseController(
-        BiFunction<Supplier<Boolean>, SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder
+        BiFunction<Supplier<Boolean>, SearchRequest, AggregationReduceContext.Builder> requestToAggReduceContextBuilder
     ) {
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
     }
@@ -179,12 +178,10 @@ public final class SearchPhaseController {
         SortField[] sortFields = null;
         String groupField = null;
         Object[] groupValues = null;
-        if (mergedTopDocs instanceof TopFieldDocs) {
-            TopFieldDocs fieldDocs = (TopFieldDocs) mergedTopDocs;
+        if (mergedTopDocs instanceof TopFieldDocs fieldDocs) {
             sortFields = fieldDocs.fields;
-            if (fieldDocs instanceof TopFieldGroups) {
+            if (fieldDocs instanceof TopFieldGroups topFieldGroups) {
                 isSortedByField = (fieldDocs.fields.length == 1 && fieldDocs.fields[0].getType() == SortField.Type.SCORE) == false;
-                TopFieldGroups topFieldGroups = (TopFieldGroups) fieldDocs;
                 groupField = topFieldGroups.field;
                 groupValues = topFieldGroups.groupValues;
             } else {
@@ -203,13 +200,11 @@ public final class SearchPhaseController {
         final int numShards = results.size();
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
-        } else if (topDocs instanceof TopFieldGroups) {
-            TopFieldGroups firstTopDocs = (TopFieldGroups) topDocs;
+        } else if (topDocs instanceof TopFieldGroups firstTopDocs) {
             final Sort sort = new Sort(firstTopDocs.fields);
             final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[numShards]);
             mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
-        } else if (topDocs instanceof TopFieldDocs) {
-            TopFieldDocs firstTopDocs = (TopFieldDocs) topDocs;
+        } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
             final Sort sort = new Sort(firstTopDocs.fields);
             final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
@@ -380,14 +375,14 @@ public final class SearchPhaseController {
      * @param queryResults a list of non-null query shard results
      */
     ReducedQueryPhase reducedScrollQueryPhase(Collection<? extends SearchPhaseResult> queryResults) {
-        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder = new InternalAggregation.ReduceContextBuilder() {
+        AggregationReduceContext.Builder aggReduceContextBuilder = new AggregationReduceContext.Builder() {
             @Override
-            public ReduceContext forPartialReduction() {
+            public AggregationReduceContext forPartialReduction() {
                 throw new UnsupportedOperationException("Scroll requests don't have aggs");
             }
 
             @Override
-            public ReduceContext forFinalReduction() {
+            public AggregationReduceContext forFinalReduction() {
                 throw new UnsupportedOperationException("Scroll requests don't have aggs");
             }
         };
@@ -423,7 +418,7 @@ public final class SearchPhaseController {
         TopDocsStats topDocsStats,
         int numReducePhases,
         boolean isScrollRequest,
-        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
+        AggregationReduceContext.Builder aggReduceContextBuilder,
         boolean performFinalReduce
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
@@ -480,8 +475,7 @@ public final class SearchPhaseController {
                 for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {
                     List<Suggestion<?>> suggestionList = groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>());
                     suggestionList.add(suggestion);
-                    if (suggestion instanceof CompletionSuggestion) {
-                        CompletionSuggestion completionSuggestion = (CompletionSuggestion) suggestion;
+                    if (suggestion instanceof CompletionSuggestion completionSuggestion) {
                         completionSuggestion.setShardIndex(result.getShardIndex());
                     }
                 }
@@ -528,7 +522,7 @@ public final class SearchPhaseController {
     }
 
     private static InternalAggregations reduceAggs(
-        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
+        AggregationReduceContext.Builder aggReduceContextBuilder,
         boolean performFinalReduce,
         List<InternalAggregations> toReduce
     ) {
@@ -679,7 +673,7 @@ public final class SearchPhaseController {
         }
     }
 
-    InternalAggregation.ReduceContextBuilder getReduceContext(Supplier<Boolean> isCanceled, SearchRequest request) {
+    AggregationReduceContext.Builder getReduceContext(Supplier<Boolean> isCanceled, SearchRequest request) {
         return requestToAggReduceContextBuilder.apply(isCanceled, request);
     }
 

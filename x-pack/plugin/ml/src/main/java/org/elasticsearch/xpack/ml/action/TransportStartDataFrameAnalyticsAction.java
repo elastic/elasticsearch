@@ -17,8 +17,8 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -241,7 +240,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 );
                 auditor.warning(jobId, warning);
                 logger.warn("[{}] {}", jobId, warning);
-                HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
+                HeaderWarning.addWarning(warning);
             }
             // Refresh memory requirement for jobs
             memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(
@@ -700,7 +699,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         public PersistentTasksCustomMetadata.Assignment getAssignment(
             TaskParams params,
             Collection<DiscoveryNode> candidateNodes,
-            ClusterState clusterState
+            @SuppressWarnings("HiddenField") ClusterState clusterState
         ) {
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
             Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(

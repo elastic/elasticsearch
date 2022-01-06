@@ -77,60 +77,56 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
         assertThat(
             xContent.utf8ToString(),
             equalTo(
-                "{"
-                    + "\"cluster_uuid\":\"_cluster\","
-                    + "\"timestamp\":\""
-                    + DATE_TIME_FORMATTER.formatMillis(timestamp)
-                    + "\","
-                    + "\"interval_ms\":"
-                    + intervalMillis
-                    + ","
-                    + "\"type\":\"enrich_executing_policy_stats\","
-                    + "\"source_node\":{"
-                    + "\"uuid\":\"_uuid\","
-                    + "\"host\":\"_host\","
-                    + "\"transport_address\":\"_addr\","
-                    + "\"ip\":\"_ip\","
-                    + "\"name\":\"_name\","
-                    + "\"timestamp\":\""
-                    + DATE_TIME_FORMATTER.formatMillis(nodeTimestamp)
-                    + "\""
-                    + "},"
-                    + "\"enrich_executing_policy_stats\":{"
-                    + "\"name\":\""
-                    + executingPolicy.getName()
-                    + "\","
-                    + "\"task\":{"
-                    + "\"node\":\""
-                    + executingPolicy.getTaskInfo().getTaskId().getNodeId()
-                    + "\","
-                    + "\"id\":"
-                    + executingPolicy.getTaskInfo().getTaskId().getId()
-                    + ","
-                    + "\"type\":\""
-                    + executingPolicy.getTaskInfo().getType()
-                    + "\","
-                    + "\"action\":\""
-                    + executingPolicy.getTaskInfo().getAction()
-                    + "\","
-                    + "\"description\":\""
-                    + executingPolicy.getTaskInfo().getDescription()
-                    + "\","
-                    + "\"start_time_in_millis\":"
-                    + executingPolicy.getTaskInfo().getStartTime()
-                    + ","
-                    + "\"running_time_in_nanos\":"
-                    + executingPolicy.getTaskInfo().getRunningTimeNanos()
-                    + ","
-                    + "\"cancellable\":"
-                    + executingPolicy.getTaskInfo().isCancellable()
-                    + (executingPolicy.getTaskInfo().isCancellable() ? ",\"cancelled\":" + executingPolicy.getTaskInfo().isCancelled() : "")
-                    + ","
-                    + header.map(entry -> String.format(Locale.ROOT, "\"headers\":{\"%s\":\"%s\"}", entry.getKey(), entry.getValue()))
-                        .orElse("\"headers\":{}")
-                    + "}"
-                    + "}"
-                    + "}"
+                XContentHelper.stripWhitespace(
+                    """
+                        {
+                          "cluster_uuid": "_cluster",
+                          "timestamp": "%s",
+                          "interval_ms": %s,
+                          "type": "enrich_executing_policy_stats",
+                          "source_node": {
+                            "uuid": "_uuid",
+                            "host": "_host",
+                            "transport_address": "_addr",
+                            "ip": "_ip",
+                            "name": "_name",
+                            "timestamp": "%s"
+                          },
+                          "enrich_executing_policy_stats": {
+                            "name": "%s",
+                            "task": {
+                              "node": "%s",
+                              "id": %s,
+                              "type": "%s",
+                              "action": "%s",
+                              "description": "%s",
+                              "start_time_in_millis": %s,
+                              "running_time_in_nanos": %s,
+                              "cancellable": %s,
+                              %s
+                              "headers": %s
+                            }
+                          }
+                        }""".formatted(
+                        DATE_TIME_FORMATTER.formatMillis(timestamp),
+                        intervalMillis,
+                        DATE_TIME_FORMATTER.formatMillis(nodeTimestamp),
+                        executingPolicy.getName(),
+                        executingPolicy.getTaskInfo().getTaskId().getNodeId(),
+                        executingPolicy.getTaskInfo().getTaskId().getId(),
+                        executingPolicy.getTaskInfo().getType(),
+                        executingPolicy.getTaskInfo().getAction(),
+                        executingPolicy.getTaskInfo().getDescription(),
+                        executingPolicy.getTaskInfo().getStartTime(),
+                        executingPolicy.getTaskInfo().getRunningTimeNanos(),
+                        executingPolicy.getTaskInfo().isCancellable(),
+                        executingPolicy.getTaskInfo().isCancellable()
+                            ? "\"cancelled\": %s,".formatted(executingPolicy.getTaskInfo().isCancelled())
+                            : "",
+                        header.map(entry -> String.format(Locale.ROOT, """
+                            {"%s":"%s"}""", entry.getKey(), entry.getValue())).orElse("{}")
+                    )
+                )
             )
         );
     }

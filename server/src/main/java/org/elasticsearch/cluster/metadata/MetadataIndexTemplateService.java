@@ -7,9 +7,6 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
@@ -28,10 +25,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -41,19 +36,20 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -84,23 +80,35 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 public class MetadataIndexTemplateService {
 
     public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
-    public static final String DEFAULT_TIMESTAMP_MAPPING = "{\n"
-        + "      \"properties\": {\n"
-        + "        \"@timestamp\": {\n"
-        + "          \"type\": \"date\"\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }";
-    public static final String DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING = "{\n"
-        + "\"_routing\" : {\n"
-        + "        \"required\" : true\n"
-        + "      },"
-        + "      \"properties\": {\n"
-        + "        \"@timestamp\": {\n"
-        + "          \"type\": \"date\"\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }";
+    private static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING;
+
+    private static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING;
+
+    static {
+        final Map<String, Map<String, String>> defaultTimestampField = Map.of(
+            DEFAULT_TIMESTAMP_FIELD,
+            Map.of("type", DateFieldMapper.CONTENT_TYPE)
+        );
+        try {
+            DEFAULT_TIMESTAMP_MAPPING = new CompressedXContent(
+                (builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                    .field("properties", defaultTimestampField)
+                    .endObject()
+            );
+            DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING = new CompressedXContent(
+                (builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                    .startObject(RoutingFieldMapper.NAME)
+                    .field("required", true)
+                    .endObject()
+                    .field("properties")
+                    .map(defaultTimestampField)
+                    .endObject()
+            );
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     private static final Logger logger = LogManager.getLogger(MetadataIndexTemplateService.class);
     private final ClusterService clusterService;
     private final AliasValidator aliasValidator;
@@ -108,6 +116,8 @@ public class MetadataIndexTemplateService {
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
     private final NamedXContentRegistry xContentRegistry;
+    private final SystemIndices systemIndices;
+    private final Set<IndexSettingProvider> indexSettingProviders;
 
     @Inject
     public MetadataIndexTemplateService(
@@ -116,7 +126,9 @@ public class MetadataIndexTemplateService {
         AliasValidator aliasValidator,
         IndicesService indicesService,
         IndexScopedSettings indexScopedSettings,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        SystemIndices systemIndices,
+        IndexSettingProviders indexSettingProviders
     ) {
         this.clusterService = clusterService;
         this.aliasValidator = aliasValidator;
@@ -124,6 +136,8 @@ public class MetadataIndexTemplateService {
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
         this.xContentRegistry = xContentRegistry;
+        this.systemIndices = systemIndices;
+        this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
@@ -139,8 +153,8 @@ public class MetadataIndexTemplateService {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     Set<String> templateNames = new HashSet<>();
-                    for (ObjectCursor<String> cursor : currentState.metadata().templates().keys()) {
-                        String templateName = cursor.value;
+                    for (Map.Entry<String, IndexTemplateMetadata> cursor : currentState.metadata().templates().entrySet()) {
+                        String templateName = cursor.getKey();
                         if (Regex.simpleMatch(request.name, templateName)) {
                             templateNames.add(templateName);
                         }
@@ -216,7 +230,7 @@ public class MetadataIndexTemplateService {
         }
 
         CompressedXContent mappings = template.template().mappings();
-        String stringMappings = wrapMappingsIfNecessary(mappings == null ? null : mappings.string(), xContentRegistry);
+        CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
 
         // We may need to normalize index settings, so do that also
         Settings finalSettings = template.template().settings();
@@ -261,18 +275,14 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        final Template finalTemplate = new Template(
-            finalSettings,
-            stringMappings == null ? null : new CompressedXContent(stringMappings),
-            template.template().aliases()
-        );
+        final Template finalTemplate = new Template(finalSettings, wrappedMappings, template.template().aliases());
         final ComponentTemplate finalComponentTemplate = new ComponentTemplate(finalTemplate, template.version(), template.metadata());
 
         if (finalComponentTemplate.equals(existing)) {
             return currentState;
         }
 
-        validateTemplate(finalSettings, stringMappings, indicesService, xContentRegistry);
+        validateTemplate(finalSettings, wrappedMappings, indicesService, xContentRegistry);
         validate(name, finalComponentTemplate);
 
         // Validate all composable index templates that use this component template
@@ -290,7 +300,8 @@ public class MetadataIndexTemplateService {
                         composableTemplateName,
                         composableTemplate,
                         indicesService,
-                        xContentRegistry
+                        xContentRegistry,
+                        systemIndices
                     );
                 } catch (Exception e) {
                     if (validationFailure == null) {
@@ -319,30 +330,29 @@ public class MetadataIndexTemplateService {
     }
 
     @Nullable
-    private static String wrapMappingsIfNecessary(@Nullable String mappings, NamedXContentRegistry xContentRegistry) throws Exception {
+    private static CompressedXContent wrapMappingsIfNecessary(@Nullable CompressedXContent mappings, NamedXContentRegistry xContentRegistry)
+        throws IOException {
         // Mappings in templates don't have to include _doc, so update
         // the mappings to include this single type if necessary
 
-        String stringMappings = mappings;
-        if (stringMappings != null) {
-            Map<String, Object> parsedMappings = MapperService.parseMapping(xContentRegistry, stringMappings);
+        CompressedXContent wrapped = mappings;
+        if (wrapped != null) {
+            Map<String, Object> parsedMappings = MapperService.parseMapping(xContentRegistry, mappings);
             if (parsedMappings.size() > 0) {
                 if (parsedMappings.size() == 1) {
                     final String keyName = parsedMappings.keySet().iterator().next();
                     // Check if it's already wrapped in `_doc`, only rewrap if needed
                     if (MapperService.SINGLE_MAPPING_NAME.equals(keyName) == false) {
-                        stringMappings = Strings.toString(
-                            XContentFactory.jsonBuilder().startObject().field(MapperService.SINGLE_MAPPING_NAME, parsedMappings).endObject()
+                        wrapped = new CompressedXContent(
+                            (builder, params) -> builder.field(MapperService.SINGLE_MAPPING_NAME, parsedMappings)
                         );
                     }
                 } else {
-                    stringMappings = Strings.toString(
-                        XContentFactory.jsonBuilder().startObject().field(MapperService.SINGLE_MAPPING_NAME, parsedMappings).endObject()
-                    );
+                    wrapped = new CompressedXContent((builder, params) -> builder.field(MapperService.SINGLE_MAPPING_NAME, parsedMappings));
                 }
             }
         }
-        return stringMappings;
+        return wrapped;
     }
 
     /**
@@ -430,7 +440,7 @@ public class MetadataIndexTemplateService {
     static void validateNotInUse(Metadata metadata, String... templateNameOrWildcard) {
         final Predicate<String> predicate;
         if (templateNameOrWildcard.length > 1) {
-            predicate = name -> Arrays.stream(templateNameOrWildcard).anyMatch(s -> Objects.equals(s, name));
+            predicate = name -> Arrays.asList(templateNameOrWildcard).contains(name);
         } else {
             predicate = name -> Regex.simpleMatch(templateNameOrWildcard[0], name);
         }
@@ -566,7 +576,7 @@ public class MetadataIndexTemplateService {
                 name
             );
             logger.warn(warning);
-            HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
+            HeaderWarning.addWarning(warning);
         }
 
         ComposableIndexTemplate finalIndexTemplate = template;
@@ -580,13 +590,9 @@ public class MetadataIndexTemplateService {
             // If an inner template was specified, its mappings may need to be
             // adjusted (to add _doc) and it should be validated
             CompressedXContent mappings = innerTemplate.mappings();
-            String stringMappings = wrapMappingsIfNecessary(mappings == null ? null : mappings.string(), xContentRegistry);
+            CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
 
-            final Template finalTemplate = new Template(
-                finalSettings,
-                stringMappings == null ? null : new CompressedXContent(stringMappings),
-                innerTemplate.aliases()
-            );
+            final Template finalTemplate = new Template(finalSettings, wrappedMappings, innerTemplate.aliases());
             finalIndexTemplate = new ComposableIndexTemplate(
                 template.indexPatterns(),
                 finalTemplate,
@@ -603,25 +609,7 @@ public class MetadataIndexTemplateService {
             return currentState;
         }
 
-        validate(name, finalIndexTemplate);
-        validateDataStreamsStillReferenced(currentState, name, finalIndexTemplate);
-
-        // Finally, right before adding the template, we need to ensure that the composite settings,
-        // mappings, and aliases are valid after it's been composed with the component templates
-        try {
-            validateCompositeTemplate(currentState, name, finalIndexTemplate, indicesService, xContentRegistry);
-        } catch (Exception e) {
-            throw new IllegalArgumentException(
-                "composable template ["
-                    + name
-                    + "] template after composition "
-                    + (finalIndexTemplate.composedOf().size() > 0
-                        ? "with component templates " + finalIndexTemplate.composedOf() + " "
-                        : "")
-                    + "is invalid",
-                e
-            );
-        }
+        validateIndexTemplateV2(name, finalIndexTemplate, currentState);
         logger.info(
             "{} index template [{}] for index patterns {}",
             existing == null ? "adding" : "updating",
@@ -629,6 +617,61 @@ public class MetadataIndexTemplateService {
             template.indexPatterns()
         );
         return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.metadata()).put(name, finalIndexTemplate)).build();
+    }
+
+    private void validateIndexTemplateV2(String name, ComposableIndexTemplate indexTemplate, ClusterState currentState) {
+        // Workaround for the fact that start_time and end_time are injected by the MetadataCreateDataStreamService upon creation,
+        // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
+        var finalTemplate = Optional.ofNullable(indexTemplate.template());
+        var finalSettings = Settings.builder();
+
+        // First apply settings sourced from index setting providers:
+        for (var provider : indexSettingProviders) {
+            finalSettings.put(
+                provider.getAdditionalIndexSettings(
+                    "validate-index-name",
+                    indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
+                    currentState.getMetadata(),
+                    System.currentTimeMillis(),
+                    finalTemplate.map(Template::settings).orElse(Settings.EMPTY)
+                )
+            );
+        }
+        // Then apply settings resolved from templates:
+        finalSettings.put(finalTemplate.map(Template::settings).orElse(Settings.EMPTY));
+
+        var templateToValidate = new ComposableIndexTemplate(
+            indexTemplate.indexPatterns(),
+            new Template(
+                finalSettings.build(),
+                finalTemplate.map(Template::mappings).orElse(null),
+                finalTemplate.map(Template::aliases).orElse(null)
+            ),
+            indexTemplate.composedOf(),
+            indexTemplate.priority(),
+            indexTemplate.version(),
+            indexTemplate.metadata(),
+            indexTemplate.getDataStreamTemplate(),
+            indexTemplate.getAllowAutoCreate()
+        );
+
+        validate(name, templateToValidate);
+        validateDataStreamsStillReferenced(currentState, name, templateToValidate);
+
+        // Finally, right before adding the template, we need to ensure that the composite settings,
+        // mappings, and aliases are valid after it's been composed with the component templates
+        try {
+            validateCompositeTemplate(currentState, name, templateToValidate, indicesService, xContentRegistry, systemIndices);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                "composable template ["
+                    + name
+                    + "] template after composition "
+                    + (indexTemplate.composedOf().size() > 0 ? "with component templates " + indexTemplate.composedOf() + " " : "")
+                    + "is invalid",
+                e
+            );
+        }
     }
 
     /**
@@ -697,9 +740,9 @@ public class MetadataIndexTemplateService {
     ) {
         Automaton v2automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
-        for (ObjectObjectCursor<String, IndexTemplateMetadata> cursor : state.metadata().templates()) {
-            String name = cursor.key;
-            IndexTemplateMetadata template = cursor.value;
+        for (Map.Entry<String, IndexTemplateMetadata> cursor : state.metadata().templates().entrySet()) {
+            String name = cursor.getKey();
+            IndexTemplateMetadata template = cursor.getValue();
             Automaton v1automaton = Regex.simpleMatchToAutomaton(template.patterns().toArray(Strings.EMPTY_ARRAY));
             if (Operations.isEmpty(Operations.intersection(v2automaton, v1automaton)) == false) {
                 logger.debug(
@@ -959,7 +1002,7 @@ public class MetadataIndexTemplateService {
                     request.name
                 );
                 logger.warn(warning);
-                HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
+                HeaderWarning.addWarning(warning);
             } else {
                 // Otherwise, this is a hard error, the user should use V2 index templates instead
                 String error = String.format(
@@ -1136,12 +1179,8 @@ public class MetadataIndexTemplateService {
     /**
      * Collect the given v2 template into an ordered list of mappings.
      */
-    public static List<CompressedXContent> collectMappings(
-        final ClusterState state,
-        final String templateName,
-        final String indexName,
-        final NamedXContentRegistry xContentRegistry
-    ) throws Exception {
+    public static List<CompressedXContent> collectMappings(final ClusterState state, final String templateName, final String indexName)
+        throws Exception {
         final ComposableIndexTemplate template = state.metadata().templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve mappings for a template [" + templateName + "] that did not exist in the cluster state";
@@ -1150,7 +1189,7 @@ public class MetadataIndexTemplateService {
         }
 
         final Map<String, ComponentTemplate> componentTemplates = state.metadata().componentTemplates();
-        return collectMappings(template, componentTemplates, indexName, xContentRegistry);
+        return collectMappings(template, componentTemplates, indexName);
     }
 
     /**
@@ -1159,8 +1198,7 @@ public class MetadataIndexTemplateService {
     public static List<CompressedXContent> collectMappings(
         final ComposableIndexTemplate template,
         final Map<String, ComponentTemplate> componentTemplates,
-        final String indexName,
-        final NamedXContentRegistry xContentRegistry
+        final String indexName
     ) throws Exception {
         Objects.requireNonNull(template, "Composable index template must be provided");
         List<CompressedXContent> mappings = template.composedOf()
@@ -1177,9 +1215,9 @@ public class MetadataIndexTemplateService {
             // add a default mapping for the `@timestamp` field, at the lowest precedence, to make bootstrapping data streams more
             // straightforward as all backing indices are required to have a timestamp field
             if (template.getDataStreamTemplate().isAllowCustomRouting()) {
-                mappings.add(0, new CompressedXContent(wrapMappingsIfNecessary(DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING, xContentRegistry)));
+                mappings.add(0, DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING);
             } else {
-                mappings.add(0, new CompressedXContent(wrapMappingsIfNecessary(DEFAULT_TIMESTAMP_MAPPING, xContentRegistry)));
+                mappings.add(0, DEFAULT_TIMESTAMP_MAPPING);
             }
         }
 
@@ -1187,17 +1225,9 @@ public class MetadataIndexTemplateService {
         if (indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
             // Only if template has data stream definition this should be added and
             // adding this template last, since _timestamp field should have highest precedence:
-            Optional.ofNullable(template.getDataStreamTemplate())
-                .map(ComposableIndexTemplate.DataStreamTemplate::getDataStreamMappingSnippet)
-                .map(mapping -> {
-                    try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-                        builder.value(mapping);
-                        return new CompressedXContent(BytesReference.bytes(builder));
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                })
-                .ifPresent(mappings::add);
+            if (template.getDataStreamTemplate() != null) {
+                mappings.add(ComposableIndexTemplate.DataStreamTemplate.DATA_STREAM_MAPPING_SNIPPET);
+            }
         }
         return Collections.unmodifiableList(mappings);
     }
@@ -1258,8 +1288,8 @@ public class MetadataIndexTemplateService {
         templates.forEach(template -> {
             if (template.aliases() != null) {
                 Map<String, AliasMetadata> aliasMeta = new HashMap<>();
-                for (ObjectObjectCursor<String, AliasMetadata> cursor : template.aliases()) {
-                    aliasMeta.put(cursor.key, cursor.value);
+                for (Map.Entry<String, AliasMetadata> cursor : template.aliases().entrySet()) {
+                    aliasMeta.put(cursor.getKey(), cursor.getValue());
                 }
                 resolvedAliases.add(aliasMeta);
             }
@@ -1326,7 +1356,8 @@ public class MetadataIndexTemplateService {
         final String templateName,
         final ComposableIndexTemplate template,
         final IndicesService indicesService,
-        final NamedXContentRegistry xContentRegistry
+        final NamedXContentRegistry xContentRegistry,
+        final SystemIndices systemIndices
     ) throws Exception {
         final ClusterState stateWithTemplate = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata()).put(templateName, template))
@@ -1373,14 +1404,15 @@ public class MetadataIndexTemplateService {
                 // shard id and the current timestamp
                 xContentRegistry,
                 tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                tempIndexService.dateMathExpressionResolverAt(System.currentTimeMillis())
+                tempIndexService.dateMathExpressionResolverAt(System.currentTimeMillis()),
+                systemIndices::isSystemName
             );
 
             // triggers inclusion of _timestamp field and its validation:
             String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;
             // Parse mappings to ensure they are valid after being composed
 
-            List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, indexName, xContentRegistry);
+            List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, indexName);
             try {
                 MapperService mapperService = tempIndexService.mapperService();
                 for (CompressedXContent mapping : mappings) {
@@ -1399,19 +1431,10 @@ public class MetadataIndexTemplateService {
 
     private static void validateTemplate(
         Settings validateSettings,
-        String mappings,
+        CompressedXContent mappings,
         IndicesService indicesService,
         NamedXContentRegistry xContentRegistry
     ) throws Exception {
-        // First check to see if mappings are valid XContent
-        if (mappings != null) {
-            try {
-                new CompressedXContent(mappings);
-            } catch (Exception e) {
-                throw new MapperParsingException("Failed to parse mapping: {}", e, mappings);
-            }
-        }
-
         // Hard to validate settings if they're non-existent, so used empty ones if none were provided
         Settings settings = validateSettings;
         if (settings == null) {
@@ -1592,7 +1615,7 @@ public class MetadataIndexTemplateService {
         Integer version;
         List<String> indexPatterns;
         Settings settings = Settings.EMPTY;
-        String mappings = null;
+        CompressedXContent mappings = null;
         List<Alias> aliases = new ArrayList<>();
 
         TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
@@ -1622,7 +1645,7 @@ public class MetadataIndexTemplateService {
             return this;
         }
 
-        public PutRequest mappings(String mappings) {
+        public PutRequest mappings(CompressedXContent mappings) {
             this.mappings = mappings;
             return this;
         }

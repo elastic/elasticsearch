@@ -12,6 +12,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -28,6 +30,8 @@ import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
@@ -113,11 +117,11 @@ public class Authentication implements ToXContentObject {
         return metadata;
     }
 
-    public boolean isServiceAccount() {
-        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType()) && null == getLookedUpBy();
+    public boolean isAuthenticatedWithServiceAccount() {
+        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType());
     }
 
-    public boolean isApiKey() {
+    public boolean isAuthenticatedWithApiKey() {
         return AuthenticationType.API_KEY.equals(getAuthenticationType());
     }
 
@@ -235,7 +239,7 @@ public class Authentication implements ToXContentObject {
         builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
-        if (isServiceAccount()) {
+        if (isAuthenticatedWithServiceAccount()) {
             final String tokenName = (String) getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD);
             assert tokenName != null : "token name cannot be null";
             final String tokenSource = (String) getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
@@ -261,7 +265,7 @@ public class Authentication implements ToXContentObject {
         }
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
-        if (isApiKey()) {
+        if (isAuthenticatedWithApiKey()) {
             this.assertApiKeyMetadata();
             final String apiKeyId = (String) this.metadata.get(AuthenticationField.API_KEY_ID_KEY);
             final String apiKeyName = (String) this.metadata.get(AuthenticationField.API_KEY_NAME_KEY);
@@ -276,8 +280,6 @@ public class Authentication implements ToXContentObject {
     private void assertApiKeyMetadata() {
         assert (AuthenticationType.API_KEY.equals(this.type) == false) || (this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null)
             : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
-        assert (AuthenticationType.API_KEY.equals(this.type) == false) || (this.metadata.containsKey(AuthenticationField.API_KEY_NAME_KEY))
-            : "API KEY authentication requires metadata to contain API KEY name; the value may be null for older keys.";
     }
 
     @Override
@@ -354,6 +356,18 @@ public class Authentication implements ToXContentObject {
         public String toString() {
             return "{Realm[" + type + "." + name + "] on Node[" + nodeName + "]}";
         }
+    }
+
+    public static ConstructingObjectParser<RealmRef, Void> REALM_REF_PARSER = new ConstructingObjectParser<>(
+        "realm_ref",
+        false,
+        (args, v) -> new RealmRef((String) args[0], (String) args[1], (String) args[2])
+    );
+
+    static {
+        REALM_REF_PARSER.declareString(constructorArg(), new ParseField("name"));
+        REALM_REF_PARSER.declareString(constructorArg(), new ParseField("type"));
+        REALM_REF_PARSER.declareString(constructorArg(), new ParseField("node_name"));
     }
 
     public enum AuthenticationType {

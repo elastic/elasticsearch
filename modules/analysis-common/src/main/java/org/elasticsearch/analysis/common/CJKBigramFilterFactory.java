@@ -41,6 +41,7 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
     private final int flags;
     private final boolean outputUnigrams;
 
+    @SuppressWarnings("HiddenField")
     CJKBigramFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         outputUnigrams = settings.getAsBoolean("output_unigrams", false);

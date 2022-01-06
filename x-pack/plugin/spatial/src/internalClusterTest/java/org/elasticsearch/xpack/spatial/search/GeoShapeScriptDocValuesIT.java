@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.spatial.search;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
@@ -134,15 +135,15 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
     }
 
     public void testRandomShape() throws Exception {
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
-        Geometry geometry = indexer.prepareForIndexing(randomValueOtherThanMany(g -> {
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry geometry = randomValueOtherThanMany(g -> {
             try {
-                indexer.prepareForIndexing(g);
+                indexer.indexShape(g);
                 return false;
             } catch (Exception e) {
                 return true;
             }
-        }, () -> GeometryTestUtils.randomGeometry(false)));
+        }, () -> GeometryTestUtils.randomGeometry(false));
         doTestGeometry(geometry);
     }
 

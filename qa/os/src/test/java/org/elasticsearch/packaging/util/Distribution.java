@@ -43,12 +43,8 @@ public class Distribution {
 
         this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;
         this.hasJdk = filename.contains("no-jdk") == false;
-        String version = filename.split("-", 3)[1];
-        this.baseVersion = version;
-        if (filename.contains("-SNAPSHOT")) {
-            version += "-SNAPSHOT";
-        }
-        this.version = version;
+        this.baseVersion = filename.split("-", 3)[1];
+        this.version = filename.contains("-SNAPSHOT") ? this.baseVersion + "-SNAPSHOT" : this.baseVersion;
     }
 
     public boolean isArchive() {

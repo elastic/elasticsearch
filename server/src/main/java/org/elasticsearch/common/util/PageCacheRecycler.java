@@ -50,14 +50,14 @@ public class PageCacheRecycler {
         1d,
         0d,
         Property.NodeScope,
-        Property.Deprecated
+        Property.DeprecatedWarning
     );
     public static final Setting<Double> WEIGHT_INT_SETTING = Setting.doubleSetting(
         "cache.recycler.page.weight.ints",
         1d,
         0d,
         Property.NodeScope,
-        Property.Deprecated
+        Property.DeprecatedWarning
     );
     // object pages are less useful to us so we give them a lower weight by default
     public static final Setting<Double> WEIGHT_OBJECTS_SETTING = Setting.doubleSetting(

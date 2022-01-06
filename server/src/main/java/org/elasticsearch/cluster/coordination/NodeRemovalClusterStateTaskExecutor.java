@@ -8,10 +8,8 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -19,10 +17,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.List;
 
-public class NodeRemovalClusterStateTaskExecutor
-    implements
-        ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task>,
-        ClusterStateTaskListener {
+public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task> {
 
     private final AllocationService allocationService;
     private final Logger logger;
@@ -89,16 +84,6 @@ public class NodeRemovalClusterStateTaskExecutor
     // rejoin or reroute is needed
     protected ClusterState remainingNodesClusterState(final ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
         return ClusterState.builder(currentState).nodes(remainingNodesBuilder).build();
-    }
-
-    @Override
-    public void onFailure(final String source, final Exception e) {
-        logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-    }
-
-    @Override
-    public void onNoLongerMaster(String source) {
-        logger.debug("no longer master while processing node removal [{}]", source);
     }
 
 }

@@ -44,7 +44,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
@@ -169,9 +169,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
 
         logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
-        try (
-            BackgroundIndexer indexer = new BackgroundIndexer("index1", "_doc", leaderClient(), firstBatchNumDocs, randomIntBetween(1, 5))
-        ) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("index1", leaderClient(), firstBatchNumDocs, randomIntBetween(1, 5))) {
             waitForDocs(randomInt(firstBatchNumDocs), indexer);
             leaderClient().admin().indices().prepareFlush("index1").setWaitIfOngoing(true).get();
             waitForDocs(firstBatchNumDocs, indexer);
@@ -1502,9 +1500,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertTrue(response.isIndexFollowingStarted());
 
         logger.info("Indexing [{}] docs while updating remote config", firstBatchNumDocs);
-        try (
-            BackgroundIndexer indexer = new BackgroundIndexer("index1", "_doc", leaderClient(), firstBatchNumDocs, randomIntBetween(1, 5))
-        ) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("index1", leaderClient(), firstBatchNumDocs, randomIntBetween(1, 5))) {
 
             ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
             String address = getLeaderCluster().getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();

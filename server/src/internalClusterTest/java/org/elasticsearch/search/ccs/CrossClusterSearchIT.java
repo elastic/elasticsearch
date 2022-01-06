@@ -15,7 +15,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -213,7 +213,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             .filter(t -> t.getParentTaskId().isSet() == false)
             .findFirst()
             .get();
-        final CancelTasksRequest cancelRequest = new CancelTasksRequest().setTaskId(rootTask.getTaskId());
+        final CancelTasksRequest cancelRequest = new CancelTasksRequest().setTargetTaskId(rootTask.getTaskId());
         cancelRequest.setWaitForCompletion(randomBoolean());
         final ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().cancelTasks(cancelRequest);
         assertBusy(() -> {

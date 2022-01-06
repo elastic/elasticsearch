@@ -6,31 +6,29 @@
  */
 package org.elasticsearch.xpack.sql.client;
 
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.Streams;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.client.JreHttpUrlConnection.ResponseOrException;
 import org.elasticsearch.xpack.sql.proto.AbstractSqlRequest;
+import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.proto.SqlClearCursorResponse;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.proto.core.Streams;
+import org.elasticsearch.xpack.sql.proto.core.TimeValue;
+import org.elasticsearch.xpack.sql.proto.core.Tuple;
+import org.elasticsearch.xpack.sql.proto.xcontent.ToXContent;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentParser;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.sql.proto.xcontent.XContentType;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.SQLException;
 import java.util.function.Function;
@@ -53,8 +51,6 @@ public class HttpClient {
         this.requestBodyContentType = cfg.binaryCommunication() ? XContentType.CBOR : XContentType.JSON;
     }
 
-    private NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
-
     public boolean ping(long timeoutInMs) throws SQLException {
         return head("/", timeoutInMs);
     }
@@ -69,7 +65,7 @@ public class HttpClient {
         SqlQueryRequest sqlRequest = new SqlQueryRequest(
             query,
             emptyList(),
-            Protocol.TIME_ZONE,
+            CoreProtocol.TIME_ZONE,
             null,
             fetchSize,
             TimeValue.timeValueMillis(cfg.queryTimeout()),
@@ -87,7 +83,7 @@ public class HttpClient {
     }
 
     public SqlQueryResponse query(SqlQueryRequest sqlRequest) throws SQLException {
-        return post(Protocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
+        return post(CoreProtocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
     }
 
     public SqlQueryResponse nextPage(String cursor) throws SQLException {
@@ -99,18 +95,19 @@ public class HttpClient {
             new RequestInfo(Mode.CLI),
             cfg.binaryCommunication()
         );
-        return post(Protocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
+        return post(CoreProtocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
     }
 
     public boolean queryClose(String cursor, Mode mode) throws SQLException {
         SqlClearCursorResponse response = post(
-            Protocol.CLEAR_CURSOR_REST_ENDPOINT,
+            CoreProtocol.CLEAR_CURSOR_REST_ENDPOINT,
             new SqlClearCursorRequest(cursor, new RequestInfo(mode)),
             SqlClearCursorResponse::fromXContent
         );
         return response.isSucceeded();
     }
 
+    @SuppressWarnings({ "removal" })
     private <Request extends AbstractSqlRequest, Response> Response post(
         String path,
         Request request,
@@ -118,7 +115,7 @@ public class HttpClient {
     ) throws SQLException {
         byte[] requestBytes = toXContent(request);
         String query = "error_trace";
-        Tuple<XContentType, byte[]> response = AccessController.doPrivileged(
+        Tuple<XContentType, byte[]> response = java.security.AccessController.doPrivileged(
             (PrivilegedAction<ResponseOrException<Tuple<XContentType, byte[]>>>) () -> JreHttpUrlConnection.http(
                 path,
                 query,
@@ -134,6 +131,7 @@ public class HttpClient {
         return fromXContent(response.v1(), response.v2(), responseParser);
     }
 
+    @SuppressWarnings({ "removal" })
     private boolean head(String path, long timeoutInMs) throws SQLException {
         ConnectionConfiguration pingCfg = new ConnectionConfiguration(
             cfg.baseUri(),
@@ -151,7 +149,7 @@ public class HttpClient {
             cfg.proxyConfig()
         );
         try {
-            return AccessController.doPrivileged(
+            return java.security.AccessController.doPrivileged(
                 (PrivilegedAction<Boolean>) () -> JreHttpUrlConnection.http(path, "error_trace", pingCfg, JreHttpUrlConnection::head)
             );
         } catch (ClientException ex) {
@@ -159,9 +157,10 @@ public class HttpClient {
         }
     }
 
+    @SuppressWarnings({ "removal" })
     private <Response> Response get(String path, CheckedFunction<XContentParser, Response, IOException> responseParser)
         throws SQLException {
-        Tuple<XContentType, byte[]> response = AccessController.doPrivileged(
+        Tuple<XContentType, byte[]> response = java.security.AccessController.doPrivileged(
             (PrivilegedAction<ResponseOrException<Tuple<XContentType, byte[]>>>) () -> JreHttpUrlConnection.http(
                 path,
                 "error_trace",
@@ -212,7 +211,7 @@ public class HttpClient {
     ) {
         try (
             InputStream stream = new ByteArrayInputStream(bytesReference);
-            XContentParser parser = xContentType.xContent().createParser(registry, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)
+            XContentParser parser = xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, stream)
         ) {
             return responseParser.apply(parser);
         } catch (IOException ex) {

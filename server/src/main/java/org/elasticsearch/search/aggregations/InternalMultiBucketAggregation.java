@@ -63,7 +63,7 @@ public abstract class InternalMultiBucketAggregation<
      * Reduce a list of same-keyed buckets (from multiple shards) to a single bucket. This
      * requires all buckets to have the same key.
      */
-    protected abstract B reduceBucket(List<B> buckets, ReduceContext context);
+    protected abstract B reduceBucket(List<B> buckets, AggregationReduceContext context);
 
     @Override
     public abstract List<B> getBuckets();
@@ -117,16 +117,14 @@ public abstract class InternalMultiBucketAggregation<
      */
     public static int countInnerBucket(Aggregation agg) {
         int size = 0;
-        if (agg instanceof MultiBucketsAggregation) {
-            MultiBucketsAggregation multi = (MultiBucketsAggregation) agg;
+        if (agg instanceof MultiBucketsAggregation multi) {
             for (MultiBucketsAggregation.Bucket bucket : multi.getBuckets()) {
                 ++size;
                 for (Aggregation bucketAgg : bucket.getAggregations().asList()) {
                     size += countInnerBucket(bucketAgg);
                 }
             }
-        } else if (agg instanceof SingleBucketAggregation) {
-            SingleBucketAggregation single = (SingleBucketAggregation) agg;
+        } else if (agg instanceof SingleBucketAggregation single) {
             for (Aggregation bucketAgg : single.getAggregations().asList()) {
                 size += countInnerBucket(bucketAgg);
             }
@@ -141,7 +139,7 @@ public abstract class InternalMultiBucketAggregation<
     @Override
     public final InternalAggregation reducePipelines(
         InternalAggregation reducedAggs,
-        ReduceContext reduceContext,
+        AggregationReduceContext reduceContext,
         PipelineTree pipelineTree
     ) {
         assert reduceContext.isFinalReduce();
@@ -182,7 +180,7 @@ public abstract class InternalMultiBucketAggregation<
         }
     }
 
-    private List<B> reducePipelineBuckets(ReduceContext reduceContext, PipelineTree pipelineTree) {
+    private List<B> reducePipelineBuckets(AggregationReduceContext reduceContext, PipelineTree pipelineTree) {
         List<B> reducedBuckets = new ArrayList<>();
         for (B bucket : getBuckets()) {
             List<InternalAggregation> aggs = new ArrayList<>();

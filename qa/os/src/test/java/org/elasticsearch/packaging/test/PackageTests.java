@@ -175,11 +175,13 @@ public class PackageTests extends PackagingTestCase {
             // Before version 231 systemctl returned exit code 3 for both services that were stopped, and nonexistent
             // services [1]. In version 231 and later it returns exit code 4 for non-existent services.
             //
-            // The exception is Centos 7 and oel 7 where it returns exit code 4 for non-existent services from a systemd reporting a version
-            // earlier than 231. Centos 6 does not have an /etc/os-release, but that's fine because it also doesn't use systemd.
+            // The exception is Centos, OEL or RHEL 7 where it returns exit code 4 for non-existent services from a systemd reporting a
+            // version earlier than 231. Centos 6 does not have an /etc/os-release, but that's fine because it also doesn't use systemd.
             //
             // [1] https://github.com/systemd/systemd/pull/3385
-            if (getOsRelease().contains("ID=\"centos\"") || getOsRelease().contains("ID=\"ol\"")) {
+            if (getOsRelease().contains("ID=\"centos\"")
+                || getOsRelease().contains("ID=\"ol\"")
+                || getOsRelease().contains("ID=\"rhel\"")) {
                 statusExitCode = 4;
             } else {
 
@@ -379,7 +381,7 @@ public class PackageTests extends PackagingTestCase {
 
         withCustomConfig(tempConf -> {
             // Create a startup problem by adding an invalid YAML line to the config
-            append(tempConf.resolve("elasticsearch.yml"), "discovery.zen.ping.unicast.hosts:15172.30.5.3416172.30.5.35, 172.30.5.17]\n");
+            append(tempConf.resolve("elasticsearch.yml"), "discovery.seed_hosts:15172.30.5.3416172.30.5.35, 172.30.5.17]\n");
 
             // Make sure we don't pick up the journal entries for previous ES instances.
             Packages.JournaldWrapper journald = new Packages.JournaldWrapper(sh);

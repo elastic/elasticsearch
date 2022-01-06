@@ -29,12 +29,20 @@ final class ElasticServiceAccounts {
             new String[] { "monitor", "manage_own_api_key" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-*", "metrics-*", "traces-*", "synthetics-*", ".logs-endpoint.diagnostic.collection-*")
+                    .indices(
+                        "logs-*",
+                        "metrics-*",
+                        "traces-*",
+                        "synthetics-*",
+                        ".logs-endpoint.diagnostic.collection-*",
+                        ".logs-endpoint.action.responses-*"
+                    )
                     .privileges("write", "create_index", "auto_configure")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-*")
-                    .privileges("read", "write", "monitor", "create_index", "auto_configure")
+                    // Fleet Server needs "maintenance" privilege to be able to perform operations with "refresh"
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
                     .allowRestrictedIndices(true)
                     .build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {

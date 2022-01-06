@@ -547,8 +547,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             sb.append(alreadyExists);
 
             if (response != null) {
-                if (response instanceof DeleteResponse) {
-                    DeleteResponse deleteResponse = (DeleteResponse) response;
+                if (response instanceof DeleteResponse deleteResponse) {
                     sb.append(" response:");
                     sb.append(" index=");
                     sb.append(deleteResponse.getIndex());
@@ -558,8 +557,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                     sb.append(deleteResponse.getVersion());
                     sb.append(" found=");
                     sb.append(deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
-                } else if (response instanceof IndexResponse) {
-                    IndexResponse indexResponse = (IndexResponse) response;
+                } else if (response instanceof IndexResponse indexResponse) {
                     sb.append(" index=");
                     sb.append(indexResponse.getIndex());
                     sb.append(" id=");

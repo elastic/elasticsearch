@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -220,7 +220,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         createIndex(indexName);
 
         int nbDocs = 0;
-        try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), MAX_DOCS)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, client(), MAX_DOCS)) {
             indexer.setFailureAssertion(t -> assertException(t, indexName));
 
             waitForDocs(randomIntBetween(10, 50), indexer);
@@ -298,7 +298,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
 
-        final BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), MAX_DOCS);
+        final BackgroundIndexer indexer = new BackgroundIndexer(indexName, client(), MAX_DOCS);
         indexer.setFailureAssertion(e -> {});
         waitForDocs(1, indexer);
 
@@ -684,16 +684,13 @@ public class CloseIndexIT extends ESIntegTestCase {
 
     static void assertException(final Throwable throwable, final String indexName) {
         final Throwable t = ExceptionsHelper.unwrapCause(throwable);
-        if (t instanceof ClusterBlockException) {
-            ClusterBlockException clusterBlockException = (ClusterBlockException) t;
+        if (t instanceof ClusterBlockException clusterBlockException) {
             assertThat(clusterBlockException.blocks(), hasSize(1));
             assertTrue(clusterBlockException.blocks().stream().allMatch(b -> b.id() == MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID));
-        } else if (t instanceof IndexClosedException) {
-            IndexClosedException indexClosedException = (IndexClosedException) t;
+        } else if (t instanceof IndexClosedException indexClosedException) {
             assertThat(indexClosedException.getIndex(), notNullValue());
             assertThat(indexClosedException.getIndex().getName(), equalTo(indexName));
-        } else if (t instanceof IndexNotFoundException) {
-            IndexNotFoundException indexNotFoundException = (IndexNotFoundException) t;
+        } else if (t instanceof IndexNotFoundException indexNotFoundException) {
             assertThat(indexNotFoundException.getIndex(), notNullValue());
             assertThat(indexNotFoundException.getIndex().getName(), equalTo(indexName));
         } else {

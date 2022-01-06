@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -98,13 +99,14 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         + TEST_SUPERUSER
         + "\n";
 
-    public static final String CONFIG_ROLE_ALLOW_ALL = TEST_ROLE
-        + ":\n"
-        + "  cluster: [ ALL ]\n"
-        + "  indices:\n"
-        + "    - names: '*'\n"
-        + "      allow_restricted_indices: true\n"
-        + "      privileges: [ ALL ]\n";
+    public static final String CONFIG_ROLE_ALLOW_ALL = """
+        %s:
+          cluster: [ ALL ]
+          indices:
+            - names: '*'
+              allow_restricted_indices: true
+              privileges: [ ALL ]
+        """.formatted(TEST_ROLE);
 
     private final Path parentFolder;
     private final String subfolderPrefix;
@@ -163,6 +165,8 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
             .put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), randomBoolean())
             .put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), randomBoolean())
             .put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), randomBoolean())
+            .put(LoggingAuditTrail.EMIT_CLUSTER_NAME_SETTING.getKey(), randomBoolean())
+            .put(LoggingAuditTrail.EMIT_CLUSTER_UUID_SETTING.getKey(), randomBoolean())
             .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".file.order", 0)
             .put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".index.order", "1")
             .put("xpack.license.self_generated.type", "trial");
@@ -175,12 +179,6 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         return nodePath(nodeOrdinal).resolve("config");
     }
 
-    protected void addDefaultSecurityTransportType(Settings.Builder builder, Settings settings) {
-        if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings) == false) {
-            builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), SecurityField.NAME4);
-        }
-    }
-
     @Override
     public Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(
@@ -188,7 +186,8 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
             Netty4Plugin.class,
             ReindexPlugin.class,
             CommonAnalysisPlugin.class,
-            InternalSettingsPlugin.class
+            InternalSettingsPlugin.class,
+            MapperExtrasPlugin.class
         );
     }
 
@@ -257,43 +256,6 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         } else if (randomBoolean()) {
             builder.put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), false);
         }
-    }
-
-    public void addClientSSLSettings(Settings.Builder builder, String prefix) {
-        builder.put("xpack.security.transport.ssl.enabled", sslEnabled);
-        if (usePEM) {
-            addSSLSettingsForPEMFiles(
-                builder,
-                prefix,
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem",
-                "testclient",
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
-                Arrays.asList(
-                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt",
-                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"
-                ),
-                hostnameVerificationEnabled
-            );
-        } else {
-            addSSLSettingsForStore(
-                builder,
-                prefix,
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks",
-                "testclient",
-                hostnameVerificationEnabled
-            );
-        }
-    }
-
-    /**
-     * Returns the configuration settings given the location of a certificate and its password
-     *
-     * @param resourcePathToStore the location of the keystore or truststore
-     * @param password the password
-     */
-    public static void addSSLSettingsForStore(Settings.Builder builder, String resourcePathToStore, String password, String prefix) {
-        addSSLSettingsForStore(builder, prefix, resourcePathToStore, password, true);
     }
 
     private static void addSSLSettingsForStore(

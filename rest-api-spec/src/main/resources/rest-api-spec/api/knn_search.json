@@ -21,7 +21,7 @@
           "parts":{
             "index":{
               "type":"list",
-              "description":"A comma-separated list of index names to search; use `_all` or empty string to perform the operation on all indices"
+              "description":"A comma-separated list of index names to search; use `_all` to perform the operation on all indices"
             }
           }
         }

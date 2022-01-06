@@ -17,7 +17,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -1320,7 +1320,8 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testBuildUserPrivilegeResponse() {
         final ManageApplicationPrivileges manageApplicationPrivileges = new ManageApplicationPrivileges(Sets.newHashSet("app01", "app02"));
-        final BytesArray query = new BytesArray("{\"term\":{\"public\":true}}");
+        final BytesArray query = new BytesArray("""
+            {"term":{"public":true}}""");
         final Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "test", "role")
             .cluster(Sets.newHashSet("monitor", "manage_watcher"), Collections.singleton(manageApplicationPrivileges))
             .add(IndexPrivilege.get(Sets.newHashSet("read", "write")), "index-1")
@@ -1448,6 +1449,13 @@ public class RBACEngineTests extends ESTestCase {
             lookup
         );
         assertThat(authorizedIndices.isEmpty(), is(true));
+    }
+
+    public void testNoInfiniteRecursionForRBACAuthorizationInfoHashCode() {
+        final Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "role").build();
+        // No assertion is needed, the test is successful as long as hashCode calls do not throw error
+        new RBACAuthorizationInfo(role, Role.builder(RESTRICTED_INDICES_AUTOMATON, "authenticated_role").build()).hashCode();
+        new RBACAuthorizationInfo(role, null).hashCode();
     }
 
     private GetUserPrivilegesResponse.Indices findIndexPrivilege(Set<GetUserPrivilegesResponse.Indices> indices, String name) {

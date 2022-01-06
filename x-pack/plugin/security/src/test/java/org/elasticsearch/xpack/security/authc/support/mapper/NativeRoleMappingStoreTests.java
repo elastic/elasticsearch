@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.authc.support.mapper;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -122,7 +122,8 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
-            ScriptModule.CORE_CONTEXTS
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L
         );
         when(securityIndex.isAvailable()).thenReturn(true);
 

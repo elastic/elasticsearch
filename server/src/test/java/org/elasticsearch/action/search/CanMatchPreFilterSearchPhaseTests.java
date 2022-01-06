@@ -13,7 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.CanMatchNodeResponse.ResponseOrFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -45,7 +45,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -822,7 +822,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
         public CoordinatorRewriteContextProvider build() {
             return new CoordinatorRewriteContextProvider(
-                NamedXContentRegistry.EMPTY,
+                XContentParserConfiguration.EMPTY,
                 mock(NamedWriteableRegistry.class),
                 mock(Client.class),
                 System::currentTimeMillis,

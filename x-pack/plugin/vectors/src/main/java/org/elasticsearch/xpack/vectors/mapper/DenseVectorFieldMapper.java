@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.PerFieldKnnVectorsFormatFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -39,7 +40,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.vectors.query.KnnVectorFieldExistsQuery;
-import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
 import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 
 import java.io.IOException;
@@ -294,13 +294,13 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support queries");
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
         public KnnVectorQuery createKnnQuery(float[] queryVector, int numCands) {
             if (isSearchable() == false) {
                 throw new IllegalArgumentException(
-                    "[" + KnnVectorQueryBuilder.NAME + "] " + "queries are not supported if [index] is disabled"
+                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
             }
 
@@ -492,6 +492,13 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexCreatedVersion).init(this);
+    }
+
+    @Override
+    public void doValidate(MappingLookup mappers) {
+        if (indexed && mappers.getNestedParent(name()) != null) {
+            throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields cannot be indexed if they're" + " within [nested] mappings");
+        }
     }
 
     private static IndexOptions parseIndexOptions(String fieldName, Object propNode) {

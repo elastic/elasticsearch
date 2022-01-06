@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.action.shard;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -81,9 +79,8 @@ public class ShardStateAction {
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
 
-    // a list of shards that failed during replication
-    // we keep track of these shards in order to avoid sending duplicate failed shard requests for a single failing shard.
-    private final ResultDeduplicator<FailedShardEntry, Void> remoteFailedShardsDeduplicator = new ResultDeduplicator<>();
+    // we deduplicate these shard state requests in order to avoid sending duplicate failed/started shard requests for a shard
+    private final ResultDeduplicator<TransportRequest, Void> remoteShardStateUpdateDeduplicator = new ResultDeduplicator<>();
 
     @Inject
     public ShardStateAction(
@@ -198,15 +195,26 @@ public class ShardStateAction {
         ActionListener<Void> listener
     ) {
         assert primaryTerm > 0L : "primary term should be strictly positive";
-        remoteFailedShardsDeduplicator.executeOnce(
+        remoteShardStateUpdateDeduplicator.executeOnce(
             new FailedShardEntry(shardId, allocationId, primaryTerm, message, failure, markAsStale),
             listener,
             (req, reqListener) -> sendShardAction(SHARD_FAILED_ACTION_NAME, clusterService.state(), req, reqListener)
         );
     }
 
-    int remoteShardFailedCacheSize() {
-        return remoteFailedShardsDeduplicator.size();
+    int remoteShardRequestsInFlight() {
+        return remoteShardStateUpdateDeduplicator.size();
+    }
+
+    /**
+     * Clears out {@link #remoteShardStateUpdateDeduplicator}. Called by
+     * {@link org.elasticsearch.indices.cluster.IndicesClusterStateService} in case of a master failover to enable sending fresh requests
+     * to the new master right away on master failover.
+     * This method is best effort in so far that it might clear out valid requests in edge cases during master failover. This is not an
+     * issue functionally and merely results in some unnecessary transport requests.
+     */
+    public void clearRemoteShardRequestDeduplicator() {
+        remoteShardStateUpdateDeduplicator.clear();
     }
 
     /**
@@ -590,14 +598,11 @@ public class ShardStateAction {
         final ActionListener<Void> listener,
         final ClusterState currentState
     ) {
-        final StartedShardEntry entry = new StartedShardEntry(
-            shardRouting.shardId(),
-            shardRouting.allocationId().getId(),
-            primaryTerm,
-            message,
-            timestampRange
+        remoteShardStateUpdateDeduplicator.executeOnce(
+            new StartedShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), primaryTerm, message, timestampRange),
+            listener,
+            (req, l) -> sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, req, l)
         );
-        sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, entry, listener);
     }
 
     private static class ShardStartedTransportHandler implements TransportRequestHandler<StartedShardEntry> {
@@ -758,15 +763,15 @@ public class ShardStateAction {
         }
 
         private static boolean assertStartedIndicesHaveCompleteTimestampRanges(ClusterState clusterState) {
-            for (ObjectObjectCursor<String, IndexRoutingTable> cursor : clusterState.getRoutingTable().getIndicesRouting()) {
-                assert cursor.value.allPrimaryShardsActive() == false
-                    || clusterState.metadata().index(cursor.key).getTimestampRange().isComplete()
+            for (Map.Entry<String, IndexRoutingTable> cursor : clusterState.getRoutingTable().getIndicesRouting().entrySet()) {
+                assert cursor.getValue().allPrimaryShardsActive() == false
+                    || clusterState.metadata().index(cursor.getKey()).getTimestampRange().isComplete()
                     : "index ["
-                        + cursor.key
+                        + cursor.getKey()
                         + "] should have complete timestamp range, but got "
-                        + clusterState.metadata().index(cursor.key).getTimestampRange()
+                        + clusterState.metadata().index(cursor.getKey()).getTimestampRange()
                         + " for "
-                        + cursor.value.prettyPrint();
+                        + cursor.getValue().prettyPrint();
             }
             return true;
         }
@@ -843,6 +848,23 @@ public class ShardStateAction {
                 primaryTerm,
                 message
             );
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            StartedShardEntry that = (StartedShardEntry) o;
+            return primaryTerm == that.primaryTerm
+                && shardId.equals(that.shardId)
+                && allocationId.equals(that.allocationId)
+                && message.equals(that.message)
+                && timestampRange.equals(that.timestampRange);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(shardId, allocationId, primaryTerm, message, timestampRange);
         }
     }
 

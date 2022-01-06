@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.CacheableTask;
@@ -21,6 +22,10 @@ import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
+import org.gradle.workers.WorkAction;
+import org.gradle.workers.WorkParameters;
+import org.gradle.workers.WorkQueue;
+import org.gradle.workers.WorkerExecutor;
 
 import java.io.File;
 
@@ -30,23 +35,23 @@ import javax.inject.Inject;
  * Runs LoggerUsageCheck on a set of directories.
  */
 @CacheableTask
-public class LoggerUsageTask extends PrecommitTask {
+public abstract class LoggerUsageTask extends PrecommitTask {
 
     private FileCollection classpath;
-    private ExecOperations execOperations;
 
-    @Inject
-    public LoggerUsageTask(ExecOperations execOperations) {
-        this.execOperations = execOperations;
+    public LoggerUsageTask() {
         setDescription("Runs LoggerUsageCheck on output directories of all source sets");
     }
 
+    @Inject
+    abstract public WorkerExecutor getWorkerExecutor();
+
     @TaskAction
     public void runLoggerUsageTask() {
-        LoggedExec.javaexec(execOperations, spec -> {
-            spec.getMainClass().set("org.elasticsearch.test.loggerusage.ESLoggerUsageChecker");
-            spec.classpath(getClasspath());
-            getClassDirectories().forEach(spec::args);
+        WorkQueue workQueue = getWorkerExecutor().noIsolation();
+        workQueue.submit(LoggerUsageWorkAction.class, parameters -> {
+            parameters.getClasspath().setFrom(getClasspath());
+            parameters.getClassDirectories().setFrom(getClassDirectories());
         });
     }
 
@@ -76,6 +81,31 @@ public class LoggerUsageTask extends PrecommitTask {
             .reduce(FileCollection::plus)
             .orElse(getProject().files())
             .filter(File::exists);
+    }
+
+    abstract static class LoggerUsageWorkAction implements WorkAction<Parameters> {
+
+        private final ExecOperations execOperations;
+
+        @Inject
+        public LoggerUsageWorkAction(ExecOperations execOperations) {
+            this.execOperations = execOperations;
+        }
+
+        @Override
+        public void execute() {
+            LoggedExec.javaexec(execOperations, spec -> {
+                spec.getMainClass().set("org.elasticsearch.test.loggerusage.ESLoggerUsageChecker");
+                spec.classpath(getParameters().getClasspath());
+                getParameters().getClassDirectories().forEach(spec::args);
+            });
+        }
+    }
+
+    interface Parameters extends WorkParameters {
+        ConfigurableFileCollection getClassDirectories();
+
+        ConfigurableFileCollection getClasspath();
     }
 
 }

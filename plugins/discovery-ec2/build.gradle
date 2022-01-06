@@ -109,17 +109,8 @@ tasks.named("check").configure {
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
           // classes are missing
-          'com.amazonaws.jmespath.JmesPathEvaluationVisitor',
           'com.amazonaws.jmespath.JmesPathExpression',
-          'com.amazonaws.jmespath.JmesPathField',
-          'com.amazonaws.jmespath.JmesPathFlatten',
-          'com.amazonaws.jmespath.JmesPathIdentity',
-          'com.amazonaws.jmespath.JmesPathLengthFunction',
-          'com.amazonaws.jmespath.JmesPathLiteral',
-          'com.amazonaws.jmespath.JmesPathProjection',
-          'com.amazonaws.jmespath.JmesPathSubExpression',
           'com.amazonaws.jmespath.ObjectMapperSingleton',
-          'com.amazonaws.jmespath.OpGreaterThan',
           'software.amazon.ion.IonReader',
           'software.amazon.ion.IonSystem',
           'software.amazon.ion.IonType',
@@ -134,6 +125,7 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',
           'org.apache.log.Logger',
+          'javax.jms.Message',
           'javax.xml.bind.DatatypeConverter',
           'javax.xml.bind.JAXBContext'
   )

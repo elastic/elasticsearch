@@ -46,6 +46,8 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
+    private boolean performReroute = true;
+
     public CreateIndexClusterStateUpdateRequest(String cause, String index, String providedName) {
         this.cause = cause;
         this.index = index;
@@ -172,6 +174,15 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public CreateIndexClusterStateUpdateRequest dataStreamName(String dataStreamName) {
         this.dataStreamName = dataStreamName;
+        return this;
+    }
+
+    public boolean performReroute() {
+        return performReroute;
+    }
+
+    public CreateIndexClusterStateUpdateRequest performReroute(boolean performReroute) {
+        this.performReroute = performReroute;
         return this;
     }
 

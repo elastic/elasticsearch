@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.settings.Setting;
@@ -21,6 +22,10 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public final class MachineLearningField {
+
+    public static final String DEPRECATED_ALLOW_NO_JOBS_PARAM = "allow_no_jobs";
+    public static final String DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM = "allow_no_datafeeds";
+
     public static final Setting<Boolean> AUTODETECT_PROCESS = Setting.boolSetting(
         "xpack.ml.autodetect_process",
         true,
@@ -39,6 +44,13 @@ public final class MachineLearningField {
         "api",
         License.OperationMode.PLATINUM
     );
+
+    // Ideally this would be 7.0.0, but it has to be 6.4.0 because due to an oversight it's impossible
+    // for the Java code to distinguish the model states for versions 6.4.0 to 7.9.3 inclusive.
+    public static final Version MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION = Version.fromString("6.4.0");
+    // We tell the user we support model snapshots newer than 7.0.0 as that's the major version
+    // boundary, even though behind the scenes we have to support back to 6.4.0.
+    public static final Version MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION = Version.V_7_0_0;
 
     private MachineLearningField() {}
 

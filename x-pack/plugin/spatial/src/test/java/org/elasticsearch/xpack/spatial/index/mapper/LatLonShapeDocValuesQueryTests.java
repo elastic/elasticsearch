@@ -26,6 +26,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryUtils;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
@@ -64,7 +65,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         // RandomIndexWriter is too slow here:
         IndexWriter w = new IndexWriter(dir, iwc);
         final int numDocs = randomIntBetween(10, 1000);
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, FIELD_NAME);
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, FIELD_NAME);
         for (int id = 0; id < numDocs; id++) {
             Document doc = new Document();
             @SuppressWarnings("unchecked")
@@ -112,7 +113,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         // RandomIndexWriter is too slow here:
         IndexWriter w = new IndexWriter(dir, iwc);
         final int numDocs = randomIntBetween(10, 100);
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, FIELD_NAME);
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, FIELD_NAME);
         for (int id = 0; id < numDocs; id++) {
             Document doc = new Document();
             Geometry geometry = GeometryTestUtils.randomGeometryWithoutCircle(randomIntBetween(1, 5), false);

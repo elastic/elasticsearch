@@ -93,7 +93,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         @Override
         public FieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
-                DEPRECATION_LOGGER.critical(
+                DEPRECATION_LOGGER.warn(
                     DeprecationCategory.MAPPINGS,
                     "point_multifields",
                     "Adding multifields to [point] mappers has no effect and will be forbidden in future"
@@ -233,6 +233,11 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         @Override
         protected void reset(CartesianPoint in, double x, double y) {
             in.reset(x, y);
+        }
+
+        @Override
+        public CartesianPoint normalizeFromSource(CartesianPoint point) {
+            return point;
         }
     }
 }

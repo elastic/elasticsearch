@@ -304,14 +304,7 @@ public class TermVectorsService {
     }
 
     private static Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request) throws IOException {
-        SourceToParse source = new SourceToParse(
-            indexShard.shardId().getIndexName(),
-            "_id_for_tv_api",
-            request.doc(),
-            request.xContentType(),
-            request.routing(),
-            Map.of()
-        );
+        SourceToParse source = new SourceToParse("_id_for_tv_api", request.doc(), request.xContentType(), request.routing(), Map.of());
         DocumentParser documentParser = indexShard.mapperService().documentParser();
         MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
         ParsedDocument parsedDocument = documentParser.parseDocument(source, mappingLookup);

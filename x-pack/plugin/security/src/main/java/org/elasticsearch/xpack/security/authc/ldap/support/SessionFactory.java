@@ -177,7 +177,7 @@ public abstract class SessionFactory implements Closeable {
             final String fullSettingKey = RealmSettings.getFullSettingKey(config, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING);
             final String deprecationKey = "deprecated_setting_" + fullSettingKey.replace('.', '_');
             DeprecationLogger.getLogger(logger.getName())
-                .critical(
+                .warn(
                     DeprecationCategory.SETTINGS,
                     deprecationKey,
                     "the setting [{}] has been deprecated and will be removed in a future version. use [{}] instead",

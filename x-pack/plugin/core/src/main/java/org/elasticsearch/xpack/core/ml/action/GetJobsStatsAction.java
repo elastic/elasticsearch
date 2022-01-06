@@ -58,8 +58,6 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
 
     public static class Request extends BaseTasksRequest<Request> {
 
-        @Deprecated
-        public static final String ALLOW_NO_JOBS = "allow_no_jobs";
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
         private String jobId;
@@ -110,7 +108,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
 
         @Override
         public boolean match(Task task) {
-            return expandedJobsIds.stream().anyMatch(jobId -> OpenJobAction.JobTaskMatcher.match(task, jobId));
+            return expandedJobsIds.stream().anyMatch(id -> OpenJobAction.JobTaskMatcher.match(task, id));
         }
 
         @Override

@@ -35,7 +35,10 @@ public class RestMultiSearchTemplateActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
-        String content = "{ \"index\": \"some_index\" } \n" + "{\"source\": {\"query\" : {\"match_all\" :{}}}} \n";
+        String content = """
+            { "index": "some_index" }
+            {"source": {"query" : {"match_all" :{}}}}
+            """;
         BytesArray bytesContent = new BytesArray(content.getBytes(StandardCharsets.UTF_8));
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
@@ -43,11 +46,14 @@ public class RestMultiSearchTemplateActionTests extends RestActionTestCase {
         ).withMethod(RestRequest.Method.GET).withPath("/some_index/some_type/_msearch/template").withContent(bytesContent, null).build();
 
         dispatchRequest(request);
-        assertWarnings(RestMultiSearchTemplateAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestMultiSearchTemplateAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeInBody() {
-        String content = "{ \"index\": \"some_index\", \"type\": \"some_type\" } \n" + "{\"source\": {\"query\" : {\"match_all\" :{}}}} \n";
+        String content = """
+            { "index": "some_index", "type": "some_type" }\s
+            {"source": {"query" : {"match_all" :{}}}}\s
+            """;
         BytesArray bytesContent = new BytesArray(content.getBytes(StandardCharsets.UTF_8));
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
@@ -55,6 +61,6 @@ public class RestMultiSearchTemplateActionTests extends RestActionTestCase {
         ).withPath("/some_index/_msearch/template").withContent(bytesContent, null).build();
 
         dispatchRequest(request);
-        assertWarnings(RestMultiSearchTemplateAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestMultiSearchTemplateAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

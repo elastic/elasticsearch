@@ -18,8 +18,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -166,13 +166,22 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         final Client client = client();
 
         // Create an index where the mappings have a field data filter
-        assertAcked(
-            prepareCreate("ramtest").setSource(
-                "{\"mappings\": {\"type\": {\"properties\": {\"test\": "
-                    + "{\"type\": \"text\",\"fielddata\": true,\"fielddata_frequency_filter\": {\"max\": 10000}}}}}}",
-                XContentType.JSON
-            )
-        );
+        assertAcked(prepareCreate("ramtest").setSource("""
+            {
+              "mappings": {
+                "type": {
+                  "properties": {
+                    "test": {
+                      "type": "text",
+                      "fielddata": true,
+                      "fielddata_frequency_filter": {
+                        "max": 10000
+                      }
+                    }
+                  }
+                }
+              }
+            }""", XContentType.JSON));
 
         ensureGreen("ramtest");
 
@@ -401,6 +410,44 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             }
         } catch (CircuitBreakingException ex) {
             assertEquals(ex.getByteLimit(), inFlightRequestsLimit.getBytes());
+        }
+    }
+
+    // Test the default value of TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING should
+    // change with the update of USE_REAL_MEMORY_USAGE_SETTING
+    // but should stay the same if it is overridden
+    public void testDynamicUseRealMemory() {
+        final Client client = client();
+        // use_real_memory is set to false for internalTestCluster
+        checkLimitSize(client, 0.7);
+        String useRealMemoryUsageSetting = HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey();
+        String totalCircuitBreakerLimitSettingKey = HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey();
+
+        Settings settings = Settings.builder().put(useRealMemoryUsageSetting, true).build();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+        checkLimitSize(client, 0.95);
+
+        Settings setTrueAndMemorySettings = Settings.builder()
+            .put(totalCircuitBreakerLimitSettingKey, "80%")
+            .put(useRealMemoryUsageSetting, true)
+            .build();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(setTrueAndMemorySettings).get();
+        checkLimitSize(client, 0.8);
+
+        Settings setFalseSettings = Settings.builder().put(useRealMemoryUsageSetting, false).build();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(setFalseSettings).get();
+        checkLimitSize(client, 0.8);
+
+        Settings resetSettings = Settings.builder().putNull(totalCircuitBreakerLimitSettingKey).putNull(useRealMemoryUsageSetting).build();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(resetSettings).get();
+    }
+
+    private void checkLimitSize(Client client, double limitRatio) {
+        NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).setJvm(true).get();
+        for (NodeStats node : stats.getNodes()) {
+            long heapSize = node.getJvm().getMem().getHeapCommitted().getBytes();
+            long limitSize = node.getBreaker().getStats(CircuitBreaker.PARENT).getLimit();
+            assertEquals((long) (heapSize * limitRatio), limitSize);
         }
     }
 }

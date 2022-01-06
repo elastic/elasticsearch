@@ -55,7 +55,7 @@ BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
         keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 
         setting 'xpack.security.authc.api_key.enabled', 'true'
-        if (BuildParams.isSnapshotBuild() == false) {
+        if (BuildParams.isSnapshotBuild() == false && bwcVersion.toString() == project.version) {
             systemProperty 'es.index_mode_feature_flag_registered', 'true'
         }
     }
@@ -78,6 +78,9 @@ BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
         useCluster baseCluster
         dependsOn "${baseName}#oldClusterTest"
         doFirst {
+            if (BuildParams.isSnapshotBuild() == false) {
+                systemProperty 'es.index_mode_feature_flag_registered', 'true'
+            }
             testClusters.named(baseName).get().goToNextVersion()
         }
         systemProperty 'tests.is_old_cluster', 'false'

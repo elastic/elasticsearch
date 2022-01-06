@@ -9,6 +9,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.fielddata.ScriptDocValues.StringsSupplier;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.field.DelegateDocValuesField;
@@ -44,8 +45,8 @@ public class StringScriptFieldData extends BinaryScriptFieldData {
         StringFieldScript script = leafFactory.newInstance(context);
         return new BinaryScriptLeafFieldData() {
             @Override
-            public DocValuesField getScriptField(String name) {
-                return new DelegateDocValuesField(new ScriptDocValues.Strings(getBytesValues()), name);
+            public DocValuesField<?> getScriptField(String name) {
+                return new DelegateDocValuesField(new ScriptDocValues.Strings(new StringsSupplier(getBytesValues())), name);
             }
 
             @Override

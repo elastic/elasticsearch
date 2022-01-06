@@ -15,13 +15,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -32,9 +31,9 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.CancelJobModelSnapshotUpgradeAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
@@ -69,6 +68,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -98,14 +98,12 @@ public class JobManager {
     private final JobConfigProvider jobConfigProvider;
     private final NamedXContentRegistry xContentRegistry;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-
-    private volatile ByteSizeValue maxModelMemoryLimit;
+    private final Supplier<ByteSizeValue> maxModelMemoryLimitSupplier;
 
     /**
      * Create a JobManager
      */
     public JobManager(
-        Settings settings,
         JobResultsProvider jobResultsProvider,
         JobResultsPersister jobResultsPersister,
         ClusterService clusterService,
@@ -114,7 +112,8 @@ public class JobManager {
         Client client,
         UpdateJobProcessNotifier updateJobProcessNotifier,
         NamedXContentRegistry xContentRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<ByteSizeValue> maxModelMemoryLimitSupplier
     ) {
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
@@ -126,13 +125,7 @@ public class JobManager {
         this.jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         this.xContentRegistry = xContentRegistry;
         this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
-        maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(MachineLearningField.MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemoryLimit);
-    }
-
-    private void setMaxModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
-        this.maxModelMemoryLimit = maxModelMemoryLimit;
+        this.maxModelMemoryLimitSupplier = Objects.requireNonNull(maxModelMemoryLimitSupplier);
     }
 
     public void jobExists(String jobId, ActionListener<Boolean> listener) {
@@ -240,7 +233,7 @@ public class JobManager {
         Version minNodeVersion = state.getNodes().getMinNodeVersion();
 
         Job.Builder jobBuilder = request.getJobBuilder();
-        jobBuilder.validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimit);
+        jobBuilder.validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimitSupplier.get());
         jobBuilder.validateModelSnapshotRetentionSettingsAndSetDefaults();
         validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, minNodeVersion);
 
@@ -337,7 +330,7 @@ public class JobManager {
         Runnable doUpdate = () -> jobConfigProvider.updateJobWithValidation(
             request.getJobId(),
             request.getJobUpdate(),
-            maxModelMemoryLimit,
+            maxModelMemoryLimitSupplier.get(),
             this::validate,
             ActionListener.wrap(updatedJob -> postJobUpdate(request, updatedJob, actionListener), actionListener::onFailure)
         );
@@ -378,15 +371,15 @@ public class JobManager {
 
     public void deleteJob(
         DeleteJobAction.Request request,
-        Client client,
+        Client clientToUse,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
         final String jobId = request.getJobId();
 
-        // Step 4. When the job has been removed from the cluster state, return a response
+        // Step 5. When the job has been removed from the config index, return a response
         // -------
-        CheckedConsumer<Boolean, Exception> apiResponseHandler = jobDeleted -> {
+        CheckedConsumer<Boolean, Exception> configResponseHandler = jobDeleted -> {
             if (jobDeleted) {
                 logger.info("Job [" + jobId + "] deleted");
                 auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DELETED));
@@ -396,28 +389,38 @@ public class JobManager {
             }
         };
 
-        // Step 3. When the physical storage has been deleted, delete the job config document
+        // Step 4. When the physical storage has been deleted, delete the job config document
         // -------
         // Don't report an error if the document has already been deleted
-        CheckedConsumer<Boolean, Exception> deleteJobStateHandler = response -> jobConfigProvider.deleteJob(
+        CheckedConsumer<Boolean, Exception> removeFromCalendarsHandler = response -> jobConfigProvider.deleteJob(
             jobId,
             false,
-            ActionListener.wrap(deleteResponse -> apiResponseHandler.accept(Boolean.TRUE), listener::onFailure)
+            ActionListener.wrap(deleteResponse -> configResponseHandler.accept(Boolean.TRUE), listener::onFailure)
         );
 
-        // Step 2. Remove the job from any calendars
-        CheckedConsumer<Boolean, Exception> removeFromCalendarsHandler = response -> jobResultsProvider.removeJobFromCalendars(
+        // Step 3. Remove the job from any calendars
+        CheckedConsumer<Boolean, Exception> deleteJobStateHandler = response -> jobResultsProvider.removeJobFromCalendars(
             jobId,
-            ActionListener.wrap(deleteJobStateHandler, listener::onFailure)
+            ActionListener.wrap(removeFromCalendarsHandler, listener::onFailure)
         );
 
-        // Step 1. Delete the physical storage
-        new JobDataDeleter(client, jobId).deleteJobDocuments(
-            jobConfigProvider,
-            indexNameExpressionResolver,
-            state,
-            removeFromCalendarsHandler,
+        // Step 2. Delete the physical storage
+        ActionListener<CancelJobModelSnapshotUpgradeAction.Response> cancelUpgradesListener = ActionListener.wrap(
+            r -> new JobDataDeleter(clientToUse, jobId).deleteJobDocuments(
+                jobConfigProvider,
+                indexNameExpressionResolver,
+                state,
+                deleteJobStateHandler,
+                listener::onFailure
+            ),
             listener::onFailure
+        );
+
+        // Step 1. Cancel any model snapshot upgrades that might be in progress
+        clientToUse.execute(
+            CancelJobModelSnapshotUpgradeAction.INSTANCE,
+            new CancelJobModelSnapshotUpgradeAction.Request(jobId, "_all"),
+            cancelUpgradesListener
         );
     }
 
@@ -679,7 +682,7 @@ public class JobManager {
         // -------
         JobUpdate update = new JobUpdate.Builder(request.getJobId()).setModelSnapshotId(modelSnapshot.getSnapshotId()).build();
 
-        jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimit, ActionListener.wrap(job -> {
+        jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimitSupplier.get(), ActionListener.wrap(job -> {
             auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
             updateHandler.accept(Boolean.TRUE);
         }, actionListener::onFailure));

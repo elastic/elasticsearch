@@ -39,6 +39,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordScriptFieldType;
@@ -469,7 +470,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 ScriptCompiler.NONE,
                 indexAnalyzers,
                 indexSettings,
-                () -> true
+                new IdFieldMapper(() -> true)
             )
         );
         return mapperService;
@@ -498,8 +499,8 @@ public class SearchExecutionContextTests extends ESTestCase {
                     public LeafFieldData load(LeafReaderContext context) {
                         return new LeafFieldData() {
                             @Override
-                            public DocValuesField getScriptField(String name) {
-                                return new DelegateDocValuesField(new ScriptDocValues<String>() {
+                            public DocValuesField<?> getScriptField(String name) {
+                                return new DelegateDocValuesField(new ScriptDocValues<String>(new ScriptDocValues.Supplier<String>() {
                                     String value;
 
                                     @Override
@@ -508,7 +509,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                                     }
 
                                     @Override
-                                    public String get(int index) {
+                                    public String getInternal(int index) {
                                         assert index == 0;
                                         return value;
                                     }
@@ -519,6 +520,16 @@ public class SearchExecutionContextTests extends ESTestCase {
                                         LeafSearchLookup leafLookup = searchLookup.get().getLeafSearchLookup(context);
                                         leafLookup.setDocument(docId);
                                         value = runtimeDocValues.apply(leafLookup, docId);
+                                    }
+                                }) {
+                                    @Override
+                                    public int size() {
+                                        return supplier.size();
+                                    }
+
+                                    @Override
+                                    public String get(int i) {
+                                        return supplier.getInternal(i);
                                     }
                                 }, name);
                             }
@@ -615,7 +626,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                                     scriptDocValues = indexFieldData.load(context).getScriptField("test").getScriptDocValues();
                                     ;
                                 }
-                                scriptDocValues.setNextDocId(doc);
+                                scriptDocValues.getSupplier().setNextDocId(doc);
                                 for (int i = 0; i < scriptDocValues.size(); i++) {
                                     result.add(scriptDocValues.get(i).toString());
                                 }

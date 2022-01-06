@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembeddi
 import org.elasticsearch.xpack.core.ml.utils.MlParserUtils;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,6 +43,24 @@ import java.util.stream.Collectors;
  * This is a fork and a port of: https://github.com/google/cld3/blob/06f695f1c8ee530104416aab5dcf2d6a1414a56a/src/embedding_network.cc
  */
 public class CustomWordEmbedding implements LenientlyParsedPreProcessor, StrictlyParsedPreProcessor {
+
+    public static class StringLengthAndEmbedding {
+        final int utf8StringLen;
+        final double[] embedding;
+
+        public StringLengthAndEmbedding(int utf8StringLen, double[] embedding) {
+            this.utf8StringLen = utf8StringLen;
+            this.embedding = embedding;
+        }
+
+        public int getUtf8StringLen() {
+            return utf8StringLen;
+        }
+
+        public double[] getEmbedding() {
+            return embedding;
+        }
+    }
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CustomWordEmbedding.class);
     public static final int MAX_STRING_SIZE_IN_BYTES = 10000;
@@ -213,11 +232,79 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         String text = (String) field;
         text = FeatureUtils.cleanAndLowerText(text);
         text = FeatureUtils.truncateToNumValidBytes(text, MAX_STRING_SIZE_IN_BYTES);
-        String finalText = text;
-        List<FeatureValue[]> processedFeatures = FEATURE_EXTRACTORS.stream()
-            .map((featureExtractor) -> featureExtractor.extractFeatures(finalText))
-            .collect(Collectors.toList());
-        fields.put(destField, concatEmbeddings(processedFeatures));
+        final String finalText = text;
+        if (finalText.isEmpty() || finalText.isBlank()) {
+            fields.put(
+                destField,
+                Collections.singletonList(
+                    new StringLengthAndEmbedding(
+                        0,
+                        concatEmbeddings(
+                            FEATURE_EXTRACTORS.stream()
+                                .map((featureExtractor) -> featureExtractor.extractFeatures(finalText))
+                                .collect(Collectors.toList())
+                        )
+                    )
+                )
+            );
+            return;
+        }
+        List<StringLengthAndEmbedding> embeddings = new ArrayList<>();
+        int[] codePoints = finalText.codePoints().toArray();
+        for (int i = 0; i < codePoints.length - 1;) {
+            while (i < codePoints.length - 1 && Character.isLetter(codePoints[i]) == false) {
+                i++;
+            }
+            if (i >= codePoints.length) {
+                break;
+            }
+            Character.UnicodeScript currentCode = Character.UnicodeScript.of(codePoints[i]);
+            int j = i + 1;
+            for (; j < codePoints.length; j++) {
+                while (j < codePoints.length && Character.isLetter(codePoints[j]) == false) {
+                    j++;
+                }
+                if (j >= codePoints.length) {
+                    break;
+                }
+                Character.UnicodeScript j1 = Character.UnicodeScript.of(codePoints[j]);
+                if (j1 != currentCode && j1 != Character.UnicodeScript.INHERITED) {
+                    if (j < codePoints.length - 1) {
+                        Character.UnicodeScript j2 = Character.UnicodeScript.of(codePoints[j + 1]);
+                        if (j2 != Character.UnicodeScript.COMMON && j2 != currentCode) {
+                            break;
+                        }
+                    }
+                }
+            }
+            // Knowing the start and the end of the section is important for feature building, so make sure its wrapped in spaces
+            String str = new String(codePoints, i, j - i);
+            StringBuilder builder = new StringBuilder();
+            if (str.startsWith(" ") == false) {
+                builder.append(" ");
+            }
+            builder.append(str);
+            if (str.endsWith(" ") == false) {
+                builder.append(" ");
+            }
+            embeddings.add(
+                new StringLengthAndEmbedding(
+                    // Don't count white spaces as bytes for the prediction
+                    // We ues utf-8 length here as
+                    // * The original C++ implementation does this when measuring string length
+                    // * Languages with complex characters (like zh) convey more information per a single utf-16 character and
+                    // using utf-8 length captures that.
+                    str.trim().getBytes(StandardCharsets.UTF_8).length,
+                    concatEmbeddings(
+                        FEATURE_EXTRACTORS.stream()
+                            .map((featureExtractor) -> featureExtractor.extractFeatures(builder.toString()))
+                            .collect(Collectors.toList())
+                    )
+                )
+            );
+            i = j;
+        }
+        fields.put(destField, embeddings);
     }
 
     @Override

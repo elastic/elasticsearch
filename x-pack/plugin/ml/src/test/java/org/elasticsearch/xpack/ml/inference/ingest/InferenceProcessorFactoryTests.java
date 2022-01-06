@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.inference.ingest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -191,7 +191,11 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         );
         assertThat(
             ex.getMessage(),
-            equalTo("unrecognized inference configuration type [unknown_type]. Supported types [classification, regression]")
+            equalTo(
+                "unrecognized inference configuration type [unknown_type]."
+                    + " Supported types [classification, regression, fill_mask, ner, pass_through, "
+                    + "text_classification, text_embedding, zero_shot_classification]"
+            )
         );
 
         Map<String, Object> config2 = new HashMap<>() {

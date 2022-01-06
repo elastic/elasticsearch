@@ -22,8 +22,7 @@ public class PathMatchDynamicTemplateTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
 
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/pathmatch/test-data.json");
-        ParsedDocument parsedDoc = mapperService.documentMapper()
-            .parse(new SourceToParse("test", "1", new BytesArray(json), XContentType.JSON));
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(new SourceToParse("1", new BytesArray(json), XContentType.JSON));
 
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
         LuceneDocument doc = parsedDoc.rootDoc();

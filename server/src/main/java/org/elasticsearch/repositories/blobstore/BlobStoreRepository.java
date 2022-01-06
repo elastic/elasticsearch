@@ -149,6 +149,7 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * BlobStore - based implementation of Snapshot Repository
@@ -216,7 +217,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final Setting<Boolean> CACHE_REPOSITORY_DATA = Setting.boolSetting(
         "cache_repository_data",
         true,
-        Setting.Property.Deprecated
+        Setting.Property.DeprecatedWarning
     );
 
     /**
@@ -2673,9 +2674,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             long indexIncrementalSize = 0;
             long indexTotalFileSize = 0;
             final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new LinkedBlockingQueue<>();
-            // If we did not find a set of files that is equal to the current commit we determine the files to upload by comparing files
-            // in the commit with files already in the repository
-            if (filesFromSegmentInfos == null) {
+
+            if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
+                indexCommitPointFiles = Collections.emptyList();
+            } else if (filesFromSegmentInfos == null) {
+                // If we did not find a set of files that is equal to the current commit we determine the files to upload by comparing files
+                // in the commit with files already in the repository
                 indexCommitPointFiles = new ArrayList<>();
                 final Collection<String> fileNames;
                 final Store.MetadataSnapshot metadataFromStore;
@@ -2980,7 +2984,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final boolean added = ongoingRestores.add(shardId);
             assert added : "add restore for [" + shardId + "] that already has an existing restore";
         }
-        executor.execute(ActionRunnable.wrap(ActionListener.runAfter(restoreListener, () -> {
+        executor.execute(ActionRunnable.wrap(ActionListener.runBefore(restoreListener, () -> {
             final List<ActionListener<Void>> onEmptyListeners;
             synchronized (ongoingRestores) {
                 if (ongoingRestores.remove(shardId) && ongoingRestores.isEmpty() && emptyListeners != null) {

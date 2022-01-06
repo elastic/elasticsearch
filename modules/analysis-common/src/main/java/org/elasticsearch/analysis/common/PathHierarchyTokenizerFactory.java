@@ -28,22 +28,22 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
     PathHierarchyTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, settings, name);
         bufferSize = settings.getAsInt("buffer_size", 1024);
-        String delimiter = settings.get("delimiter");
-        if (delimiter == null) {
+        String delimiterString = settings.get("delimiter");
+        if (delimiterString == null) {
             this.delimiter = PathHierarchyTokenizer.DEFAULT_DELIMITER;
-        } else if (delimiter.length() != 1) {
+        } else if (delimiterString.length() != 1) {
             throw new IllegalArgumentException("delimiter must be a one char value");
         } else {
-            this.delimiter = delimiter.charAt(0);
+            this.delimiter = delimiterString.charAt(0);
         }
 
-        String replacement = settings.get("replacement");
-        if (replacement == null) {
+        String replacementString = settings.get("replacement");
+        if (replacementString == null) {
             this.replacement = this.delimiter;
-        } else if (replacement.length() != 1) {
+        } else if (replacementString.length() != 1) {
             throw new IllegalArgumentException("replacement must be a one char value");
         } else {
-            this.replacement = replacement.charAt(0);
+            this.replacement = replacementString.charAt(0);
         }
         this.skip = settings.getAsInt("skip", PathHierarchyTokenizer.DEFAULT_SKIP);
         this.reverse = settings.getAsBoolean("reverse", false);

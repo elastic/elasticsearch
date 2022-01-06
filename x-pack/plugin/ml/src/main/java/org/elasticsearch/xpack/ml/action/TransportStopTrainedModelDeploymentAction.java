@@ -18,8 +18,8 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -109,7 +109,9 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
             return;
         }
 
-        logger.debug("[{}] Received request to undeploy", request.getId());
+        logger.debug(
+            () -> new ParameterizedMessage("[{}] Received request to undeploy{}", request.getId(), request.isForce() ? " (force)" : "")
+        );
 
         ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelsResponse -> {
             List<TrainedModelConfig> models = getModelsResponse.getResources().results();
@@ -136,10 +138,10 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
             IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
             Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
 
-            if (referencedModels.contains(modelId)) {
+            if (request.isForce() == false && referencedModels.contains(modelId)) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        "Cannot stop allocation for model [{}] as it is still referenced by ingest processors",
+                        "Cannot stop deployment for model [{}] as it is referenced by ingest processors; use force to stop the deployment",
                         RestStatus.CONFLICT,
                         modelId
                     )

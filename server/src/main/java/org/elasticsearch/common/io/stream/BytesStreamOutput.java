@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Nullable;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 /**
@@ -127,7 +128,7 @@ public class BytesStreamOutput extends BytesStream {
      *
      * @return the value of the <code>count</code> field, which is the number of valid
      *         bytes in this output stream.
-     * @see java.io.ByteArrayOutputStream#count
+     * @see ByteArrayOutputStream#size()
      */
     public int size() {
         return count;

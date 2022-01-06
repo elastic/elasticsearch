@@ -51,9 +51,9 @@ public class PutRoleRequestTests extends AbstractXContentTestCase<PutRoleRequest
         return false;
     }
 
-    private static Role randomRole(String roleName) {
+    private static Role randomRole(String name) {
         final Role.Builder roleBuilder = Role.builder()
-            .name(roleName)
+            .name(name)
             .clusterPrivileges(randomSubsetOf(randomInt(3), Role.ClusterPrivilegeName.ALL_ARRAY))
             .indicesPrivileges(
                 randomArray(3, IndicesPrivileges[]::new, () -> IndicesPrivilegesTests.createNewRandom(randomAlphaOfLength(3)))

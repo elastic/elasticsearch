@@ -11,8 +11,6 @@ package org.elasticsearch.xcontent.support.filtering;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.support.AbstractFilteringTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -74,7 +72,7 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
             BytesReference sampleBytes = BytesReference.bytes(builtSample);
             try (
                 XContentParser parser = getXContentType().xContent()
-                    .createParser(XContentParserConfiguration.EMPTY.withFiltering(includes, excludes), sampleBytes.streamInput());
+                    .createParser(XContentParserConfiguration.EMPTY.withFiltering(includes, excludes), sampleBytes.streamInput())
             ) {
                 XContentBuilder result = createBuilder();
                 if (sampleBytes.get(sampleBytes.length() - 1) == '\n') {
@@ -110,15 +108,10 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         XContent xContent = XContentFactory.xContent(actual.contentType());
         try (
             XContentParser jsonParser = xContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                XContentParserConfiguration.EMPTY,
                 BytesReference.bytes(expected).streamInput()
             );
-            XContentParser testParser = xContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(actual).streamInput()
-            );
+            XContentParser testParser = xContent.createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(actual).streamInput())
         ) {
             while (true) {
                 XContentParser.Token token1 = jsonParser.nextToken();

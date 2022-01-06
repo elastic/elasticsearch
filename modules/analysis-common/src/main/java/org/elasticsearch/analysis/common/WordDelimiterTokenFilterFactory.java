@@ -44,6 +44,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     private final int flags;
     private final CharArraySet protoWords;
 
+    @SuppressWarnings("HiddenField")
     public WordDelimiterTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 

@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -241,7 +240,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
     public void testInvalidIPFilterClusterSettings() {
         String ipKey = randomFrom("_ip", "_host_ip", "_publish_ip");
-        Setting<String> filterSetting = randomFrom(
+        var filterSetting = randomFrom(
             FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING,
             FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING,
             FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING

@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig.ESTIMATED_HEAP_MEMORY_USAGE_BYTES;
+import static org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig.MODEL_SIZE_BYTES;
 
 public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Response> {
 
@@ -77,13 +77,13 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
 
         @Override
         public ActionRequestValidationException validate() {
-            if (deferDefinitionDecompression && config.getEstimatedHeapMemory() == 0 && config.getCompressedDefinitionIfSet() != null) {
+            if (deferDefinitionDecompression && config.getModelSize() == 0 && config.getCompressedDefinitionIfSet() != null) {
                 ActionRequestValidationException validationException = new ActionRequestValidationException();
                 validationException.addValidationError(
                     "when ["
                         + DEFER_DEFINITION_DECOMPRESSION
                         + "] is true and a compressed definition is provided, "
-                        + ESTIMATED_HEAP_MEMORY_USAGE_BYTES
+                        + MODEL_SIZE_BYTES
                         + " must be set"
                 );
                 return validationException;

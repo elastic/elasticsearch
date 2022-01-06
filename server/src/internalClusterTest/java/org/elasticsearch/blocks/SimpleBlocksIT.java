@@ -395,7 +395,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         final APIBlock block = randomAddableBlock();
         int nbDocs = 0;
         try {
-            try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), 1000)) {
+            try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, client(), 1000)) {
                 indexer.setFailureAssertion(t -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(t);
                     assertThat(cause, instanceOf(ClusterBlockException.class));
@@ -444,8 +444,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
         Consumer<Exception> exceptionConsumer = t -> {
             Throwable cause = ExceptionsHelper.unwrapCause(t);
-            if (cause instanceof ClusterBlockException) {
-                ClusterBlockException e = (ClusterBlockException) cause;
+            if (cause instanceof ClusterBlockException e) {
                 assertThat(e.blocks(), hasSize(1));
                 assertTrue(e.blocks().stream().allMatch(b -> b.id() == block.getBlock().id()));
             } else {

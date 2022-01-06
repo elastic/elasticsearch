@@ -92,7 +92,8 @@ public class OldElasticsearch {
             command.add("-f");
         }
         command.add("-p");
-        command.add(baseDir.resolve("pid").toString().replaceAll("&", "\\&"));
+        Path pidPath = baseDir.relativize(baseDir.resolve("pid"));
+        command.add(pidPath.toString().replaceAll("&", "\\&"));
         ProcessBuilder subprocess = new ProcessBuilder(command);
         Process process = subprocess.start();
         System.out.println("Running " + command);
@@ -131,5 +132,9 @@ public class OldElasticsearch {
         Path tmp = Files.createTempFile(baseDir, null, null);
         Files.write(tmp, Integer.toString(port).getBytes(StandardCharsets.UTF_8));
         Files.move(tmp, baseDir.resolve("ports"), StandardCopyOption.ATOMIC_MOVE);
+
+        tmp = Files.createTempFile(baseDir, null, null);
+        Files.write(tmp, Integer.toString(pid).getBytes(StandardCharsets.UTF_8));
+        Files.move(tmp, baseDir.resolve("pid"), StandardCopyOption.ATOMIC_MOVE);
     }
 }

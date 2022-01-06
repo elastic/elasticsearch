@@ -456,6 +456,9 @@ public abstract class MappedFieldType {
     /**
      * @return if this field type should be matched by a wildcard field expansion
      *
+     * Note that this should only return {@code false} if it is not possible for it to
+     * match on a term query.
+     *
      * @see org.elasticsearch.index.search.QueryParserHelper
      */
     public abstract boolean includeInFieldExpansion(SearchExecutionContext context);

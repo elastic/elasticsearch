@@ -262,8 +262,8 @@ POST _reindex
 === Set a default pipeline
 
 Use the <<index-default-pipeline,`index.default_pipeline`>> index setting to set
-a default pipeline. {es} applies this pipeline if no `pipeline` parameter
-is specified.
+a default pipeline. {es} applies this pipeline to indexing requests if no
+`pipeline` parameter is specified.
 
 [discrete]
 [[set-final-pipeline]]

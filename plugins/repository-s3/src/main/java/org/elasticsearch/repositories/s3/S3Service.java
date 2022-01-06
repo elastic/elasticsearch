@@ -290,9 +290,14 @@ class S3Service implements Closeable {
             }
             // Make sure that a readable symlink to the token file exists in the plugin config directory
             Path webIdentityTokenFileSymlink = environment.configFile().resolve("repository-s3/aws-web-identity-token-file");
+            if (Files.exists(webIdentityTokenFileSymlink) == false) {
+                throw new IllegalStateException(
+                    "A Web Identity Token symlink in the config directory doesn't exist: " + webIdentityTokenFileSymlink
+                );
+            }
             if (Files.isReadable(webIdentityTokenFileSymlink) == false) {
                 throw new IllegalStateException(
-                    "Unable to read web identity token symlink in the config directory: " + webIdentityTokenFileSymlink
+                    "Unable to read a Web Identity Token symlink in the config directory: " + webIdentityTokenFileSymlink
                 );
             }
             String roleArn = System.getenv(AWS_ROLE_ARN_ENV_VAR);

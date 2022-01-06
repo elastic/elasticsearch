@@ -69,7 +69,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
     public void testCreatedWhenAfterOtherMlIndex() throws Exception {
         // Creating a document in the .ml-notifications-000002 index should cause .ml-annotations
         // to be created, as it should get created as soon as any other ML index exists
-        createAnnotation();
+        createNotification();
 
         assertBusy(() -> {
             assertTrue(annotationsIndexExists(AnnotationIndex.INDEX_NAME));
@@ -80,7 +80,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
     public void testReindexing() throws Exception {
         // Creating a document in the .ml-notifications-000002 index should cause .ml-annotations
         // to be created, as it should get created as soon as any other ML index exists
-        createAnnotation();
+        createNotification();
 
         assertBusy(() -> {
             assertTrue(annotationsIndexExists(AnnotationIndex.INDEX_NAME));
@@ -122,7 +122,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
     public void testReindexingWithLostAliases() throws Exception {
         // Creating a document in the .ml-notifications-000002 index should cause .ml-annotations
         // to be created, as it should get created as soon as any other ML index exists
-        createAnnotation();
+        createNotification();
 
         assertBusy(() -> {
             assertTrue(annotationsIndexExists(AnnotationIndex.INDEX_NAME));
@@ -163,7 +163,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         try {
             // Creating a document in the .ml-notifications-000002 index would normally cause .ml-annotations
             // to be created, but in this case it shouldn't as we're doing an upgrade
-            createAnnotation();
+            createNotification();
 
             assertBusy(() -> {
                 try {
@@ -254,7 +254,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         // no point in this test as there's nothing in the old index.
     }
 
-    private void createAnnotation() {
+    private void createNotification() {
         AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class));
         auditor.info("whatever", "blah");
     }

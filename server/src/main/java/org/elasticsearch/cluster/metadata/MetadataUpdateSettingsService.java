@@ -37,6 +37,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.index.IndexSettings.same;
@@ -160,11 +161,29 @@ public class MetadataUpdateSettingsService {
                     }
 
                     if (openIndices.isEmpty() == false) {
-                        updateIndexSettings(openIndices, metadataBuilder, true, openSettings);
+                        updateIndexSettings(
+                            openIndices,
+                            metadataBuilder,
+                            (index, indexSettings) -> indexScopedSettings.updateDynamicSettings(
+                                openSettings,
+                                indexSettings,
+                                Settings.builder(),
+                                index.getName()
+                            )
+                        );
                     }
 
                     if (closeIndices.isEmpty() == false) {
-                        updateIndexSettings(closeIndices, metadataBuilder, false, closedSettings);
+                        updateIndexSettings(
+                            closeIndices,
+                            metadataBuilder,
+                            (index, indexSettings) -> indexScopedSettings.updateSettings(
+                                closedSettings,
+                                indexSettings,
+                                Settings.builder(),
+                                index.getName()
+                            )
+                        );
                     }
 
                     if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(normalizedSettings)
@@ -226,18 +245,15 @@ public class MetadataUpdateSettingsService {
                     return updatedState;
                 }
 
-                private void updateIndexSettings(Set<Index> indices, Metadata.Builder metadataBuilder, boolean dynamic, Settings settings) {
+                private void updateIndexSettings(
+                    Set<Index> indices,
+                    Metadata.Builder metadataBuilder,
+                    BiFunction<Index, Settings.Builder, Boolean> settingUpdater
+                ) {
                     for (Index index : indices) {
                         IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
-                        Settings.Builder updates = Settings.builder();
                         Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
-                        boolean updated = false;
-                        if (dynamic) {
-                            updated = indexScopedSettings.updateDynamicSettings(settings, indexSettings, updates, index.getName());
-                        } else {
-                            updated = indexScopedSettings.updateSettings(settings, indexSettings, updates, index.getName());
-                        }
-                        if (updated) {
+                        if (settingUpdater.apply(index, indexSettings)) {
                             if (preserveExisting) {
                                 indexSettings.put(indexMetadata.getSettings());
                             }
@@ -256,10 +272,7 @@ public class MetadataUpdateSettingsService {
                                 );
                             }
                             Settings finalSettings = indexSettings.build();
-                            indexScopedSettings.validate(
-                                finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false),
-                                true
-                            );
+                            indexScopedSettings.validate(finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
                             metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(finalSettings));
                         }
                     }

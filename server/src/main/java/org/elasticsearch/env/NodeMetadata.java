@@ -94,7 +94,14 @@ public final class NodeMetadata {
     public NodeMetadata upgradeToCurrentVersion() {
         if (nodeVersion.before(Version.CURRENT.minimumCompatibilityVersion())) {
             throw new IllegalStateException(
-                "cannot upgrade a node from version [" + nodeVersion + "] directly to version [" + Version.CURRENT + "]"
+                "cannot upgrade a node from version ["
+                    + nodeVersion
+                    + "] directly to version ["
+                    + Version.CURRENT
+                    + "], "
+                    + "upgrade to version ["
+                    + Version.CURRENT.minimumCompatibilityVersion()
+                    + "] first."
             );
         }
 

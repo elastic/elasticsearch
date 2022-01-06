@@ -120,7 +120,6 @@ public final class QueryParserHelper {
         String fieldSuffix
     ) {
         Set<String> allFields = context.getMatchingFieldNames(fieldOrPattern);
-        boolean wildcardMatch = allFields.size() > 1;
         Map<String, Float> fields = new HashMap<>();
 
         for (String fieldName : allFields) {
@@ -134,13 +133,8 @@ public final class QueryParserHelper {
                 continue;
             }
 
-            if (wildcardMatch && fieldType.includeInFieldExpansion(context) == false) {
-                // Ignore fields in the mappings that are not present in the lucene index
-                continue;
-            }
-
             if (acceptAllTypes == false) {
-                if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
+                if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE || fieldType.includeInFieldExpansion(context) == false) {
                     continue;
                 }
             }

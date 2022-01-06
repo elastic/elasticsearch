@@ -71,7 +71,7 @@ public class QueryParserHelperTests extends MapperServiceTestCase {
             // field1 and field2 are present in the index, so they get resolved; field3 is in the mappings but
             // not in the actual index, so it is ignored
             {
-                Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context, Map.of("*", 1.0f));
+                Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context, Map.of("field*", 1.0f));
                 assertThat(resolvedFields.keySet(), containsInAnyOrder("field1", "field2"));
                 assertFalse(resolvedFields.containsKey("field3"));
             }

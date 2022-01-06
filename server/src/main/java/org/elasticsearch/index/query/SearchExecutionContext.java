@@ -10,6 +10,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
@@ -100,6 +102,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final IndexSearcher searcher;
     private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
+    private Set<String> fieldsInIndex = null;
 
     private final Index fullyQualifiedIndex;
     private final Predicate<String> indexNameMatcher;
@@ -656,12 +659,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (searcher == null) {
             return false;
         }
-        for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
-            if (ctx.reader().getFieldInfos().fieldInfo(fieldname) != null) {
-                return true;
+        if (fieldsInIndex == null) {
+            fieldsInIndex = new HashSet<>();
+            for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
+                FieldInfos fis = ctx.reader().getFieldInfos();
+                for (FieldInfo fi : fis) {
+                    fieldsInIndex.add(fi.name);
+                }
             }
         }
-        return false;
+        return fieldsInIndex.contains(fieldname);
     }
 
     /**

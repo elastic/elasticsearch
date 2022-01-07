@@ -89,7 +89,6 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                         test.systemProperty("java.locale.providers", "SPI,COMPAT");
                         test.jvmArgs(
                             "--illegal-access=deny",
-                            "-Djava.security.manager=allow",
                             // TODO: only open these for mockito when it is modularized
                             "--add-opens=java.base/java.security.cert=ALL-UNNAMED",
                             "--add-opens=java.base/java.nio.channels=ALL-UNNAMED",
@@ -98,6 +97,11 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                             "--add-opens=java.base/java.nio.file=ALL-UNNAMED",
                             "--add-opens=java.base/java.time=ALL-UNNAMED",
                             "--add-opens=java.management/java.lang.management=ALL-UNNAMED"
+                        );
+                    }
+                    if (BuildParams.getRuntimeJavaVersion().isCompatibleWith(JavaVersion.VERSION_18)) {
+                        test.jvmArgs(
+                            "-Djava.security.manager=allow"
                         );
                     }
                 }

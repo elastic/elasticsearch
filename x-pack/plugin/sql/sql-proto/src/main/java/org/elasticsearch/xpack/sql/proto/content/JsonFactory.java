@@ -15,9 +15,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-/**
- * Jackson JSON/CBOR parser.
- */
 class JsonFactory {
     private static final com.fasterxml.jackson.core.JsonFactory jsonFactory;
 

@@ -23,6 +23,7 @@ import java.util.function.Supplier;
 
 /**
  * Utility class providing equivalent functionality for XContentParser.
+ * Contains snippets of code from AbstractObjectParsers.
  */
 public class ParserUtils {
 

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.sql.proto.core;
 import java.util.function.BiConsumer;
 
 /**
+ * NB: Light-clone from Core/Common library to keep JDBC driver independent.
+ *
  * A {@link BiConsumer}-like interface which allows throwing checked exceptions.
  */
 @FunctionalInterface

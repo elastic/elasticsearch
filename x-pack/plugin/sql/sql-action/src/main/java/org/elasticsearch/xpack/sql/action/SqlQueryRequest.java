@@ -44,6 +44,7 @@ import static org.elasticsearch.xpack.sql.action.Protocol.WAIT_FOR_COMPLETION_TI
  * Request to perform an sql query
  */
 public class SqlQueryRequest extends AbstractSqlQueryRequest {
+    private static final ObjectParser<SqlQueryRequest, Void> PARSER = objectParser(SqlQueryRequest::new);
     static final ParseField COLUMNAR = new ParseField(COLUMNAR_NAME);
     static final ParseField FIELD_MULTI_VALUE_LENIENCY = new ParseField(FIELD_MULTI_VALUE_LENIENCY_NAME);
     static final ParseField INDEX_INCLUDE_FROZEN = new ParseField(INDEX_INCLUDE_FROZEN_NAME);
@@ -51,7 +52,6 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField(WAIT_FOR_COMPLETION_TIMEOUT_NAME);
     static final ParseField KEEP_ON_COMPLETION = new ParseField(KEEP_ON_COMPLETION_NAME);
     static final ParseField KEEP_ALIVE = new ParseField(KEEP_ALIVE_NAME);
-    private static final ObjectParser<SqlQueryRequest, Void> PARSER = objectParser(SqlQueryRequest::new);
 
     static {
         PARSER.declareString(SqlQueryRequest::cursor, CURSOR);
@@ -124,6 +124,15 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         this.keepAlive = keepAlive;
     }
 
+    @Override
+    public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationException = super.validate();
+        if (Strings.hasText(query()) == false && Strings.hasText(cursor) == false) {
+            validationException = addValidationError("one of [query] or [cursor] is required", validationException);
+        }
+        return validationException;
+    }
+
     public SqlQueryRequest(StreamInput in) throws IOException {
         super(in);
         cursor = in.readString();
@@ -138,25 +147,10 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         }
     }
 
-    public static SqlQueryRequest fromXContent(XContentParser parser) {
-        SqlQueryRequest request = PARSER.apply(parser, null);
-        validateParams(request.params(), request.mode());
-        return request;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = super.validate();
-        if (Strings.hasText(query()) == false && Strings.hasText(cursor) == false) {
-            validationException = addValidationError("one of [query] or [cursor] is required", validationException);
-        }
-        return validationException;
-    }
-
     /**
-     * The key that must be sent back to SQL to access the next page of
-     * results.
-     */
+    * The key that must be sent back to SQL to access the next page of
+    * results.
+    */
     public String cursor() {
         return cursor;
     }
@@ -308,5 +302,11 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     @Override
     public String getDescription() {
         return "SQL [" + query() + "][" + filter() + "]";
+    }
+
+    public static SqlQueryRequest fromXContent(XContentParser parser) {
+        SqlQueryRequest request = PARSER.apply(parser, null);
+        validateParams(request.params(), request.mode());
+        return request;
     }
 }

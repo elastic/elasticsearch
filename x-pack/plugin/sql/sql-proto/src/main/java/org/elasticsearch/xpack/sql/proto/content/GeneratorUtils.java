@@ -113,8 +113,6 @@ public class GeneratorUtils {
         WRITERS.put(Locale.class, valueWriter((p, v) -> p.writeString(v.toString())));
         WRITERS.put(Class.class, valueWriter((p, v) -> p.writeString(v.toString())));
         WRITERS.put(ZonedDateTime.class, valueWriter((p, v) -> p.writeString(StringUtils.toString(v))));
-        // writers.put(Calendar.class, XContentBuilder::timeValue);
-        // writers.put(GregorianCalendar.class, XContentBuilder::timeValue);
         WRITERS.put(BigInteger.class, valueWriter((p, v) -> p.writeNumber((BigInteger) v)));
         WRITERS.put(BigDecimal.class, valueWriter((p, v) -> p.writeNumber((BigDecimal) v)));
     }

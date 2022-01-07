@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.sql.proto.core;
 
 /**
+ * NB: Light-clone from Core/Common library to keep JDBC driver independent.
+ *
  * A {@link java.util.function.BiFunction}-like interface which allows throwing checked exceptions.
  */
 @FunctionalInterface

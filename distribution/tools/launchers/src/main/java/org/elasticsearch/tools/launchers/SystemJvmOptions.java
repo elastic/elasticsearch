@@ -30,8 +30,6 @@ final class SystemJvmOptions {
                  * networkaddress.cache.negative ttl; set to -1 to cache forever.
                  */
                 "-Des.networkaddress.cache.negative.ttl=10",
-                // Allow to set the security manager.
-                "-Djava.security.manager=allow",
                 // pre-touch JVM emory pages during initialization
                 "-XX:+AlwaysPreTouch",
                 // explicitly set the stack size
@@ -60,7 +58,8 @@ final class SystemJvmOptions {
                 "-Dlog4j2.formatMsgNoLookups=true",
 
                 javaLocaleProviders(),
-                maybeAddOpensJavaIoToAllUnnamed()
+                maybeAddOpensJavaIoToAllUnnamed(),
+                maybeAllowSecurityManager()
             )
         ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }
@@ -72,6 +71,16 @@ final class SystemJvmOptions {
             return "";
         }
     }
+
+    // The security manager needs to be explicitly allowed on JDK 18+.
+    private static String maybeAllowSecurityManager() {
+        if (JavaVersion.majorVersion(JavaVersion.CURRENT) >= 18) {
+            return "-Djava.security.manager=allow";
+        } else {
+            return "";
+        }
+    }
+
 
     private static String javaLocaleProviders() {
         /**

@@ -54,18 +54,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
-    protected static class TestFieldSetting {
-        public final String name;
-        public final boolean storedOffset;
-        public final boolean storedPayloads;
-        public final boolean storedPositions;
-
-        public TestFieldSetting(String name, boolean storedOffset, boolean storedPayloads, boolean storedPositions) {
-            this.name = name;
-            this.storedOffset = storedOffset;
-            this.storedPayloads = storedPayloads;
-            this.storedPositions = storedPositions;
-        }
+    protected record TestFieldSetting(String name, boolean storedOffset, boolean storedPayloads, boolean storedPositions) {
 
         public void addToMappings(XContentBuilder mappingsBuilder) throws IOException {
             mappingsBuilder.startObject(name);
@@ -92,21 +81,6 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
             }
 
             mappingsBuilder.endObject();
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sb = new StringBuilder("name: ").append(name).append(" tv_with:");
-            if (storedPayloads) {
-                sb.append("payloads,");
-            }
-            if (storedOffset) {
-                sb.append("offsets,");
-            }
-            if (storedPositions) {
-                sb.append("positions,");
-            }
-            return sb.toString();
         }
     }
 

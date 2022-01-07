@@ -17,21 +17,13 @@ import java.util.Objects;
  * Information about a certificate that is locally stored.It includes a reference to the {@link X509Certificate} itself,
  * as well as information about where it was loaded from.
  */
-public final class StoredCertificate {
-
-    private final X509Certificate certificate;
-
-    @Nullable
-    // Will be null in PKCS#11
-    private final String path;
-
-    private final String format;
-
-    @Nullable
-    // Will be null in PEM
-    private final String alias;
-
-    private final boolean hasPrivateKey;
+public record StoredCertificate(
+    X509Certificate certificate,
+    @Nullable String path,
+    String format,
+    @Nullable String alias,
+    boolean hasPrivateKey
+) {
 
     public StoredCertificate(X509Certificate certificate, String path, String format, String alias, boolean hasPrivateKey) {
         this.certificate = Objects.requireNonNull(certificate, "Certificate may not be null");
@@ -55,10 +47,6 @@ public final class StoredCertificate {
 
     public String getAlias() {
         return alias;
-    }
-
-    public boolean hasPrivateKey() {
-        return hasPrivateKey;
     }
 
     @Override

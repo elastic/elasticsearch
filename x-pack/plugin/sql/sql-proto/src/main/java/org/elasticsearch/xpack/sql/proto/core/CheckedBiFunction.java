@@ -4,13 +4,13 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.sql.client;
 
-import java.util.function.BiFunction;
+package org.elasticsearch.xpack.sql.proto.core;
 
 /**
- * A {@link BiFunction}-like interface which allows throwing checked exceptions.
- * Elasticsearch has one of these but we don't depend on Elasticsearch.
+ * NB: Light-clone from Core/Common library to keep JDBC driver independent.
+ *
+ * A {@link java.util.function.BiFunction}-like interface which allows throwing checked exceptions.
  */
 @FunctionalInterface
 public interface CheckedBiFunction<T, U, R, E extends Exception> {

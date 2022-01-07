@@ -110,7 +110,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     );
 
-    private static final int TAIL_LOG_MESSAGES_COUNT = 100;
+    private static final int TAIL_LOG_MESSAGES_COUNT = 40;
     private static final List<String> MESSAGES_WE_DONT_CARE_ABOUT = Arrays.asList(
         "Option UseConcMarkSweepGC was deprecated",
         "is a pre-release version of Elasticsearch",

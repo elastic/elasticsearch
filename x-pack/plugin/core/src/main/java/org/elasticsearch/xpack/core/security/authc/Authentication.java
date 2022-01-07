@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -32,12 +33,14 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
 public class Authentication implements ToXContentObject {
 
     public static final Version VERSION_API_KEY_ROLES_AS_BYTES = Version.V_7_9_0;
+    public static final Version VERSION_REALM_DOMAINS = Version.V_8_1_0;
 
     private final User user;
     private final RealmRef authenticatedBy;
@@ -301,23 +304,37 @@ public class Authentication implements ToXContentObject {
         private final String nodeName;
         private final String name;
         private final String type;
+        private final @Nullable String domain;
 
         public RealmRef(String name, String type, String nodeName) {
+            this(name, type, nodeName, null);
+        }
+
+        public RealmRef(String name, String type, String nodeName, @Nullable String domain) {
             this.nodeName = nodeName;
             this.name = name;
             this.type = type;
+            this.domain = domain;
         }
 
         public RealmRef(StreamInput in) throws IOException {
             this.nodeName = in.readString();
             this.name = in.readString();
             this.type = in.readString();
+            if (in.getVersion().onOrAfter(VERSION_REALM_DOMAINS)) {
+                this.domain = in.readOptionalString();
+            } else {
+                this.domain = null;
+            }
         }
 
         void writeTo(StreamOutput out) throws IOException {
             out.writeString(nodeName);
             out.writeString(name);
             out.writeString(type);
+            if (out.getVersion().onOrAfter(VERSION_REALM_DOMAINS)) {
+                out.writeOptionalString(domain);
+            }
         }
 
         public String getNodeName() {
@@ -332,6 +349,10 @@ public class Authentication implements ToXContentObject {
             return type;
         }
 
+        public @Nullable String getDomain() {
+            return domain;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -341,7 +362,8 @@ public class Authentication implements ToXContentObject {
 
             if (nodeName.equals(realmRef.nodeName) == false) return false;
             if (name.equals(realmRef.name) == false) return false;
-            return type.equals(realmRef.type);
+            if (type.equals(realmRef.type) == false) return false;
+            return Objects.equals(domain, realmRef.domain);
         }
 
         @Override
@@ -349,25 +371,33 @@ public class Authentication implements ToXContentObject {
             int result = nodeName.hashCode();
             result = 31 * result + name.hashCode();
             result = 31 * result + type.hashCode();
+            if (domain != null) {
+                result = 31 * result + domain.hashCode();
+            }
             return result;
         }
 
         @Override
         public String toString() {
-            return "{Realm[" + type + "." + name + "] on Node[" + nodeName + "]}";
+            if (domain != null) {
+                return "{Realm[" + type + "." + name + "] under Domain [" + domain + "] on Node[" + nodeName + "]}";
+            } else {
+                return "{Realm[" + type + "." + name + "] on Node[" + nodeName + "]}";
+            }
         }
     }
 
     public static ConstructingObjectParser<RealmRef, Void> REALM_REF_PARSER = new ConstructingObjectParser<>(
         "realm_ref",
         false,
-        (args, v) -> new RealmRef((String) args[0], (String) args[1], (String) args[2])
+        (args, v) -> new RealmRef((String) args[0], (String) args[1], (String) args[2], (String) args[3])
     );
 
     static {
         REALM_REF_PARSER.declareString(constructorArg(), new ParseField("name"));
         REALM_REF_PARSER.declareString(constructorArg(), new ParseField("type"));
         REALM_REF_PARSER.declareString(constructorArg(), new ParseField("node_name"));
+        REALM_REF_PARSER.declareString(optionalConstructorArg(), new ParseField("domain"));
     }
 
     public enum AuthenticationType {

@@ -111,7 +111,7 @@ public class AuthenticationService {
             new ServiceAccountAuthenticator(serviceAccountService, nodeName),
             new OAuth2TokenAuthenticator(tokenService),
             new ApiKeyAuthenticator(apiKeyService, nodeName),
-            new RealmsAuthenticator(nodeName, numInvalidation, lastSuccessfulAuthCache)
+            new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache)
         );
     }
 

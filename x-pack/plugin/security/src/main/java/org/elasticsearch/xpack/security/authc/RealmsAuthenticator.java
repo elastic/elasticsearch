@@ -41,13 +41,11 @@ class RealmsAuthenticator implements Authenticator {
 
     private static final Logger logger = LogManager.getLogger(RealmsAuthenticator.class);
 
-    private final String nodeName;
     private final AtomicLong numInvalidation;
     private final Cache<String, Realm> lastSuccessfulAuthCache;
     private boolean authenticationTokenExtracted = false;
 
-    RealmsAuthenticator(String nodeName, AtomicLong numInvalidation, Cache<String, Realm> lastSuccessfulAuthCache) {
-        this.nodeName = nodeName;
+    RealmsAuthenticator(AtomicLong numInvalidation, Cache<String, Realm> lastSuccessfulAuthCache) {
         this.numInvalidation = numInvalidation;
         this.lastSuccessfulAuthCache = lastSuccessfulAuthCache;
     }
@@ -156,7 +154,7 @@ class RealmsAuthenticator implements Authenticator {
                     );
                     if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
                         // user was authenticated, populate the authenticated by information
-                        authenticatedByRef.set(new Authentication.RealmRef(realm.name(), realm.type(), nodeName));
+                        authenticatedByRef.set(realm.getRealmRef());
                         authenticationResultRef.set(result);
                         if (lastSuccessfulAuthCache != null && startInvalidation == numInvalidation.get()) {
                             lastSuccessfulAuthCache.put(authenticationToken.principal(), realm);
@@ -303,7 +301,7 @@ class RealmsAuthenticator implements Authenticator {
                     }
                     logger.trace("Using run-as user [{}] with authenticated user [{}]", foundUser, authentication.getUser().principal());
                     listener.onResponse(
-                        new Tuple<>(tuple.v1(), new Authentication.RealmRef(tuple.v2().name(), tuple.v2().type(), nodeName))
+                        new Tuple<>(tuple.v1(), tuple.v2().getRealmRef())
                     );
                 }
             }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken()))));

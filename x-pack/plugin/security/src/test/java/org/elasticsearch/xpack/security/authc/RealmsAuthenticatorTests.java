@@ -18,6 +18,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
@@ -40,6 +42,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class RealmsAuthenticatorTests extends ESTestCase {
@@ -55,25 +58,41 @@ public class RealmsAuthenticatorTests extends ESTestCase {
     private User user;
     private AtomicLong numInvalidation;
     private Cache<String, Realm> lastSuccessfulAuthCache;
-    private String nodeName;
     private RealmsAuthenticator realmsAuthenticator;
 
     @SuppressWarnings("unchecked")
     @Before
     public void init() throws Exception {
-        threadContext = new ThreadContext(Settings.EMPTY);
+        Settings settings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "test_node_name")
+            .build();
+        threadContext = new ThreadContext(settings);
+        RealmConfig realmConfig = mock(RealmConfig.class);
+        when(realmConfig.settings()).thenReturn(settings);
+
+        RealmConfig realmConfig1 = mock(RealmConfig.class);
+        when(realmConfig1.settings()).thenReturn(settings);
+        when(realmConfig1.name()).thenReturn("realm_name_1");
+        when(realmConfig1.type()).thenReturn("realm_type_1");
+        when(realmConfig1.domain()).thenReturn(randomFrom("domain", null));
+        realm1 = spy(new TestRealm(realmConfig1));
+
+        RealmConfig realmConfig2 = mock(RealmConfig.class);
+        when(realmConfig2.settings()).thenReturn(settings);
+        when(realmConfig2.name()).thenReturn("realm_name_2");
+        when(realmConfig2.type()).thenReturn("realm_type_2");
+        when(realmConfig2.domain()).thenReturn(randomFrom("domain", null));
+        realm2 = spy(new TestRealm(realmConfig2));
+
+        RealmConfig realmConfig3 = mock(RealmConfig.class);
+        when(realmConfig3.settings()).thenReturn(settings);
+        when(realmConfig3.name()).thenReturn("realm_name_3");
+        when(realmConfig3.type()).thenReturn("realm_type_3");
+        when(realmConfig3.domain()).thenReturn(randomFrom("domain", null));
+        realm3 = spy(new TestRealm(realmConfig3));
 
         realms = mock(Realms.class);
-        realm1 = mock(Realm.class);
-        when(realm1.name()).thenReturn("realm1");
-        when(realm1.type()).thenReturn("realm1");
-        when(realm1.toString()).thenReturn("realm1/realm1");
-        realm2 = mock(Realm.class);
-        when(realm2.name()).thenReturn("realm2");
-        when(realm2.type()).thenReturn("realm2");
-        when(realm2.toString()).thenReturn("realm2/realm2");
-        realm3 = mock(Realm.class);
-        when(realm3.toString()).thenReturn("realm3/realm3");
+
         when(realms.getActiveRealms()).thenReturn(List.of(realm1, realm2));
         when(realms.getUnlicensedRealms()).thenReturn(List.of(realm3));
 
@@ -85,10 +104,9 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         when(authenticationToken.principal()).thenReturn(username);
         user = new User(username);
 
-        nodeName = randomAlphaOfLength(8);
         numInvalidation = new AtomicLong();
         lastSuccessfulAuthCache = mock(Cache.class);
-        realmsAuthenticator = new RealmsAuthenticator(nodeName, numInvalidation, lastSuccessfulAuthCache);
+        realmsAuthenticator = new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache);
     }
 
     public void testExtractCredentials() {
@@ -149,10 +167,8 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         final Authentication authentication = result.getValue();
         assertThat(authentication.getUser(), is(user));
-        assertThat(
-            authentication.getAuthenticatedBy(),
-            equalTo(new Authentication.RealmRef(successfulRealm.name(), successfulRealm.type(), nodeName))
-        );
+        assertThat(authentication.getAuthenticatedBy(), equalTo(new Authentication.RealmRef(successfulRealm.name(),
+            successfulRealm.type(), "test_node_name", successfulRealm.domain())));
     }
 
     public void testNullUser() throws IllegalAccessException {
@@ -213,7 +229,7 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         final Realm authRealm = randomFrom(realm1, realm2);
         final Authentication authentication = new Authentication(
             user,
-            new Authentication.RealmRef(authRealm.name(), authRealm.type(), nodeName),
+            new Authentication.RealmRef(authRealm.name(), authRealm.type(), "test_node_name", authRealm.domain()),
             null
         );
         final PlainActionFuture<Tuple<User, Authentication.RealmRef>> future = new PlainActionFuture<>();
@@ -234,7 +250,7 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         final Realm authRealm = randomFrom(realm1, realm2);
         final Authentication authentication = new Authentication(
             user,
-            new Authentication.RealmRef(authRealm.name(), authRealm.type(), nodeName),
+            new Authentication.RealmRef(authRealm.name(), authRealm.type(), "test_node_name", authRealm.domain()),
             null
         );
         final PlainActionFuture<Tuple<User, Authentication.RealmRef>> future = new PlainActionFuture<>();
@@ -265,5 +281,32 @@ public class RealmsAuthenticatorTests extends ESTestCase {
 
     private Authenticator.Context createAuthenticatorContext() {
         return new Authenticator.Context(threadContext, request, null, true, realms);
+    }
+
+    private static class TestRealm extends Realm {
+
+        TestRealm(RealmConfig realmConfig) {
+            super(realmConfig);
+        }
+
+        @Override
+        public boolean supports(AuthenticationToken token) {
+            return false;
+        }
+
+        @Override
+        public AuthenticationToken token(ThreadContext context) {
+            return null;
+        }
+
+        @Override
+        public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult<User>> listener) {
+            listener.onFailure(new Exception("not implemented"));
+        }
+
+        @Override
+        public void lookupUser(String username, ActionListener<User> listener) {
+            listener.onFailure(new Exception("not implemented"));
+        }
     }
 }

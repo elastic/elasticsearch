@@ -22,7 +22,6 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
@@ -164,10 +163,6 @@ public final class SqlTestUtils {
     }
 
     static void copyFilterAsValue(XContentType xContentType, QueryBuilder filter, JsonGenerator generator) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        try (XContentBuilder builder = new XContentBuilder(xContentType.xContent(), out)) {
-            filter.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        }
         BytesReference bytesReference = XContentHelper.toXContent(filter, xContentType, false);
         Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(bytesReference, true, xContentType);
         GeneratorUtils.unknownValue(generator, tuple.v2());

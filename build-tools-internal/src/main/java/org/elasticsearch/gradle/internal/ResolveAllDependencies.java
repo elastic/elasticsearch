@@ -14,7 +14,6 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.TaskAction;
-import org.gradle.internal.deprecation.DeprecatableConfiguration;
 
 import java.util.Collection;
 import java.util.stream.Collectors;

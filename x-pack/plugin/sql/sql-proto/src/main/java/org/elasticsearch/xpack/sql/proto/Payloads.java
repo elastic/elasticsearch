@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.sql.proto.content.ConstructingObjectParser;
 import org.elasticsearch.xpack.sql.proto.content.GeneratorUtils;
 import org.elasticsearch.xpack.sql.proto.content.ParseException;
 import org.elasticsearch.xpack.sql.proto.content.ParserUtils;
+import org.elasticsearch.xpack.sql.proto.core.CheckedBiConsumer;
+import org.elasticsearch.xpack.sql.proto.core.CheckedConsumer;
 import org.elasticsearch.xpack.sql.proto.core.TimeValue;
 
 import java.io.IOException;
@@ -183,6 +185,16 @@ public final class Payloads {
     }
 
     public static void generate(JsonGenerator generator, SqlQueryRequest request) throws IOException {
+        generate(generator, request, Payloads::generate, null);
+    }
+
+    // Allow extra serialization to happen for SqlQueryRequest to allow testing serialization for filter and runtime mappings in sql-action
+    public static void generate(
+        JsonGenerator generator,
+        SqlQueryRequest request,
+        CheckedBiConsumer<JsonGenerator, SqlTypedParamValue, IOException> sqlParamGenerator,
+        CheckedConsumer<JsonGenerator, IOException> extraFields
+    ) throws IOException {
         generator.writeStartObject();
 
         writeIfValid(generator, QUERY_NAME, request.query());
@@ -194,7 +206,7 @@ public final class Payloads {
         if (params != null && params.isEmpty() == false) {
             generator.writeArrayFieldStart(PARAMS_NAME);
             for (SqlTypedParamValue param : params) {
-                Payloads.generate(generator, param);
+                sqlParamGenerator.accept(generator, param);
             }
             generator.writeEndArray();
         }
@@ -231,6 +243,9 @@ public final class Payloads {
         }
         writeIfValidAsString(generator, KEEP_ALIVE_NAME, request.keepAlive(), TimeValue::getStringRep);
 
+        if (extraFields != null) {
+            extraFields.accept(generator);
+        }
         generator.writeEndObject();
     }
 

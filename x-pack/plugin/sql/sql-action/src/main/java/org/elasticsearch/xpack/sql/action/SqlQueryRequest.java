@@ -17,7 +17,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -40,13 +39,11 @@ import static org.elasticsearch.xpack.sql.action.Protocol.KEEP_ALIVE_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.KEEP_ON_COMPLETION_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.MIN_KEEP_ALIVE;
 import static org.elasticsearch.xpack.sql.action.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
-import static org.elasticsearch.xpack.sql.proto.CoreProtocol.CURSOR_NAME;
 
 /**
  * Request to perform an sql query
  */
 public class SqlQueryRequest extends AbstractSqlQueryRequest {
-    private static final ObjectParser<SqlQueryRequest, Void> PARSER = objectParser(SqlQueryRequest::new);
     static final ParseField COLUMNAR = new ParseField(COLUMNAR_NAME);
     static final ParseField FIELD_MULTI_VALUE_LENIENCY = new ParseField(FIELD_MULTI_VALUE_LENIENCY_NAME);
     static final ParseField INDEX_INCLUDE_FROZEN = new ParseField(INDEX_INCLUDE_FROZEN_NAME);
@@ -54,6 +51,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField(WAIT_FOR_COMPLETION_TIMEOUT_NAME);
     static final ParseField KEEP_ON_COMPLETION = new ParseField(KEEP_ON_COMPLETION_NAME);
     static final ParseField KEEP_ALIVE = new ParseField(KEEP_ALIVE_NAME);
+    private static final ObjectParser<SqlQueryRequest, Void> PARSER = objectParser(SqlQueryRequest::new);
 
     static {
         PARSER.declareString(SqlQueryRequest::cursor, CURSOR);
@@ -124,6 +122,26 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         this.waitForCompletionTimeout = waitForCompletionTimeout;
         this.keepOnCompletion = keepOnCompletion;
         this.keepAlive = keepAlive;
+    }
+
+    public SqlQueryRequest(StreamInput in) throws IOException {
+        super(in);
+        cursor = in.readString();
+        columnar = in.readOptionalBoolean();
+        fieldMultiValueLeniency = in.readBoolean();
+        indexIncludeFrozen = in.readBoolean();
+        binaryCommunication = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
+            this.waitForCompletionTimeout = in.readOptionalTimeValue();
+            this.keepOnCompletion = in.readBoolean();
+            this.keepAlive = in.readOptionalTimeValue();
+        }
+    }
+
+    public static SqlQueryRequest fromXContent(XContentParser parser) {
+        SqlQueryRequest request = PARSER.apply(parser, null);
+        validateParams(request.params(), request.mode());
+        return request;
     }
 
     @Override
@@ -244,20 +262,6 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         );
     }
 
-    public SqlQueryRequest(StreamInput in) throws IOException {
-        super(in);
-        cursor = in.readString();
-        columnar = in.readOptionalBoolean();
-        fieldMultiValueLeniency = in.readBoolean();
-        indexIncludeFrozen = in.readBoolean();
-        binaryCommunication = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
-            this.waitForCompletionTimeout = in.readOptionalTimeValue();
-            this.keepOnCompletion = in.readBoolean();
-            this.keepAlive = in.readOptionalTimeValue();
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -304,43 +308,5 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     @Override
     public String getDescription() {
         return "SQL [" + query() + "][" + filter() + "]";
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // This is needed just to test round-trip compatibility with proto.SqlQueryRequest
-        super.toXContent(builder, params);
-
-        if (columnar != null) {
-            builder.field(COLUMNAR_NAME, columnar);
-        }
-        if (fieldMultiValueLeniency) {
-            builder.field(FIELD_MULTI_VALUE_LENIENCY_NAME, fieldMultiValueLeniency);
-        }
-        if (indexIncludeFrozen) {
-            builder.field(INDEX_INCLUDE_FROZEN_NAME, indexIncludeFrozen);
-        }
-        if (binaryCommunication != null) {
-            builder.field(BINARY_FORMAT_NAME, binaryCommunication);
-        }
-        if (cursor != null) {
-            builder.field(CURSOR_NAME, cursor);
-        }
-        if (waitForCompletionTimeout != null) {
-            builder.field(WAIT_FOR_COMPLETION_TIMEOUT_NAME, waitForCompletionTimeout.getStringRep());
-        }
-        if (keepOnCompletion) {
-            builder.field(KEEP_ON_COMPLETION_NAME, keepOnCompletion);
-        }
-        if (keepAlive != null) {
-            builder.field(KEEP_ALIVE_NAME, keepAlive.getStringRep());
-        }
-        return builder;
-    }
-
-    public static SqlQueryRequest fromXContent(XContentParser parser) {
-        SqlQueryRequest request = PARSER.apply(parser, null);
-        validateParams(request.params(), request.mode());
-        return request;
     }
 }

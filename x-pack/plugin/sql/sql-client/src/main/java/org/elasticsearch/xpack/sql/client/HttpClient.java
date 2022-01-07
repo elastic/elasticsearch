@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.content.ContentFactory;
 import org.elasticsearch.xpack.sql.proto.content.ContentFactory.ContentType;
+import org.elasticsearch.xpack.sql.proto.core.CheckedFunction;
 import org.elasticsearch.xpack.sql.proto.core.Streams;
 import org.elasticsearch.xpack.sql.proto.core.TimeValue;
 import org.elasticsearch.xpack.sql.proto.core.Tuple;

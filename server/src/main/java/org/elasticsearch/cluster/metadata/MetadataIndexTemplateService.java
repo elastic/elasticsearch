@@ -282,7 +282,7 @@ public class MetadataIndexTemplateService {
             return currentState;
         }
 
-        validateTemplate(finalSettings, wrappedMappings, indicesService, xContentRegistry);
+        validateTemplate(finalSettings, wrappedMappings, indicesService);
         validate(name, finalComponentTemplate);
 
         // Validate all composable index templates that use this component template
@@ -959,7 +959,7 @@ public class MetadataIndexTemplateService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    validateTemplate(request.settings, request.mappings, indicesService, xContentRegistry);
+                    validateTemplate(request.settings, request.mappings, indicesService);
                     return innerPutTemplate(currentState, request, templateBuilder);
                 }
 
@@ -1429,12 +1429,8 @@ public class MetadataIndexTemplateService {
         });
     }
 
-    private static void validateTemplate(
-        Settings validateSettings,
-        CompressedXContent mappings,
-        IndicesService indicesService,
-        NamedXContentRegistry xContentRegistry
-    ) throws Exception {
+    private static void validateTemplate(Settings validateSettings, CompressedXContent mappings, IndicesService indicesService)
+        throws Exception {
         // Hard to validate settings if they're non-existent, so used empty ones if none were provided
         Settings settings = validateSettings;
         if (settings == null) {
@@ -1466,12 +1462,7 @@ public class MetadataIndexTemplateService {
             createdIndex = dummyIndexService.index();
 
             if (mappings != null) {
-                dummyIndexService.mapperService()
-                    .merge(
-                        MapperService.SINGLE_MAPPING_NAME,
-                        MapperService.parseMapping(xContentRegistry, mappings),
-                        MergeReason.MAPPING_UPDATE
-                    );
+                dummyIndexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.MAPPING_UPDATE);
             }
 
         } finally {

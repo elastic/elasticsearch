@@ -62,7 +62,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
-            { "properties" { "field": { "type": "text" }}}""");
+            { "properties": { "field": { "type": "text" }}}""");
         ClusterState result = mappingService.putMappingExecutor.execute(
             clusterService.state(),
             Collections.singletonList(request)

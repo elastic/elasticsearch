@@ -100,9 +100,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                         );
                     }
                     if (BuildParams.getRuntimeJavaVersion().isCompatibleWith(JavaVersion.VERSION_18)) {
-                        test.jvmArgs(
-                            "-Djava.security.manager=allow"
-                        );
+                        test.jvmArgs("-Djava.security.manager=allow");
                     }
                 }
             });

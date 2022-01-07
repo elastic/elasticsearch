@@ -300,9 +300,7 @@ class RealmsAuthenticator implements Authenticator {
                         lastSuccessfulAuthCache.computeIfAbsent(runAsUsername, s -> realm);
                     }
                     logger.trace("Using run-as user [{}] with authenticated user [{}]", foundUser, authentication.getUser().principal());
-                    listener.onResponse(
-                        new Tuple<>(tuple.v1(), tuple.v2().getRealmRef())
-                    );
+                    listener.onResponse(new Tuple<>(tuple.v1(), tuple.v2().getRealmRef()));
                 }
             }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken()))));
         } else if (runAsUsername == null) {

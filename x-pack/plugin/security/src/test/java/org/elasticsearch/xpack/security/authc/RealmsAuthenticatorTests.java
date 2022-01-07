@@ -63,9 +63,7 @@ public class RealmsAuthenticatorTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     @Before
     public void init() throws Exception {
-        Settings settings = Settings.builder()
-            .put(Node.NODE_NAME_SETTING.getKey(), "test_node_name")
-            .build();
+        Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_node_name").build();
         threadContext = new ThreadContext(settings);
         RealmConfig realmConfig = mock(RealmConfig.class);
         when(realmConfig.settings()).thenReturn(settings);
@@ -167,8 +165,10 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         final Authentication authentication = result.getValue();
         assertThat(authentication.getUser(), is(user));
-        assertThat(authentication.getAuthenticatedBy(), equalTo(new Authentication.RealmRef(successfulRealm.name(),
-            successfulRealm.type(), "test_node_name", successfulRealm.domain())));
+        assertThat(
+            authentication.getAuthenticatedBy(),
+            equalTo(new Authentication.RealmRef(successfulRealm.name(), successfulRealm.type(), "test_node_name", successfulRealm.domain()))
+        );
     }
 
     public void testNullUser() throws IllegalAccessException {

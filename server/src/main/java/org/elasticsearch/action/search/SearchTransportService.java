@@ -24,6 +24,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
@@ -42,7 +44,9 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
@@ -61,6 +65,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiFunction;
+import org.elasticsearch.core.TimeValue;
 
 /**
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
@@ -89,6 +94,26 @@ public class SearchTransportService {
         ActionListener<? super SearchPhaseResult>> responseWrapper;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
+    private Scheduler.Cancellable longTailReaper;
+    private static final int LONG_TAIL_CHECKER_INTERVAL_MS = 200;
+    private volatile boolean searchLongTailTryNextEnable;
+    private volatile int searchLongTailMaxRetryQps;
+
+    public static final Setting<Boolean> SEARCH_LONG_TAIL_TRY_NEXT_ENABLE = Setting.boolSetting(
+        "search.long_tail.try_next_enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> SEARCH_LONG_TAIL_MAX_RETRY_QPS = Setting.intSetting(
+        "search.long_tail.max_retry_qps",
+        100,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public SearchTransportService(
         TransportService transportService,
         NodeClient client,
@@ -100,6 +125,10 @@ public class SearchTransportService {
         this.transportService = transportService;
         this.client = client;
         this.responseWrapper = responseWrapper;
+
+        this.longTailReaper = transportService.getThreadPool().scheduleWithFixedDelay(new LongTailReaper(),
+            TimeValue.timeValueMillis(LONG_TAIL_CHECKER_INTERVAL_MS), ThreadPool.Names.GENERIC);
+
     }
 
     public void sendFreeContext(Transport.Connection connection, final ShardSearchContextId contextId, OriginalIndices originalIndices) {
@@ -676,5 +705,43 @@ public class SearchTransportService {
 
     public NamedWriteableRegistry getNamedWriteableRegistry() {
         return client.getNamedWriteableRegistry();
+    }
+
+    public void close() {
+        if (longTailReaper != null) {
+            longTailReaper.cancel();
+        }
+    }
+
+    class LongTailReaper implements Runnable {
+        @Override
+        public void run() {
+            if (searchLongTailTryNextEnable == false) {
+                return;
+            }
+
+            int maxRetry = searchLongTailMaxRetryQps / (1000 / LONG_TAIL_CHECKER_INTERVAL_MS);
+            for (Task task : transportService.getTaskManager().getTasks().values()) {
+                if (task instanceof SearchTask) {
+                    AbstractSearchAsyncAction action = task.getSearchAsyncAction();
+                    if ( action != null && maxRetry > 0) {
+                        maxRetry -= action.checkLongTail();
+                    }
+                }
+            }
+        }
+    }
+
+    public void registerClusterSettingsListeners (ClusterSettings clusterSettings) {
+        clusterSettings.addSettingsUpdateConsumer(SEARCH_LONG_TAIL_TRY_NEXT_ENABLE, this::setSearchLongTailTryNextEnable);
+        clusterSettings.addSettingsUpdateConsumer(SEARCH_LONG_TAIL_MAX_RETRY_QPS, this::setSearchLongTailMaxRetryQps);
+    }
+
+    public void setSearchLongTailTryNextEnable(boolean searchLongTailTryNextEnable) {
+        this.searchLongTailTryNextEnable = searchLongTailTryNextEnable;
+    }
+
+    public void setSearchLongTailMaxRetryQps(int searchLongTailMaxRetryQps){
+        this.searchLongTailMaxRetryQps = searchLongTailMaxRetryQps;
     }
 }

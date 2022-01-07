@@ -9,6 +9,7 @@
 package org.elasticsearch.tasks;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.search.AbstractSearchAsyncAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xcontent.ToXContent;
@@ -73,6 +74,8 @@ public class Task {
      * The task's start time as a relative time ({@link System#nanoTime()} style).
      */
     private final long startTimeNanos;
+
+    private AbstractSearchAsyncAction searchAsyncAction = null;
 
     public Task(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
         this(id, type, action, description, parentTask, System.currentTimeMillis(), System.nanoTime(), headers);
@@ -231,5 +234,13 @@ public class Task {
         } else {
             throw new IllegalStateException("response has to implement ToXContent to be able to store the results");
         }
+    }
+
+    public void setSearchAsyncAction(AbstractSearchAsyncAction searchAsyncAction){
+        this.searchAsyncAction = searchAsyncAction;
+    }
+
+    public AbstractSearchAsyncAction getSearchAsyncAction(){
+        return searchAsyncAction;
     }
 }

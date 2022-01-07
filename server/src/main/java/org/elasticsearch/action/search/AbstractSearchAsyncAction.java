@@ -23,10 +23,13 @@ import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -39,6 +42,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.tasks.Task;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -46,6 +50,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -61,7 +67,7 @@ import java.util.stream.Collectors;
  * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection of
  * distributed frequencies
  */
-abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase implements SearchPhaseContext {
+public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase implements SearchPhaseContext {
     private static final float DEFAULT_INDEX_BOOST = 1.0f;
     private final Logger logger;
     private final SearchTransportService searchTransportService;
@@ -96,6 +102,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
     private final boolean throttleConcurrentRequests;
     private final AtomicBoolean requestCancelled = new AtomicBoolean();
+    private final Map<SearchShardIterator,StartedExecution> startedExecutions = new ConcurrentHashMap<>();
+    private final Set<ShardRouting> failedShards = Sets.newConcurrentHashSet();
 
     private final List<Releasable> releasables = new ArrayList<>();
 
@@ -316,6 +324,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
          */
         if (shard == null) {
             assert assertExecuteOnStartThread();
+            if (finishExecution(shardIt,false) == false) {
+                return;
+            }
             SearchShardTarget unassignedShard = new SearchShardTarget(null, shardIt.shardId(), shardIt.getClusterAlias());
             onShardFailure(shardIndex, unassignedShard, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
         } else {
@@ -325,10 +336,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             Runnable r = () -> {
                 final Thread thread = Thread.currentThread();
                 try {
+                    startedExecutions.putIfAbsent(shardIt, new StartedExecution(shardIndex,shard));
                     executePhaseOnShard(shardIt, shard, new SearchActionListener<Result>(shard, shardIndex) {
                         @Override
                         public void innerOnResponse(Result result) {
                             try {
+                                if (finishExecution(shardIt,true) == false) {
+                                    return;
+                                }
                                 onShardResult(result, shardIt);
                             } catch (Exception exc) {
                                 onShardFailure(shardIndex, shard, shardIt, exc);
@@ -340,6 +355,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                         @Override
                         public void onFailure(Exception t) {
                             try {
+                                if (finishExecution(shardIt,false) == false) {
+                                    return;
+                                }
                                 onShardFailure(shardIndex, shard, shardIt, t);
                             } finally {
                                 executeNext(pendingExecutions, thread);
@@ -348,6 +366,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     });
                 } catch (final Exception e) {
                     try {
+                        if (finishExecution(shardIt,false) == false) {
+                            return;
+                        }
                         /*
                          * It is possible to run into connection exceptions here because we are getting the connection early and might
                          * run into nodes that are not connected. In this case, on shard failure will move us to the next shard copy.
@@ -873,4 +894,103 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             return toExecute;
         }
     }
+
+    public int checkLongTail() {
+        if (successfulOps.get() - skippedOps.get() < Math.round((shardsIts.size() - skippedOps.get()) * 0.8)) {
+            return 0;
+        }
+
+        OptionalLong optMax = startedExecutions.entrySet().stream().filter(val -> val.getValue().isSuccess)
+            .mapToLong(val -> val.getValue().endTimeNS - val.getValue().startTimeNS).max();
+
+        if (optMax.isPresent() == false) {
+            return 0;
+        }
+
+        long maxNS = optMax.getAsLong();
+        long nowNS = System.nanoTime();
+        int retiredCnt = 0;
+        for (Map.Entry<SearchShardIterator,StartedExecution> entry : startedExecutions.entrySet()) {
+            StartedExecution exec = entry.getValue();
+            if (exec.isSuccess) {
+                continue;
+            }
+
+            //only retry once
+            if (exec.hasReTried) {
+                continue;
+            }
+
+            long runningNS = nowNS - exec.startTimeNS;
+            if (runningNS > TimeValue.timeValueMillis(1000).nanos() // default to 1s, can make it configurable
+                && runningNS > maxNS * 3) {
+                final SearchShardTarget nextShard = entry.getKey().peekNextOrNull();
+                final boolean lastShard = nextShard == null;
+                if (lastShard == false) {
+                    String xOpaqueId = task != null ? task.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER) : null;
+                    logger.info("long tail request found {} [{}] running [{}ms] max [{}ms],trying send shard search " +
+                            "request to next replica {}",exec.currentShardTarget,xOpaqueId,
+                        TimeValue.nsecToMSec(runningNS), TimeValue.nsecToMSec(maxNS),nextShard);
+                    exec.hasReTried = true;
+                    retiredCnt++;
+                    performPhaseOnShard(exec.shardIndex, entry.getKey(), nextShard);
+                }
+            }
+        }
+        return retiredCnt;
+    }
+
+    protected boolean finishExecution(final SearchShardIterator shardIt, boolean isSuccess) {
+        return finishExecution(shardIt,isSuccess,null);
+    }
+
+    /**
+     * @return return false if no need to process this response
+     */
+    protected boolean finishExecution(final SearchShardIterator shardIt, boolean isSuccess, final ShardRouting shard)
+        throws ElasticsearchException {
+        StartedExecution exec = startedExecutions.get(shardIt);
+        if (exec == null) {
+            return true;
+        }
+
+        if (exec.isSuccess) {
+            logger.info("already received search shard response isSuccess [{}] {}, skipping" , isSuccess, shardIt.shardId().toString());
+            return false;
+        } else {
+            // only update value when it is false, this is avoided to a failed response replace a success response
+            exec.isSuccess = isSuccess;
+        }
+
+        if (isSuccess) {
+            exec.endTimeNS = System.nanoTime();
+        }
+
+        if ((isSuccess == false) && (shard != null) && (failedShards.add(shard) == false)) {
+            return false;
+        }
+
+        //should not be appeared
+        if (totalOps.get() == expectedTotalOps) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private final class StartedExecution {
+        private final long startTimeNS;
+        private final int shardIndex;
+        public volatile boolean isSuccess = false;
+        public volatile boolean hasReTried = false;
+        private volatile long endTimeNS = 0;
+        private final SearchShardTarget currentShardTarget;
+
+        StartedExecution (final int shardIndex,final SearchShardTarget currentShardTarget) {
+            startTimeNS = System.nanoTime();
+            this.shardIndex = shardIndex;
+            this.currentShardTarget = currentShardTarget;
+        }
+    }
 }
+

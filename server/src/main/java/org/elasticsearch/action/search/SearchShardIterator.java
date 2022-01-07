@@ -101,6 +101,14 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return null;
     }
 
+    SearchShardTarget peekNextOrNull() {
+        final String nodeId = targetNodesIterator.peekNextOrNull();
+        if (nodeId != null) {
+            return new SearchShardTarget(nodeId, shardId, clusterAlias);
+        }
+        return null;
+    }
+
     int remaining() {
         return targetNodesIterator.remaining();
     }

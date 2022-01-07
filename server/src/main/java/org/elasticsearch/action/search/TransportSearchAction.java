@@ -1227,6 +1227,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     clusters
                 );
             };
+            task.setSearchAsyncAction(searchAsyncAction);
             return searchAsyncAction;
         }
     }

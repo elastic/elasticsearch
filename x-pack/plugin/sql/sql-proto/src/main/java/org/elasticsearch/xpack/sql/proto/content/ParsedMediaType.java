@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.proto.xcontent;
+package org.elasticsearch.xpack.sql.proto.content;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -15,21 +15,16 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * NB: Light-clone from XContent library to keep JDBC driver independent.
- *
- * A raw result of parsing media types from Accept or Content-Type headers.
- * It follow parsing and validates as per  rules defined in https://tools.ietf.org/html/rfc7231#section-3.1.1.1
- * Can be resolved to <code>MediaType</code>
- * @see MediaType
- * @see MediaTypeRegistry
+ * NB: cloned from the class in ES XContent.
  */
-public class ParsedMediaType {
+class ParsedMediaType {
+    // tchar pattern as defined by RFC7230 section 3.2.6
+    private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
+
     private final String originalHeaderValue;
     private final String type;
     private final String subType;
     private final Map<String, String> parameters;
-    // tchar pattern as defined by RFC7230 section 3.2.6
-    private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
 
     private ParsedMediaType(String originalHeaderValue, String type, String subType, Map<String, String> parameters) {
         this.originalHeaderValue = originalHeaderValue;
@@ -114,36 +109,6 @@ public class ParsedMediaType {
         return s.length() == 0 || Character.isWhitespace(s.charAt(0));
     }
 
-    /**
-     * Resolves this instance to a MediaType instance defined in given MediaTypeRegistry.
-     * Performs validation against parameters.
-     * @param mediaTypeRegistry a registry where a mapping between a raw media type to an instance MediaType is defined
-     * @return a MediaType instance or null if no media type could be found or if a known parameter do not passes validation
-     */
-    public <T extends MediaType> T toMediaType(MediaTypeRegistry<T> mediaTypeRegistry) {
-        T someType = mediaTypeRegistry.typeWithSubtypeToMediaType(mediaTypeWithoutParameters());
-
-        if (someType != null) {
-            Map<String, Pattern> registeredParams = mediaTypeRegistry.parametersFor(mediaTypeWithoutParameters());
-            for (Map.Entry<String, String> givenParamEntry : parameters.entrySet()) {
-                if (isValidParameter(givenParamEntry.getKey(), givenParamEntry.getValue(), registeredParams) == false) {
-                    return null;
-                }
-            }
-            return someType;
-        }
-        return null;
-    }
-
-    private boolean isValidParameter(String paramName, String value, Map<String, Pattern> registeredParams) {
-        if (registeredParams.containsKey(paramName)) {
-            Pattern regex = registeredParams.get(paramName);
-            return regex.matcher(value).matches();
-        }
-        // TODO undefined parameters are allowed until https://github.com/elastic/elasticsearch/issues/63080
-        return true;
-    }
-
     @Override
     public String toString() {
         return originalHeaderValue;
@@ -153,14 +118,8 @@ public class ParsedMediaType {
         return mediaTypeWithoutParameters() + formatParameters(parameters);
     }
 
-    // used in testing
-    public String responseContentTypeHeader(Map<String, String> params) {
-        return mediaTypeWithoutParameters() + formatParameters(params);
-    }
-
     private String formatParameters(Map<String, String> params) {
         String joined = params.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining(";"));
         return joined.isEmpty() ? "" : ";" + joined;
     }
-
 }

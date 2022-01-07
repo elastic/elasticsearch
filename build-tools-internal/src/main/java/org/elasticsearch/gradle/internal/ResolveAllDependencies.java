@@ -50,8 +50,7 @@ public class ResolveAllDependencies extends DefaultTask {
         if (configuration.isCanBeResolved() == false) {
             return false;
         }
-        if (configuration instanceof org.gradle.internal.deprecation.DeprecatableConfiguration) {
-            var deprecatableConfiguration = (DeprecatableConfiguration) configuration;
+        if (configuration instanceof org.gradle.internal.deprecation.DeprecatableConfiguration deprecatableConfiguration) {
             if (deprecatableConfiguration.canSafelyBeResolved() == false) {
                 return false;
             }

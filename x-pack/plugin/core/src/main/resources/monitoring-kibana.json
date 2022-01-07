@@ -48,14 +48,79 @@
             }
           }
         },
-        "kibana_metrics": {
+        "kibana_rule": {
           "properties": {
             "timestamp": {
               "type": "date",
               "format": "date_time"
             },
-            "type": {
-              "type": "keyword"
+            "kibana": {
+              "properties": {
+                "uuid": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "keyword"
+                },
+                "host": {
+                  "type": "keyword"
+                },
+                "transport_address": {
+                  "type": "keyword"
+                },
+                "version": {
+                  "type": "keyword"
+                },
+                "snapshot": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "keyword"
+                },
+                "statuses": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword"
+                    },
+                    "state": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            },
+            "rule": {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                },
+                "id": {
+                  "type": "keyword"
+                },
+                "lastExecutionDuration": {
+                  "type": "long"
+                },
+                "averageDrift": {
+                  "type": "long"
+                },
+                "averageDuration": {
+                  "type": "long"
+                },
+                "lastExecutionTimeout": {
+                  "type": "date"
+                },
+                "totalExecutions": {
+                  "type": "long"
+                }
+              }
+            }
+          }
+        },
+        "kibana_task_manager": {
+          "properties": {
+            "timestamp": {
+              "type": "date",
+              "format": "date_time"
             },
             "kibana": {
               "properties": {
@@ -95,31 +160,6 @@
             "task_manager": {
               "properties": {
                 "pending": {
-                  "type": "long"
-                }
-              }
-            },
-            "rule": {
-              "properties": {
-                "name": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "keyword"
-                },
-                "lastExecutionDuration": {
-                  "type": "long"
-                },
-                "averageDrift": {
-                  "type": "long"
-                },
-                "averageDuration": {
-                  "type": "long"
-                },
-                "lastExecutionTimeout": {
-                  "type": "date"
-                },
-                "totalExecutions": {
                   "type": "long"
                 }
               }

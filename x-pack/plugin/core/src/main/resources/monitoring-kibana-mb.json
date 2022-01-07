@@ -390,6 +390,78 @@
                   }
                 }
               }
+            },
+            "rule": {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                },
+                "id": {
+                  "type": "keyword"
+                },
+                "lastExecutionDuration": {
+                  "type": "long"
+                },
+                "averageDrift": {
+                  "type": "long"
+                },
+                "averageDuration": {
+                  "type": "long"
+                },
+                "lastExecutionTimeout": {
+                  "type": "date"
+                },
+                "totalExecutions": {
+                  "type": "long"
+                }
+              }
+            },
+            "task_manager": {
+              "properties": {
+                "pending": {
+                  "type": "long"
+                }
+              }
+            }
+          }
+        },
+        "kibana_rule": {
+          "properties": {
+            "rule": {
+              "properties": {
+                "id": {
+                  "path": "kibana.rule.id",
+                  "type": "alias"
+                },
+                "averageDrift": {
+                  "path": "kibana.rule.averageDrift",
+                  "type": "alias"
+                },
+                "totalExecutions": {
+                  "path": "kibana.rule.totalExecutions",
+                  "type": "alias"
+                }
+              }
+            }
+          }
+        },
+        "kibana_task_manager": {
+          "properties": {
+            "kibana": {
+              "properties": {
+                "uuid": {
+                  "type": "alias",
+                  "path": "service.id"
+                }
+              }
+            },
+            "task_manager": {
+              "properties": {
+                "pending": {
+                  "path": "kibana.task_manager.pending",
+                  "type": "alias"
+                }
+              }
             }
           }
         },

@@ -134,7 +134,6 @@ public class MetadataUpdateSettingsServiceTests extends ESTestCase {
                 .build(),
             metadataBuilder.get(index.getName()).getSettings()
         );
-        System.out.println(metadataBuilder.get(index.getName()).getSettings());
     }
 
     private Metadata mockMetadata(Index index, Settings indexSettings) {

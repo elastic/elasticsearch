@@ -233,7 +233,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77026")
     public void testWatcherWithApiKey() throws Exception {
         assumeTrue("API key is available since 6.7.0", getOldClusterVersion().onOrAfter(Version.V_6_7_0));
         if (isRunningAgainstOldCluster()) {
@@ -259,7 +258,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 final Map<String, Object> getWatchStatusResponse = entityAsMap(client().performRequest(getRequest));
                 final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
                 assertEquals("executed", status.get("execution_state"));
-            });
+            }, 30, TimeUnit.SECONDS);
 
         } else {
             logger.info("testing against {}", getOldClusterVersion());
@@ -299,7 +298,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         versionIncreased.get() && executed.get(),
                         is(true)
                     );
-                });
+                }, 30, TimeUnit.SECONDS);
             } finally {
                 stopWatcher();
             }

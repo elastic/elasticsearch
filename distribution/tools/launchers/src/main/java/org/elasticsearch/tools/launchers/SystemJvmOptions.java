@@ -81,7 +81,6 @@ final class SystemJvmOptions {
         }
     }
 
-
     private static String javaLocaleProviders() {
         /**
          *  SPI setting is used to allow loading custom CalendarDataProvider

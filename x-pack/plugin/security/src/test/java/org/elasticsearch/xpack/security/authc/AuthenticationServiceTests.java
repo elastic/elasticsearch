@@ -207,20 +207,27 @@ public class AuthenticationServiceTests extends ESTestCase {
         restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress).build();
         threadContext = new ThreadContext(Settings.EMPTY);
 
-        firstRealm = mock(Realm.class);
-        when(firstRealm.type()).thenReturn(FIRST_REALM_TYPE);
-        when(firstRealm.name()).thenReturn(FIRST_REALM_NAME);
-        when(firstRealm.toString()).thenReturn(FIRST_REALM_NAME + "/" + FIRST_REALM_TYPE);
-        secondRealm = mock(Realm.class);
-        when(secondRealm.type()).thenReturn(SECOND_REALM_TYPE);
-        when(secondRealm.name()).thenReturn(SECOND_REALM_NAME);
-        when(secondRealm.toString()).thenReturn(SECOND_REALM_NAME + "/" + SECOND_REALM_TYPE);
         Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put("node.name", "authc_test")
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .build();
+
+        RealmConfig firstRealmConfig = mock(RealmConfig.class);
+        when(firstRealmConfig.settings()).thenReturn(settings);
+        when(firstRealmConfig.name()).thenReturn(FIRST_REALM_NAME);
+        when(firstRealmConfig.type()).thenReturn(FIRST_REALM_TYPE);
+        when(firstRealmConfig.domain()).thenReturn(randomFrom("domain", null));
+        firstRealm = spy(new TestRealm(firstRealmConfig));
+
+        RealmConfig secondRealmConfig = mock(RealmConfig.class);
+        when(secondRealmConfig.settings()).thenReturn(settings);
+        when(secondRealmConfig.name()).thenReturn(SECOND_REALM_NAME);
+        when(secondRealmConfig.type()).thenReturn(SECOND_REALM_TYPE);
+        when(secondRealmConfig.domain()).thenReturn(randomFrom("domain", null));
+        secondRealm = spy(new TestRealm(secondRealmConfig));
+
         MockLicenseState licenseState = mock(MockLicenseState.class);
         for (String realmType : InternalRealms.getConfigurableRealmsTypes()) {
             final LicensedFeature.Persistent feature = InternalRealms.getLicensedFeature(realmType);
@@ -408,8 +415,13 @@ public class AuthenticationServiceTests extends ESTestCase {
                     "unlicensed realms",
                     RealmsAuthenticator.class.getName(),
                     Level.WARN,
-                    "No authentication credential could be extracted using realms [file_realm/file]. "
-                        + "Realms [second_realm/second] were skipped because they are not permitted on the current license"
+                    String.format(
+                        Locale.ROOT,
+                        "No authentication credential could be extracted using realms [%s]. "
+                            + "Realms [%s] were skipped because they are not permitted on the current license",
+                        firstRealm.toString(),
+                        secondRealm.toString()
+                    )
                 )
             );
 
@@ -552,7 +564,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }, this::logAndFail));
 
         verify(auditTrail).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
-        verify(firstRealm, times(2)).name(); // used above one time
+        verify(firstRealm, times(3)).name(); // used above one time, and another time in the logs
         verify(secondRealm, Mockito.atLeast(2)).name(); // also used in license tracking
         verify(secondRealm, Mockito.atLeast(2)).type(); // used to create realm ref, and license tracking
         verify(firstRealm, times(2)).token(threadContext);
@@ -561,7 +573,9 @@ public class AuthenticationServiceTests extends ESTestCase {
         verify(secondRealm, times(2)).supports(token);
         verify(firstRealm).authenticate(eq(token), anyActionListener());
         verify(secondRealm, times(2)).authenticate(eq(token), anyActionListener());
-        verifyNoMoreInteractions(auditTrail, firstRealm, secondRealm);
+        verify(firstRealm, never()).lookupUser(anyString(), anyActionListener());
+        verify(secondRealm, never()).lookupUser(anyString(), anyActionListener());
+        verifyNoMoreInteractions(auditTrail);
 
         // Now assume some change in the backend system so that 2nd realm no longer has the user, but the 1st realm does.
         mockAuthenticate(secondRealm, token, null);
@@ -685,7 +699,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result), eq(threadContext));
         }, this::logAndFail));
         verify(auditTrail, times(2)).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
-        verify(firstRealm, times(3)).name(); // used above one time
+        verify(firstRealm, times(4)).name(); // used above one time, and another time by the logging
         verify(secondRealm, Mockito.atLeast(2)).name();
         verify(secondRealm, Mockito.atLeast(2)).type(); // used to create realm ref
         verify(firstRealm, times(2)).token(threadContext);
@@ -694,7 +708,9 @@ public class AuthenticationServiceTests extends ESTestCase {
         verify(secondRealm, times(2)).supports(token);
         verify(firstRealm, times(2)).authenticate(eq(token), anyActionListener());
         verify(secondRealm, times(2)).authenticate(eq(token), anyActionListener());
-        verifyNoMoreInteractions(auditTrail, firstRealm, secondRealm);
+        verify(firstRealm, never()).lookupUser(anyString(), anyActionListener());
+        verify(secondRealm, never()).lookupUser(anyString(), anyActionListener());
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testAuthenticateFirstNotSupportingSecondSucceeds() throws Exception {
@@ -749,7 +765,14 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result.v1(), is(authentication));
             assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.REALM));
             verifyNoMoreInteractions(auditTrail);
-            verifyNoMoreInteractions(firstRealm, secondRealm);
+            verify(firstRealm, never()).authenticate(any(AuthenticationToken.class), anyActionListener());
+            verify(secondRealm, never()).authenticate(any(AuthenticationToken.class), anyActionListener());
+            verify(firstRealm, never()).supports(any(AuthenticationToken.class));
+            verify(secondRealm, never()).supports(any(AuthenticationToken.class));
+            verify(firstRealm, never()).token(any(ThreadContext.class));
+            verify(secondRealm, never()).token(any(ThreadContext.class));
+            verify(firstRealm, never()).lookupUser(any(String.class), anyActionListener());
+            verify(secondRealm, never()).lookupUser(any(String.class), anyActionListener());
             verify(operatorPrivilegesService, times(1)).maybeMarkOperatorUser(result.v1(), threadContext);
         });
     }
@@ -1895,7 +1918,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         final byte[] randomBytes = new byte[numBytes];
         random().nextBytes(randomBytes);
         final CountDownLatch latch = new CountDownLatch(1);
-        final Authentication expected = new Authentication(user, new RealmRef(firstRealm.name(), firstRealm.type(), "authc_test"), null);
+        final Authentication expected = new Authentication(
+            user,
+            new RealmRef(firstRealm.name(), firstRealm.type(), "authc_test", firstRealm.domain()),
+            null
+        );
         AtomicBoolean success = new AtomicBoolean(false);
         boolean requestIdAlreadyPresent = randomBoolean();
         SetOnce<String> reqId = new SetOnce<>();
@@ -2456,4 +2483,32 @@ public class AuthenticationServiceTests extends ESTestCase {
     private static <T> Consumer<T> anyConsumer() {
         return any(Consumer.class);
     }
+
+    private static class TestRealm extends Realm {
+
+        TestRealm(RealmConfig realmConfig) {
+            super(realmConfig);
+        }
+
+        @Override
+        public boolean supports(AuthenticationToken token) {
+            return false;
+        }
+
+        @Override
+        public AuthenticationToken token(ThreadContext context) {
+            return null;
+        }
+
+        @Override
+        public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult<User>> listener) {
+            listener.onFailure(new Exception("not implemented"));
+        }
+
+        @Override
+        public void lookupUser(String username, ActionListener<User> listener) {
+            listener.onFailure(new Exception("not implemented"));
+        }
+    }
+
 }

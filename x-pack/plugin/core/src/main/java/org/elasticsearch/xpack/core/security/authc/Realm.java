@@ -159,9 +159,9 @@ public abstract class Realm implements Comparable<Realm> {
     @Override
     public String toString() {
         if (domain() != null) {
-            return type() + "/" + name();
-        } else {
             return domain() + "/" + type() + "/" + name();
+        } else {
+            return type() + "/" + name();
         }
     }
 

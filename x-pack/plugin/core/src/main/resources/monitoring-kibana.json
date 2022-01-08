@@ -161,6 +161,22 @@
               "properties": {
                 "pending": {
                   "type": "long"
+                },
+                "drift": {
+                  "properties": {
+                    "p50": {
+                      "type": "long"
+                    },
+                    "p90": {
+                      "type": "long"
+                    },
+                    "p95": {
+                      "type": "long"
+                    },
+                    "p99": {
+                      "type": "long"
+                    }
+                  }
                 }
               }
             }

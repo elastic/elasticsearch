@@ -420,6 +420,22 @@
               "properties": {
                 "pending": {
                   "type": "long"
+                },
+                "drift": {
+                  "properties": {
+                    "p50": {
+                      "type": "long"
+                    },
+                    "p90": {
+                      "type": "long"
+                    },
+                    "p95": {
+                      "type": "long"
+                    },
+                    "p99": {
+                      "type": "long"
+                    }
+                  }
                 }
               }
             }
@@ -439,6 +455,10 @@
                 },
                 "totalExecutions": {
                   "path": "kibana.rule.totalExecutions",
+                  "type": "alias"
+                },
+                "averageDuration": {
+                  "path": "kibana.rule.averageDuration",
                   "type": "alias"
                 }
               }
@@ -460,6 +480,26 @@
                 "pending": {
                   "path": "kibana.task_manager.pending",
                   "type": "alias"
+                },
+                "drift": {
+                  "properties": {
+                    "p50": {
+                      "path": "kibana.task_manager.drift.p50",
+                      "type": "alias"
+                    },
+                    "p90": {
+                      "path": "kibana.task_manager.drift.p90",
+                      "type": "alias"
+                    },
+                    "p95": {
+                      "path": "kibana.task_manager.drift.p95",
+                      "type": "alias"
+                    },
+                    "p99": {
+                      "path": "kibana.task_manager.drift.p99",
+                      "type": "alias"
+                    }
+                  }
                 }
               }
             }

@@ -249,8 +249,7 @@ public class Authentication implements ToXContentObject {
         private final String nodeName;
         private final String name;
         private final String type;
-        private final @Nullable
-        String domain;
+        private final @Nullable String domain;
 
         public RealmRef(String name, String type, String nodeName) {
             this(name, type, nodeName, null);
@@ -295,8 +294,7 @@ public class Authentication implements ToXContentObject {
             return type;
         }
 
-        public @Nullable
-        String getDomain() {
+        public @Nullable String getDomain() {
             return domain;
         }
 

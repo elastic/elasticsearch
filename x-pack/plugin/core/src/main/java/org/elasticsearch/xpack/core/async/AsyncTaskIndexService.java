@@ -57,8 +57,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 
 import java.io.FilterOutputStream;
 import java.io.IOException;
@@ -78,7 +76,6 @@ import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 
 /**
  * A service that exposes the CRUD operations for the async task-specific index.
@@ -201,10 +198,11 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     }
 
     /**
-     * Returns the authentication information, or null if the current context has no authentication info.
+     * Returns the security context which is an extension of the threadContext.
+     * Theoretically this should not be exposed, the security context should be recreated by the caller.
      **/
-    public Authentication getAuthentication() {
-        return securityContext.getAuthentication();
+    public SecurityContext getSecurityContext() {
+        return securityContext;
     }
 
     /**
@@ -396,9 +394,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         if (asyncTask == null) {
             return null;
         }
-        // Check authentication for the user
-        final Authentication auth = securityContext.getAuthentication();
-        if (ensureAuthenticatedUserIsSame(asyncTask.getOriginHeaders(), auth) == false) {
+        if (false == securityContext.canIAccessResourcesCreatedBy(asyncTask.getOriginHeaders())) {
             throw new ResourceNotFoundException(asyncExecutionId.getEncoded() + " not found");
         }
         return asyncTask;
@@ -475,7 +471,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                         @SuppressWarnings("unchecked")
                         final Map<String, String> headers = (Map<String, String>) XContentParserUtils.parseFieldsValue(parser);
                         // check the authentication of the current user against the user that initiated the async task
-                        if (checkAuthentication && ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication()) == false) {
+                        if (checkAuthentication && false == securityContext.canIAccessResourcesCreatedBy(headers)) {
                             throw new ResourceNotFoundException(asyncExecutionId.getEncoded());
                         }
                         break;
@@ -562,30 +558,12 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             // Check authentication for the user
             @SuppressWarnings("unchecked")
             Map<String, String> headers = (Map<String, String>) get.getSource().get(HEADERS_FIELD);
-            if (ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication())) {
+            if (securityContext.canIAccessResourcesCreatedBy(headers)) {
                 listener.onResponse(null);
             } else {
                 listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()));
             }
         }, exc -> listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()))));
-    }
-
-    /**
-     * Extracts the authentication from the original headers and checks that it matches
-     * the current user. This function returns always <code>true</code> if the provided
-     * <code>headers</code> do not contain any authentication.
-     */
-    boolean ensureAuthenticatedUserIsSame(Map<String, String> originHeaders, Authentication current) throws IOException {
-        if (originHeaders == null || originHeaders.containsKey(AUTHENTICATION_KEY) == false) {
-            // no authorization attached to the original request
-            return true;
-        }
-        if (current == null) {
-            // origin is an authenticated user but current is not
-            return false;
-        }
-        Authentication origin = AuthenticationContextSerializer.decode(originHeaders.get(AUTHENTICATION_KEY));
-        return origin.canAccessResourcesOf(current);
     }
 
     private void writeResponse(R response, OutputStream os) throws IOException {

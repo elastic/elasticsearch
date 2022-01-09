@@ -22,6 +22,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -38,6 +41,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 
 /**
  * A lightweight utility that can find the current user and authentication information for the local thread.
@@ -48,12 +52,12 @@ public class SecurityContext {
 
     private final ThreadContext threadContext;
     private final AuthenticationContextSerializer authenticationSerializer;
-    private final String nodeName;
+    private final Settings settings;
 
     public SecurityContext(Settings settings, ThreadContext threadContext) {
         this.threadContext = threadContext;
         this.authenticationSerializer = new AuthenticationContextSerializer();
-        this.nodeName = Node.NODE_NAME_SETTING.get(settings);
+        this.settings = settings;
     }
 
     /**
@@ -87,6 +91,80 @@ public class SecurityContext {
     }
 
     /**
+     * Checks whether the user or API key of the passed in authentication can access the resources owned by the user
+     * or API key of this authentication. The rules are as follows:
+     *   * True if the authentications are for the same API key (same API key ID)
+     *   * True if they are the same username from the same realm
+     *      - For file and native realm, same realm means the same realm type
+     *      - For all other realms, same realm means same realm type plus same realm name
+     *   * An user and its API key cannot access each other's resources
+     *   * An user and its token can access each other's resources
+     *   * Two API keys are never able to access each other's resources regardless of their ownership.
+     *
+     *  This check is a best effort and it does not account for certain static and external changes.
+     *  See also <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/security-limitations.html">
+     *      security limitations</a>
+     */
+    public boolean canIAccessResourcesCreatedBy(@Nullable Authentication resourceCreatorAuthentication) {
+        if (resourceCreatorAuthentication == null) {
+            // resource creation was not authenticated (security was disabled); anyone can access such resources
+            return true;
+        }
+        final Authentication myAuthentication = getAuthentication();
+        if (myAuthentication == null) {
+            // unauthenticated users cannot access any resources created by authenticated users
+            return false;
+        }
+        if (AuthenticationType.API_KEY == myAuthentication.getAuthenticationType()
+            && AuthenticationType.API_KEY == resourceCreatorAuthentication.getAuthenticationType()) {
+            final boolean sameKeyId = myAuthentication.getMetadata()
+                .get(AuthenticationField.API_KEY_ID_KEY)
+                .equals(resourceCreatorAuthentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
+            if (sameKeyId) {
+                assert myAuthentication.getUser().principal().equals(resourceCreatorAuthentication.getUser().principal())
+                    : "The same API key ID cannot be attributed to two different usernames";
+            }
+            return sameKeyId;
+        }
+
+        if (myAuthentication.getAuthenticationType().equals(resourceCreatorAuthentication.getAuthenticationType())
+            || (AuthenticationType.REALM == myAuthentication.getAuthenticationType()
+                && AuthenticationType.TOKEN == resourceCreatorAuthentication.getAuthenticationType())
+            || (AuthenticationType.TOKEN == myAuthentication.getAuthenticationType()
+                && AuthenticationType.REALM == resourceCreatorAuthentication.getAuthenticationType())) {
+            if (false == myAuthentication.getUser().principal().equals(resourceCreatorAuthentication.getUser().principal())) {
+                return false;
+            }
+            final Authentication.RealmRef mySourceRealm = myAuthentication.getSourceRealm();
+            final Authentication.RealmRef resourceCreatorSourceRealm = resourceCreatorAuthentication.getSourceRealm();
+            if (FileRealmSettings.TYPE.equals(mySourceRealm.getType()) || NativeRealmSettings.TYPE.equals(mySourceRealm.getType())) {
+                return mySourceRealm.getType().equals(resourceCreatorSourceRealm.getType());
+            }
+            return mySourceRealm.getName().equals(resourceCreatorSourceRealm.getName())
+                && mySourceRealm.getType().equals(resourceCreatorSourceRealm.getType());
+        } else {
+            assert EnumSet.of(
+                AuthenticationType.REALM,
+                AuthenticationType.API_KEY,
+                AuthenticationType.TOKEN,
+                AuthenticationType.ANONYMOUS,
+                AuthenticationType.INTERNAL
+            ).containsAll(EnumSet.of(myAuthentication.getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType()))
+                : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
+                    + EnumSet.of(myAuthentication.getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType());
+            return false;
+        }
+    }
+
+    public boolean canIAccessResourcesCreatedBy(Map<String, String> resourceCreateRequestHeaders) throws IOException {
+        Authentication resourceCreatorAuthentication = null;
+        if (resourceCreateRequestHeaders != null && resourceCreateRequestHeaders.containsKey(AUTHENTICATION_KEY)) {
+            resourceCreatorAuthentication = AuthenticationContextSerializer.decode(resourceCreateRequestHeaders.get(AUTHENTICATION_KEY));
+        }
+        return canIAccessResourcesCreatedBy(resourceCreatorAuthentication);
+    }
+
+    /**
      * Returns the "secondary authentication" (see {@link SecondaryAuthentication}) information,
      * or {@code null} if the current request does not have a secondary authentication context
      */
@@ -109,7 +187,11 @@ public class SecurityContext {
      */
     public void setUser(User user, Version version) {
         Objects.requireNonNull(user);
-        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(ATTACH_REALM_NAME, ATTACH_REALM_TYPE, nodeName);
+        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
+            ATTACH_REALM_NAME,
+            ATTACH_REALM_TYPE,
+            Node.NODE_NAME_SETTING.get(settings)
+        );
         final Authentication.RealmRef lookedUpBy;
         if (user.isRunAs()) {
             lookedUpBy = authenticatedBy;

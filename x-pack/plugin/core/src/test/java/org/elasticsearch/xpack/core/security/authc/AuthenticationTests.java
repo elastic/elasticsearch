@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -17,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -43,7 +47,7 @@ public class AuthenticationTests extends ESTestCase {
         assertEquals(authenticatedBy, authentication.getSourceRealm());
     }
 
-    public void testCanAccessResourcesOf() {
+    public void testCanAccessResourcesOf() throws Exception {
         // Same user is the same
         final User user1 = randomUser();
         final RealmRef realm1 = randomRealm();
@@ -53,7 +57,7 @@ public class AuthenticationTests extends ESTestCase {
         final User user2 = randomValueOtherThanMany(u -> u.principal().equals(user1.principal()), AuthenticationTests::randomUser);
         // user 2 can be from either the same realm or a different realm
         final RealmRef realm2 = randomFrom(realm1, randomRealm());
-        assertCannotAccessResources(randomAuthentication(user1, realm2), randomAuthentication(user2, realm2));
+        assertAccessResources(randomAuthentication(user1, realm2), randomAuthentication(user2, realm2), false);
 
         // Same username but different realm is different
         final RealmRef realm3;
@@ -63,25 +67,26 @@ public class AuthenticationTests extends ESTestCase {
                 if (realmIsSingleton(realm1)) {
                     checkCanAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
                 } else {
-                    assertCannotAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
+                    assertAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3), false);
                 }
                 break;
             case 1: // change type
                 realm3 = mutateRealm(realm1, null, randomAlphaOfLengthBetween(3, 8));
-                assertCannotAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
+                assertAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3), false);
                 break;
             case 2: // both
                 realm3 = mutateRealm(realm1, randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
-                assertCannotAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
+                assertAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3), false);
                 break;
             default:
                 assert false : "Case number out of range";
         }
 
         // User and its API key are not the same owner
-        assertCannotAccessResources(
+        assertAccessResources(
             randomAuthentication(user1, realm1),
-            randomApiKeyAuthentication(user1, randomAlphaOfLengthBetween(10, 20))
+            randomApiKeyAuthentication(user1, randomAlphaOfLengthBetween(10, 20)),
+            false
         );
 
         // Same API key ID are the same owner
@@ -90,9 +95,10 @@ public class AuthenticationTests extends ESTestCase {
 
         // Two API keys (2 API key IDs) are not the same owner
         final String apiKeyId2 = randomValueOtherThan(apiKeyId1, () -> randomAlphaOfLengthBetween(10, 20));
-        assertCannotAccessResources(
+        assertAccessResources(
             randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId1),
-            randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId2)
+            randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId2),
+            false
         );
     }
 
@@ -133,20 +139,27 @@ public class AuthenticationTests extends ESTestCase {
         }
     }
 
-    private void checkCanAccessResources(Authentication authentication0, Authentication authentication1) {
+    private void checkCanAccessResources(Authentication authentication0, Authentication authentication1) throws IOException {
         if (authentication0.getAuthenticationType() == authentication1.getAuthenticationType()
             || EnumSet.of(AuthenticationType.REALM, AuthenticationType.TOKEN)
                 .equals(EnumSet.of(authentication0.getAuthenticationType(), authentication1.getAuthenticationType()))) {
-            assertTrue(authentication0.canAccessResourcesOf(authentication1));
-            assertTrue(authentication1.canAccessResourcesOf(authentication0));
+            assertAccessResources(authentication0, authentication1, true);
         } else {
-            assertCannotAccessResources(authentication0, authentication1);
+            assertAccessResources(authentication0, authentication1, false);
         }
     }
 
-    private void assertCannotAccessResources(Authentication authentication0, Authentication authentication1) {
-        assertFalse(authentication0.canAccessResourcesOf(authentication1));
-        assertFalse(authentication1.canAccessResourcesOf(authentication0));
+    private void assertAccessResources(Authentication authentication0, Authentication authentication1, boolean can) throws IOException {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
+            authentication0.writeToContext(threadContext);
+            assertThat(securityContext.canIAccessResourcesCreatedBy(authentication1), is(can));
+        }
+        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
+            authentication1.writeToContext(threadContext);
+            assertThat(securityContext.canIAccessResourcesCreatedBy(authentication0), is(can));
+        }
     }
 
     public static User randomUser() {

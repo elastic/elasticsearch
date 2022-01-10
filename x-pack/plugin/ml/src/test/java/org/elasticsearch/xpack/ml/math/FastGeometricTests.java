@@ -30,7 +30,7 @@ public class FastGeometricTests extends ESTestCase {
             int[] counts = new int[size];
             double mean = 0.0;
             for (int i = 0; i < N; ++i) {
-                int sample = geometric.next();
+                int sample = (geometric.next() - 1);
                 if (sample < counts.length) {
                     counts[sample]++;
                 }

@@ -93,7 +93,7 @@ public class FastGeometric {
             generate();
             currentSample = 0;
         }
-        return currentSamples[currentSample];
+        return currentSamples[currentSample] + 1;
     }
 
     private void generate() {

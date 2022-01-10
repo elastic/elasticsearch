@@ -52,6 +52,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -636,17 +637,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             if (ts.incrementToken() == false) {
-                throw new IllegalStateException("""
+                throw new IllegalStateException(String.format(Locale.ROOT, """
                     The normalization token stream is expected to produce exactly 1 token, \
                     but got 0 for analyzer %s and input "%s"
-                    """.formatted(normalizer, value));
+                    """, normalizer, value));
             }
             final String newValue = termAtt.toString();
             if (ts.incrementToken()) {
-                throw new IllegalStateException("""
+                throw new IllegalStateException(String.format(Locale.ROOT, """
                     The normalization token stream is expected to produce exactly 1 token, \
                     but got 2+ for analyzer %s and input "%s"
-                    """.formatted(normalizer, value));
+                    """, normalizer, value));
             }
             ts.end();
             return newValue;

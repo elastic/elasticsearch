@@ -12,10 +12,10 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryTask;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
@@ -142,20 +142,12 @@ public final class SqlTestUtils {
             for (int i = 0; i < noOfSelectArgs; i++) {
                 sb.append(shuffledArgIndices.get(i));
                 switch (randomInt(2)) {
-                    case 0:
-                        sb.append(" DESC");
-                        break;
-                    case 1:
-                        sb.append(" ASC");
-                        break;
+                    case 0 -> sb.append(" DESC");
+                    case 1 -> sb.append(" ASC");
                 }
                 switch (randomInt(2)) {
-                    case 0:
-                        sb.append(" NULLS FIRST");
-                        break;
-                    case 1:
-                        sb.append(" NULLS LAST");
-                        break;
+                    case 0 -> sb.append(" NULLS FIRST");
+                    case 1 -> sb.append(" NULLS LAST");
                 }
                 if (i < noOfSelectArgs - 1) {
                     sb.append(", ");

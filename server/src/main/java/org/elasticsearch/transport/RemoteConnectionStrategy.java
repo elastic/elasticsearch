@@ -168,14 +168,10 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         Settings settings
     ) {
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        switch (mode) {
-            case SNIFF:
-                return new SniffConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
-            case PROXY:
-                return new ProxyConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
-            default:
-                throw new AssertionError("Invalid connection strategy" + mode);
-        }
+        return switch (mode) {
+            case SNIFF -> new SniffConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
+            case PROXY -> new ProxyConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
+        };
     }
 
     static Set<String> getRemoteClusters(Settings settings) {
@@ -431,7 +427,9 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             ConnectionStrategy modeType = (ConnectionStrategy) settings.get(concrete);
             if (isPresent && modeType.equals(expectedStrategy) == false) {
                 throw new IllegalArgumentException(
-                    "Setting \"%s\" cannot be used with the configured \"%s\" [required=%s, configured=%s]".formatted(
+                    String.format(
+                        Locale.ROOT,
+                        "Setting \"%s\" cannot be used with the configured \"%s\" [required=%s, configured=%s]",
                         key,
                         concrete.getKey(),
                         expectedStrategy.name(),

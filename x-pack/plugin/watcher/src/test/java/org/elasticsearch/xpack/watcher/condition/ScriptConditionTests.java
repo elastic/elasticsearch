@@ -181,13 +181,14 @@ public class ScriptConditionTests extends ESTestCase {
         String script;
         Class<? extends Exception> expectedException;
         switch (scriptType) {
-            case STORED:
+            case STORED -> {
                 expectedException = ResourceNotFoundException.class;
                 script = "nonExisting_script";
-                break;
-            default:
+            }
+            default -> {
                 expectedException = GeneralScriptException.class;
                 script = "foo = = 1";
+            }
         }
         XContentBuilder builder = createConditionContent(script, "mockscript", scriptType);
         XContentParser parser = createParser(builder);
@@ -256,14 +257,9 @@ public class ScriptConditionTests extends ESTestCase {
         }
         builder.startObject();
         switch (scriptType) {
-            case INLINE:
-                builder.field("source", script);
-                break;
-            case STORED:
-                builder.field("id", script);
-                break;
-            default:
-                throw illegalArgument("unsupported script type [{}]", scriptType);
+            case INLINE -> builder.field("source", script);
+            case STORED -> builder.field("id", script);
+            default -> throw illegalArgument("unsupported script type [{}]", scriptType);
         }
         if (scriptLang != null && scriptType != ScriptType.STORED) {
             builder.field("lang", scriptLang);

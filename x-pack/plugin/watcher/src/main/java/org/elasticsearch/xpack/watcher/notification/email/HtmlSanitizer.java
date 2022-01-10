@@ -148,66 +148,36 @@ public class HtmlSanitizer {
         for (String tag : allow) {
             tag = tag.toLowerCase(Locale.ROOT);
             switch (tag) {
-                case "_tables":
+                case "_tables" -> {
                     policyBuilder.allowElements(TABLE_TAGS);
                     policyBuilder.allowAttributes("span").onElements("col");
                     policyBuilder.allowAttributes("border", "cellpadding").onElements("table");
                     policyBuilder.allowAttributes("colspan", "rowspan").onElements("th", "td");
-                    break;
-                case "_links":
-                    policyBuilder.allowElements("a")
-                        .allowAttributes("href")
-                        .onElements("a")
-                        .allowStandardUrlProtocols()
-                        .requireRelNofollowOnLinks();
-                    break;
-                case "_blocks":
-                    policyBuilder.allowElements(BLOCK_TAGS);
-                    break;
-                case "_formatting":
-                    policyBuilder.allowElements(FORMATTING_TAGS).allowWithoutAttributes("span");
-                    break;
-                case "_styles":
-                    policyBuilder.allowStyling(CssSchema.DEFAULT);
-                    break;
-                case "img:all":
-                case "img":
-                    images.add(Images.ALL);
-                    break;
-                case "img:embedded":
-                    images.add(Images.EMBEDDED);
-                    break;
-                default:
-                    policyBuilder.allowElements(tag);
+                }
+                case "_links" -> policyBuilder.allowElements("a")
+                    .allowAttributes("href")
+                    .onElements("a")
+                    .allowStandardUrlProtocols()
+                    .requireRelNofollowOnLinks();
+                case "_blocks" -> policyBuilder.allowElements(BLOCK_TAGS);
+                case "_formatting" -> policyBuilder.allowElements(FORMATTING_TAGS).allowWithoutAttributes("span");
+                case "_styles" -> policyBuilder.allowStyling(CssSchema.DEFAULT);
+                case "img:all", "img" -> images.add(Images.ALL);
+                case "img:embedded" -> images.add(Images.EMBEDDED);
+                default -> policyBuilder.allowElements(tag);
             }
         }
         for (String tag : disallow) {
             tag = tag.toLowerCase(Locale.ROOT);
             switch (tag) {
-                case "_tables":
-                    policyBuilder.disallowElements(TABLE_TAGS);
-                    break;
-                case "_links":
-                    policyBuilder.disallowElements("a");
-                    break;
-                case "_blocks":
-                    policyBuilder.disallowElements(BLOCK_TAGS);
-                    break;
-                case "_formatting":
-                    policyBuilder.disallowElements(FORMATTING_TAGS);
-                    break;
-                case "_styles":
-                    policyBuilder.disallowAttributes("style");
-                    break;
-                case "img:all":
-                case "img":
-                    images.remove(Images.ALL);
-                    break;
-                case "img:embedded":
-                    images.remove(Images.EMBEDDED);
-                    break;
-                default:
-                    policyBuilder.disallowElements(tag);
+                case "_tables" -> policyBuilder.disallowElements(TABLE_TAGS);
+                case "_links" -> policyBuilder.disallowElements("a");
+                case "_blocks" -> policyBuilder.disallowElements(BLOCK_TAGS);
+                case "_formatting" -> policyBuilder.disallowElements(FORMATTING_TAGS);
+                case "_styles" -> policyBuilder.disallowAttributes("style");
+                case "img:all", "img" -> images.remove(Images.ALL);
+                case "img:embedded" -> images.remove(Images.EMBEDDED);
+                default -> policyBuilder.disallowElements(tag);
             }
         }
 

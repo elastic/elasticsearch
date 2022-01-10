@@ -69,21 +69,11 @@ public final class LoggerTerminal extends Terminal {
 
     @Override
     protected void print(Verbosity verbosity, String msg, boolean isError) {
-        Level level;
-        switch (verbosity) {
-            case SILENT:
-                level = isError ? Level.ERROR : Level.WARN;
-                break;
-
-            case VERBOSE:
-                level = Level.DEBUG;
-                break;
-
-            case NORMAL:
-            default:
-                level = isError ? Level.WARN : Level.INFO;
-                break;
-        }
+        Level level = switch (verbosity) {
+            case SILENT -> isError ? Level.ERROR : Level.WARN;
+            case VERBOSE -> Level.DEBUG;
+            case NORMAL -> isError ? Level.WARN : Level.INFO;
+        };
         this.logger.logIfEnabled(FQCN, level, null, msg.trim(), (Throwable) null);
     }
 

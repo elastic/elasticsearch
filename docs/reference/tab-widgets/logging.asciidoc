@@ -42,8 +42,3 @@ Files in `%ES_HOME%` risk deletion during an upgrade. In production, we strongly
 recommend you set `path.logs` to a location outside of `%ES_HOME%``.
 See <<path-settings>>.
 // end::win-zip[]
-
-// tag::win-msi[]
-For <<windows,Windows `.msi`>> installations, {es} writes logs to
-`%ALLUSERSPROFILE%\Elastic\Elasticsearch\logs`.
-// end::win-msi[]

@@ -17,12 +17,13 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -89,6 +90,7 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.CancelJobModelSnapshotUpgradeAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAllocationAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
@@ -183,6 +185,7 @@ import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskP
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
+import org.elasticsearch.xpack.ml.action.TransportCancelJobModelSnapshotUpgradeAction;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
 import org.elasticsearch.xpack.ml.action.TransportCreateTrainedModelAllocationAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
@@ -424,6 +427,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -1281,6 +1285,7 @@ public class MachineLearning extends Plugin
             new ActionHandler<>(GetTrainedModelsStatsAction.INSTANCE, TransportGetTrainedModelsStatsAction.class),
             new ActionHandler<>(PutTrainedModelAction.INSTANCE, TransportPutTrainedModelAction.class),
             new ActionHandler<>(UpgradeJobModelSnapshotAction.INSTANCE, TransportUpgradeJobModelSnapshotAction.class),
+            new ActionHandler<>(CancelJobModelSnapshotUpgradeAction.INSTANCE, TransportCancelJobModelSnapshotUpgradeAction.class),
             new ActionHandler<>(GetJobModelSnapshotsUpgradeStatsAction.INSTANCE, TransportGetJobModelSnapshotsUpgradeStatsAction.class),
             new ActionHandler<>(PutTrainedModelAliasAction.INSTANCE, TransportPutTrainedModelAliasAction.class),
             new ActionHandler<>(DeleteTrainedModelAliasAction.INSTANCE, TransportDeleteTrainedModelAliasAction.class),
@@ -1599,6 +1604,25 @@ public class MachineLearning extends Plugin
     }
 
     @Override
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
+        return templates -> {
+            // These are all legacy templates that were created in old versions. None are needed now. The
+            // indices they were associated with either became system indices or now use composable templates.
+            templates.remove(".ml-anomalies-");
+            templates.remove(".ml-config");
+            templates.remove(".ml-inference-000001");
+            templates.remove(".ml-inference-000002");
+            templates.remove(".ml-inference-000003");
+            templates.remove(".ml-meta");
+            templates.remove(".ml-notifications");
+            templates.remove(".ml-notifications-000001");
+            templates.remove(".ml-state");
+            templates.remove(".ml-stats");
+            return templates;
+        };
+    }
+
+    @Override
     public String getFeatureName() {
         return "machine_learning";
     }
@@ -1763,16 +1787,28 @@ public class MachineLearning extends Plugin
         }, unsetResetModeListener::onFailure);
 
         // Stop data feeds
+        ActionListener<CancelJobModelSnapshotUpgradeAction.Response> cancelSnapshotUpgradesListener = ActionListener.wrap(
+            cancelUpgradesResponse -> {
+                StopDatafeedAction.Request stopDatafeedsReq = new StopDatafeedAction.Request("_all").setAllowNoMatch(true);
+                client.execute(
+                    StopDatafeedAction.INSTANCE,
+                    stopDatafeedsReq,
+                    ActionListener.wrap(afterDataFeedsStopped::onResponse, failure -> {
+                        logger.warn("failed stopping datafeeds for machine learning feature reset. Attempting with force=true", failure);
+                        client.execute(StopDatafeedAction.INSTANCE, stopDatafeedsReq.setForce(true), afterDataFeedsStopped);
+                    })
+                );
+            },
+            unsetResetModeListener::onFailure
+        );
+
+        // Cancel model snapshot upgrades
         ActionListener<AcknowledgedResponse> stopDeploymentsListener = ActionListener.wrap(acknowledgedResponse -> {
-            StopDatafeedAction.Request stopDatafeedsReq = new StopDatafeedAction.Request("_all").setAllowNoMatch(true);
-            client.execute(
-                StopDatafeedAction.INSTANCE,
-                stopDatafeedsReq,
-                ActionListener.wrap(afterDataFeedsStopped::onResponse, failure -> {
-                    logger.warn("failed stopping datafeeds for machine learning feature reset. Attempting with force=true", failure);
-                    client.execute(StopDatafeedAction.INSTANCE, stopDatafeedsReq.setForce(true), afterDataFeedsStopped);
-                })
+            CancelJobModelSnapshotUpgradeAction.Request cancelSnapshotUpgradesReq = new CancelJobModelSnapshotUpgradeAction.Request(
+                "_all",
+                "_all"
             );
+            client.execute(CancelJobModelSnapshotUpgradeAction.INSTANCE, cancelSnapshotUpgradesReq, cancelSnapshotUpgradesListener);
         }, unsetResetModeListener::onFailure);
 
         // Stop all model deployments

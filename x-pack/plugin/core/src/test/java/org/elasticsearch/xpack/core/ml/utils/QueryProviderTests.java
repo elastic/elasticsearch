@@ -95,16 +95,11 @@ public class QueryProviderTests extends AbstractSerializingTestCase<QueryProvide
         Exception parsingException = instance.getParsingException();
         QueryBuilder parsedQuery = instance.getParsedQuery();
         switch (between(0, 1)) {
-            case 0:
-                parsingException = parsingException == null ? new IOException("failed parsing") : null;
-                break;
-            case 1:
-                parsedQuery = parsedQuery == null
-                    ? XContentObjectTransformer.queryBuilderTransformer(xContentRegistry()).fromMap(instance.getQuery())
-                    : null;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> parsingException = parsingException == null ? new IOException("failed parsing") : null;
+            case 1 -> parsedQuery = parsedQuery == null
+                ? XContentObjectTransformer.queryBuilderTransformer(xContentRegistry()).fromMap(instance.getQuery())
+                : null;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new QueryProvider(instance.getQuery(), parsedQuery, parsingException);
     }

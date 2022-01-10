@@ -72,32 +72,22 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         Long maxDocs = instance.getMaxDocs();
 
         switch (between(0, 5)) {
-            case 0:
-                key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                maxSize = randomValueOtherThan(maxSize, () -> {
-                    ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
-                    return new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
-                });
-                break;
-            case 3:
-                maxPrimaryShardSize = randomValueOtherThan(maxPrimaryShardSize, () -> {
-                    ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
-                    return new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
-                });
-                break;
-            case 4:
-                maxAge = randomValueOtherThan(maxAge, () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test"));
-                break;
-            case 5:
-                maxDocs = randomValueOtherThan(maxDocs, () -> randomNonNegativeLong());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 2 -> maxSize = randomValueOtherThan(maxSize, () -> {
+                ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
+                return new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+            });
+            case 3 -> maxPrimaryShardSize = randomValueOtherThan(maxPrimaryShardSize, () -> {
+                ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
+                return new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
+            });
+            case 4 -> maxAge = randomValueOtherThan(
+                maxAge,
+                () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
+            );
+            case 5 -> maxDocs = randomValueOtherThan(maxDocs, () -> randomNonNegativeLong());
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new WaitForRolloverReadyStep(key, nextKey, instance.getClient(), maxSize, maxPrimaryShardSize, maxAge, maxDocs);
     }

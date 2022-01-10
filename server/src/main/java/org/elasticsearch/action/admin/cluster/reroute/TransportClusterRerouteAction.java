@@ -88,8 +88,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     ) {
         Map<String, List<AbstractAllocateAllocationCommand>> stalePrimaryAllocations = new HashMap<>();
         for (AllocationCommand command : request.getCommands().commands()) {
-            if (command instanceof AllocateStalePrimaryAllocationCommand) {
-                final AllocateStalePrimaryAllocationCommand cmd = (AllocateStalePrimaryAllocationCommand) command;
+            if (command instanceof final AllocateStalePrimaryAllocationCommand cmd) {
                 stalePrimaryAllocations.computeIfAbsent(cmd.index(), k -> new ArrayList<>()).add(cmd);
             }
         }

@@ -64,7 +64,7 @@ Enables fips mode of operation. Set this to `true` if you run this {es} instance
 (<<static-cluster-setting,Static>>)
 Specifies the hashing algorithm that is used for secure user credential storage.
 See <<password-hashing-algorithms>>.
-If `xpack.security.fips_mode.enabled` is true (see <<fips-140-compliance>>), defaults to `pbkdf2_stretch`. 
+If `xpack.security.fips_mode.enabled` is true (see <<fips-140-compliance>>), defaults to `pbkdf2_stretch`.
 In all other cases, defaults to `bcrypt`.
 
 [discrete]
@@ -1640,8 +1640,8 @@ or `client_secret_jwt`. Defaults to `client_secret_basic`.
 (<<static-cluster-setting, Static>>)
 The signature algorithm that {es} uses to sign the JWT with which it authenticates
 as a client to the OpenID Connect Provider when `client_secret_jwt` is selected for
-`rp.client_auth_method`. Can be either `HS256`, `HS384`, or `HS512`. Defaults to 
-`HS384`. 
+`rp.client_auth_method`. Can be either `HS256`, `HS384`, or `HS512`. Defaults to
+`HS384`.
 // end::rp-client-auth-jwt-signature-algorithm[]
 
 // tag::rp-redirect-uri-tag[]
@@ -1946,6 +1946,286 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
 // end::oidc-ssl-cipher-suites-tag[]
+
+[[ref-jwt-settings]]
+[discrete]
+===== JWT realm settings
+// tag::jwt-description-tag[]
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you
+can specify the following settings.
+// end::jwt-description-tag[]
+
+// tag::jwt-allowed-issuer-tag[]
+`allowed_issuer` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+A verifiable Identifier for your JWT Issuer. An Issuer
+Identifier is usually a case sensitive URL using the https scheme that contains
+scheme, host, and optionally, port number and path components and no query or
+fragment components. However, it can be any string. The value for this setting
+should be provided by your JWT Issuer.
+// end::jwt-allowed-issuer-tag[]
+
+// tag::jwt-allowed-signature-algorithms-tag[]
+`allowed_signature_algorithms` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The signature algorithm that will be used by {es} in order to verify the
+signature of the JWT it will receive from the JWT Issuer.
+Defaults to `RS256`.
+// end::jwt-allowed-signature-algorithms-tag[]
+
+// tag::jwt-allowed-clock-skew-tag[]
+`allowed_clock_skew` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The maximum allowed clock skew to be taken into consideration when validating
+JWTs with regards to their creation, not before, and expiration times.
+// end::jwt-allowed-clock-skew-tag[]
+
+// tag::jwt-jwkset-path-tag[]
+`jwkset_path` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The file path or URL to a JSON Web Key Set with the key material that the JWT
+Issuer uses for signing tokens and claims responses.
+If a path is provided, then it is resolved relative to the {es} config
+directory.
+If a URL is provided, then it must be either a `file` URL or a `https` URL.
+{es} automatically caches the retrieved JWK set to avoid unnecessary HTTP
+requests but will attempt to refresh the JWK upon signature verification
+failure, as this might indicate that the JWT Provider has
+rotated the signing keys.
++
+File-based resources are polled at a frequency determined by the global {es}
+`resource.reload.interval.high` setting, which defaults to 5 seconds.
+// end::jwt-jwkset-path-tag[]
+
+// tag::jwt-allowed-audiences-tag[]
+`allowed_audiences` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+A list of allowed JWT audiences that {es} should verify.
++
+{es} will only consume JWTs that were intended for these audiences.
+( as denoted by the `aud` claim in the JWT).
+// end::jwt-allowed-audiences-tag[]
+
+// tag::jwt-claims-principal-tag[]
+`claims.principal`::
+(<<static-cluster-setting,Static>>)
+The name of the JWT claim that contains the user's principal (username).
+Examples may include 'sub', 'name', 'email', 'dn', and so on.
+// end::jwt-claims-principal-tag[]
+
+// tag::jwt-claims-groups-tag[]
+`claims.groups` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The name of the JWT claim that contains the user's groups.
+Examples may include 'groups', 'roles', and so on.
+// end::jwt-claims-groups-tag[]
+
+// tag::jwt-claim-pattern-principal-tag[]
+`claim_patterns.principal` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+A optional Java regular expression that is matched against the JWT claim specified
+by `claims.principal` before it is applied to the user's _principal_ property.
+The attribute value must match the pattern and the value of the first
+_capturing group_ is used as the principal. For example, `^([^@]+)@example\\.com$`
+matches email addresses from the "example.com" domain and uses the local-part as
+the principal. Another example is 'sub' which may not need a pattern setting.
+// end::jwt-claim-pattern-principal-tag[]
+
+// tag::jwt-claim-pattern-groups-tag[]
+`claim_patterns.groups` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+As per `claim_patterns.principal`, but for the _group_ property.
+// end::jwt-claim-pattern-groups-tag[]
+
+// tag::jwt-populate-user-metadata-tag[]
+`populate_user_metadata` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Specifies whether to populate the {es} user's metadata with the values that are
+provided by the JWT claims. Defaults to `true`.
+// end::jwt-populate-user-metadata-tag[]
+
+// tag::jwt-client-authentication-type-tag[]
+`client_authentication.type` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Specifies whether to use `sharedsecret` or `none` to authenticate
+incoming client requests. Defaults to `sharedsecret`.
+// end::jwt-client-authentication-type-tag[]
+
+`authorization_realms`::
+(<<static-cluster-setting,Static>>)
+The names of the realms that should be consulted for delegated authorization.
+If this setting is used, then the JWT realm does not perform role
+mapping and instead loads the user from the listed realms.
+See <<authorization_realms>>.
+
+`cache.ttl`::
+(<<static-cluster-setting,Static>>)
+Specifies the time-to-live for cached entries of JWT and client credential.
+Successful authentications will be cached for this period of time. Use the
+standard {es} <<time-units,time units>>.
+Defaults to `20m`.
+
+`cache.max_users`::
+(<<static-cluster-setting,Static>>)
+Specifies the maximum number of JWT and client credential entries that the
+cache can contain. Defaults to `100000`.
+
+// tag::jwt-http-connect-timeout-tag[]
+`http.connect_timeout` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Controls the behavior of the http client used for fetching the JSON Web Key Set
+from a remote URL. A value of zero means the timeout is not used. Defaults to `5s`.
+// end::jwt-http-connect-timeout-tag[]
+
+// tag::jwt-http-read-timeout-tag[]
+`http.connection_read_timeout` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Controls the behavior of the http client used for fetching the JSON Web Key Set
+from remote a URL. Specifies the timeout used when
+requesting a connection from the connection manager. Defaults to `5s`
+// end::jwt-http-read-timeout-tag[]
+
+// tag::jwt-http-socket-timeout[]
+`http.socket_timeout` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Controls the behavior of the http client used for fetching the JSON Web Key Set
+from remote a URL. Specifies the socket timeout (SO_TIMEOUT)
+in milliseconds, which is the timeout for waiting for data or, put differently,
+a maximum period inactivity between two consecutive data packets. Defaults to
+`5s`.
+// end::jwt-http-socket-timeout[]
+
+// tag::jwt-http-max-connections-tag[]
+`http.max_connections` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Controls the behavior of the http client used for fetching the JSON Web Key Set
+from a remote URL. Specifies the maximum number of
+connections allowed across all endpoints.
+// end::jwt-http-max-connections-tag[]
+
+// tag::jwt-http-max-endpoint-connections-tag[]
+`http.max_endpoint_connections` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Controls the behavior of the http client used for fetching the JSON Web Key Set
+from a remote URL. Specifies the maximum number of
+connections allowed per endpoint.
+// end::jwt-http-max-endpoint-connections-tag[]
+
+[discrete]
+[[ref-jwt-ssl-settings]]
+===== JWT realm SSL settings
+// tag::jwt-ssl-description-tag[]
+The following settings can be used to configure SSL for fetching the JSON Web Key Set
+from a remote URL.
+
+NOTE: These settings are _only_ used for the back-channel communication between
+{es} and the JWT Issuer
+
+// end::jwt-ssl-description-tag[]
+
+// tag::jwt-ssl-key-tag[]
+`ssl.key` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
+// end::jwt-ssl-key-tag[]
+
+// tag::jwt-ssl-key-passphrase-tag[]
+`ssl.key_passphrase` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
+// end::jwt-ssl-key-passphrase-tag[]
+
+`ssl.secure_key_passphrase`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
++
+You cannot use this setting and `ssl.key_passphrase` at the same time.
+
+// tag::jwt-ssl-certificate-tag[]
+`ssl.certificate` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
+// end::jwt-ssl-certificate-tag[]
+
+// tag::jwt-ssl-certificate-authorities-tag[]
+`ssl.certificate_authorities` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
+// end::jwt-ssl-certificate-authorities-tag[]
+
+// tag::jwt-ssl-keystore-path-tag[]
+`ssl.keystore.path` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
+// end::jwt-ssl-keystore-path-tag[]
+
+// tag::jwt-ssl-keystore-type-tag[]
+`ssl.keystore.type` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
+// end::jwt-ssl-keystore-type-tag[]
+
+`ssl.keystore.secure_password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
++
+You cannot use this setting and `ssl.keystore.password` at the same time.
+
+`ssl.keystore.key_password`::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
++
+You cannot use this setting and `ssl.keystore.secure_key_password` at the same
+time.
+
+`ssl.keystore.secure_key_password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
++
+You cannot use this setting and `ssl.keystore.key_password` at the same time.
+
+// tag::jwt-ssl-truststore-path-tag[]
+`ssl.truststore.path` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
+// end::jwt-ssl-truststore-path-tag[]
+
+// tag::jwt-ssl-truststore-type-tag[]
+`ssl.truststore.type` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
+// end::jwt-ssl-truststore-type-tag[]
+
+// tag::jwt-ssl-truststore-password-tag[]
+`ssl.truststore.password` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+// end::jwt-ssl-truststore-password-tag[]
+
+`ssl.truststore.secure_password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
++
+You cannot use this setting and `ssl.truststore.password` at the same time.
+
+// tag::jwt-ssl-verification-mode-tag[]
+`ssl.verification_mode` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Controls the verification of certificates.
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
+// end::jwt-ssl-verification-mode-tag[]
+
+// tag::jwt-ssl-supported-protocols-tag[]
+`ssl.supported_protocols` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
+// end::jwt-ssl-supported-protocols-tag[]
+
+// tag::jwt-ssl-cipher-suites-tag[]
+`ssl.cipher_suites` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+// end::jwt-ssl-cipher-suites-tag[]
 
 [discrete]
 [[load-balancing]]

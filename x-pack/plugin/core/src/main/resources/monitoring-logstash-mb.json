@@ -59,7 +59,102 @@
                       }
                     },
                     "pipelines": {
-                      "type": "nested"
+                      "type": "nested",
+                      "properties": {
+                        "id": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        },
+                        "ephemeral_id": {
+                          "type": "keyword"
+                        },
+                        "hash": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        },
+                        "queue": {
+                          "properties": {
+                            "type": {
+                              "type": "keyword",
+                              "ignore_above": 1024
+                            },
+                            "events_count": {
+                              "type": "long"
+                            },
+                            "max_queue_size_in_bytes": {
+                              "type": "long"
+                            },
+                            "queue_size_in_bytes": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "events": {
+                          "properties": {
+                            "duration_in_millis": {
+                              "type": "long"
+                            },
+                            "filtered": {
+                              "type": "long"
+                            },
+                            "in": {
+                              "type": "long"
+                            },
+                            "out": {
+                              "type": "long"
+                            },
+                            "queue_push_duration_in_millis": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "reloads": {
+                          "properties": {
+                            "failures": {
+                              "type": "long"
+                            },
+                            "successes": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "vertices": {
+                          "type": "nested",
+                          "properties": {
+                            "id": {
+                              "type": "keyword",
+                              "ignore_above": 1024
+                            },
+                            "pipeline_ephemeral_id": {
+                              "type": "keyword",
+                              "ignore_above": 1024
+                            },
+                            "queue_push_duration_in_millis": {
+                              "type": "long"
+                            },
+                            "events_in": {
+                              "type": "long"
+                            },
+                            "events_out": {
+                              "type": "long"
+                            },
+                            "duration_in_millis": {
+                              "type": "long"
+                            },
+                            "long_counters": {
+                              "type": "nested",
+                              "properties": {
+                                "name": {
+                                    "type": "keyword"
+                                },
+                                "value": {
+                                    "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
                     },
                     "os": {
                       "properties": {
@@ -198,6 +293,18 @@
                 "version": {
                   "ignore_above": 1024,
                   "type": "keyword"
+                }
+              }
+            },
+            "elasticsearch": {
+              "properties": {
+                "cluster": {
+                  "properties": {
+                    "id": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
                 }
               }
             }
@@ -353,6 +460,10 @@
                   "type": "alias"
                 }
               }
+            },
+            "timestamp": {
+              "type": "alias",
+              "path": "@timestamp"
             }
           }
         },
@@ -631,6 +742,10 @@
               "ignore_above": 1024
             }
           }
+        },
+        "cluster_uuid": {
+          "type": "alias",
+          "path": "logstash.elasticsearch.cluster.id"
         }
       }
     },

@@ -52,13 +52,10 @@ public class CronSchedule extends CronnableSchedule {
                 List<String> crons = new ArrayList<>();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     switch (token) {
-                        case VALUE_STRING:
-                            crons.add(parser.text());
-                            break;
-                        default:
-                            throw new ElasticsearchParseException(
-                                "could not parse [cron] schedule. expected a string value in the cron " + "array but found [" + token + "]"
-                            );
+                        case VALUE_STRING -> crons.add(parser.text());
+                        default -> throw new ElasticsearchParseException(
+                            "could not parse [cron] schedule. expected a string value in the cron " + "array but found [" + token + "]"
+                        );
                     }
                 }
                 if (crons.isEmpty()) {

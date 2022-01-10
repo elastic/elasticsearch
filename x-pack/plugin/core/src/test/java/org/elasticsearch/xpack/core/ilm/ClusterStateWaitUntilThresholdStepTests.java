@@ -46,14 +46,12 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
         StepKey nextKeyOnThreshold = instance.getNextKeyOnThreshold();
 
         switch (between(0, 1)) {
-            case 0:
-                stepToExecute = randomValueOtherThan(stepToExecute, () -> new WaitForActiveShardsStep(randomStepKey(), randomStepKey()));
-                break;
-            case 1:
-                nextKeyOnThreshold = randomValueOtherThan(nextKeyOnThreshold, AbstractStepTestCase::randomStepKey);
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> stepToExecute = randomValueOtherThan(
+                stepToExecute,
+                () -> new WaitForActiveShardsStep(randomStepKey(), randomStepKey())
+            );
+            case 1 -> nextKeyOnThreshold = randomValueOtherThan(nextKeyOnThreshold, AbstractStepTestCase::randomStepKey);
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new ClusterStateWaitUntilThresholdStep(stepToExecute, nextKeyOnThreshold);

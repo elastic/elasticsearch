@@ -19,7 +19,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -33,9 +33,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -50,7 +50,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -86,6 +85,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+
+
 public class TransportFieldsEnumAction extends HandledTransportAction<FieldsEnumRequest, FieldsEnumResponse> {
 
     private final ClusterService clusterService;
@@ -99,6 +101,7 @@ public class TransportFieldsEnumAction extends HandledTransportAction<FieldsEnum
     final String transportShardAction;
     private final String shardExecutor;
     private final XPackLicenseState licenseState;
+    private final Settings settings;
 
     @Inject
     public TransportFieldsEnumAction(
@@ -110,6 +113,7 @@ public class TransportFieldsEnumAction extends HandledTransportAction<FieldsEnum
         ScriptService scriptService,
         ActionFilters actionFilters,
         XPackLicenseState licenseState,
+        Settings settings,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(FieldsEnumAction.NAME, transportService, actionFilters, FieldsEnumRequest::new);
@@ -123,7 +127,8 @@ public class TransportFieldsEnumAction extends HandledTransportAction<FieldsEnum
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.licenseState = licenseState;
-        this.remoteClusterService = searchTransportService.getRemoteClusterService();;
+        this.remoteClusterService = searchTransportService.getRemoteClusterService();
+        this.settings = settings;
 
         transportService.registerRequestHandler(
             transportShardAction,
@@ -437,21 +442,17 @@ public class TransportFieldsEnumAction extends HandledTransportAction<FieldsEnum
         XPackLicenseState frozenLicenseState,
         ThreadContext threadContext
     ) throws IOException {
-        final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        // Check security is enabled on node
-        boolean securityEnabled = XPackSettings.SECURITY_ENABLED.get(indexService.getIndexSettings().getNodeSettings());
-        if (securityEnabled) {
-            var licenseChecker = new MemoizedSupplier<>(() -> frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS));
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
 
-
             if (indexAccessControl != null) {
                 final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                if ( dls && licenseChecker.get()) {
+                if (dls && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)) {
                     // Check to see if any of the roles defined for the current user rewrite to match_all
 
                     SecurityContext securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
+                    final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
                     final SearchExecutionContext queryShardContext = indexService.newSearchExecutionContext(
                         shardId.id(),
                         0,
@@ -468,7 +469,7 @@ public class TransportFieldsEnumAction extends HandledTransportAction<FieldsEnum
                         QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
                             querySource,
                             scriptService,
-                            queryShardContext.getXContentRegistry(),
+                            queryShardContext.getParserConfig().registry(),
                             securityContext.getUser()
                         );
                         QueryBuilder rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);

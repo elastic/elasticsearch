@@ -555,7 +555,7 @@ public class JobResultsProvider {
                 ? new TimingStats(jobId)
                 : MlParserUtils.parse(timingStatsHits.getHits().getHits()[0], TimingStats.PARSER);
 
-            TopHits modelSizeHits = filters.getBucketByKey(timingStats).getAggregations().get(topHits);
+            TopHits modelSizeHits = filters.getBucketByKey(modelSizeStats).getAggregations().get(topHits);
             ModelSizeStats modelSizeStatsResult = modelSizeHits.getHits().getHits().length == 0
                 ? new ModelSizeStats.Builder(jobId).build()
                 : MlParserUtils.parse(modelSizeHits.getHits().getHits()[0], ModelSizeStats.LENIENT_PARSER).build();

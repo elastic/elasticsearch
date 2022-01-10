@@ -52,6 +52,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketOption;
 import java.util.Map;
 
+import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -87,6 +88,10 @@ public class Netty4Transport extends TcpTransport {
         NETTY_RECEIVE_PREDICTOR_SIZE,
         Property.NodeScope
     );
+
+    // only used in tests: RST connections when closing to avoid actively closing sockets to end up in time_wait in tests
+    public static final Setting<Boolean> NETTY_RST_ON_CLOSE = boolSetting("transport.netty.rst_on_close", false, Property.NodeScope);
+
     public static final Setting<Integer> NETTY_BOSS_COUNT = intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
 
     private final SharedGroupFactory sharedGroupFactory;
@@ -94,6 +99,7 @@ public class Netty4Transport extends TcpTransport {
     private final ByteSizeValue receivePredictorMin;
     private final ByteSizeValue receivePredictorMax;
     private final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
+    private final boolean rstOnClose;
     private volatile Bootstrap clientBootstrap;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
 
@@ -124,6 +130,7 @@ public class Netty4Transport extends TcpTransport {
                 (int) receivePredictorMax.getBytes()
             );
         }
+        this.rstOnClose = NETTY_RST_ON_CLOSE.get(settings);
     }
 
     @Override
@@ -302,7 +309,7 @@ public class Netty4Transport extends TcpTransport {
             throw new IOException(connectFuture.cause());
         }
 
-        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, false, "default", connectFuture);
+        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, false, "default", rstOnClose, connectFuture);
         channel.attr(CHANNEL_KEY).set(nettyChannel);
 
         return nettyChannel;
@@ -359,7 +366,7 @@ public class Netty4Transport extends TcpTransport {
             addClosedExceptionLogger(ch);
             assert ch instanceof Netty4NioSocketChannel;
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
-            Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, ch.newSucceededFuture());
+            Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, rstOnClose, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
             ch.pipeline().addLast("logging", ESLoggingHandler.INSTANCE);

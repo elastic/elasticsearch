@@ -102,6 +102,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.netty4.Netty4Transport;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -487,6 +488,8 @@ public final class InternalTestCluster extends TestCluster {
     private static Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
         Builder builder = Settings.builder();
+        // RST all closing connections in tests
+        builder.put(Netty4Transport.NETTY_RST_ON_CLOSE.getKey(), true);
         if (rarely(random)) {
             builder.put(TransportSettings.TRANSPORT_COMPRESS.getKey(), Compression.Enabled.TRUE);
         } else {

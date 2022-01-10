@@ -199,23 +199,13 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     public static Map<String, Object> randomMetadata() {
         return randomMap(0, 10, () -> {
             String key = randomAlphaOfLengthBetween(1, 10);
-            Object value;
-            switch (randomIntBetween(0, 3)) {
-                case 0:
-                    value = null;
-                    break;
-                case 1:
-                    value = randomLong();
-                    break;
-                case 2:
-                    value = randomAlphaOfLengthBetween(1, 10);
-                    break;
-                case 3:
-                    value = randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
-                    break;
-                default:
-                    throw new AssertionError();
-            }
+            Object value = switch (randomIntBetween(0, 3)) {
+                case 0 -> null;
+                case 1 -> randomLong();
+                case 2 -> randomAlphaOfLengthBetween(1, 10);
+                case 3 -> randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+                default -> throw new AssertionError();
+            };
             return Tuple.tuple(key, value);
         });
     }

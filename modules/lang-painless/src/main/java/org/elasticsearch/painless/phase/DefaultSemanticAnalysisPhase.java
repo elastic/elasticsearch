@@ -2282,34 +2282,17 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         for (int i = 0; i < flags.length(); ++i) {
             char flag = flags.charAt(i);
 
-            switch (flag) {
-                case 'c':
-                    regexFlags |= Pattern.CANON_EQ;
-                    break;
-                case 'i':
-                    regexFlags |= Pattern.CASE_INSENSITIVE;
-                    break;
-                case 'l':
-                    regexFlags |= Pattern.LITERAL;
-                    break;
-                case 'm':
-                    regexFlags |= Pattern.MULTILINE;
-                    break;
-                case 's':
-                    regexFlags |= Pattern.DOTALL;
-                    break;
-                case 'U':
-                    regexFlags |= Pattern.UNICODE_CHARACTER_CLASS;
-                    break;
-                case 'u':
-                    regexFlags |= Pattern.UNICODE_CASE;
-                    break;
-                case 'x':
-                    regexFlags |= Pattern.COMMENTS;
-                    break;
-                default:
-                    throw new IllegalArgumentException("invalid regular expression: unknown flag [" + flag + "]");
-            }
+            regexFlags |= switch (flag) {
+                case 'c' -> Pattern.CANON_EQ;
+                case 'i' -> Pattern.CASE_INSENSITIVE;
+                case 'l' -> Pattern.LITERAL;
+                case 'm' -> Pattern.MULTILINE;
+                case 's' -> Pattern.DOTALL;
+                case 'U' -> Pattern.UNICODE_CHARACTER_CLASS;
+                case 'u' -> Pattern.UNICODE_CASE;
+                case 'x' -> Pattern.COMMENTS;
+                default -> throw new IllegalArgumentException("invalid regular expression: unknown flag [" + flag + "]");
+            };
         }
 
         Pattern compiled;

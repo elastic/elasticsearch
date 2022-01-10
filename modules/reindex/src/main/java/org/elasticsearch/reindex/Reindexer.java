@@ -336,14 +336,9 @@ public class Reindexer {
                 return;
             }
             switch (routingSpec) {
-                case "keep":
-                    super.copyRouting(request, routing);
-                    break;
-                case "discard":
-                    super.copyRouting(request, null);
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unsupported routing command");
+                case "keep" -> super.copyRouting(request, routing);
+                case "discard" -> super.copyRouting(request, null);
+                default -> throw new IllegalArgumentException("Unsupported routing command");
             }
         }
 

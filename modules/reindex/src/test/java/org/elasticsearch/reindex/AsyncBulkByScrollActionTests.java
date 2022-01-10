@@ -308,23 +308,22 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 boolean createdResponse;
                 DocWriteRequest.OpType opType;
                 switch (randomIntBetween(0, 2)) {
-                    case 0:
+                    case 0 -> {
                         createdResponse = true;
                         opType = DocWriteRequest.OpType.CREATE;
                         created++;
-                        break;
-                    case 1:
+                    }
+                    case 1 -> {
                         createdResponse = false;
                         opType = randomFrom(DocWriteRequest.OpType.INDEX, DocWriteRequest.OpType.UPDATE);
                         updated++;
-                        break;
-                    case 2:
+                    }
+                    case 2 -> {
                         createdResponse = false;
                         opType = DocWriteRequest.OpType.DELETE;
                         deleted++;
-                        break;
-                    default:
-                        throw new RuntimeException("Bad scenario");
+                    }
+                    default -> throw new RuntimeException("Bad scenario");
                 }
                 final int seqNo = randomInt(20);
                 final int primaryTerm = randomIntBetween(1, 16);
@@ -1146,15 +1145,18 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             int wraps = randomIntBetween(0, 4);
             for (int i = 0; i < wraps; i++) {
                 switch (randomIntBetween(0, 2)) {
-                    case 0:
+                    case 0 -> {
                         e = new SearchPhaseExecutionException("test", "test failure", e, new ShardSearchFailure[0]);
                         continue;
-                    case 1:
+                    }
+                    case 1 -> {
                         e = new ReduceSearchPhaseException("test", "test failure", e, new ShardSearchFailure[0]);
                         continue;
-                    case 2:
+                    }
+                    case 2 -> {
                         e = new ElasticsearchException(e);
                         continue;
+                    }
                 }
             }
             return e;

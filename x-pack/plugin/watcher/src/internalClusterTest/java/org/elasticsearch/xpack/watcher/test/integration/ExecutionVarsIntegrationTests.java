@@ -156,18 +156,17 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         for (Map<String, Object> action : actions) {
             String id = (String) action.get("id");
             switch (id) {
-                case "a1":
+                case "a1" -> {
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
                     assertValue(action, "transform.payload.a1_transformed_value", equalTo(25));
-                    break;
-                case "a2":
+                }
+                case "a2" -> {
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
                     assertValue(action, "transform.payload.a2_transformed_value", equalTo(35));
-                    break;
-                default:
-                    fail("there should not be an action result for action with an id other than a1 or a2");
+                }
+                default -> fail("there should not be an action result for action with an id other than a1 or a2");
             }
         }
     }
@@ -215,18 +214,17 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         for (Map<String, Object> action : actions) {
             String id = (String) action.get("id");
             switch (id) {
-                case "a1":
+                case "a1" -> {
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
                     assertValue(action, "transform.payload.a1_transformed_value", equalTo(25));
-                    break;
-                case "a2":
+                }
+                case "a2" -> {
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
                     assertValue(action, "transform.payload.a2_transformed_value", equalTo(35));
-                    break;
-                default:
-                    fail("there should not be an action result for action with an id other than a1 or a2");
+                }
+                default -> fail("there should not be an action result for action with an id other than a1 or a2");
             }
         }
     }

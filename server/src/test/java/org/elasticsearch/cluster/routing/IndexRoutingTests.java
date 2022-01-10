@@ -378,25 +378,19 @@ public class IndexRoutingTests extends ESTestCase {
         );
         for (Map.Entry<String, Integer> entry : termToShard.entrySet()) {
             String key = entry.getKey();
-            int shardId;
-            switch (between(0, 2)) {
-                case 0:
-                    shardId = shardIdFromSimple(indexRouting, key, null);
-                    break;
-                case 1:
-                    shardId = shardIdFromSimple(indexRouting, randomAlphaOfLength(5), key);
-                    break;
-                case 2:
+            int shardId = switch (between(0, 2)) {
+                case 0 -> shardIdFromSimple(indexRouting, key, null);
+                case 1 -> shardIdFromSimple(indexRouting, randomAlphaOfLength(5), key);
+                case 2 -> {
                     AtomicInteger s = new AtomicInteger(-1);
                     indexRouting.collectSearchShards(key, r -> {
                         int old = s.getAndSet(r);
                         assertThat("only called once", old, equalTo(-1));
                     });
-                    shardId = s.get();
-                    break;
-                default:
-                    throw new AssertionError("invalid option");
-            }
+                    yield s.get();
+                }
+                default -> throw new AssertionError("invalid option");
+            };
             assertEquals(shardId, entry.getValue().intValue());
         }
     }
@@ -407,18 +401,13 @@ public class IndexRoutingTests extends ESTestCase {
      * the same results.
      */
     private int shardIdFromSimple(IndexRouting indexRouting, String key, @Nullable String routing) {
-        switch (between(0, 3)) {
-            case 0:
-                return indexRouting.indexShard(key, routing, null, null);
-            case 1:
-                return indexRouting.updateShard(key, routing);
-            case 2:
-                return indexRouting.deleteShard(key, routing);
-            case 3:
-                return indexRouting.getShard(key, routing);
-            default:
-                throw new AssertionError("invalid option");
-        }
+        return switch (between(0, 3)) {
+            case 0 -> indexRouting.indexShard(key, routing, null, null);
+            case 1 -> indexRouting.updateShard(key, routing);
+            case 2 -> indexRouting.deleteShard(key, routing);
+            case 3 -> indexRouting.getShard(key, routing);
+            default -> throw new AssertionError("invalid option");
+        };
     }
 
     public void testRoutingPathSpecifiedRouting() throws IOException {

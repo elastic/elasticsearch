@@ -183,15 +183,9 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
             for (ObjectObjectCursor<String, List<AliasMetadata>> entry : aliases) {
                 for (AliasMetadata aliasMetadata : entry.value) {
                     switch (aliasMetadata.getAlias()) {
-                        case AnnotationIndex.WRITE_ALIAS_NAME:
-                            assertThat(entry.key, is(AnnotationIndex.LATEST_INDEX_NAME));
-                            break;
-                        case AnnotationIndex.READ_ALIAS_NAME:
-                            indicesWithReadAlias.add(entry.key);
-                            break;
-                        default:
-                            fail("Found unexpected alias " + aliasMetadata.getAlias() + " on index " + entry.key);
-                            break;
+                        case AnnotationIndex.WRITE_ALIAS_NAME -> assertThat(entry.key, is(AnnotationIndex.LATEST_INDEX_NAME));
+                        case AnnotationIndex.READ_ALIAS_NAME -> indicesWithReadAlias.add(entry.key);
+                        default -> fail("Found unexpected alias " + aliasMetadata.getAlias() + " on index " + entry.key);
                     }
                 }
             }

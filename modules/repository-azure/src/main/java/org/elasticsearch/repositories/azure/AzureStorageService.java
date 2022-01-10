@@ -107,14 +107,11 @@ public class AzureStorageService {
             return null;
         }
 
-        switch (proxy.type()) {
-            case HTTP:
-                return new ProxyOptions(ProxyOptions.Type.HTTP, (InetSocketAddress) proxy.address());
-            case SOCKS:
-                return new ProxyOptions(ProxyOptions.Type.SOCKS5, (InetSocketAddress) proxy.address());
-            default:
-                return null;
-        }
+        return switch (proxy.type()) {
+            case HTTP -> new ProxyOptions(ProxyOptions.Type.HTTP, (InetSocketAddress) proxy.address());
+            case SOCKS -> new ProxyOptions(ProxyOptions.Type.SOCKS5, (InetSocketAddress) proxy.address());
+            default -> null;
+        };
     }
 
     // non-static, package private for testing
@@ -138,22 +135,11 @@ public class AzureStorageService {
             throw new IllegalArgumentException("Unable to use " + locationMode + " location mode without a secondary location URI");
         }
 
-        final String secondaryHost;
-        switch (locationMode) {
-            case PRIMARY_ONLY:
-            case SECONDARY_ONLY:
-                secondaryHost = null;
-                break;
-            case PRIMARY_THEN_SECONDARY:
-                secondaryHost = secondaryUri;
-                break;
-            case SECONDARY_THEN_PRIMARY:
-                secondaryHost = primaryUri;
-                break;
-            default:
-                assert false;
-                throw new AssertionError("Impossible to get here");
-        }
+        final String secondaryHost = switch (locationMode) {
+            case PRIMARY_ONLY, SECONDARY_ONLY -> null;
+            case PRIMARY_THEN_SECONDARY -> secondaryUri;
+            case SECONDARY_THEN_PRIMARY -> primaryUri;
+        };
 
         // The request retry policy uses seconds as the default time unit, since
         // it's possible to configure a timeout < 1s we should ceil that value

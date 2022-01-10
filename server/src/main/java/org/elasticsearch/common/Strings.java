@@ -87,23 +87,14 @@ public class Strings {
                 }
                 ch = s.charAt(pos++);
                 if (decode) {
-                    switch (ch) {
-                        case 'n':
-                            ch = '\n';
-                            break;
-                        case 't':
-                            ch = '\t';
-                            break;
-                        case 'r':
-                            ch = '\r';
-                            break;
-                        case 'b':
-                            ch = '\b';
-                            break;
-                        case 'f':
-                            ch = '\f';
-                            break;
-                    }
+                    ch = switch (ch) {
+                        case 'n' -> '\n';
+                        case 't' -> '\t';
+                        case 'r' -> '\r';
+                        case 'b' -> '\b';
+                        case 'f' -> '\f';
+                        default -> ch;
+                    };
                 }
             }
 

@@ -34,24 +34,13 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
         for (int i = 0; i < randomIntBetween(1, 4); ++i) {
             String targetFieldName = randomAlphaOfLengthBetween(1, 20);
             if (names.add(targetFieldName)) {
-                SingleGroupSource groupBy = null;
                 SingleGroupSource.Type type = randomFrom(SingleGroupSource.Type.values());
-                switch (type) {
-                    case TERMS:
-                        groupBy = TermsGroupSourceTests.randomTermsGroupSource();
-                        break;
-                    case HISTOGRAM:
-                        groupBy = HistogramGroupSourceTests.randomHistogramGroupSource();
-                        break;
-                    case DATE_HISTOGRAM:
-                        groupBy = DateHistogramGroupSourceTests.randomDateHistogramGroupSource();
-                        break;
-                    case GEOTILE_GRID:
-                        groupBy = GeoTileGroupSourceTests.randomGeoTileGroupSource();
-                        break;
-                    default:
-                        fail("unknown group source type, please implement tests and add support here");
-                }
+                SingleGroupSource groupBy = switch (type) {
+                    case TERMS -> TermsGroupSourceTests.randomTermsGroupSource();
+                    case HISTOGRAM -> HistogramGroupSourceTests.randomHistogramGroupSource();
+                    case DATE_HISTOGRAM -> DateHistogramGroupSourceTests.randomDateHistogramGroupSource();
+                    case GEOTILE_GRID -> GeoTileGroupSourceTests.randomGeoTileGroupSource();
+                };
                 groups.put(targetFieldName, groupBy);
             }
         }

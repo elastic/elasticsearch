@@ -106,16 +106,12 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             }
 
             public static Type fromValue(byte value) {
-                switch (value) {
-                    case 0:
-                        return ADD;
-                    case 1:
-                        return REMOVE;
-                    case 2:
-                        return REMOVE_INDEX;
-                    default:
-                        throw new IllegalArgumentException("No type for action [" + value + "]");
-                }
+                return switch (value) {
+                    case 0 -> ADD;
+                    case 1 -> REMOVE;
+                    case 2 -> REMOVE_INDEX;
+                    default -> throw new IllegalArgumentException("No type for action [" + value + "]");
+                };
             }
         }
 

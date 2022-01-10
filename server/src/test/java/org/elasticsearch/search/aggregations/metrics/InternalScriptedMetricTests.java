@@ -232,30 +232,23 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         Script reduceScript = instance.reduceScript;
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                aggregationsList = randomValueOtherThan(aggregationsList, this::randomAggregations);
-                break;
-            case 2:
-                reduceScript = new Script(
-                    ScriptType.INLINE,
-                    MockScriptEngine.NAME,
-                    REDUCE_SCRIPT_NAME + "-mutated",
-                    Collections.emptyMap()
-                );
-                break;
-            case 3:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> aggregationsList = randomValueOtherThan(aggregationsList, this::randomAggregations);
+            case 2 -> reduceScript = new Script(
+                ScriptType.INLINE,
+                MockScriptEngine.NAME,
+                REDUCE_SCRIPT_NAME + "-mutated",
+                Collections.emptyMap()
+            );
+            case 3 -> {
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalScriptedMetric(name, aggregationsList, reduceScript, metadata);
     }

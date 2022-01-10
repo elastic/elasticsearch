@@ -66,35 +66,31 @@ public class CreateServiceAccountTokenRequestTests extends ESTestCase {
     }
 
     private CreateServiceAccountTokenRequest mutateInstance(CreateServiceAccountTokenRequest request) {
-        switch (randomIntBetween(0, 3)) {
-            case 0:
-                return new CreateServiceAccountTokenRequest(
-                    randomValueOtherThan(request.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    request.getServiceName(),
-                    request.getTokenName(),
-                    request.getRefreshPolicy()
-                );
-            case 1:
-                return new CreateServiceAccountTokenRequest(
-                    request.getNamespace(),
-                    randomValueOtherThan(request.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    request.getTokenName(),
-                    request.getRefreshPolicy()
-                );
-            case 2:
-                return new CreateServiceAccountTokenRequest(
-                    request.getNamespace(),
-                    request.getServiceName(),
-                    randomValueOtherThan(request.getTokenName(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    request.getRefreshPolicy()
-                );
-            default:
-                return new CreateServiceAccountTokenRequest(
-                    request.getNamespace(),
-                    request.getServiceName(),
-                    request.getTokenName(),
-                    randomValueOtherThan(request.getRefreshPolicy(), () -> randomFrom(RefreshPolicy.values()))
-                );
-        }
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> new CreateServiceAccountTokenRequest(
+                randomValueOtherThan(request.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
+                request.getServiceName(),
+                request.getTokenName(),
+                request.getRefreshPolicy()
+            );
+            case 1 -> new CreateServiceAccountTokenRequest(
+                request.getNamespace(),
+                randomValueOtherThan(request.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)),
+                request.getTokenName(),
+                request.getRefreshPolicy()
+            );
+            case 2 -> new CreateServiceAccountTokenRequest(
+                request.getNamespace(),
+                request.getServiceName(),
+                randomValueOtherThan(request.getTokenName(), () -> randomAlphaOfLengthBetween(3, 8)),
+                request.getRefreshPolicy()
+            );
+            default -> new CreateServiceAccountTokenRequest(
+                request.getNamespace(),
+                request.getServiceName(),
+                request.getTokenName(),
+                randomValueOtherThan(request.getRefreshPolicy(), () -> randomFrom(RefreshPolicy.values()))
+            );
+        };
     }
 }

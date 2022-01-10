@@ -162,14 +162,14 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         }
         ScoreFunctionBuilder<?> functionBuilder;
         switch (randomIntBetween(0, 3)) {
-            case 0:
+            case 0 -> {
                 DecayFunctionBuilder<?> decayFunctionBuilder = createRandomDecayFunction();
                 if (randomBoolean()) {
                     decayFunctionBuilder.setMultiValueMode(randomFrom(MultiValueMode.values()));
                 }
                 functionBuilder = decayFunctionBuilder;
-                break;
-            case 1:
+            }
+            case 1 -> {
                 FieldValueFactorFunctionBuilder fieldValueFactorFunctionBuilder = fieldValueFactorFunction(
                     fieldValueFactorCompatibleField()
                 );
@@ -183,13 +183,13 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     fieldValueFactorFunctionBuilder.modifier(randomFrom(FieldValueFactorFunction.Modifier.values()));
                 }
                 functionBuilder = fieldValueFactorFunctionBuilder;
-                break;
-            case 2:
+            }
+            case 2 -> {
                 String script = "1";
                 Map<String, Object> params = Collections.emptyMap();
                 functionBuilder = new ScriptScoreFunctionBuilder(new Script(ScriptType.INLINE, MockScriptEngine.NAME, script, params));
-                break;
-            case 3:
+            }
+            case 3 -> {
                 RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilderWithFixedSeed();
                 if (randomBoolean()) { // sometimes provide no seed
                     if (randomBoolean()) {
@@ -202,9 +202,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     randomScoreFunctionBuilder.setField(SeqNoFieldMapper.NAME); // guaranteed to exist
                 }
                 functionBuilder = randomScoreFunctionBuilder;
-                break;
-            default:
-                throw new UnsupportedOperationException();
+            }
+            default -> throw new UnsupportedOperationException();
         }
         if (randomBoolean()) {
             functionBuilder.setWeight(randomFloat());
@@ -229,37 +228,33 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         Object scale;
         Object offset;
         switch (field) {
-            case GEO_POINT_FIELD_NAME:
+            case GEO_POINT_FIELD_NAME -> {
                 origin = new GeoPoint(randomDouble(), randomDouble()).geohash();
                 scale = randomFrom(DistanceUnit.values()).toString(randomDouble());
                 offset = randomFrom(DistanceUnit.values()).toString(randomDouble());
-                break;
-            case DATE_FIELD_NAME:
+            }
+            case DATE_FIELD_NAME -> {
                 origin = ZonedDateTime.ofInstant(
                     Instant.ofEpochMilli(System.currentTimeMillis() - randomIntBetween(0, 1000000)),
                     ZoneOffset.UTC
                 ).toString();
                 scale = randomTimeValue(1, 1000, "d", "h", "ms", "s", "m");
                 offset = randomPositiveTimeValue();
-                break;
-            default:
+            }
+            default -> {
                 origin = randomBoolean() ? randomInt() : randomFloat();
                 scale = randomBoolean() ? between(1, Integer.MAX_VALUE) : randomFloat() + Float.MIN_NORMAL;
                 offset = randomBoolean() ? between(1, Integer.MAX_VALUE) : randomFloat() + Float.MIN_NORMAL;
-                break;
+            }
         }
         offset = randomBoolean() ? null : offset;
         double decay = randomDouble();
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return new GaussDecayFunctionBuilder(field, origin, scale, offset, decay);
-            case 1:
-                return new ExponentialDecayFunctionBuilder(field, origin, scale, offset, decay);
-            case 2:
-                return new LinearDecayFunctionBuilder(field, origin, scale, offset, decay);
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new GaussDecayFunctionBuilder(field, origin, scale, offset, decay);
+            case 1 -> new ExponentialDecayFunctionBuilder(field, origin, scale, offset, decay);
+            case 2 -> new LinearDecayFunctionBuilder(field, origin, scale, offset, decay);
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     @Override

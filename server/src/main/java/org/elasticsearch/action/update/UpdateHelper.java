@@ -126,10 +126,8 @@ public class UpdateHelper {
                 nowInMillis
             );
             switch (upsertResult.v1()) {
-                case CREATE:
-                    indexRequest = Requests.indexRequest(request.index()).source(upsertResult.v2());
-                    break;
-                case NONE:
+                case CREATE -> indexRequest = Requests.indexRequest(request.index()).source(upsertResult.v2());
+                case NONE -> {
                     UpdateResponse update = new UpdateResponse(
                         shardId,
                         getResult.getId(),
@@ -140,7 +138,8 @@ public class UpdateHelper {
                     );
                     update.setGetResult(getResult);
                     return new Result(update, DocWriteResponse.Result.NOOP, upsertResult.v2(), XContentType.JSON);
-                default:
+                }
+                default ->
                     // It's fine to throw an exception here, the leniency is handled/logged by `executeScriptedUpsert`
                     throw new IllegalArgumentException("unknown upsert operation, got: " + upsertResult.v1());
             }
@@ -258,7 +257,7 @@ public class UpdateHelper {
         final Map<String, Object> updatedSourceAsMap = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
 
         switch (operation) {
-            case INDEX:
+            case INDEX -> {
                 final IndexRequest indexRequest = Requests.indexRequest(request.index())
                     .id(request.id())
                     .routing(routing)
@@ -269,7 +268,8 @@ public class UpdateHelper {
                     .timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy());
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
-            case DELETE:
+            }
+            case DELETE -> {
                 DeleteRequest deleteRequest = Requests.deleteRequest(request.index())
                     .id(request.id())
                     .routing(routing)
@@ -279,7 +279,8 @@ public class UpdateHelper {
                     .timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy());
                 return new Result(deleteRequest, DocWriteResponse.Result.DELETED, updatedSourceAsMap, updateSourceContentType);
-            default:
+            }
+            default -> {
                 // If it was neither an INDEX or DELETE operation, treat it as a noop
                 UpdateResponse update = new UpdateResponse(
                     shardId,
@@ -302,6 +303,7 @@ public class UpdateHelper {
                     )
                 );
                 return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
+            }
         }
     }
 

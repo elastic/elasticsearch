@@ -318,6 +318,12 @@ public class EsExecutors {
      */
     static class ForceQueuePolicy extends EsRejectedExecutionHandler {
 
+        /**
+         * This flag is used to indicate if {@link Runnable} should be rejected once the thread pool is shutting down, ie once
+         * {@link ThreadPoolExecutor#shutdown()} has been called. Scaling thread pools are expected to always handle tasks rejections, even
+         * after shutdown or termination, but it's not the case of all existing thread pools so this flag allows to keep the previous
+         * behavior.
+         */
         private final boolean rejectAfterShutdown;
 
         /**

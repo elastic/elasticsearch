@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.client;
 
+import org.elasticsearch.xpack.sql.proto.core.CheckedBiFunction;
+import org.elasticsearch.xpack.sql.proto.core.CheckedConsumer;
+
 import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
@@ -37,7 +40,7 @@ import javax.sql.rowset.serial.SerialException;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.client.UriUtils.appendSegmentToPath;
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_QUERY_REST_ENDPOINT;
 
 /**
  * Low-level http client using the built-in {@link HttpURLConnection}.
@@ -322,23 +325,14 @@ public class JreHttpUrlConnection implements Closeable {
         NOT_SUPPORTED(SQLFeatureNotSupportedException::new);
 
         public static SqlExceptionType fromRemoteFailureType(String type) {
-            switch (type) {
-                case "analysis_exception":
-                case "resource_not_found_exception":
-                case "verification_exception":
-                    return DATA;
-                case "planning_exception":
-                case "mapping_exception":
-                    return NOT_SUPPORTED;
-                case "parsing_exception":
-                    return SYNTAX;
-                case "security_exception":
-                    return SECURITY;
-                case "timeout_exception":
-                    return TIMEOUT;
-                default:
-                    return null;
-            }
+            return switch (type) {
+                case "analysis_exception", "resource_not_found_exception", "verification_exception" -> DATA;
+                case "planning_exception", "mapping_exception" -> NOT_SUPPORTED;
+                case "parsing_exception" -> SYNTAX;
+                case "security_exception" -> SECURITY;
+                case "timeout_exception" -> TIMEOUT;
+                default -> null;
+            };
         }
 
         private final Function<String, SQLException> toException;

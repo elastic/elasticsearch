@@ -55,12 +55,13 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -127,7 +128,7 @@ public class MetadataCreateIndexService {
     private final SystemIndices systemIndices;
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
-    private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
+    private final Set<IndexSettingProvider> indexSettingProviders;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -141,7 +142,8 @@ public class MetadataCreateIndexService {
         final ThreadPool threadPool,
         final NamedXContentRegistry xContentRegistry,
         final SystemIndices systemIndices,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final IndexSettingProviders indexSettingProviders
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -155,19 +157,7 @@ public class MetadataCreateIndexService {
         this.systemIndices = systemIndices;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.shardLimitValidator = shardLimitValidator;
-    }
-
-    /**
-     * Add a provider to be invoked to get additional index settings prior to an index being created
-     */
-    public void addAdditionalIndexSettingProvider(IndexSettingProvider provider) {
-        if (provider == null) {
-            throw new IllegalArgumentException("provider must not be null");
-        }
-        if (indexSettingProviders.contains(provider)) {
-            throw new IllegalArgumentException("provider already added");
-        }
-        this.indexSettingProviders.add(provider);
+        this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
     }
 
     /**
@@ -868,7 +858,13 @@ public class MetadataCreateIndexService {
             // additionalIndexSettings map
             for (IndexSettingProvider provider : indexSettingProviders) {
                 additionalIndexSettings.put(
-                    provider.getAdditionalIndexSettings(request.index(), isDataStreamIndex, templateAndRequestSettings)
+                    provider.getAdditionalIndexSettings(
+                        request.index(),
+                        request.dataStreamName(),
+                        currentState.getMetadata(),
+                        request.getNameResolvedAt(),
+                        templateAndRequestSettings
+                    )
                 );
             }
 

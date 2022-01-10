@@ -38,8 +38,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -1470,16 +1470,19 @@ public class JobResultsProvider {
         // There might be an easy short-circuit if the latest model size stats say which number to use
         if (latestModelSizeStats.getAssignmentMemoryBasis() != null) {
             switch (latestModelSizeStats.getAssignmentMemoryBasis()) {
-                case MODEL_MEMORY_LIMIT:
+                case MODEL_MEMORY_LIMIT -> {
                     handler.accept(0L);
                     return;
-                case CURRENT_MODEL_BYTES:
+                }
+                case CURRENT_MODEL_BYTES -> {
                     handler.accept(latestModelSizeStats.getModelBytes());
                     return;
-                case PEAK_MODEL_BYTES:
+                }
+                case PEAK_MODEL_BYTES -> {
                     Long storedPeak = latestModelSizeStats.getPeakModelBytes();
                     handler.accept((storedPeak != null) ? storedPeak : latestModelSizeStats.getModelBytes());
                     return;
+                }
             }
         }
 

@@ -11,6 +11,7 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.ScriptDocValues.GeometrySupplier;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.script.field.ToScriptField;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues.GeoShapeValue;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafGeoShapeFieldData;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -66,71 +66,23 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
         };
     }
 
-    public static final class GeoShapeSupplier implements ScriptDocValues.GeometrySupplier<GeoShapeValue> {
-
-        private final GeoShapeValues in;
-        private final GeoPoint centroid = new GeoPoint();
-        private final GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
-        private GeoShapeValues.GeoShapeValue value;
-
-        public GeoShapeSupplier(GeoShapeValues in) {
-            this.in = in;
-        }
-
-        @Override
-        public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
-                value = in.value();
-                centroid.reset(value.lat(), value.lon());
-                boundingBox.topLeft().reset(value.boundingBox().maxY(), value.boundingBox().minX());
-                boundingBox.bottomRight().reset(value.boundingBox().minY(), value.boundingBox().maxX());
-            } else {
-                value = null;
-            }
-        }
-
-        @Override
-        public GeoShapeValue getInternal(int index) {
-            throw new UnsupportedOperationException();
-        }
-
-        public GeoShapeValue getInternal() {
-            return value;
-        }
-
-        @Override
-        public int size() {
-            return value == null ? 0 : 1;
-        }
-
-        @Override
-        public GeoPoint getInternalCentroid() {
-            return centroid;
-        }
-
-        @Override
-        public GeoBoundingBox getInternalBoundingBox() {
-            return boundingBox;
-        }
-    }
-
     public static final class GeoShapeScriptValues extends ScriptDocValues.Geometry<GeoShapeValue> {
 
-        private final GeoShapeSupplier gsSupplier;
+        private final GeometrySupplier<GeoShapeValue> gsSupplier;
 
-        public GeoShapeScriptValues(GeoShapeSupplier supplier) {
+        public GeoShapeScriptValues(GeometrySupplier<GeoShapeValue> supplier) {
             super(supplier);
             this.gsSupplier = supplier;
         }
 
         @Override
         public int getDimensionalType() {
-            return gsSupplier.getInternal() == null ? -1 : gsSupplier.getInternal().dimensionalShapeType().ordinal();
+            return gsSupplier.getInternal(0) == null ? -1 : gsSupplier.getInternal(0).dimensionalShapeType().ordinal();
         }
 
         @Override
         public GeoPoint getCentroid() {
-            return gsSupplier.getInternal() == null ? null : gsSupplier.getInternalCentroid();
+            return gsSupplier.getInternal(0) == null ? null : gsSupplier.getInternalCentroid();
         }
 
         @Override
@@ -145,12 +97,16 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
 
         @Override
         public GeoBoundingBox getBoundingBox() {
-            return gsSupplier.getInternal() == null ? null : gsSupplier.getInternalBoundingBox();
+            return gsSupplier.getInternal(0) == null ? null : gsSupplier.getInternalBoundingBox();
         }
 
         @Override
         public GeoShapeValues.GeoShapeValue get(int index) {
-            return gsSupplier.getInternal();
+            return gsSupplier.getInternal(0);
+        }
+
+        public GeoShapeValues.GeoShapeValue getValue() {
+            return gsSupplier.getInternal(0);
         }
 
         @Override

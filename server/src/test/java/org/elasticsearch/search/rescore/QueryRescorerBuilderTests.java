@@ -340,25 +340,19 @@ public class QueryRescorerBuilderTests extends ESTestCase {
         } else {
             QueryRescorerBuilder queryRescorer = (QueryRescorerBuilder) mutation;
             switch (randomIntBetween(0, 3)) {
-                case 0:
-                    queryRescorer.setQueryWeight(queryRescorer.getQueryWeight() + 0.1f);
-                    break;
-                case 1:
-                    queryRescorer.setRescoreQueryWeight(queryRescorer.getRescoreQueryWeight() + 0.1f);
-                    break;
-                case 2:
+                case 0 -> queryRescorer.setQueryWeight(queryRescorer.getQueryWeight() + 0.1f);
+                case 1 -> queryRescorer.setRescoreQueryWeight(queryRescorer.getRescoreQueryWeight() + 0.1f);
+                case 2 -> {
                     QueryRescoreMode other;
                     do {
                         other = randomFrom(QueryRescoreMode.values());
                     } while (other == queryRescorer.getScoreMode());
                     queryRescorer.setScoreMode(other);
-                    break;
-                case 3:
+                }
+                case 3 ->
                     // only increase the boost to make it a slightly different query
                     queryRescorer.getRescoreQuery().boost(queryRescorer.getRescoreQuery().boost() + 0.1f);
-                    break;
-                default:
-                    throw new IllegalStateException("unexpected random mutation in test");
+                default -> throw new IllegalStateException("unexpected random mutation in test");
             }
         }
         return mutation;

@@ -67,7 +67,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.client.Requests.searchRequest;
+import static org.elasticsearch.client.internal.Requests.searchRequest;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
 import static org.elasticsearch.index.query.QueryBuilders.combinedFieldsQuery;

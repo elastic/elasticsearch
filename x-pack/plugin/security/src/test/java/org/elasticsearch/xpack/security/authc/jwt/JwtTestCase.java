@@ -89,7 +89,7 @@ public abstract class JwtTestCase extends ESTestCase {
 
     @Before
     public void beforeEachTest() {
-        this.pathHome = super.createTempDir().toString();
+        this.pathHome = createTempDir().toString();
         this.globalSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), this.pathHome).build();
         this.env = TestEnvironment.newEnvironment(this.globalSettings); // "path.home" sub-dirs: config,plugins,data,logs,bin,lib,modules
         this.threadContext = new ThreadContext(this.globalSettings);
@@ -424,7 +424,7 @@ public abstract class JwtTestCase extends ESTestCase {
         }
     };
 
-    public static Collection random(final int min, final Collection original) {
+    public static Collection<String> random(final int min, final Collection<String> original) {
         if ((original == null) || (min < 0) || (min > original.size())) {
             throw new IllegalArgumentException("Invalid min=" + min + ", original=" + original);
         }

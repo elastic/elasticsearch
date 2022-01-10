@@ -48,11 +48,15 @@ public class DotExpandingXContentParser extends FilterXContentParser {
 
         private void expandDots() throws IOException {
             String field = delegate().currentName();
-            String[] subpaths = field.split("\\.");
+            String[] subpaths = splitAndValidatePath(field);
             if (subpaths.length == 0) {
                 throw new IllegalArgumentException("field name cannot contain only dots: [" + field + "]");
             }
-            if (subpaths.length == 1) {
+            // Corner case: if the input has a single trailing '.', eg 'field.', then we will get a single
+            // subpath due to the way String.split() works. We can only return fast here if this is not
+            // the case
+            // TODO make this case throw an error instead? https://github.com/elastic/elasticsearch/issues/28948
+            if (subpaths.length == 1 && field.endsWith(".") == false) {
                 return;
             }
             Token token = delegate().nextToken();
@@ -69,6 +73,31 @@ public class DotExpandingXContentParser extends FilterXContentParser {
         protected XContentParser delegate() {
             return parsers.peek();
         }
+    }
+
+    private static String[] splitAndValidatePath(String fullFieldPath) {
+        if (fullFieldPath.isEmpty()) {
+            throw new IllegalArgumentException("field name cannot be an empty string");
+        }
+        if (fullFieldPath.contains(".") == false) {
+            return new String[] { fullFieldPath };
+        }
+        String[] parts = fullFieldPath.split("\\.");
+        if (parts.length == 0) {
+            throw new IllegalArgumentException("field name cannot contain only dots");
+        }
+        for (String part : parts) {
+            // check if the field name contains only whitespace
+            if (part.isEmpty()) {
+                throw new IllegalArgumentException("object field cannot contain only whitespace: ['" + fullFieldPath + "']");
+            }
+            if (part.isBlank()) {
+                throw new IllegalArgumentException(
+                    "object field starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]"
+                );
+            }
+        }
+        return parts;
     }
 
     /**

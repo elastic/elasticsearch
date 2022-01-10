@@ -443,13 +443,13 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
             assertThat(source.getValue("inference.ingest_processors._all.pipelines.count"), equalTo(10));
             assertThat(source.getValue("inference.ingest_processors._all.num_docs_processed.sum"), equalTo(100));
-            assertThat(source.getValue("inference.ingest_processors._all.num_docs_processed.min"), equalTo(0));
+            assertThat(source.getValue("inference.ingest_processors._all.num_docs_processed.min"), equalTo(10));
             assertThat(source.getValue("inference.ingest_processors._all.num_docs_processed.max"), equalTo(40));
             assertThat(source.getValue("inference.ingest_processors._all.time_ms.sum"), equalTo(10));
-            assertThat(source.getValue("inference.ingest_processors._all.time_ms.min"), equalTo(0));
+            assertThat(source.getValue("inference.ingest_processors._all.time_ms.min"), equalTo(1));
             assertThat(source.getValue("inference.ingest_processors._all.time_ms.max"), equalTo(4));
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.sum"), equalTo(1000));
-            assertThat(source.getValue("inference.ingest_processors._all.num_failures.min"), equalTo(0));
+            assertThat(source.getValue("inference.ingest_processors._all.num_failures.min"), equalTo(100));
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.max"), equalTo(400));
             assertThat(source.getValue("inference.deployments.count"), equalTo(2));
             assertThat(source.getValue("inference.deployments.inference_counts.total"), equalTo(9.0));

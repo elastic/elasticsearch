@@ -1783,33 +1783,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testDynamicFieldsStartingAndEndingWithDot() throws Exception {
         MapperService mapperService = createMapperService(mapping(b -> {}));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapperService.documentMapper().parse(source(b -> {
-            b.startArray("top.");
-            {
-                b.startObject();
-                {
-                    b.startArray("foo.");
-                    {
-                        b.startObject();
-                        {
-                            b.startObject("bar.");
-                            {
-                                b.startObject("aoeu").field("a", 1).field("b", 2).endObject();
-                            }
-                            b.endObject();
-                        }
-                        b.endObject();
-                    }
-                    b.endArray();
-                }
-                b.endObject();
-            }
-            b.endArray();
-        })));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapperService.documentMapper().parse(source("""
+            {"top..foo.":{"a":1}}
+            """
+        )));
 
         assertThat(
-            e.getMessage(),
-            containsString("object field starting or ending with a [.] makes object resolution ambiguous: [top..foo.]")
+            e.getCause().getMessage(),
+            containsString("object field cannot contain only whitespace: ['top..foo.']")
         );
     }
 

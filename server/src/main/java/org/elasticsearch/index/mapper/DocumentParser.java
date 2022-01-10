@@ -14,7 +14,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -214,37 +213,12 @@ public final class DocumentParser {
         return new MapperParsingException("failed to parse", e);
     }
 
-    private static void validatePath(String fullFieldPath) {
-        if (Strings.isEmpty(fullFieldPath)) {
-            throw new IllegalArgumentException("field name cannot be an empty string");
-        }
-        if (fullFieldPath.contains(".") == false) {
-            return;
-        }
-        String[] parts = fullFieldPath.split("\\.");
-        if (parts.length == 0) {
-            throw new IllegalArgumentException("field name cannot contain only dots");
-        }
-        for (String part : parts) {
-            if (Strings.hasText(part) == false) {
-                // check if the field name contains only whitespace
-                if (Strings.isEmpty(part) == false) {
-                    throw new IllegalArgumentException("object field cannot contain only whitespace: ['" + fullFieldPath + "']");
-                }
-                throw new IllegalArgumentException(
-                    "object field starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]"
-                );
-            }
-        }
-    }
-
     static Mapping createDynamicUpdate(DocumentParserContext context) {
         if (context.getDynamicMappers().isEmpty() && context.getDynamicRuntimeFields().isEmpty()) {
             return null;
         }
         RootObjectMapper.Builder rootBuilder = context.updateRoot();
         for (Mapper mapper : context.getDynamicMappers()) {
-            validatePath(mapper.name());
             rootBuilder.addDynamic(mapper.name(), null, mapper, context);
         }
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
@@ -307,7 +281,6 @@ public final class DocumentParser {
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = context.parser().currentName();
-                validatePath(currentFieldName);
             } else if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, mapper, currentFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
@@ -495,7 +468,6 @@ public final class DocumentParser {
     ) throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token;
-        validatePath(lastFieldName);
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, mapper, lastFieldName);

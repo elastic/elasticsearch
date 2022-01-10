@@ -528,20 +528,12 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             String principal,
             Matcher<? extends Iterable<? extends String>> indicesMatcher
         ) {
-            String request;
-            switch (action) {
-                case SQL_ACTION_NAME:
-                    request = "SqlQueryRequest";
-                    break;
-                case GetIndexAction.NAME:
-                    request = GetIndexRequest.class.getSimpleName();
-                    break;
-                case FieldCapabilitiesAction.NAME:
-                    request = FieldCapabilitiesRequest.class.getSimpleName();
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unknown action [" + action + "]");
-            }
+            String request = switch (action) {
+                case SQL_ACTION_NAME -> "SqlQueryRequest";
+                case GetIndexAction.NAME -> GetIndexRequest.class.getSimpleName();
+                case FieldCapabilitiesAction.NAME -> FieldCapabilitiesRequest.class.getSimpleName();
+                default -> throw new IllegalArgumentException("Unknown action [" + action + "]");
+            };
             final String eventAction = granted ? "access_granted" : "access_denied";
             final String realm = principal.equals("test_admin") ? "default_file" : "default_native";
             return expect(eventAction, action, principal, realm, indicesMatcher, request);

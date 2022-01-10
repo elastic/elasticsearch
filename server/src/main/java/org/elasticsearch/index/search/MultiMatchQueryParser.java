@@ -55,23 +55,15 @@ public class MultiMatchQueryParser extends MatchQueryParser {
             return Queries.newUnmappedFieldsQuery(fieldNames.keySet());
         }
         final float tieBreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
-        final List<Query> queries;
-        switch (type) {
-            case PHRASE:
-            case PHRASE_PREFIX:
-            case BEST_FIELDS:
-            case MOST_FIELDS:
-            case BOOL_PREFIX:
-                queries = buildFieldQueries(type, fieldNames, value, minimumShouldMatch);
-                break;
-
-            case CROSS_FIELDS:
-                queries = buildCrossFieldQuery(fieldNames, value, minimumShouldMatch, tieBreaker);
-                break;
-
-            default:
-                throw new IllegalStateException("No such type: " + type);
-        }
+        final List<Query> queries = switch (type) {
+            case PHRASE, PHRASE_PREFIX, BEST_FIELDS, MOST_FIELDS, BOOL_PREFIX -> buildFieldQueries(
+                type,
+                fieldNames,
+                value,
+                minimumShouldMatch
+            );
+            case CROSS_FIELDS -> buildCrossFieldQuery(fieldNames, value, minimumShouldMatch, tieBreaker);
+        };
         return combineGrouped(queries, tieBreaker);
     }
 

@@ -1682,19 +1682,11 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
             try {
                 String timestampFormat = javaTimestampFormats.get(i);
                 switch (timestampFormat) {
-                    case "ISO8601":
-                        actualEpochMs = DateFormatter.forPattern("iso8601").withZone(defaultZone).parseMillis(text);
-                        break;
-                    case "UNIX_MS":
-                        actualEpochMs = Long.parseLong(text);
-                        break;
-                    case "UNIX":
-                        actualEpochMs = (long) (Double.parseDouble(text) * 1000.0);
-                        break;
-                    case "TAI64N":
-                        actualEpochMs = parseMillisFromTai64n(text);
-                        break;
-                    default:
+                    case "ISO8601" -> actualEpochMs = DateFormatter.forPattern("iso8601").withZone(defaultZone).parseMillis(text);
+                    case "UNIX_MS" -> actualEpochMs = Long.parseLong(text);
+                    case "UNIX" -> actualEpochMs = (long) (Double.parseDouble(text) * 1000.0);
+                    case "TAI64N" -> actualEpochMs = parseMillisFromTai64n(text);
+                    default -> {
                         DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().appendPattern(timestampFormat);
                         if (timestampFormat.indexOf('y') == -1) {
                             builder.parseDefaulting(ChronoField.YEAR_OF_ERA, 2018);
@@ -1722,7 +1714,7 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
                             parsed = parser.withZone(defaultZone).parse(text);
                         }
                         actualEpochMs = Instant.from(parsed).toEpochMilli();
-                        break;
+                    }
                 }
                 if (expectedEpochMs == actualEpochMs) {
                     break;

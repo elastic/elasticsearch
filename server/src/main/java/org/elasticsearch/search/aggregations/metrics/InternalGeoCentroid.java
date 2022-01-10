@@ -135,18 +135,13 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
             return this;
         } else if (path.size() == 1) {
             String coordinate = path.get(0);
-            switch (coordinate) {
-                case "value":
-                    return centroid;
-                case "lat":
-                    return centroid.lat();
-                case "lon":
-                    return centroid.lon();
-                case "count":
-                    return count;
-                default:
-                    throw new IllegalArgumentException("Found unknown path element [" + coordinate + "] in [" + getName() + "]");
-            }
+            return switch (coordinate) {
+                case "value" -> centroid;
+                case "lat" -> centroid.lat();
+                case "lon" -> centroid.lon();
+                case "count" -> count;
+                default -> throw new IllegalArgumentException("Found unknown path element [" + coordinate + "] in [" + getName() + "]");
+            };
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }

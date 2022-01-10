@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -751,14 +752,33 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         try (XContentParser parser = contentType.xContent().createParser(TS_EXTRACT_CONFIG, source().streamInput())) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-            ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);
-            String timestampAsString = parser.text();
-            // TODO: deal with nanos too here.
-            // (the index hasn't been resolved yet, keep track of timestamp field metadata at data stream level, so we can use it here)
-            Instant timestamp = Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(timestampAsString));
+            Instant timestamp;
+            switch (parser.nextToken()) {
+                case VALUE_STRING:
+                    // TODO: deal with nanos too here.
+                    // (the index hasn't been resolved yet, keep track of timestamp field metadata at data stream level, so we can use it
+                    // here)
+                    timestamp = Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(parser.text()));
+                    break;
+                case VALUE_NUMBER:
+                    timestamp = Instant.ofEpochMilli(parser.longValue());
+                    break;
+                default:
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        String.format(
+                            Locale.ROOT,
+                            "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
+                            XContentParser.Token.VALUE_STRING,
+                            XContentParser.Token.VALUE_NUMBER,
+                            parser.currentToken()
+                        )
+                    );
+            }
 
             Index result = dataStream.selectWriteIndex(timestamp, metadata);
             if (result == null) {
+                String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
                 throw new IllegalArgumentException("no index available for a document with an @timestamp of [" + timestampAsString + "]");
             }
             return result;

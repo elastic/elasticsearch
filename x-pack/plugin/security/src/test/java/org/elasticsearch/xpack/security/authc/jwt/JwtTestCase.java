@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSSigner;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -42,7 +44,6 @@ import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
-import org.junit.Assert;
 import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
@@ -50,16 +51,30 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.KeyPair;
+import java.security.interfaces.ECPrivateKey;
+import java.security.interfaces.ECPublicKey;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+
 import static java.time.Instant.now;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isA;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 
@@ -72,67 +87,112 @@ public abstract class JwtTestCase extends ESTestCase {
     protected Environment env;
     protected ThreadContext threadContext;
 
-    /**
-     * Overriding class should call this via:
-     *    Before public void setupEnv() { super.setupEnv(); }.
-     */
     @Before
-    public void setupEnv() {
-        this.pathHome = createTempDir().toString();
-        this.globalSettings = Settings.builder().put("path.home", this.pathHome).build();
-        this.env = TestEnvironment.newEnvironment(this.globalSettings);
+    public void beforeEachTest() {
+        this.pathHome = super.createTempDir().toString();
+        this.globalSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), this.pathHome).build();
+        this.env = TestEnvironment.newEnvironment(this.globalSettings); // "path.home" sub-dirs: config,plugins,data,logs,bin,lib,modules
         this.threadContext = new ThreadContext(this.globalSettings);
     }
 
-    protected SignedJWT generateValidSignedJWT() throws Exception {
-        final SignedJWT signedJWT = this.generateSignedJWT(
-            randomFrom("https://www.example.com/iss1", randomAlphaOfLengthBetween(10, 20)),
-            randomFrom(List.of("rp_client1"), List.of("aud1", "aud2", "aud3")),
-            randomFrom("sub", "uid", "name", "dn", "email", "custom"),
-            randomFrom("groups", "roles", "other"),
-            randomFrom((List<String>) null, List.of(""), List.of("grp1"), List.of("rol1", "rol2", "rol3"), List.of("per1"))
-        );
-        return signedJWT;
+    public static Tuple<JWSSigner, JWSVerifier> createJwsSignerJWSVerifierTuple(final Object secretKeyOrKeyPair) throws JOSEException {
+        assertThat(secretKeyOrKeyPair, is(notNullValue()));
+        assertThat(secretKeyOrKeyPair, is(anyOf(isA(SecretKey.class), isA(KeyPair.class))));
+        if (secretKeyOrKeyPair instanceof SecretKey hmacKey) {
+            return new Tuple<>(new MACSigner(hmacKey), new MACVerifier(hmacKey));
+        } else if (secretKeyOrKeyPair instanceof KeyPair keyPair) {
+            if (keyPair.getPrivate()instanceof RSAPrivateKey rsaPrivateKey) {
+                return new Tuple<>(new RSASSASigner(rsaPrivateKey), new RSASSAVerifier((RSAPublicKey) keyPair.getPublic()));
+            } else if (keyPair.getPrivate()instanceof ECPrivateKey ecPrivateKey) {
+                return new Tuple<>(new ECDSASigner(ecPrivateKey), new ECDSAVerifier((ECPublicKey) keyPair.getPublic()));
+            }
+        }
+        return null;
     }
 
-    protected SignedJWT generateSignedJWT(
+    public static Object generateSecretKeyOrKeyPair(final String signatureAlgorithm) throws JOSEException {
+        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
+        if (JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS.contains(signatureAlgorithm)) {
+            return generateSecretKey(signatureAlgorithm); // SecretKeySpec
+        } else if (JwtRealmSettings.SUPPORTED_PUBLIC_KEY_RSA_SIGNATURE_ALGORITHMS.contains(signatureAlgorithm)) {
+            return generateRsaKeyPair(signatureAlgorithm); // KeyPair(RSAPublicKey,RSAPrivateKey)
+        } else if (JwtRealmSettings.SUPPORTED_PUBLIC_KEY_EC_SIGNATURE_ALGORITHMS.contains(signatureAlgorithm)) {
+            return generateEcKeyPair(signatureAlgorithm); // KeyPair(ECPublicKey,ECPrivateKey)
+        }
+        fail("Test does not support signing algorithm " + jwsAlgorithm);
+        return null;
+    }
+
+    // Nimbus JOSE+JWT requires HMAC keys to match or exceed digest strength.
+    public static SecretKey generateSecretKey(final String signatureAlgorithm) throws JOSEException {
+        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
+        final int minRequiredSecretBytesLength = MACSigner.getMinRequiredSecretLength(jwsAlgorithm) / 8;
+        final byte[] hmacKeyBytes = new byte[randomIntBetween(minRequiredSecretBytesLength, minRequiredSecretBytesLength * 3)];
+        random().nextBytes(hmacKeyBytes);
+        return new SecretKeySpec(hmacKeyBytes, "HMAC");
+    }
+
+    public static KeyPair generateKeyPair(final String signatureAlgorithm) throws JOSEException {
+        if (JwtRealmSettings.SUPPORTED_PUBLIC_KEY_RSA_SIGNATURE_ALGORITHMS.contains(signatureAlgorithm)) {
+            return generateRsaKeyPair(signatureAlgorithm);
+        } else if (JwtRealmSettings.SUPPORTED_PUBLIC_KEY_EC_SIGNATURE_ALGORITHMS.contains(signatureAlgorithm)) {
+            return generateRsaKeyPair(signatureAlgorithm);
+        }
+        return generateEcKeyPair(signatureAlgorithm);
+    }
+
+    // Nimbus JOSE+JWT requires RSA keys to match or exceed 2048-bit strength. No dependency on digest strength.
+    public static KeyPair generateRsaKeyPair(final String signatureAlgorithm) throws JOSEException {
+        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
+        final Integer rsaSize = randomFrom(2048, 3072);
+        final RSAKey privateKey = new RSAKeyGenerator(rsaSize).generate();
+        return new KeyPair(privateKey.toPublicKey(), privateKey.toPrivateKey());
+    }
+
+    // Nimbus JOSE+JWT requires EC curves to match digest strength (as per RFC 7519).
+    public static KeyPair generateEcKeyPair(final String signatureAlgorithm) throws JOSEException {
+        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
+        final Curve ecCurve = randomFrom(Curve.forJWSAlgorithm(jwsAlgorithm)); // EC curves by specific SHA-2 lengths.
+        final ECKey privateKey = new ECKeyGenerator(ecCurve).generate();
+        return new KeyPair(privateKey.toPublicKey(), privateKey.toPrivateKey());
+    }
+
+    public static SignedJWT generateValidSignedJWT(final JWSSigner jwsSigner, final String signatureAlgorithm) throws Exception {
+        final Tuple<JWSHeader, JWTClaimsSet> headerAndBody = createJwsHeaderAndJwtClaimsSet(
+            jwsSigner,
+            signatureAlgorithm,
+            randomFrom("https://www.example.com/", "") + "iss1" + randomIntBetween(0, 99),
+            randomFrom(List.of("rp_client1"), List.of("aud1", "aud2", "aud3")),
+            randomFrom("sub", "uid", "name", "dn", "email", "custom"),
+            "principal1",
+            randomBoolean() ? null : randomFrom("groups", "roles", "other"),
+            randomFrom(List.of(""), List.of("grp1"), List.of("rol1", "rol2", "rol3"), List.of("per1"))
+        );
+        return signSignedJwt(jwsSigner, headerAndBody.v1(), headerAndBody.v2());
+    }
+
+    public static SignedJWT signSignedJwt(final JWSSigner jwtSigner, final JWSHeader jwsHeader, final JWTClaimsSet jwtClaimsSet)
+        throws JOSEException {
+        final SignedJWT signedJwt = new SignedJWT(jwsHeader, jwtClaimsSet);
+        signedJwt.sign(jwtSigner);
+        return signedJwt;
+    }
+
+    public static boolean verifySignedJWT(final JWSVerifier jwtVerifier, final SignedJWT signedJwt) throws Exception {
+        return signedJwt.verify(jwtVerifier);
+    }
+
+    public static Tuple<JWSHeader, JWTClaimsSet> createJwsHeaderAndJwtClaimsSet(
+        final JWSSigner jwtSigner,
+        final String signatureAlgorithm,
         final String issuer,
         final List<String> audiences,
-        final String subject,
-        final String groupsClaim,
-        final List<String> groupsValue
-    ) throws Exception {
-        final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
+        final String principalClaimName,
+        final String principalClaimValue,
+        final String groupsClaimName,
+        final List<String> groupsClaimValue
+    ) {
         final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
-        LOGGER.debug("signatureAlgorithm: " + signatureAlgorithm);
-
-        final String kid = randomAlphaOfLengthBetween(16, 32);
-        final JWSSigner jwtSigner;
-        final JWSVerifier jwtVerifier;
-        if (JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS.contains(signatureAlgorithm)) {
-            final int minRequiredSecretLength = MACSigner.getMinRequiredSecretLength(jwsAlgorithm) / 8;
-            final byte[] hmacKeyBytes = new byte[randomIntBetween(minRequiredSecretLength, minRequiredSecretLength * 2)];
-            LOGGER.debug("HMAC size: " + hmacKeyBytes.length);
-            random().nextBytes(hmacKeyBytes);
-            jwtSigner = new MACSigner(hmacKeyBytes);
-            jwtVerifier = new MACVerifier(hmacKeyBytes);
-        } else if (JwtRealmSettings.SUPPORTED_PUBLIC_KEY_RSA_SIGNATURE_ALGORITHMS.contains(signatureAlgorithm)) {
-            final Integer rsaSize = randomFrom(2048, 3072); // RSA lengths NOT restricted by SHA-2 lengths
-            LOGGER.debug("RSA size: " + rsaSize);
-            final RSAKey privateKey = new RSAKeyGenerator(rsaSize).keyID(kid).generate();
-            jwtSigner = new RSASSASigner(privateKey);
-            jwtVerifier = new RSASSAVerifier(privateKey.toPublicJWK());
-        } else if (JwtRealmSettings.SUPPORTED_PUBLIC_KEY_EC_SIGNATURE_ALGORITHMS.contains(signatureAlgorithm)) {
-            final Curve ecCurve = randomFrom(Curve.forJWSAlgorithm(jwsAlgorithm)); // EC curves by specific SHA-2 lengths.
-            LOGGER.debug("EC curve: " + ecCurve);
-            final ECKey privateKey = new ECKeyGenerator(ecCurve).keyID(kid).generate();
-            jwtSigner = new ECDSASigner(privateKey);
-            jwtVerifier = new ECDSAVerifier(privateKey.toPublicJWK());
-        } else {
-            jwtSigner = null;
-            jwtVerifier = null;
-            fail("Test does not support signing algorithm " + jwsAlgorithm);
-        }
         final JWSHeader jwtHeader = new JWSHeader.Builder(jwsAlgorithm).build();
         final JWTClaimsSet.Builder jwtClaimsSetBuilder = new JWTClaimsSet.Builder().jwtID(
             randomFrom((String) null, randomAlphaOfLengthBetween(1, 20))
@@ -142,20 +202,20 @@ public abstract class JwtTestCase extends ESTestCase {
             .expirationTime(randomFrom((Date) null, Date.from(now().plusSeconds(randomLongBetween(3600, 7200)))))
             .issuer(issuer)
             .audience(audiences)
-            .subject(subject)
+            // .subject(subject)
             .claim("nonce", new Nonce());
-        if ((Strings.hasText(groupsClaim)) && (groupsValue != null)) {
-            jwtClaimsSetBuilder.claim(groupsClaim, groupsValue.toString());
+        if ((Strings.hasText(principalClaimName)) && (principalClaimValue != null)) {
+            jwtClaimsSetBuilder.claim(principalClaimName, principalClaimValue.toString());
+        }
+        if ((Strings.hasText(groupsClaimName)) && (groupsClaimValue != null)) {
+            jwtClaimsSetBuilder.claim(groupsClaimName, groupsClaimValue.toString());
         }
         final JWTClaimsSet jwtClaimsSet = jwtClaimsSetBuilder.build();
-
-        final SignedJWT signedJwt = new SignedJWT(jwtHeader, jwtClaimsSet);
-        signedJwt.sign(jwtSigner);
-        Assert.assertTrue(signedJwt.verify(jwtVerifier)); // VERIFY
-        return signedJwt;
+        final Tuple<JWSHeader, JWTClaimsSet> headerAndBody = new Tuple<>(jwtHeader, jwtClaimsSet);
+        return headerAndBody;
     }
 
-    protected Settings.Builder getAllRealmSettings(final String name) throws IOException {
+    protected Settings.Builder generateRealmSettings(final String name) throws IOException {
         final boolean includeRsa = randomBoolean();
         final boolean includeEc = randomBoolean();
         final boolean includePublicKey = includeRsa || includeEc;
@@ -169,7 +229,7 @@ public abstract class JwtTestCase extends ESTestCase {
         if (jwkSetPath.equals("https://op.example.com/jwkset.json") == false) {
             Files.writeString(PathUtils.get(jwkSetPath), "Non-empty JWK Set Path contents");
         }
-        final String clientAuthorizationType = randomFrom(JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE);
+        final String clientAuthorizationType = randomFrom(JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPES);
 
         final List<String> allowedSignatureAlgorithmsList = new ArrayList<>();
         if (includeRsa) {
@@ -184,18 +244,10 @@ public abstract class JwtTestCase extends ESTestCase {
         final String allowedSignatureAlgorithms = allowedSignatureAlgorithmsList.toString(); // Ex: "[HS256,RS384,ES512]"
 
         final Settings.Builder settingsBuilder = Settings.builder()
-            // // Realm settings
-            // .put(
-            // RealmSettings.getFullSettingKey(
-            // new RealmConfig.RealmIdentifier(JwtRealmSettings.TYPE, name),
-            // RealmSettings.ORDER_SETTING
-            // ),
-            // 0
-            // )
             // Issuer settings
             .put(
                 RealmSettings.getFullSettingKey(name, JwtRealmSettings.ALLOWED_ISSUER),
-                randomFrom("https://www.example.com/iss1", randomAlphaOfLengthBetween(10, 20))
+                randomFrom(randomFrom("https://www.example.com/", "") + "iss1" + randomIntBetween(0, 99))
             )
             .put(
                 RealmSettings.getFullSettingKey(name, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
@@ -347,5 +399,60 @@ public abstract class JwtTestCase extends ESTestCase {
             return null;
         }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
         return roleMapper;
+    }
+
+    public static class CapturingActionListener<T> implements ActionListener<T> {
+        private T result = null;
+        private Exception exception = null;
+
+        @Override
+        public void onResponse(final T result) {
+            this.result = result;
+        }
+
+        @Override
+        public void onFailure(final Exception exception) {
+            this.exception = exception;
+        }
+
+        public T getResult() {
+            return this.result;
+        }
+
+        public Exception getException() {
+            return this.exception;
+        }
+    };
+
+    public static Collection random(final int min, final Collection original) {
+        if ((original == null) || (min < 0) || (min > original.size())) {
+            throw new IllegalArgumentException("Invalid min=" + min + ", original=" + original);
+        }
+        return random(min, original.size(), original);
+    }
+
+    /**
+     * Return collection of random count and elements from the original collection of strings.
+     * @param min Minimum elements to retain.
+     * @param max Maximum elements to retain.
+     * @param original Original list of strings.
+     * @return Random count of random elements from the original list.
+     */
+    public static Collection<String> random(final int min, final int max, final Collection<String> original) {
+        if ((original == null) || (min < 0) || (min > original.size()) || (max < 0) || (max > original.size()) || (min > max)) {
+            throw new IllegalArgumentException("Invalid min=" + min + ", max=" + max + ", original=" + original);
+        }
+        final List<String> elements = new ArrayList<>(original); // use list for stable order after shuffle
+        Collections.shuffle(elements, random()); // randomize list contents
+
+        final int minSelected = (min > 0) ? min : 0;
+        final int maxSelected = (max < elements.size()) ? max : elements.size();
+        final int retainCount = randomIntBetween(minSelected, maxSelected);
+        final int removeCount = elements.size() - retainCount;
+
+        for (int removed = 0; removed < removeCount; removed++) {
+            elements.remove(elements.size() - 1); // remove last skips System.arraycopy()
+        }
+        return elements;
     }
 }

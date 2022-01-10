@@ -34,8 +34,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class JwtRealmSettingsTests extends JwtTestCase {
 
     public void testAllSettings() throws Exception {
-        final String realmName = "jwt" + randomIntBetween(10, 99);
-        final Settings settings = super.getAllRealmSettings(realmName).build();
+        final String realmName = "jwt" + randomIntBetween(1, 9);
+        final Settings settings = super.generateRealmSettings(realmName).build();
         final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
         for (final Setting.AffixSetting<?> setting : JwtRealmSettings.getSettings()) {
             realmConfig.getConcreteSetting(setting);
@@ -43,7 +43,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
     }
 
     public void testAllowedIssuer() {
-        final String realmName = "jwt" + randomIntBetween(10, 99);
+        final String realmName = "jwt" + randomIntBetween(1, 9);
         final Setting.AffixSetting<String> setting = JwtRealmSettings.ALLOWED_ISSUER;
         final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
         for (final String rejectedValue : new String[] { null, "" }) {
@@ -64,7 +64,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
     }
 
     public void testAllowedSignatureAlgorithms() {
-        final String realmName = "jwt" + randomIntBetween(10, 99);
+        final String realmName = "jwt" + randomIntBetween(1, 9);
         final Setting.AffixSetting<List<String>> setting = JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS;
         final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
         for (final String rejectedValue : new String[] { "unknown", "HS256,unknown" }) {
@@ -102,7 +102,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
     }
 
     public void testJwtPath() {
-        final String realmName = "jwt" + randomIntBetween(10, 99);
+        final String realmName = "jwt" + randomIntBetween(1, 9);
         final Setting.AffixSetting<String> setting = JwtRealmSettings.JWKSET_PATH;
         final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
         for (final String ignoredValue : new String[] { null, "" }) {
@@ -120,7 +120,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
     }
 
     public void testAllowedAudiences() {
-        final String realmName = "jwt" + randomIntBetween(10, 99);
+        final String realmName = "jwt" + randomIntBetween(1, 9);
         final Setting.AffixSetting<List<String>> setting = JwtRealmSettings.ALLOWED_AUDIENCES;
         final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
         for (final String rejectedValue : new String[] { null, "" }) {
@@ -145,7 +145,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
             JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim(),
             JwtRealmSettings.CLAIMS_GROUPS.getClaim()
         )) {
-            final String realmName = "jwt" + randomIntBetween(10, 99);
+            final String realmName = "jwt" + randomIntBetween(1, 9);
             final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
             for (final String rejectedValue : new String[] { null, "" }) {
                 final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
@@ -170,7 +170,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
             JwtRealmSettings.CLAIMS_PRINCIPAL.getPattern(),
             JwtRealmSettings.CLAIMS_GROUPS.getPattern()
         )) {
-            final String realmName = "jwt" + randomIntBetween(10, 99);
+            final String realmName = "jwt" + randomIntBetween(1, 9);
             final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
             for (final String rejectedValue : new String[] { "[" }) {
                 final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
@@ -191,7 +191,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
     }
 
     public void testPopulateUserMetadata() {
-        final String realmName = "jwt" + randomIntBetween(10, 99);
+        final String realmName = "jwt" + randomIntBetween(1, 9);
         final Setting.AffixSetting<Boolean> setting = JwtRealmSettings.POPULATE_USER_METADATA;
         final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
         for (final String rejectedValue : new String[] { "", "unknown", "t", "f", "TRUE", "FALSE", "True", "False" }) {
@@ -221,7 +221,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
     }
 
     public void testClientAuthorizationType() {
-        final String realmName = "jwt" + randomIntBetween(10, 99);
+        final String realmName = "jwt" + randomIntBetween(1, 9);
         final Setting.AffixSetting<String> setting = JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE;
         final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
         for (final String rejectedValue : new String[] { "", "unknown" }) {
@@ -240,7 +240,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
                         + settingKey
                         + "]."
                         + " Allowed values are "
-                        + JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE
+                        + JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPES
                         + "."
                 )
             );
@@ -260,7 +260,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
     }
 
     public void testAuthorizationRealms() {
-        final String realmName = "jwt" + randomIntBetween(10, 99);
+        final String realmName = "jwt" + randomIntBetween(1, 9);
         final Setting.AffixSetting<List<String>> setting = DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(JwtRealmSettings.TYPE);
         final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
         for (final String ignoredValue : new String[] { null, "" }) {
@@ -282,7 +282,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
             JwtRealmSettings.ISSUER_HMAC_SECRET_KEY,
             JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET
         )) {
-            final String realmName = "jwt" + randomIntBetween(10, 99);
+            final String realmName = "jwt" + randomIntBetween(1, 9);
             final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
             for (final String rejectedValue : new String[] { null }) {
                 final Exception exception = expectThrows(NullPointerException.class, () -> {
@@ -312,7 +312,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
             JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT,
             JwtRealmSettings.HTTP_SOCKET_TIMEOUT
         )) {
-            final String realmName = "jwt" + randomIntBetween(10, 99);
+            final String realmName = "jwt" + randomIntBetween(1, 9);
             final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
             for (final String rejectedValue : new String[] { "", "-2", "10", "1w", "1M", "1y" }) {
                 final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
@@ -353,7 +353,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
             JwtRealmSettings.HTTP_MAX_CONNECTIONS,
             JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS
         )) {
-            final String realmName = "jwt" + randomIntBetween(10, 99);
+            final String realmName = "jwt" + randomIntBetween(1, 9);
             final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
             // If Integer parsing fails, " must be >= 0" is not appended to exception message.
             for (final String rejectedValue : new String[] { "", "100_000", "NaN" }) {

@@ -6,10 +6,11 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.util.Base64URL;
+import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -19,38 +20,54 @@ import java.text.ParseException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * A {@link AuthenticationToken} to hold JWT authentication related content.
+ * An {@link AuthenticationToken} to hold JWT authentication related content.
  */
 public class JwtAuthenticationToken extends BearerToken {
-    private static final Logger LOGGER = LogManager.getLogger(JwtAuthenticationToken.class);
+    // Stored members (Note: also includes super.bearerString, which is a SecureString too)
+    protected final SecureString clientAuthorizationSharedSecret; // optional, nullable
 
-    protected static final String PRINCIPAL = "_jwt";
-
-    protected final AtomicReference<SignedJWT> signedJWT;
-    protected final SecureString clientAuthorizationSharedSecret;
+    // Processed members (ParseException)
+    protected final AtomicReference<SignedJWT> signedJwt = new AtomicReference<>(null);
+    protected final AtomicReference<JWSHeader> jwsHeader = new AtomicReference<>(null);
+    protected final AtomicReference<JWTClaimsSet> jwtClaimsSet = new AtomicReference<>(null);
+    protected final AtomicReference<Base64URL> jwtSignature = new AtomicReference<>(null);
 
     /**
-     * @param endUserAuthorizationToken End-user authorization token (i.e. Base64Url-encoded JWT)
-     * @param clientAuthorizationSharedSecret Client authorization token (e.g. Base64Url-encoded shared secret, null)
+     * Store a mandatory JWT and optional Shared Secret. Parse the JWT, and extract the header, claims set, and signature.
+     * Throws IllegalArgumentException if bearerString is missing, or if JWT parsing fails.
+     * @param bearerString Base64Url-encoded JWT for End-user authorization. Required by all JWT realms.
+     * @param sharedSecret Base64Url-encoded Shared Secret for Client authorization. Required by some JWT realms.
      */
-    public JwtAuthenticationToken(
-        final SecureString endUserAuthorizationToken,
-        @Nullable final SecureString clientAuthorizationSharedSecret
-    ) throws ParseException {
-        super(endUserAuthorizationToken); // super.bearerString
-        this.signedJWT = new AtomicReference<>(SignedJWT.parse(endUserAuthorizationToken.toString()));
-        this.clientAuthorizationSharedSecret = clientAuthorizationSharedSecret; // optional
+    public JwtAuthenticationToken(final SecureString bearerString, @Nullable final SecureString sharedSecret) {
+        super(bearerString); // super.bearerString
+        if (bearerString == null) {
+            throw new IllegalArgumentException("JWT bearer token must be non-null");
+        }
+        this.clientAuthorizationSharedSecret = sharedSecret; // optional, nullable
+        // Parse JWT
+        try {
+            final SignedJWT parsed = SignedJWT.parse(bearerString.toString());
+            this.signedJwt.set(parsed);
+            this.jwsHeader.set(parsed.getHeader());
+            this.jwtClaimsSet.set(parsed.getJWTClaimsSet());
+            this.jwtSignature.set(parsed.getSignature());
+        } catch (ParseException e) {
+            this.signedJwt.set(null);
+            this.jwsHeader.set(null);
+            this.jwtClaimsSet.set(null);
+            this.jwtSignature.set(null);
+            throw new IllegalArgumentException("Failed to parse JWT bearer token", e);
+        }
     }
 
-    // Return generic response "_jwt" because different JWT realms can pick different principal claims
     @Override
     public String principal() {
-        return JwtAuthenticationToken.PRINCIPAL;
+        return super.bearerString.toString();
     }
 
     @Override
     public SecureString credentials() {
-        return null;
+        return super.bearerString;
     }
 
     public SecureString getSerializedJwt() {
@@ -58,7 +75,19 @@ public class JwtAuthenticationToken extends BearerToken {
     }
 
     public SignedJWT getSignedJwt() {
-        return this.signedJWT.get();
+        return this.signedJwt.get();
+    }
+
+    public JWSHeader getJwsHeader() {
+        return this.jwsHeader.get();
+    }
+
+    public JWTClaimsSet getJwtClaimsSet() {
+        return this.jwtClaimsSet.get();
+    }
+
+    public Base64URL getSignature() {
+        return this.jwtSignature.get();
     }
 
     public SecureString getClientAuthorizationSharedSecret() {
@@ -68,9 +97,12 @@ public class JwtAuthenticationToken extends BearerToken {
     @Override
     public void clearCredentials() {
         super.clearCredentials(); // super.bearerString.close()
-        this.signedJWT.set(null);
         if (this.clientAuthorizationSharedSecret != null) {
             this.clientAuthorizationSharedSecret.close();
         }
+        this.signedJwt.set(null);
+        this.jwsHeader.set(null);
+        this.jwtClaimsSet.set(null);
+        this.jwtSignature.set(null);
     }
 }

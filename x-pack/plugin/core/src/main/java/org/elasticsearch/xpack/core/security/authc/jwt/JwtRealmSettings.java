@@ -75,7 +75,7 @@ public class JwtRealmSettings {
 
     public static final String SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET = "SharedSecret";
     public static final String SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE = "None";
-    public static final List<String> SUPPORTED_CLIENT_AUTHORIZATION_TYPE = List.of(
+    public static final List<String> SUPPORTED_CLIENT_AUTHORIZATION_TYPES = List.of(
         SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
         SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE
     );
@@ -222,9 +222,9 @@ public class JwtRealmSettings {
         RealmSettings.realmSettingPrefix(TYPE),
         "client_authentication.type",
         key -> Setting.simpleString(key, DEFAULT_CLIENT_AUTHORIZATION_TYPE, value -> {
-            if (SUPPORTED_CLIENT_AUTHORIZATION_TYPE.contains(value) == false) {
+            if (SUPPORTED_CLIENT_AUTHORIZATION_TYPES.contains(value) == false) {
                 throw new IllegalArgumentException(
-                    "Invalid value [" + value + "] for [" + key + "]. Allowed values are " + SUPPORTED_CLIENT_AUTHORIZATION_TYPE + "."
+                    "Invalid value [" + value + "] for [" + key + "]. Allowed values are " + SUPPORTED_CLIENT_AUTHORIZATION_TYPES + "."
                 );
             }
         }, Setting.Property.NodeScope)

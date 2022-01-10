@@ -6,6 +6,10 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jwt.JWTClaimsSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -40,7 +44,6 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.text.ParseException;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
@@ -91,7 +94,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private final Hasher hasher;
 
     // initialize sets this value, not the constructor, because all realms objects need to be constructed before linking any delegates
-    private DelegatedAuthorizationSupport delegatedRealms;
+    private DelegatedAuthorizationSupport delegatedAuthorizationSupport;
+    private boolean initialized = false;
 
     public JwtRealm(
         final RealmConfig realmConfig,
@@ -169,7 +173,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 }
                 // If type is "SharedSecret", the shared secret value must Base64url-encoded
                 try {
-                    Base64.getUrlDecoder().decode(new String(this.hmacSecretKey.getChars()).getBytes(StandardCharsets.UTF_8));
+                    Base64.getUrlDecoder().decode(this.hmacSecretKey.toString());
                 } catch (Exception e) {
                     throw new SettingsException(
                         "Base64Url-encoding is required for the Client Authorization Shared Secret ["
@@ -198,12 +202,13 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         // Validate that at least one of JWT Set Path and HMAC Key Set are set. If HMAC Key Set, validate Base64Url-encoding.
         if (Strings.hasText(this.hmacSecretKey)) {
             try {
-                Base64.getUrlDecoder().decode(new String(this.hmacSecretKey.getChars()).getBytes(StandardCharsets.UTF_8));
+                Base64.getUrlDecoder().decode(this.hmacSecretKey.toString());
             } catch (Exception e) {
                 throw new SettingsException(
                     "Base64Url-encoding is required for the Issuer HMAC Key  ["
                         + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.ISSUER_HMAC_SECRET_KEY)
-                        + "]"
+                        + "]",
+                    e
                 );
             }
         } else if (Strings.hasText(this.jwkSetPath) == false) {
@@ -264,10 +269,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         // If Issuer HMAC Secret Key is set, at least one HMAC Signature Algorithm is required.
         // If at least one HMAC Signature Algorithm is set, Issuer HMAC Secret Key is required.
-        final long countSecretKeySignatureAlgorithms = this.allowedSignatureAlgorithms.stream()
-            .filter(JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS::contains)
-            .count();
-        if ((Strings.hasText(this.hmacSecretKey)) && (countSecretKeySignatureAlgorithms == 0)) {
+        final boolean anySecretKeySignatureAlgorithms = this.allowedSignatureAlgorithms.stream()
+            .anyMatch(JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS::contains);
+        if ((Strings.hasText(this.hmacSecretKey)) && (anySecretKeySignatureAlgorithms == false)) {
             throw new SettingsException(
                 "Issuer HMAC Key is configured in setting ["
                     + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.ISSUER_HMAC_SECRET_KEY)
@@ -275,7 +279,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)
                     + "]"
             );
-        } else if ((countSecretKeySignatureAlgorithms > 0) && (Strings.hasText(this.hmacSecretKey) == false)) {
+        } else if ((anySecretKeySignatureAlgorithms) && (Strings.hasText(this.hmacSecretKey) == false)) {
             throw new SettingsException(
                 "HMAC signature algorithms were found in setting ["
                     + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)
@@ -287,10 +291,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         // If JWT Set Path is set, at least one Public Key Signature Algorithm is required.
         // If at least one Public Key Signature Algorithm is set, JWT Set Path is required.
-        final long countPublicKeySignatureAlgorithms = this.allowedSignatureAlgorithms.stream()
-            .filter(JwtRealmSettings.SUPPORTED_PUBLIC_KEY_SIGNATURE_ALGORITHMS::contains)
-            .count();
-        if ((Strings.hasText(this.jwkSetPath)) && (countPublicKeySignatureAlgorithms == 0)) {
+        final boolean anyPublicKeySignatureAlgorithms = this.allowedSignatureAlgorithms.stream()
+            .anyMatch(JwtRealmSettings.SUPPORTED_PUBLIC_KEY_SIGNATURE_ALGORITHMS::contains);
+        if ((Strings.hasText(this.jwkSetPath)) && (anyPublicKeySignatureAlgorithms == false)) {
             throw new SettingsException(
                 "JWT Set Path is configured in setting ["
                     + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.JWKSET_PATH)
@@ -298,7 +301,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)
                     + "]"
             );
-        } else if ((countPublicKeySignatureAlgorithms > 0) && (Strings.hasText(this.jwkSetPath) == false)) {
+        } else if ((anyPublicKeySignatureAlgorithms) && (Strings.hasText(this.jwkSetPath) == false)) {
             throw new SettingsException(
                 "Public key signature algorithms were found in setting ["
                     + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)
@@ -309,23 +312,34 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
     }
 
+    private void ensureExpectedValueForInitialized(final boolean expectedValue) {
+        if (this.initialized != expectedValue) {
+            if (expectedValue) {
+                throw new IllegalStateException("Realm has not been initialized");
+            } else {
+                throw new IllegalStateException("Realm has already been initialized");
+            }
+        }
+    }
+
     @Override
     public void initialize(final Iterable<Realm> allRealms, final XPackLicenseState xpackLicenseState) {
-        // initialize sets this value, not the constructor, because all realms objects need to be constructed before linking any delegates
-        if (this.delegatedRealms != null) {
-            throw new IllegalStateException("Realm has already been initialized");
-        }
-        this.delegatedRealms = new DelegatedAuthorizationSupport(allRealms, super.config, xpackLicenseState);
+        this.ensureExpectedValueForInitialized(false);
+        // extract list of realms referenced by super.config.settings() value for DelegatedAuthorizationSettings.AUTHZ_REALMS
+        this.delegatedAuthorizationSupport = new DelegatedAuthorizationSupport(allRealms, super.config, xpackLicenseState);
+        this.initialized = true;
     }
 
     @Override
     public boolean supports(final AuthenticationToken jwtAuthenticationToken) {
+        this.ensureExpectedValueForInitialized(true);
         return (jwtAuthenticationToken instanceof JwtAuthenticationToken);
     }
 
     @Override
     public AuthenticationToken token(final ThreadContext threadContext) {
-        final SecureString authorizationParameterValue = JwtRealm.getAuthorizationHeaderParameter(
+        this.ensureExpectedValueForInitialized(true);
+        final SecureString authorizationParameterValue = JwtRealm.getHeaderSchemeParameters(
             threadContext,
             JwtRealmSettings.HEADER_ENDUSER_AUTHORIZATION,
             JwtRealmSettings.HEADER_ENDUSER_AUTHORIZATION_SCHEME,
@@ -336,49 +350,79 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
 
         // Get all other possible parameters. A different JWT realm may do the actual authentication.
-        final SecureString clientAuthorizationSharedSecretValue = JwtRealm.getAuthorizationHeaderParameter(
+        final SecureString clientAuthorizationSharedSecretValue = JwtRealm.getHeaderSchemeParameters(
             threadContext,
             JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION,
             JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
             true
         );
 
-        try {
-            return new JwtAuthenticationToken(authorizationParameterValue, clientAuthorizationSharedSecretValue);
-        } catch (ParseException e) {
-            throw new IllegalArgumentException("Could not construct JwtAuthenticationToken", e);
-        }
+        return new JwtAuthenticationToken(authorizationParameterValue, clientAuthorizationSharedSecretValue);
     }
 
     @Override
     public void authenticate(final AuthenticationToken authenticationToken, final ActionListener<AuthenticationResult<User>> listener) {
+        this.ensureExpectedValueForInitialized(true);
         if (authenticationToken instanceof JwtAuthenticationToken jwtAuthenticationToken) {
-            // TODO This method will be completed in a later PR
+            LOGGER.trace("Realm [{}] supports JwtAuthenticationToken.", super.name());
+            final JWSHeader jwsHeader = jwtAuthenticationToken.getJwsHeader();
+            final JWTClaimsSet jwtClaimsSet = jwtAuthenticationToken.getJwtClaimsSet();
+            final String clientAuthorizationSharedSecret = jwtAuthenticationToken.getClientAuthorizationSharedSecret().toString();
 
             // Filter steps (before any validation)
-            // 1. Skip JWT if signature algorithm does not match any of the signature algorithms allowed by this realm.
-            // 2. Skip JWT if issuer does not match the issuer allowed by this realm.
-            // 3. Skip JWT if audience does not match any of the audiences allowed by this realm.
 
-            // At this point, start validating. Trigger AuthenticationResult.unsuccessful() for any problem.
+            // 1. Skip JWT if signature algorithm does not match any of the signature algorithms allowed by this realm.
+            final JWSAlgorithm jwsSignatureAlgorithm = jwsHeader.getAlgorithm();
+            if ((jwsSignatureAlgorithm == null) || (this.allowedSignatureAlgorithms.contains(jwsSignatureAlgorithm.getName()) == false)) {
+                final String msg = "Realm [%s] does not allow signature algorithm [%s]. Allowed signature algorithms are %s.".formatted(
+                    super.name(),
+                    jwsSignatureAlgorithm,
+                    this.allowedSignatureAlgorithms
+                );
+                LOGGER.debug(msg);
+                listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
+                return;
+            }
+            LOGGER.debug(
+                "Realm [%s] allows signature algorithm [%s]. Allowed signature algorithms are %s.",
+                super.name(),
+                jwsSignatureAlgorithm,
+                this.allowedSignatureAlgorithms
+            );
+
+            // 2. Skip JWT if issuer does not match the issuer allowed by this realm.
+            final String jwtIssuer = jwtClaimsSet.getIssuer();
+            if ((jwtIssuer == null) || (this.allowedIssuer.contains(jwtIssuer) == false)) {
+                final String msg = "Realm [%s] does not allow issuer [%s]. Allowed issuer is [%s].".formatted(
+                    super.name(),
+                    jwtIssuer,
+                    this.allowedIssuer
+                );
+                LOGGER.debug(msg);
+                listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
+                return;
+            }
+            LOGGER.debug("Realm [%s] allows issuer [%s]. Allowed issuer is [%s].", super.name(), jwtIssuer, this.allowedIssuer);
+
+            // 3. Skip JWT if audience does not match any of the audiences allowed by this realm.
+            final List<String> jwtAudiences = jwtClaimsSet.getAudience();
+            if ((jwtAudiences == null) || (this.allowedAudiences.stream().anyMatch(jwtAudiences::contains) == false)) {
+                final String msg = "Realm [%s] does not allow audiences %s. Allowed audiences are %s.".formatted(
+                    super.name(),
+                    jwtAudiences,
+                    this.allowedAudiences
+                );
+                LOGGER.debug(msg);
+                listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
+                return;
+            }
+            LOGGER.debug("Realm [%s] allows audiences %s. Allowed audiences are %s.", super.name(), jwtAudiences, this.allowedAudiences);
+
+            // TODO The implementation of JWT authentication will be completed in a later PR
+            // At this point, this is the right realm to do validation. Trigger AuthenticationResult.unsuccessful() if any problems found.
 
             // Cache lookup
             // 1. If present in cache, AuthenticationResult.successful().
-
-            // Client Authorization
-            switch (this.clientAuthorizationType) {
-                case JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET:
-                    if (this.clientAuthorizationSharedSecret.equals(jwtAuthenticationToken.getClientAuthorizationSharedSecret())) {
-                        LOGGER.trace("Client authentication failed with SharedSecret in realm [{}]", super.name());
-                        listener.onResponse(AuthenticationResult.unsuccessful("Client authentication required and failed", null));
-                    }
-                    LOGGER.trace("Client authentication succeeded with SharedSecret in realm [{}]", super.name());
-                    break;
-                case JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE:
-                default:
-                    LOGGER.trace("Client authentication not required in realm [{}]", super.name());
-                    break;
-            }
 
             // JWT Authentication
             // 1. Verify signature (HMAC or RSA)
@@ -389,61 +433,144 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             // 6. If present, verify iat + allowedClockSkew >= now.
             // 7. If present, verify exp + allowedClockSkew >= now.
 
-            final String principal = "user1";
-            final List<String> groups = List.of("group1");
-            final String dn = null;
-            final String name = null;
-            final String mail = null;
+            // Client Authorization
+            switch (this.clientAuthorizationType) {
+                case JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET:
+                    if (this.clientAuthorizationSharedSecret.equals(clientAuthorizationSharedSecret) == false) {
+                        final String msg = "Realm [%s] client authentication failed for [%s].".formatted(
+                            super.name(),
+                            this.clientAuthorizationType
+                        );
+                        LOGGER.debug(msg);
+                        listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
+                        return;
+                    }
+                    LOGGER.debug("Realm [%s] client authentication succeeded for [%s].", super.name(), this.clientAuthorizationType);
+                    break;
+                case JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE:
+                default:
+                    LOGGER.debug("Realm [%s] client authentication skipped for [%s].", super.name(), this.clientAuthorizationType);
+                    break;
+            }
+
+            final String jwtPrincipal = this.principalAttribute.getClaimValue(jwtClaimsSet);
+            final String msg1 = "Realm [%s] got principal [%s] from claim [%s] and parser [%s]. JWTClaimsSet is [%s].".formatted(
+                super.name(),
+                jwtPrincipal,
+                this.principalAttribute.getName(),
+                this.principalAttribute.getParser().toString(),
+                jwtClaimsSet.toString()
+            );
+            LOGGER.debug(msg1);
+            if (jwtPrincipal == null) {
+                listener.onResponse(AuthenticationResult.unsuccessful(msg1, null));
+                return;
+            }
+            final List<String> jwtGroups = this.groupsAttribute.getClaimValues(jwtClaimsSet);
+            final String msg2 = "Realm [%s] principal [%s] got groups [%s] from claim [%s] and parser [%s]. JWTClaimsSet is [%s]."
+                .formatted(
+                    super.name(),
+                    jwtPrincipal,
+                    jwtGroups,
+                    (this.groupsAttribute.getName() == null ? "null" : this.groupsAttribute.getName().toString()),
+                    (this.groupsAttribute.getParser() == null ? "null" : this.groupsAttribute.getParser().toString()),
+                    jwtClaimsSet.toString()
+                );
+            LOGGER.debug(msg2);
+            final String jwtDn = null; // JWT realm settings does not support claims.dn
+            final String jwtFullName = null; // JWT realm settings does not support claims.name
+            final String jwtEmail = null; // JWT realm settings does not support claims.mail
             final Map<String, Object> userMetadata;
             if (this.populateUserMetadata) {
-                userMetadata = Map.of("metadata1", "metadata1");
+                final String msg3 = "Realm [%s] principal [%s] got user metadata from JWTClaimsSet [%s].".formatted(
+                    super.name(),
+                    jwtPrincipal,
+                    jwtClaimsSet.toString()
+                );
+                LOGGER.debug(msg3);
+                userMetadata = jwtClaimsSet.getClaims();
             } else {
+                final String msg3 = "Realm [%s] principal [%s] ignored user metadata from JWTClaimsSet [%s].".formatted(
+                    super.name(),
+                    jwtPrincipal,
+                    jwtClaimsSet.toString()
+                );
+                LOGGER.debug(msg3);
                 userMetadata = Map.of();
             }
-            if (delegatedRealms.hasDelegation()) {
-                delegatedRealms.resolve(principal, listener);
+            if (this.delegatedAuthorizationSupport.hasDelegation()) {
+                this.delegatedAuthorizationSupport.resolve(jwtPrincipal, listener);
+                final String msg4 = "Realm [%s] principal [%s] got roles [%s] from authz realms %s.".formatted(
+                    super.name(),
+                    jwtPrincipal,
+                    "",
+                    this.delegatedAuthorizationSupport.toString()
+                ); // TODO
+                LOGGER.debug(msg4);
                 return;
             }
 
-            final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMetadata, super.config);
-            this.userRoleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
-                listener.onResponse(
-                    AuthenticationResult.success(new User(principal, roles.toArray(Strings.EMPTY_ARRAY), name, mail, userMetadata, true))
+            final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(
+                jwtPrincipal,
+                jwtDn,
+                jwtGroups,
+                userMetadata,
+                super.config
+            );
+            this.userRoleMapper.resolveRoles(userData, ActionListener.wrap(rolesSet -> {
+                final String[] roles = rolesSet.toArray(new String[rolesSet.size()]);
+                final String msg4 = "Realm [%s] principal [%s] got roles [%s] via role mapping.".formatted(
+                    super.name(),
+                    jwtPrincipal,
+                    roles
                 );
+                LOGGER.debug(msg4);
+                final User user = new User(jwtPrincipal, roles, jwtFullName, jwtEmail, userMetadata, true);
+                listener.onResponse(AuthenticationResult.success(user));
             }, listener::onFailure));
         } else {
-            listener.onResponse(AuthenticationResult.notHandled());
+            final String msg = "Realm [%s] does not support AuthenticationToken [%s].".formatted(
+                super.name(),
+                (authenticationToken == null ? "null" : authenticationToken.getClass().getSimpleName())
+            );
+            LOGGER.debug(msg);
+            listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
         }
     }
 
     @Override
     public void expire(final String username) {
+        this.ensureExpectedValueForInitialized(true);
         if (this.cachedAuthenticationSuccesses != null) {
-            LOGGER.trace("invalidating cache for user [{}] in realm [{}]", username, name());
+            LOGGER.trace("invalidating cache for user [%s] in realm [%s]", username, name());
             this.cachedAuthenticationSuccesses.invalidate(username);
         }
     }
 
     @Override
     public void expireAll() {
+        this.ensureExpectedValueForInitialized(true);
         if (this.cachedAuthenticationSuccesses != null) {
-            LOGGER.trace("invalidating cache for all users in realm [{}]", name());
+            LOGGER.trace("invalidating cache for all users in realm [%s]", name());
             this.cachedAuthenticationSuccesses.invalidateAll();
         }
     }
 
     @Override
     public void close() {
+        this.ensureExpectedValueForInitialized(true);
         this.expireAll();
     }
 
     @Override
     public void lookupUser(final String username, final ActionListener<User> listener) {
+        this.ensureExpectedValueForInitialized(true);
         listener.onResponse(null); // Run-As and Delegated Authorization are not supported
     }
 
     @Override
     public void usageStats(final ActionListener<Map<String, Object>> listener) {
+        this.ensureExpectedValueForInitialized(true);
         super.usageStats(ActionListener.wrap(stats -> {
             stats.put("cache", Collections.singletonMap("size", this.getCacheSize()));
             listener.onResponse(stats);
@@ -451,6 +578,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     }
 
     private int getCacheSize() {
+        this.ensureExpectedValueForInitialized(true);
         return (this.cachedAuthenticationSuccesses == null) ? -1 : this.cachedAuthenticationSuccesses.count();
     }
 
@@ -485,7 +613,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
     }
 
-    public static SecureString getAuthorizationHeaderParameter(
+    public static SecureString getHeaderSchemeParameters(
         final ThreadContext threadContext,
         final String headerName,
         final String schemeValue,

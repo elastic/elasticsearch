@@ -6,7 +6,12 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JWSSigner;
+import com.nimbusds.jose.JWSVerifier;
+
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.junit.Assert;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -16,7 +21,11 @@ import static org.hamcrest.Matchers.nullValue;
 public class JwtAuthenticationTokenTests extends JwtTestCase {
 
     public void testJwtAuthenticationTokenParse() throws Exception {
-        final String serializedJWTOriginal = super.generateValidSignedJWT().serialize();
+        final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
+        final Object secretKeyOrKeyPair = generateSecretKeyOrKeyPair(signatureAlgorithm);
+        final Tuple<JWSSigner, JWSVerifier> jwsSignerAndVerifier = createJwsSignerJWSVerifierTuple(secretKeyOrKeyPair);
+        final String serializedJWTOriginal = generateValidSignedJWT(jwsSignerAndVerifier.v1(), signatureAlgorithm).serialize();
+
         final SecureString jwt = new SecureString(serializedJWTOriginal.toCharArray());
         final SecureString clientSharedSecret = randomBoolean() ? null : new SecureString(randomAlphaOfLengthBetween(10, 20).toCharArray());
 

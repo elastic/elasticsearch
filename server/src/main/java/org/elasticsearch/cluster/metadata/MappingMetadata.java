@@ -61,14 +61,22 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
     @SuppressWarnings("unchecked")
     public MappingMetadata(String type, Map<String, Object> mapping) {
         this.type = type;
+        Map<String, Object> withoutType = mapping;
+        final boolean isWrapped = mapping.size() == 1 && mapping.containsKey(type);
+        if (isWrapped) {
+            withoutType = (Map<String, Object>) mapping.get(type);
+        }
         try {
-            this.source = new CompressedXContent((builder, params) -> builder.mapContents(mapping));
+            this.source = new CompressedXContent((builder, params) -> {
+                if (isWrapped) {
+                    builder.mapContents(mapping);
+                } else {
+                    builder.field(type, mapping);
+                }
+                return builder;
+            });
         } catch (IOException e) {
             throw new UncheckedIOException(e);  // XContent exception, should never happen
-        }
-        Map<String, Object> withoutType = mapping;
-        if (mapping.size() == 1 && mapping.containsKey(type)) {
-            withoutType = (Map<String, Object>) mapping.get(type);
         }
         this.routingRequired = routingRequired(withoutType);
     }

@@ -551,14 +551,11 @@ public class DoSection implements ExecutableSection {
     );
 
     private static NodeSelector buildNodeSelector(String name, XContentParser parser) throws IOException {
-        switch (name) {
-            case "attribute":
-                return parseAttributeValuesSelector(parser);
-            case "version":
-                return parseVersionSelector(parser);
-            default:
-                throw new XContentParseException(parser.getTokenLocation(), "unknown node_selector [" + name + "]");
-        }
+        return switch (name) {
+            case "attribute" -> parseAttributeValuesSelector(parser);
+            case "version" -> parseVersionSelector(parser);
+            default -> throw new XContentParseException(parser.getTokenLocation(), "unknown node_selector [" + name + "]");
+        };
     }
 
     private static NodeSelector parseAttributeValuesSelector(XContentParser parser) throws IOException {

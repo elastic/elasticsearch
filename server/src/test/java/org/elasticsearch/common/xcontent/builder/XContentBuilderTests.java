@@ -458,8 +458,7 @@ public class XContentBuilderTests extends ESTestCase {
         final Map<String, Object> actualValues = XContentHelper.convertToMap(bytes, true).v2();
         assertThat(actualValues, aMapWithSize(fields));
         for (Map.Entry<String, Object> e : expectedValues.entrySet()) {
-            if (e.getValue() instanceof TestWritableValue) {
-                final TestWritableValue expectedValue = (TestWritableValue) e.getValue();
+            if (e.getValue()instanceof final TestWritableValue expectedValue) {
                 assertThat(actualValues.get(e.getKey()), instanceOf(String.class));
                 final byte[] decoded = Base64.getDecoder().decode((String) actualValues.get(e.getKey()));
                 final TestWritableValue actualValue = new TestWritableValue(new InputStream() {

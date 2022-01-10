@@ -154,6 +154,14 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      */
     int route(IndexRouting indexRouting);
 
+    /**
+     * Resolves the write index that should receive this request
+     * based on the provided index abstraction.
+     *
+     * @param ia        The provided index abstraction
+     * @param metadata  The metadata instance used to resolve the write index.
+     * @return the write index that should receive this request
+     */
     default Index getConcreteWriteIndex(IndexAbstraction ia, Metadata metadata) {
         return ia.getWriteIndex();
     }

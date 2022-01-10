@@ -11,9 +11,9 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
 import org.elasticsearch.xpack.sql.action.SqlTranslateRequest;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.io.IOException;
 import java.util.List;

@@ -60,8 +60,7 @@ public final class GeometryParser {
      * Json structure: valid geojson definition
      */
     public Geometry parseGeometry(Object value) throws ElasticsearchParseException {
-        if (value instanceof List) {
-            List<?> values = (List<?>) value;
+        if (value instanceof List<?> values) {
             if (values.size() == 2 && values.get(0) instanceof Number) {
                 GeoPoint point = GeoUtils.parseGeoPoint(values, ignoreZValue);
                 return new Point(point.lon(), point.lat());
@@ -98,11 +97,9 @@ public final class GeometryParser {
 
     private boolean isPoint(Object value) {
         // can we do this better?
-        if (value instanceof Map) {
-            Map<?, ?> map = (Map<?, ?>) value;
+        if (value instanceof Map<?, ?> map) {
             return map.containsKey("lat") && map.containsKey("lon");
-        } else if (value instanceof String) {
-            String string = (String) value;
+        } else if (value instanceof String string) {
             return Character.isDigit(string.charAt(0)) || string.indexOf('(') == -1;
         }
         return false;

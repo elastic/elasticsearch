@@ -50,6 +50,8 @@ not perform the migration. This provides a way to retrieve the indices and ILM p
 migrated.
 Defaults to `false`.
 
+NOTE: When simulating a migration (ie. `dry_run` is `true`) {ilm-init} doesn't need to be stopped.
+
 [[ilm-migrate-to-data-tiers-example]]
 ==== {api-examples-title}
 

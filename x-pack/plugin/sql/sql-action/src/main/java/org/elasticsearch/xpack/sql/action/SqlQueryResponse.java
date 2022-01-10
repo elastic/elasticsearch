@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
@@ -209,10 +208,11 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
 
             if (columns != null) {
                 builder.startArray("columns");
-                {
-                    for (ColumnInfo column : columns) {
-                        column.toXContent(builder, params);
-                    }
+                org.elasticsearch.xpack.sql.proto.xcontent.XContentBuilder protoBuilder = ProtoShim.toProto(builder);
+                org.elasticsearch.xpack.sql.proto.xcontent.ToXContent.Params protoParam = ProtoShim.toProto(params);
+
+                for (ColumnInfo column : columns) {
+                    column.toXContent(protoBuilder, protoParam);
                 }
                 builder.endArray();
             }

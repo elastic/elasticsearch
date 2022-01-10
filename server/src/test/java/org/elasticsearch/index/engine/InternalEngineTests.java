@@ -1872,8 +1872,7 @@ public class InternalEngineTests extends EngineTestCase {
         );
         final Engine.Operation lastOpDoc1 = opsDoc1.get(opsDoc1.size() - 1);
         final String lastFieldValueDoc1;
-        if (lastOpDoc1 instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOpDoc1;
+        if (lastOpDoc1 instanceof Engine.Index index) {
             lastFieldValueDoc1 = index.docs().get(0).get("value");
         } else {
             // delete
@@ -1889,8 +1888,7 @@ public class InternalEngineTests extends EngineTestCase {
         );
         final Engine.Operation lastOpDoc2 = opsDoc2.get(opsDoc2.size() - 1);
         final String lastFieldValueDoc2;
-        if (lastOpDoc2 instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOpDoc2;
+        if (lastOpDoc2 instanceof Engine.Index index) {
             lastFieldValueDoc2 = index.docs().get(0).get("value");
         } else {
             // delete
@@ -1899,8 +1897,7 @@ public class InternalEngineTests extends EngineTestCase {
         // randomly interleave
         final AtomicLong seqNoGenerator = new AtomicLong();
         BiFunction<Engine.Operation, Long, Engine.Operation> seqNoUpdater = (operation, newSeqNo) -> {
-            if (operation instanceof Engine.Index) {
-                Engine.Index index = (Engine.Index) operation;
+            if (operation instanceof Engine.Index index) {
                 LuceneDocument doc = testDocumentWithTextField(index.docs().get(0).get("value"));
                 ParsedDocument parsedDocument = testParsedDocument(index.id(), index.routing(), doc, index.source(), null);
                 return new Engine.Index(
@@ -2107,8 +2104,7 @@ public class InternalEngineTests extends EngineTestCase {
                 versionConflict ? " (conflict " + conflictingVersion + ")" : "",
                 versionedOp ? " (versioned " + correctVersion + ", seqNo " + lastOpSeqNo + ", term " + lastOpTerm + " )" : ""
             );
-            if (op instanceof Engine.Index) {
-                final Engine.Index index = (Engine.Index) op;
+            if (op instanceof final Engine.Index index) {
                 if (versionConflict) {
                     // generate a conflict
                     final Engine.IndexResult result;
@@ -2229,8 +2225,7 @@ public class InternalEngineTests extends EngineTestCase {
         final List<Engine.Operation> ops = generateSingleDocHistory(false, versionType, 2, 2, 20, "1");
         final Engine.Operation lastOp = ops.get(ops.size() - 1);
         final String lastFieldValue;
-        if (lastOp instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOp;
+        if (lastOp instanceof Engine.Index index) {
             lastFieldValue = index.docs().get(0).get("value");
         } else {
             // delete
@@ -2251,8 +2246,7 @@ public class InternalEngineTests extends EngineTestCase {
                 op.seqNo(),
                 op.primaryTerm()
             );
-            if (op instanceof Engine.Index) {
-                final Engine.Index index = (Engine.Index) op;
+            if (op instanceof final Engine.Index index) {
                 Engine.IndexResult result = engine.index(index);
                 if (op.versionType().isVersionConflictForWrites(highestOpVersion, op.version(), docDeleted) == false) {
                     seqNo++;
@@ -2334,8 +2328,7 @@ public class InternalEngineTests extends EngineTestCase {
         final List<Engine.Operation> ops = generateSingleDocHistory(false, VersionType.EXTERNAL, 2, 100, 300, "1");
         final Engine.Operation lastOp = ops.get(ops.size() - 1);
         final String lastFieldValue;
-        if (lastOp instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOp;
+        if (lastOp instanceof Engine.Index index) {
             lastFieldValue = index.docs().get(0).get("value");
         } else {
             // delete

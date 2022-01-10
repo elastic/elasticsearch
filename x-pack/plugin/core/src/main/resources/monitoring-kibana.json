@@ -111,6 +111,15 @@
                 },
                 "totalExecutions": {
                   "type": "long"
+                },
+                "lastErrorDate": {
+                  "type": "date"
+                },
+                "lastErrorMessage": {
+                  "type": "text"
+                },
+                "lastErrorReason": {
+                  "type": "text"
                 }
               }
             }

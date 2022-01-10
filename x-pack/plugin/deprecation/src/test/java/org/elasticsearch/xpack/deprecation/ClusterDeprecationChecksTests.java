@@ -398,10 +398,26 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             .patterns(Collections.singletonList("foo"))
             .putMapping("_doc", "{\"_doc\":{}}")
             .build();
+        // The following 3 have a custom type, but they should be ignored:
+        IndexTemplateMetadata triggeredWatches = IndexTemplateMetadata.builder(".triggered_watches")
+            .patterns(Collections.singletonList("foo"))
+            .putMapping("someType", "{\"type2\":{}}")
+            .build();
+        IndexTemplateMetadata watchHistory9 = IndexTemplateMetadata.builder(".watch-history-9")
+            .patterns(Collections.singletonList("foo"))
+            .putMapping("someType", "{\"type2\":{}}")
+            .build();
+        IndexTemplateMetadata watches = IndexTemplateMetadata.builder(".watches")
+            .patterns(Collections.singletonList("foo"))
+            .putMapping("someType", "{\"type2\":{}}")
+            .build();
         ImmutableOpenMap<String, IndexTemplateMetadata> templates = ImmutableOpenMap.<String, IndexTemplateMetadata>builder()
             .fPut("template1", template1)
             .fPut("template2", template2)
             .fPut("template3", template3)
+            .fPut(".triggered_watches", triggeredWatches)
+            .fPut(".watch-history-9", watchHistory9)
+            .fPut(".watches", watches)
             .build();
         Metadata badMetadata = Metadata.builder().templates(templates).build();
         ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();

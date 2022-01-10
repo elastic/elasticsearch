@@ -2231,29 +2231,28 @@ public class AuthorizationServiceTests extends ESTestCase {
         final TransportRequest request;
         final String action;
         switch (randomIntBetween(0, 4)) {
-            case 0:
+            case 0 -> {
                 action = MultiGetAction.NAME + "[shard]";
                 request = mockRequest;
-                break;
-            case 1:
+            }
+            case 1 -> {
                 // reindex, msearch, search template, and multi search template delegate to search
                 action = SearchAction.NAME;
                 request = mockRequest;
-                break;
-            case 2:
+            }
+            case 2 -> {
                 action = MultiTermVectorsAction.NAME + "[shard]";
                 request = mockRequest;
-                break;
-            case 3:
+            }
+            case 3 -> {
                 action = BulkAction.NAME + "[s]";
                 request = createBulkShardRequest("index", (index, id) -> new IndexRequest(index).id(id));
-                break;
-            case 4:
+            }
+            case 4 -> {
                 action = "indices:data/read/mpercolate[s]";
                 request = mockRequest;
-                break;
-            default:
-                throw new UnsupportedOperationException();
+            }
+            default -> throw new UnsupportedOperationException();
         }
         logger.info("--> action: {}", action);
 
@@ -2445,26 +2444,17 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     private static Tuple<String, TransportRequest> randomCompositeRequest() {
-        switch (randomIntBetween(0, 7)) {
-            case 0:
-                return Tuple.tuple(MultiGetAction.NAME, new MultiGetRequest().add("index", "id"));
-            case 1:
-                return Tuple.tuple(MultiSearchAction.NAME, new MultiSearchRequest().add(new SearchRequest()));
-            case 2:
-                return Tuple.tuple(MultiTermVectorsAction.NAME, new MultiTermVectorsRequest().add("index", "id"));
-            case 3:
-                return Tuple.tuple(BulkAction.NAME, new BulkRequest().add(new DeleteRequest("index", "id")));
-            case 4:
-                return Tuple.tuple("indices:data/read/mpercolate", new MockCompositeIndicesRequest());
-            case 5:
-                return Tuple.tuple("indices:data/read/msearch/template", new MockCompositeIndicesRequest());
-            case 6:
-                return Tuple.tuple("indices:data/read/search/template", new MockCompositeIndicesRequest());
-            case 7:
-                return Tuple.tuple("indices:data/write/reindex", new MockCompositeIndicesRequest());
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (randomIntBetween(0, 7)) {
+            case 0 -> Tuple.tuple(MultiGetAction.NAME, new MultiGetRequest().add("index", "id"));
+            case 1 -> Tuple.tuple(MultiSearchAction.NAME, new MultiSearchRequest().add(new SearchRequest()));
+            case 2 -> Tuple.tuple(MultiTermVectorsAction.NAME, new MultiTermVectorsRequest().add("index", "id"));
+            case 3 -> Tuple.tuple(BulkAction.NAME, new BulkRequest().add(new DeleteRequest("index", "id")));
+            case 4 -> Tuple.tuple("indices:data/read/mpercolate", new MockCompositeIndicesRequest());
+            case 5 -> Tuple.tuple("indices:data/read/msearch/template", new MockCompositeIndicesRequest());
+            case 6 -> Tuple.tuple("indices:data/read/search/template", new MockCompositeIndicesRequest());
+            case 7 -> Tuple.tuple("indices:data/write/reindex", new MockCompositeIndicesRequest());
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     private static class MockCompositeIndicesRequest extends TransportRequest implements CompositeIndicesRequest {}

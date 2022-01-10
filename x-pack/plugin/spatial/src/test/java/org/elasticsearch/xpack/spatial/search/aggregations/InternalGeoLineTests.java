@@ -70,37 +70,22 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
         SortOrder sortOrder = instance.sortOrder();
         int size = instance.size();
         switch (randomIntBetween(0, 7)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                line[0] = line[0] + 1000000L;
-                break;
-            case 2:
-                sortVals[0] = sortVals[0] + 10000;
-                break;
-            case 3:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> line[0] = line[0] + 1000000L;
+            case 2 -> sortVals[0] = sortVals[0] + 10000;
+            case 3 -> {
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            case 4:
-                complete = complete == false;
-                break;
-            case 5:
-                includeSorts = includeSorts == false;
-                break;
-            case 6:
-                sortOrder = SortOrder.ASC.equals(sortOrder) ? SortOrder.DESC : SortOrder.ASC;
-                break;
-            case 7:
-                size = size + 1;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            case 4 -> complete = complete == false;
+            case 5 -> includeSorts = includeSorts == false;
+            case 6 -> sortOrder = SortOrder.ASC.equals(sortOrder) ? SortOrder.DESC : SortOrder.ASC;
+            case 7 -> size = size + 1;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalGeoLine(name, line, sortVals, metadata, complete, includeSorts, sortOrder, size);
     }

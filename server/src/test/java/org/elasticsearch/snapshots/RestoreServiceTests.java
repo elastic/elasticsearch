@@ -137,20 +137,20 @@ public class RestoreServiceTests extends ESTestCase {
         while (repositories.size() < repositoryCount) {
             final String repositoryName = randomAlphaOfLength(10);
             switch (between(1, 3)) {
-                case 1:
+                case 1 -> {
                     final Repository notBlobStoreRepo = mock(Repository.class);
                     repositories.put(repositoryName, notBlobStoreRepo);
                     finalAssertions.add(() -> verifyNoMoreInteractions(notBlobStoreRepo));
-                    break;
-                case 2:
+                }
+                case 2 -> {
                     final Repository freshBlobStoreRepo = mock(BlobStoreRepository.class);
                     repositories.put(repositoryName, freshBlobStoreRepo);
                     when(freshBlobStoreRepo.getMetadata()).thenReturn(
                         new RepositoryMetadata(repositoryName, randomAlphaOfLength(3), Settings.EMPTY).withUuid(UUIDs.randomBase64UUID())
                     );
                     doThrow(new AssertionError("repo UUID already known")).when(freshBlobStoreRepo).getRepositoryData(any());
-                    break;
-                case 3:
+                }
+                case 3 -> {
                     final Repository staleBlobStoreRepo = mock(BlobStoreRepository.class);
                     repositories.put(repositoryName, staleBlobStoreRepo);
                     pendingRefreshes.add(repositoryName);
@@ -169,7 +169,7 @@ public class RestoreServiceTests extends ESTestCase {
                         }
                         return null;
                     }).when(staleBlobStoreRepo).getRepositoryData(any());
-                    break;
+                }
             }
         }
 

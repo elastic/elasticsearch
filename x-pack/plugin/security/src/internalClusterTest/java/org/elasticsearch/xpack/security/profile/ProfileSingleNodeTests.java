@@ -13,16 +13,12 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -56,13 +52,6 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
     @Override
     protected String configUsersRoles() {
         return super.configUsersRoles() + "rac_role:" + RAC_USER_NAME + "\n";
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        final ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
-        plugins.add(MapperExtrasPlugin.class);
-        return plugins;
     }
 
     public void testProfileIndexAutoCreation() {

@@ -275,7 +275,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
         SearchLookup searchLookup = context.lookup();
         switch (type) {
-            case STRING:
+            case STRING -> {
                 final StringSortScript.Factory factory = context.compile(script, StringSortScript.CONTEXT);
                 final StringSortScript.LeafFactory searchScript = factory.newFactory(script.getParams());
                 return new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
@@ -323,7 +323,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                         );
                     }
                 };
-            case NUMBER:
+            }
+            case NUMBER -> {
                 final NumberSortScript.Factory numberSortFactory = context.compile(script, NumberSortScript.CONTEXT);
                 // searchLookup is unnecessary here, as it's just used for expressions
                 final NumberSortScript.LeafFactory numberSortScript = numberSortFactory.newFactory(script.getParams(), searchLookup);
@@ -353,8 +354,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                         leafScript.setScorer(scorer);
                     }
                 };
-            default:
-                throw new QueryShardException(context, "custom script sort type [" + type + "] not supported");
+            }
+            default -> throw new QueryShardException(context, "custom script sort type [" + type + "] not supported");
         }
     }
 
@@ -404,14 +405,11 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
         public static ScriptSortType fromString(final String str) {
             Objects.requireNonNull(str, "input string is null");
-            switch (str.toLowerCase(Locale.ROOT)) {
-                case ("string"):
-                    return ScriptSortType.STRING;
-                case ("number"):
-                    return ScriptSortType.NUMBER;
-                default:
-                    throw new IllegalArgumentException("Unknown ScriptSortType [" + str + "]");
-            }
+            return switch (str.toLowerCase(Locale.ROOT)) {
+                case ("string") -> ScriptSortType.STRING;
+                case ("number") -> ScriptSortType.NUMBER;
+                default -> throw new IllegalArgumentException("Unknown ScriptSortType [" + str + "]");
+            };
         }
 
         @Override

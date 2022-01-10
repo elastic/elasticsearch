@@ -332,8 +332,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             headerToXContent(builder, entry.getKey().substring("es.".length()), entry.getValue());
         }
 
-        if (throwable instanceof ElasticsearchException) {
-            ElasticsearchException exception = (ElasticsearchException) throwable;
+        if (throwable instanceof ElasticsearchException exception) {
             exception.metadataToXContent(builder, params);
         }
 

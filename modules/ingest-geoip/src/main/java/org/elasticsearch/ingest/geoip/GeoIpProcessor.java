@@ -224,28 +224,26 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP:
-                    geoData.put("ip", NetworkAddress.format(ipAddress));
-                    break;
-                case COUNTRY_ISO_CODE:
+                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case COUNTRY_ISO_CODE -> {
                     String countryIsoCode = country.getIsoCode();
                     if (countryIsoCode != null) {
                         geoData.put("country_iso_code", countryIsoCode);
                     }
-                    break;
-                case COUNTRY_NAME:
+                }
+                case COUNTRY_NAME -> {
                     String countryName = country.getName();
                     if (countryName != null) {
                         geoData.put("country_name", countryName);
                     }
-                    break;
-                case CONTINENT_NAME:
+                }
+                case CONTINENT_NAME -> {
                     String continentName = continent.getName();
                     if (continentName != null) {
                         geoData.put("continent_name", continentName);
                     }
-                    break;
-                case REGION_ISO_CODE:
+                }
+                case REGION_ISO_CODE -> {
                     // ISO 3166-2 code for country subdivisions.
                     // See iso.org/iso-3166-country-codes.html
                     String countryIso = country.getIsoCode();
@@ -254,26 +252,26 @@ public final class GeoIpProcessor extends AbstractProcessor {
                         String regionIsoCode = countryIso + "-" + subdivisionIso;
                         geoData.put("region_iso_code", regionIsoCode);
                     }
-                    break;
-                case REGION_NAME:
+                }
+                case REGION_NAME -> {
                     String subdivisionName = subdivision.getName();
                     if (subdivisionName != null) {
                         geoData.put("region_name", subdivisionName);
                     }
-                    break;
-                case CITY_NAME:
+                }
+                case CITY_NAME -> {
                     String cityName = city.getName();
                     if (cityName != null) {
                         geoData.put("city_name", cityName);
                     }
-                    break;
-                case TIMEZONE:
+                }
+                case TIMEZONE -> {
                     String locationTimeZone = location.getTimeZone();
                     if (locationTimeZone != null) {
                         geoData.put("timezone", locationTimeZone);
                     }
-                    break;
-                case LOCATION:
+                }
+                case LOCATION -> {
                     Double latitude = location.getLatitude();
                     Double longitude = location.getLongitude();
                     if (latitude != null && longitude != null) {
@@ -282,7 +280,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                         locationObject.put("lon", longitude);
                         geoData.put("location", locationObject);
                     }
-                    break;
+                }
             }
         }
         return geoData;
@@ -299,27 +297,25 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP:
-                    geoData.put("ip", NetworkAddress.format(ipAddress));
-                    break;
-                case COUNTRY_ISO_CODE:
+                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case COUNTRY_ISO_CODE -> {
                     String countryIsoCode = country.getIsoCode();
                     if (countryIsoCode != null) {
                         geoData.put("country_iso_code", countryIsoCode);
                     }
-                    break;
-                case COUNTRY_NAME:
+                }
+                case COUNTRY_NAME -> {
                     String countryName = country.getName();
                     if (countryName != null) {
                         geoData.put("country_name", countryName);
                     }
-                    break;
-                case CONTINENT_NAME:
+                }
+                case CONTINENT_NAME -> {
                     String continentName = continent.getName();
                     if (continentName != null) {
                         geoData.put("continent_name", continentName);
                     }
-                    break;
+                }
             }
         }
         return geoData;

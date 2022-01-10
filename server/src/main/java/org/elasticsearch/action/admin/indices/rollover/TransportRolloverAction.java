@@ -43,6 +43,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -290,6 +291,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     rolloverRequest.getNewIndexName(),
                     rolloverRequest.getCreateIndexRequest(),
                     metConditions,
+                    Instant.now(),
                     false,
                     false
                 );

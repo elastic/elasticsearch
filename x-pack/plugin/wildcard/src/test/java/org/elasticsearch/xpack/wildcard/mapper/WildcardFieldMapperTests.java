@@ -345,56 +345,47 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             Query keywordFieldQuery = null;
             String pattern = null;
             switch (randomInt(4)) {
-                case 0:
+                case 0 -> {
                     pattern = getRandomWildcardPattern();
                     boolean caseInsensitive = randomBoolean();
                     wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, caseInsensitive, MOCK_CONTEXT);
                     keywordFieldQuery = keywordFieldType.fieldType().wildcardQuery(pattern, null, caseInsensitive, MOCK_CONTEXT);
-                    break;
-                case 1:
+                }
+                case 1 -> {
                     pattern = getRandomRegexPattern(values);
                     int matchFlags = randomBoolean() ? 0 : RegExp.ASCII_CASE_INSENSITIVE;
                     wildcardFieldQuery = wildcardFieldType.fieldType()
                         .regexpQuery(pattern, RegExp.ALL, matchFlags, 20000, null, MOCK_CONTEXT);
                     keywordFieldQuery = keywordFieldType.fieldType()
                         .regexpQuery(pattern, RegExp.ALL, matchFlags, 20000, null, MOCK_CONTEXT);
-                    break;
-                case 2:
+                }
+                case 2 -> {
                     pattern = randomABString(5);
                     boolean caseInsensitivePrefix = randomBoolean();
                     wildcardFieldQuery = wildcardFieldType.fieldType().prefixQuery(pattern, null, caseInsensitivePrefix, MOCK_CONTEXT);
                     keywordFieldQuery = keywordFieldType.fieldType().prefixQuery(pattern, null, caseInsensitivePrefix, MOCK_CONTEXT);
-                    break;
-                case 3:
+                }
+                case 3 -> {
                     int edits = randomInt(2);
                     int prefixLength = randomInt(4);
                     pattern = getRandomFuzzyPattern(values, edits, prefixLength);
-                    Fuzziness fuzziness = Fuzziness.AUTO;
-                    switch (edits) {
-                        case 0:
-                            fuzziness = Fuzziness.ZERO;
-                            break;
-                        case 1:
-                            fuzziness = Fuzziness.ONE;
-                            break;
-                        case 2:
-                            fuzziness = Fuzziness.TWO;
-                            break;
-                        default:
-                            break;
-                    }
+                    Fuzziness fuzziness = switch (edits) {
+                        case 0 -> Fuzziness.ZERO;
+                        case 1 -> Fuzziness.ONE;
+                        case 2 -> Fuzziness.TWO;
+                        default -> Fuzziness.AUTO;
+                    };
                     // Prefix length shouldn't be longer than selected search string
                     // BUT keyword field has a bug with prefix length when equal - see https://github.com/elastic/elasticsearch/issues/55790
                     // so we opt for one less
                     prefixLength = Math.min(pattern.length() - 1, prefixLength);
                     boolean transpositions = randomBoolean();
-
                     wildcardFieldQuery = wildcardFieldType.fieldType()
                         .fuzzyQuery(pattern, fuzziness, prefixLength, 50, transpositions, MOCK_CONTEXT);
                     keywordFieldQuery = keywordFieldType.fieldType()
                         .fuzzyQuery(pattern, fuzziness, prefixLength, 50, transpositions, MOCK_CONTEXT);
-                    break;
-                case 4:
+                }
+                case 4 -> {
                     TermRangeQuery trq = getRandomRange(values);
                     wildcardFieldQuery = wildcardFieldType.fieldType()
                         .rangeQuery(
@@ -418,8 +409,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                             null,
                             MOCK_CONTEXT
                         );
-                    break;
-
+                }
             }
             TopDocs kwTopDocs = searcher.search(keywordFieldQuery, values.size() + 1, Sort.RELEVANCE);
             TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, values.size() + 1, Sort.RELEVANCE);
@@ -998,59 +988,46 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         String replacementPart = randomValue.substring(substitutionPoint, substitutionPoint + substitutionLength);
         int mutation = randomIntBetween(0, 11);
         switch (mutation) {
-            case 0:
+            case 0 ->
                 // OR with random alpha of same length
                 result.append("(" + replacementPart + "|c" + randomABString(replacementPart.length()) + ")");
-                break;
-            case 1:
+            case 1 ->
                 // OR with non-existant value
                 result.append("(" + replacementPart + "|doesnotexist)");
-                break;
-            case 2:
+            case 2 ->
                 // OR with another randomised regex (used to create nested levels of expression).
                 result.append("(" + convertToRandomRegex(replacementPart) + "|doesnotexist)");
-                break;
-            case 3:
+            case 3 ->
                 // Star-replace all ab sequences.
                 result.append(replacementPart.replaceAll("ab", ".*"));
-                break;
-            case 4:
+            case 4 ->
                 // .-replace all b chars
                 result.append(replacementPart.replaceAll("b", "."));
-                break;
-            case 5:
+            case 5 ->
                 // length-limited stars {1,2}
                 result.append(".{1," + replacementPart.length() + "}");
-                break;
-            case 6:
+            case 6 ->
                 // replace all chars with .
                 result.append(replacementPart.replaceAll(".", "."));
-                break;
-            case 7:
+            case 7 -> {
                 // OR with uppercase chars eg [aA] (many of these sorts of expression in the wild..
                 char[] chars = replacementPart.toCharArray();
                 for (char c : chars) {
                     result.append("[" + c + Character.toUpperCase(c) + "]");
                 }
-                break;
-            case 8:
+            }
+            case 8 ->
                 // NOT a character - replace all b's with "not a"
                 result.append(replacementPart.replaceAll("b", "[^a]"));
-                break;
-            case 9:
+            case 9 ->
                 // Make whole part repeatable 1 or more times
                 result.append("(" + replacementPart + ")+");
-                break;
-            case 10:
+            case 10 ->
                 // Make whole part repeatable 0 or more times
                 result.append("(" + replacementPart + ")?");
-                break;
-            case 11:
+            case 11 ->
                 // all but ... syntax
                 result.append("@&~(doesnotexist.+)");
-                break;
-            default:
-                break;
         }
         // add any remaining tail, unchanged
         if (substitutionPoint + substitutionLength <= randomValue.length() - 1) {
@@ -1178,20 +1155,16 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
     private void randomSyntaxChar(StringBuilder sb) {
         switch (randomInt(3)) {
-            case 0:
-                sb.append(WildcardQuery.WILDCARD_CHAR);
-                break;
-            case 1:
-                sb.append(WildcardQuery.WILDCARD_STRING);
-                break;
-            case 2:
+            case 0 -> sb.append(WildcardQuery.WILDCARD_CHAR);
+            case 1 -> sb.append(WildcardQuery.WILDCARD_STRING);
+            case 2 -> {
                 sb.append(WildcardQuery.WILDCARD_ESCAPE);
                 sb.append(WildcardQuery.WILDCARD_STRING);
-                break;
-            case 3:
+            }
+            case 3 -> {
                 sb.append(WildcardQuery.WILDCARD_ESCAPE);
                 sb.append(WildcardQuery.WILDCARD_CHAR);
-                break;
+            }
         }
     }
 

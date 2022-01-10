@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -233,8 +232,12 @@ public class AutoConfigureNodeTests extends ESTestCase {
         final Settings newSettings = Settings.builder().loadFromPath(env.configFile().resolve("elasticsearch.yml")).build();
         final String httpKeystorePath = newSettings.get("xpack.security.http.ssl.keystore.path");
 
-        KeyStore httpKeystore = KeyStoreUtil.readKeyStore(PathUtils.get(httpKeystorePath), "PKCS12", httpKeystorePassword.getChars());
-        return (X509Certificate) httpKeystore.getCertificate("http_local_node_key");
+        KeyStore httpKeystore = KeyStoreUtil.readKeyStore(
+            configDir.resolve("config").resolve(httpKeystorePath),
+            "PKCS12",
+            httpKeystorePassword.getChars()
+        );
+        return (X509Certificate) httpKeystore.getCertificate("http");
     }
 
     @SuppressForbidden(reason = "Uses File API because the commons io library does, which is useful for file manipulation")

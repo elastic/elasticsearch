@@ -781,8 +781,8 @@ public class InstallPluginActionTests extends ESTestCase {
         UserException e = expectThrows(UserException.class, () -> installPlugin("analysis-smartnc"));
         assertThat(e.getMessage(), containsString("Unknown plugin analysis-smartnc, did you mean [analysis-smartcn]?"));
 
-        e = expectThrows(UserException.class, () -> installPlugin("repository"));
-        assertThat(e.getMessage(), containsString("Unknown plugin repository, did you mean any of [repository-s3, repository-gcs]?"));
+        e = expectThrows(UserException.class, () -> installPlugin("discovery-ec"));
+        assertThat(e.getMessage(), containsString("Unknown plugin discovery-ec, did you mean any of [discovery-ec2, discovery-gce]?"));
 
         e = expectThrows(UserException.class, () -> installPlugin("unknown_plugin"));
         assertThat(e.getMessage(), containsString("Unknown plugin unknown_plugin"));
@@ -1423,5 +1423,16 @@ public class InstallPluginActionTests extends ESTestCase {
         PluginDescriptor pluginZip = createPluginZip("fake-with-deps", pluginDir);
         installPlugin(pluginZip);
         assertPlugin("fake-with-deps", pluginDir, env.v2());
+    }
+
+    /**
+     * Check that plugins that have been migrated to modules do not cause an error on installation, bit
+     * instead simply print a message to the terminal.
+     */
+    public void testInstallMigratedPlugins() throws Exception {
+        for (String id : List.of("repository-azure", "repository-gcs", "repository-s3")) {
+            installPlugin(id);
+            assertThat(terminal.getErrorOutput(), containsString("[" + id + "] is no longer a plugin"));
+        }
     }
 }

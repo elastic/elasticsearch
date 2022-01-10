@@ -48,28 +48,25 @@ public class ClearServiceAccountTokenCacheRequestTests extends ESTestCase {
     }
 
     private ClearServiceAccountTokenCacheRequest mutateInstance(ClearServiceAccountTokenCacheRequest request) {
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return new ClearServiceAccountTokenCacheRequest(
-                    randomValueOtherThan(request.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    request.getServiceName(),
-                    request.getTokenNames()
-                );
-            case 1:
-                return new ClearServiceAccountTokenCacheRequest(
-                    request.getNamespace(),
-                    randomValueOtherThan(request.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    request.getTokenNames()
-                );
-            default:
-                return new ClearServiceAccountTokenCacheRequest(
-                    request.getNamespace(),
-                    request.getServiceName(),
-                    randomValueOtherThanMany(
-                        a -> Arrays.equals(a, request.getTokenNames()),
-                        () -> randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8))
-                    )
-                );
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new ClearServiceAccountTokenCacheRequest(
+                randomValueOtherThan(request.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
+                request.getServiceName(),
+                request.getTokenNames()
+            );
+            case 1 -> new ClearServiceAccountTokenCacheRequest(
+                request.getNamespace(),
+                randomValueOtherThan(request.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)),
+                request.getTokenNames()
+            );
+            default -> new ClearServiceAccountTokenCacheRequest(
+                request.getNamespace(),
+                request.getServiceName(),
+                randomValueOtherThanMany(
+                    a -> Arrays.equals(a, request.getTokenNames()),
+                    () -> randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8))
+                )
+            );
+        };
     }
 }

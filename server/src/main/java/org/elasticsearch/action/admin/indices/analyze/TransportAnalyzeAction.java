@@ -300,8 +300,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             potentialCustomAnalyzer = ((NamedAnalyzer) analyzer).analyzer();
         }
 
-        if (potentialCustomAnalyzer instanceof AnalyzerComponentsProvider) {
-            AnalyzerComponentsProvider customAnalyzer = (AnalyzerComponentsProvider) potentialCustomAnalyzer;
+        if (potentialCustomAnalyzer instanceof AnalyzerComponentsProvider customAnalyzer) {
             // note: this is not field-name dependent in our cases so we can leave out the argument
             int positionIncrementGap = potentialCustomAnalyzer.getPositionIncrementGap("");
             int offsetGap = potentialCustomAnalyzer.getOffsetGap("");
@@ -547,8 +546,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 return;
             }
             if (includeAttributes == null || includeAttributes.isEmpty() || includeAttributes.contains(key.toLowerCase(Locale.ROOT))) {
-                if (value instanceof BytesRef) {
-                    final BytesRef p = (BytesRef) value;
+                if (value instanceof final BytesRef p) {
                     value = p.toString();
                 }
                 extendedAttributes.put(key, value);

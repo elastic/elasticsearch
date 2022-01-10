@@ -17,13 +17,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.shard.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -66,7 +66,7 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
         SystemIndices systemIndices,
-        MetadataCreateIndexService service
+        IndexSettingProviders indexSettingProviders
     ) {
         super(
             SimulateTemplateAction.NAME,
@@ -84,7 +84,7 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         this.indicesService = indicesService;
         this.aliasValidator = new AliasValidator();
         this.systemIndices = systemIndices;
-        this.indexSettingProviders = service.getIndexSettingProviders();
+        this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
     }
 
     @Override

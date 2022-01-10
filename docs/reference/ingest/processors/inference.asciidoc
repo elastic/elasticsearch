@@ -167,6 +167,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field-
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
 
+[discrete]
 [[inference-processor-text-classification-opt]]
 ==== Text classification configuration options
 

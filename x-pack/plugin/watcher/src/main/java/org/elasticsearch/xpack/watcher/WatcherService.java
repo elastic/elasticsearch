@@ -139,8 +139,7 @@ public class WatcherService {
         // template check makes only sense for non existing indices, we could refine this
         boolean hasValidWatcherTemplates = WatcherIndexTemplateRegistry.validate(state);
         if (hasValidWatcherTemplates == false) {
-            logger.debug("missing watcher index templates, not starting watcher service");
-            return false;
+            logger.debug("missing watcher index templates, will potentially be writing watcher history without mappings");
         }
 
         IndexMetadata watcherIndexMetadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metadata());
@@ -211,6 +210,10 @@ public class WatcherService {
      * @param state cluster state, which is needed to find out about local shards
      */
     void reload(ClusterState state, String reason) {
+        boolean hasValidWatcherTemplates = WatcherIndexTemplateRegistry.validate(state);
+        if (hasValidWatcherTemplates == false) {
+            logger.warn("missing watcher index templates");
+        }
         // this method contains the only async code block, being called by the cluster state listener
         // the reason for this is, that loading he watches is done in a sync manner and thus cannot be done on the cluster state listener
         // thread

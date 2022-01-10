@@ -175,7 +175,13 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return indices.get(indices.size() - 1);
     }
 
-    public Index selectWriteIndex(Instant timestamp, Metadata metadata) {
+    /**
+     * @param timestamp The timestamp used to select a backing index based on its start and end time.
+     * @param metadata  The metadata that is used to fetch the start and end times for backing indices of this data stream.
+     * @return a backing index with a start time that is greater or equal to the provided timestamp and
+     *         an end time that is less than the provided timestamp. Otherwise <code>null</code> is returned.
+     */
+    public Index selectTimeSeriesWriteIndex(Instant timestamp, Metadata metadata) {
         for (int i = indices.size() - 1; i >= 0; i--) {
             Index index = indices.get(i);
             IndexMetadata im = metadata.index(index);

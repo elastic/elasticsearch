@@ -776,7 +776,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                     );
             }
 
-            Index result = dataStream.selectWriteIndex(timestamp, metadata);
+            Index result = dataStream.selectTimeSeriesWriteIndex(timestamp, metadata);
             if (result == null) {
                 String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
                 throw new IllegalArgumentException("no index available for a document with an @timestamp of [" + timestampAsString + "]");

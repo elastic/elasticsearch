@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.ml.math.PCG;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntSupplier;
 
 /**
@@ -36,7 +35,6 @@ public final class RandomSamplingQuery extends Query {
     private final double p;
     private final boolean cacheable;
     private final Query query;
-    private final AtomicLong stream = new AtomicLong();
     private final int seed;
     private final long hash;
 

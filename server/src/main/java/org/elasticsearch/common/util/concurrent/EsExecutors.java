@@ -328,17 +328,20 @@ public class EsExecutors {
         }
 
         @Override
-        public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-            if (rejectAfterShutdown && executor.isShutdown()) {
-                incrementRejections();
-                throw newRejectedException(r, executor, true);
-            }
+        public void rejectedExecution(Runnable task, ThreadPoolExecutor executor) {
             try {
+                final BlockingQueue<Runnable> queue = executor.getQueue();
                 // force queue policy should only be used with a scaling queue
-                assert executor.getQueue() instanceof ExecutorScalingQueue;
-                executor.getQueue().put(r);
+                assert queue instanceof ExecutorScalingQueue;
+                queue.put(task);
+                if (rejectAfterShutdown) {
+                    if (executor.isShutdown() && executor.remove(task)) {
+                        incrementRejections();
+                        throw newRejectedException(task, executor, true);
+                    }
+                }
             } catch (final InterruptedException e) {
-                // a scaling queue never blocks so a put to it can never be interrupted
+                assert false : "a scaling queue never blocks so a put to it can never be interrupted";
                 throw new AssertionError(e);
             }
         }

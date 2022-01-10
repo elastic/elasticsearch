@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
@@ -50,6 +49,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
+import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 
 import java.util.Collections;
@@ -439,10 +439,13 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
 
         for (GetTrainedModelsStatsAction.Response.TrainedModelStats modelStats : statsResponse.getResources().results()) {
             pipelineCount += modelStats.getPipelineCount();
-            IngestStats ingestStats = modelStats.getIngestStats();
-            docCountStats.add(ingestStats.getTotalStats().getIngestCount());
-            timeStats.add(ingestStats.getTotalStats().getIngestTimeInMillis());
-            failureStats.add(ingestStats.getTotalStats().getIngestFailedCount());
+            modelStats.getIngestStats().getProcessorStats().values().stream().flatMap(List::stream).forEach(processorStat -> {
+                if (processorStat.getName().equals(InferenceProcessor.TYPE)) {
+                    docCountStats.add(processorStat.getStats().getIngestCount());
+                    timeStats.add(processorStat.getStats().getIngestTimeInMillis());
+                    failureStats.add(processorStat.getStats().getIngestFailedCount());
+                }
+            });
         }
 
         Map<String, Object> ingestUsage = new HashMap<>(6);

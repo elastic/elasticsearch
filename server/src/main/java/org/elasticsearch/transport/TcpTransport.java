@@ -114,6 +114,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final Recycler<BytesRef> recycler;
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettingsSet;
+    protected final boolean rstOnClose;
     private final Version version;
     private final CircuitBreakerService circuitBreakerService;
 
@@ -153,8 +154,18 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.networkService = networkService;
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
 
+        this.rstOnClose = TransportSettings.RST_ON_CLOSE.get(settings);
+
         this.recycler = createRecycler(settings, pageCacheRecycler);
-        this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, recycler, outboundHandlingTimeTracker);
+        this.outboundHandler = new OutboundHandler(
+            nodeName,
+            version,
+            statsTracker,
+            threadPool,
+            recycler,
+            outboundHandlingTimeTracker,
+            rstOnClose
+        );
 
         ignoreDeserializationErrors = IGNORE_DESERIALIZATION_ERRORS_SETTING.get(settings);
 
@@ -678,7 +689,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 return;
             }
 
-            final Level closeConnectionExceptionLevel = NetworkExceptionHelper.getCloseConnectionExceptionLevel(e);
+            final Level closeConnectionExceptionLevel = NetworkExceptionHelper.getCloseConnectionExceptionLevel(
+                e,
+                outboundHandler.rstOnClose()
+            );
             if (closeConnectionExceptionLevel != Level.OFF) {
                 if (closeConnectionExceptionLevel == Level.INFO && logger.isDebugEnabled() == false) {
                     logger.info(

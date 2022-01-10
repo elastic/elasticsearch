@@ -75,23 +75,12 @@ public class IndicesOptions implements ToXContentFragment {
 
         private static void updateSetForValue(EnumSet<WildcardStates> states, String wildcard) {
             switch (wildcard) {
-                case "open":
-                    states.add(OPEN);
-                    break;
-                case "closed":
-                    states.add(CLOSED);
-                    break;
-                case "hidden":
-                    states.add(HIDDEN);
-                    break;
-                case "none":
-                    states.clear();
-                    break;
-                case "all":
-                    states.addAll(EnumSet.allOf(WildcardStates.class));
-                    break;
-                default:
-                    throw new IllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
+                case "open" -> states.add(OPEN);
+                case "closed" -> states.add(CLOSED);
+                case "hidden" -> states.add(HIDDEN);
+                case "none" -> states.clear();
+                case "all" -> states.addAll(EnumSet.allOf(WildcardStates.class));
+                default -> throw new IllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
             }
         }
     }

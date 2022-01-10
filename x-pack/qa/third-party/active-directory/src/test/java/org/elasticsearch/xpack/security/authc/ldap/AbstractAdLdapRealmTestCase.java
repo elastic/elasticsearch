@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -68,29 +68,64 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     public static final String SECURITY_INDEX = "security";
 
     private static final RoleMappingEntry[] AD_ROLE_MAPPING = new RoleMappingEntry[] {
-        new RoleMappingEntry(
-            "SHIELD:  [ \"CN=SHIELD,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]",
-            "{ \"roles\":[\"SHIELD\"], \"enabled\":true, \"rules\":"
-                + "{\"field\": {\"groups\": \"CN=SHIELD,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\"} } }"
-        ),
-        new RoleMappingEntry(
-            "Avengers:  [ \"CN=Avengers,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]",
-            "{ \"roles\":[\"Avengers\"], \"enabled\":true, \"rules\":" + "{ \"field\": { \"groups\" : \"CN=Avengers,CN=Users,*\" } } }"
-        ),
-        new RoleMappingEntry(
-            "Gods:  [ \"CN=Gods,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]",
-            "{ \"roles\":[\"Gods\"], \"enabled\":true, \"rules\":{\"any\": ["
-                + " { \"field\":{ \"groups\":    \"CN=Gods,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" } },"
-                + " { \"field\":{ \"groups\": \"CN=Deities,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" } } "
-                + "] } }"
-        ),
-        new RoleMappingEntry(
-            "Philanthropists:  [ \"CN=Philanthropists,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]",
-            "{ \"roles\":[\"Philanthropists\"], \"enabled\":true, \"rules\": { \"all\": ["
-                + " { \"field\": { \"groups\" : \"CN=Philanthropists,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" } },"
-                + " { \"field\": { \"realm.name\" : \"external\" } } "
-                + "] } }"
-        ) };
+        new RoleMappingEntry("SHIELD:  [ \"CN=SHIELD,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]", """
+            {
+              "roles": [ "SHIELD" ],
+              "enabled": true,
+              "rules": {
+                "field": {
+                  "groups": "CN=SHIELD,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"
+                }
+              }
+            }"""),
+        new RoleMappingEntry("Avengers:  [ \"CN=Avengers,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]", """
+            {
+              "roles": [ "Avengers" ],
+              "enabled": true,
+              "rules": {
+                "field": {
+                  "groups": "CN=Avengers,CN=Users,*"
+                }
+              }
+            }"""),
+        new RoleMappingEntry("Gods:  [ \"CN=Gods,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]", """
+            {
+              "roles": [ "Gods" ],
+              "enabled": true,
+              "rules": {
+                "any": [
+                  {
+                    "field": {
+                      "groups": "CN=Gods,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"
+                    }
+                  },
+                  {
+                    "field": {
+                      "groups": "CN=Deities,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"
+                    }
+                  }
+                ]
+              }
+            }"""),
+        new RoleMappingEntry("Philanthropists:  [ \"CN=Philanthropists,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]", """
+            {
+              "roles": [ "Philanthropists" ],
+              "enabled": true,
+              "rules": {
+                "all": [
+                  {
+                    "field": {
+                      "groups": "CN=Philanthropists,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"
+                    }
+                  },
+                  {
+                    "field": {
+                      "realm.name": "external"
+                    }
+                  }
+                ]
+              }
+            }""") };
 
     protected static RealmConfig realmConfig;
     protected static List<RoleMappingEntry> roleMappings;

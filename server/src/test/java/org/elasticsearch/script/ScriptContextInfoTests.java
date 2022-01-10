@@ -283,8 +283,21 @@ public class ScriptContextInfoTests extends ESTestCase {
     }
 
     public void testScriptMethodInfoParser() throws IOException {
-        String json = "{\"name\": \"fooFunc\", \"return_type\": \"int\", \"params\": [{\"type\": \"int\", \"name\": \"fooParam\"}, "
-            + "{\"type\": \"java.util.Map\", \"name\": \"barParam\"}]}";
+        String json = """
+            {
+              "name": "fooFunc",
+              "return_type": "int",
+              "params": [
+                {
+                  "type": "int",
+                  "name": "fooParam"
+                },
+                {
+                  "type": "java.util.Map",
+                  "name": "barParam"
+                }
+              ]
+            }""";
         XContentParser parser = XContentType.JSON.xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new BytesArray(json).streamInput());
         ScriptContextInfo.ScriptMethodInfo info = ScriptContextInfo.ScriptMethodInfo.fromXContent(parser);
@@ -304,52 +317,53 @@ public class ScriptContextInfoTests extends ESTestCase {
     }
 
     public void testScriptContextInfoParser() throws IOException {
-        String json = "{"
-            + "  \"name\": \"similarity\","
-            + "  \"methods\": ["
-            + "    {"
-            + "      \"name\": \"execute\","
-            + "      \"return_type\": \"double\","
-            + "      \"params\": ["
-            + "        {"
-            + "          \"type\": \"double\","
-            + "          \"name\": \"weight\""
-            + "        },"
-            + "        {"
-            + "          \"type\": \"org.elasticsearch.index.similarity.ScriptedSimilarity$Query\","
-            + "          \"name\": \"query\""
-            + "        },"
-            + "        {"
-            + "          \"type\": \"org.elasticsearch.index.similarity.ScriptedSimilarity$Field\","
-            + "          \"name\": \"field\""
-            + "        },"
-            + "        {"
-            + "          \"type\": \"org.elasticsearch.index.similarity.ScriptedSimilarity$Term\","
-            + "          \"name\": \"term\""
-            + "        },"
-            + "        {"
-            + "          \"type\": \"org.elasticsearch.index.similarity.ScriptedSimilarity$Doc\","
-            + "          \"name\": \"doc\""
-            + "        }"
-            + "      ]"
-            + "    },"
-            + "    {"
-            + "      \"name\": \"getParams\","
-            + "      \"return_type\": \"java.util.Map\","
-            + "      \"params\": []"
-            + "    },"
-            + "    {"
-            + "      \"name\": \"getDoc\","
-            + "      \"return_type\": \"java.util.Map\","
-            + "      \"params\": []"
-            + "    },"
-            + "    {"
-            + "      \"name\": \"get_score\","
-            + "      \"return_type\": \"double\","
-            + "      \"params\": []"
-            + "    }"
-            + "  ]"
-            + "}";
+        String json = """
+            {
+              "name": "similarity",
+              "methods": [
+                {
+                  "name": "execute",
+                  "return_type": "double",
+                  "params": [
+                    {
+                      "type": "double",
+                      "name": "weight"
+                    },
+                    {
+                      "type": "org.elasticsearch.index.similarity.ScriptedSimilarity$Query",
+                      "name": "query"
+                    },
+                    {
+                      "type": "org.elasticsearch.index.similarity.ScriptedSimilarity$Field",
+                      "name": "field"
+                    },
+                    {
+                      "type": "org.elasticsearch.index.similarity.ScriptedSimilarity$Term",
+                      "name": "term"
+                    },
+                    {
+                      "type": "org.elasticsearch.index.similarity.ScriptedSimilarity$Doc",
+                      "name": "doc"
+                    }
+                  ]
+                },
+                {
+                  "name": "getParams",
+                  "return_type": "java.util.Map",
+                  "params": []
+                },
+                {
+                  "name": "getDoc",
+                  "return_type": "java.util.Map",
+                  "params": []
+                },
+                {
+                  "name": "get_score",
+                  "return_type": "double",
+                  "params": []
+                }
+              ]
+            }""";
         XContentParser parser = XContentType.JSON.xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new BytesArray(json).streamInput());
         ScriptContextInfo parsed = ScriptContextInfo.fromXContent(parser);

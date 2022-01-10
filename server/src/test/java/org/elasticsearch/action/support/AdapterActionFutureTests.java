@@ -35,23 +35,12 @@ public class AdapterActionFutureTests extends ESTestCase {
         final Runnable runnable = () -> {
             final int method = randomIntBetween(0, 4);
             switch (method) {
-                case 0:
-                    adapter.actionGet();
-                    break;
-                case 1:
-                    adapter.actionGet("30s");
-                    break;
-                case 2:
-                    adapter.actionGet(30000);
-                    break;
-                case 3:
-                    adapter.actionGet(TimeValue.timeValueSeconds(30));
-                    break;
-                case 4:
-                    adapter.actionGet(30, TimeUnit.SECONDS);
-                    break;
-                default:
-                    throw new AssertionError(method);
+                case 0 -> adapter.actionGet();
+                case 1 -> adapter.actionGet("30s");
+                case 2 -> adapter.actionGet(30000);
+                case 3 -> adapter.actionGet(TimeValue.timeValueSeconds(30));
+                case 4 -> adapter.actionGet(30, TimeUnit.SECONDS);
+                default -> throw new AssertionError(method);
             }
         };
 

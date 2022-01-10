@@ -16,7 +16,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
@@ -115,12 +115,14 @@ public class DeploymentManager {
     }
 
     private void doStartDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
-        logger.debug("[{}] Starting model deployment", task.getModelId());
+        logger.info("[{}] Starting model deployment", task.getModelId());
 
         ProcessContext processContext = new ProcessContext(task, executorServiceForProcess);
 
         if (processContextByAllocation.putIfAbsent(task.getId(), processContext) != null) {
-            finalListener.onFailure(ExceptionsHelper.serverError("[{}] Could not create process as one already exists", task.getModelId()));
+            finalListener.onFailure(
+                ExceptionsHelper.serverError("[{}] Could not create inference process as one already exists", task.getModelId())
+            );
             return;
         }
 
@@ -194,7 +196,7 @@ public class DeploymentManager {
         ) {
             return Vocabulary.createParser(true).apply(parser, null);
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("failed to parse vocabulary [{}]", hit.getId()), e);
+            logger.error(new ParameterizedMessage("failed to parse trained model vocabulary [{}]", hit.getId()), e);
             throw e;
         }
     }
@@ -217,7 +219,7 @@ public class DeploymentManager {
             logger.info("[{}] Stopping deployment", task.getModelId());
             processContext.stopProcess();
         } else {
-            logger.debug("[{}] No process context to stop", task.getModelId());
+            logger.warn("[{}] No process context to stop", task.getModelId());
         }
     }
 
@@ -379,8 +381,8 @@ public class DeploymentManager {
                     );
                 processContext.process.get().writeInferenceRequest(request.processInput);
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.task.getModelId()), e);
-                onFailure(ExceptionsHelper.serverError("error writing to process", e));
+                logger.error(new ParameterizedMessage("[{}] error writing to inference process", processContext.task.getModelId()), e);
+                onFailure(ExceptionsHelper.serverError("Error writing to inference process", e));
             } catch (Exception e) {
                 onFailure(e);
             }
@@ -394,7 +396,12 @@ public class DeploymentManager {
             ActionListener<InferenceResults> resultsListener
         ) {
             if (inferenceResult.isError()) {
-                resultsListener.onFailure(new ElasticsearchStatusException(inferenceResult.getError(), RestStatus.INTERNAL_SERVER_ERROR));
+                resultsListener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Error in inference process: [" + inferenceResult.getError() + "]",
+                        RestStatus.INTERNAL_SERVER_ERROR
+                    )
+                );
                 return;
             }
 
@@ -438,7 +445,7 @@ public class DeploymentManager {
             this.stateStreamer = new PyTorchStateStreamer(client, executorService, xContentRegistry);
             this.executorService = new ProcessWorkerExecutorService(
                 threadPool.getThreadContext(),
-                "pytorch_inference",
+                "inference process",
                 task.getParams().getQueueCapacity()
             );
         }
@@ -470,11 +477,11 @@ public class DeploymentManager {
 
         private Consumer<String> onProcessCrash() {
             return reason -> {
-                logger.error("[{}] process crashed due to reason [{}]", task.getModelId(), reason);
+                logger.error("[{}] inference process crashed due to reason [{}]", task.getModelId(), reason);
                 resultProcessor.stop();
                 executorService.shutdownWithError(new IllegalStateException(reason));
                 processContextByAllocation.remove(task.getId());
-                task.setFailed("process crashed due to reason [" + reason + "]");
+                task.setFailed("inference process crashed due to reason [" + reason + "]");
             };
         }
 

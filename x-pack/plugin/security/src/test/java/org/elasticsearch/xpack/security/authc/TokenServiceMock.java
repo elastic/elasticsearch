@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.XContentTestUtils;

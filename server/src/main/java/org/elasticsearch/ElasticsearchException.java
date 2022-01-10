@@ -332,8 +332,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             headerToXContent(builder, entry.getKey().substring("es.".length()), entry.getValue());
         }
 
-        if (throwable instanceof ElasticsearchException) {
-            ElasticsearchException exception = (ElasticsearchException) throwable;
+        if (throwable instanceof ElasticsearchException exception) {
             exception.metadataToXContent(builder, params);
         }
 
@@ -1196,8 +1195,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         ),
         // 93 used to be for IndexWarmerMissingException
         NO_NODE_AVAILABLE_EXCEPTION(
-            org.elasticsearch.client.transport.NoNodeAvailableException.class,
-            org.elasticsearch.client.transport.NoNodeAvailableException::new,
+            org.elasticsearch.client.internal.transport.NoNodeAvailableException.class,
+            org.elasticsearch.client.internal.transport.NoNodeAvailableException::new,
             94,
             UNKNOWN_VERSION_ADDED
         ),

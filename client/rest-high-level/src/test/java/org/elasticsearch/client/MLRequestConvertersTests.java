@@ -98,6 +98,7 @@ import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.config.MlFilterTests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
@@ -204,10 +205,8 @@ public class MLRequestConvertersTests extends ESTestCase {
         request = MLRequestConverters.closeJob(closeJobRequest);
 
         assertEquals("/_ml/anomaly_detectors/" + jobId + ",otherjobs*/_close", request.getEndpoint());
-        assertEquals(
-            "{\"job_id\":\"somejobid,otherjobs*\",\"timeout\":\"10m\",\"force\":true,\"allow_no_match\":false}",
-            requestEntityToString(request)
-        );
+        assertEquals("""
+            {"job_id":"somejobid,otherjobs*","timeout":"10m","force":true,"allow_no_match":false}""", requestEntityToString(request));
     }
 
     public void testDeleteExpiredData() throws Exception {
@@ -225,12 +224,13 @@ public class MLRequestConvertersTests extends ESTestCase {
         String expectedPath = jobId == null ? "/_ml/_delete_expired_data" : "/_ml/_delete_expired_data/" + jobId;
         assertEquals(expectedPath, request.getEndpoint());
         if (jobId == null) {
-            assertEquals("{\"requests_per_second\":" + requestsPerSec + ",\"timeout\":\"1h\"}", requestEntityToString(request));
+            assertEquals("""
+                {"requests_per_second":%s,"timeout":"1h"}\
+                """.formatted(requestsPerSec), requestEntityToString(request));
         } else {
-            assertEquals(
-                "{\"job_id\":\"" + jobId + "\",\"requests_per_second\":" + requestsPerSec + ",\"timeout\":\"1h\"}",
-                requestEntityToString(request)
-            );
+            assertEquals("""
+                {"job_id":"%s","requests_per_second":%s,"timeout":"1h"}\
+                """.formatted(jobId, requestsPerSec), requestEntityToString(request));
         }
     }
 
@@ -270,13 +270,15 @@ public class MLRequestConvertersTests extends ESTestCase {
         flushJobRequest.setAdvanceTime("100");
         flushJobRequest.setCalcInterim(true);
         request = MLRequestConverters.flushJob(flushJobRequest);
-        assertEquals(
-            "{\"job_id\":\""
-                + jobId
-                + "\",\"calc_interim\":true,\"start\":\"105\","
-                + "\"end\":\"200\",\"advance_time\":\"100\",\"skip_time\":\"1000\"}",
-            requestEntityToString(request)
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "job_id": "%s",
+              "calc_interim": true,
+              "start": "105",
+              "end": "200",
+              "advance_time": "100",
+              "skip_time": "1000"
+            }""".formatted(jobId)), requestEntityToString(request));
     }
 
     public void testForecastJob() throws Exception {

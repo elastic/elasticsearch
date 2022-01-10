@@ -123,9 +123,8 @@ categories for which the predicted probabilities are reported is 2
 classes to the `probabilities` field. Both fields are contained in the
 `target_field` results object.
 
-Refer to the 
-{ml-docs}/ml-dfa-lang-ident.html[language identification] trained model
-documentation for a full example.
+For an example that uses {nlp} trained models, refer to 
+{ml-docs}/ml-nlp-inference.html[Add NLP inference to ingest pipelines].
 
 [discrete]
 [[inference-processor-feature-importance]]

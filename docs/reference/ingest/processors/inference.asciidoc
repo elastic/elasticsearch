@@ -169,7 +169,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 =====
 
 [[inference-processor-text-classification-opt]]
-==== Text Classification configuration options
+==== Text classification configuration options
 
 `classification_labels`::
 (Optional, string) An array of classification labels.

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -600,6 +601,8 @@ public class ClusterDeprecationChecks {
     static DeprecationIssue checkTemplatesWithCustomAndMultipleTypes(ClusterState state) {
         Set<String> templatesWithMultipleTypes = new TreeSet<>();
         Set<String> templatesWithCustomTypes = new TreeSet<>();
+        // See https://github.com/elastic/elasticsearch/issues/82109#issuecomment-1006143687 for details:
+        Set<String> systemTemplatesWithCustomTypes = Sets.newHashSet(".triggered_watches", ".watch-history-9", ".watches");
         state.getMetadata().getTemplates().forEach((templateCursor) -> {
             String templateName = templateCursor.key;
             ImmutableOpenMap<String, CompressedXContent> mappings = templateCursor.value.mappings();
@@ -612,7 +615,9 @@ public class ClusterDeprecationChecks {
                     return MapperService.SINGLE_MAPPING_NAME.equals(typeName) == false;
                 });
                 if (hasCustomType) {
-                    templatesWithCustomTypes.add(templateName);
+                    if (systemTemplatesWithCustomTypes.contains(templateName) == false) {
+                        templatesWithCustomTypes.add(templateName);
+                    }
                 }
             }
         });

@@ -416,7 +416,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         job.setAnalysisConfig(createAnalysisConfig("by_field_1", Collections.emptyList()));
         job.setDataDescription(new DataDescription.Builder());
 
-        // Put fist job. This should create the results index as it's the first job.
+        // Put first job. This should create the results index as it's the first job.
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job)).actionGet();
         AtomicReference<DataCounts> dataCountsAtomicReference = new AtomicReference<>();
         AtomicReference<ModelSizeStats> modelSizeStatsAtomicReference = new AtomicReference<>();
@@ -445,7 +445,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         job.setAnalysisConfig(createAnalysisConfig("by_field_1", Collections.emptyList()));
         job.setDataDescription(new DataDescription.Builder());
 
-        // Put fist job. This should create the results index as it's the first job.
+        // Put first job. This should create the results index as it's the first job.
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job)).actionGet();
         AtomicReference<DataCounts> dataCountsAtomicReference = new AtomicReference<>();
         AtomicReference<ModelSizeStats> modelSizeStatsAtomicReference = new AtomicReference<>();

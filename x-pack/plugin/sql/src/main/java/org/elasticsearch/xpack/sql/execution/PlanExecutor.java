@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.execution;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
@@ -76,8 +76,7 @@ public class PlanExecutor {
         metrics.translate();
 
         newSession(cfg).sqlExecutable(sql, params, wrap(exec -> {
-            if (exec instanceof EsQueryExec) {
-                EsQueryExec e = (EsQueryExec) exec;
+            if (exec instanceof EsQueryExec e) {
                 listener.onResponse(SourceGenerator.sourceBuilder(e.queryContainer(), cfg.filter(), cfg.pageSize()));
             }
             // try to provide a better resolution of what failed

@@ -20,7 +20,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class RestReloadSecureSettingsActionTests extends ESTestCase {
 
     public void testParserWithPassword() throws Exception {
-        final String request = "{" + "\"secure_settings_password\": \"secure_settings_password_string\"" + "}";
+        final String request = """
+            {"secure_settings_password": "secure_settings_password_string"}""";
         try (
             XContentParser parser = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, request)

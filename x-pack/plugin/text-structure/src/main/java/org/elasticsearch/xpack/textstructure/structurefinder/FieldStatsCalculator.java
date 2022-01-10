@@ -57,25 +57,14 @@ public class FieldStatsCalculator {
     public FieldStatsCalculator(Map<String, String> mapping) {
 
         switch (mapping.get(TextStructureUtils.MAPPING_TYPE_SETTING)) {
-            case "byte":
-            case "short":
-            case "integer":
-            case "long":
-            case "half_float":
-            case "float":
-            case "double":
-                countsByNumericValue = new TreeMap<>();
-                break;
-            case "date":
-            case "date_nanos":
+            case "byte", "short", "integer", "long", "half_float", "float", "double" -> countsByNumericValue = new TreeMap<>();
+            case "date", "date_nanos" -> {
                 String format = mapping.get(TextStructureUtils.MAPPING_FORMAT_SETTING);
                 dateFormatter = (format == null) ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER : DateFormatter.forPattern(format);
                 // Dates are treated like strings for top hits
                 countsByStringValue = new TreeMap<>();
-                break;
-            default:
-                countsByStringValue = new TreeMap<>();
-                break;
+            }
+            default -> countsByStringValue = new TreeMap<>();
         }
     }
 

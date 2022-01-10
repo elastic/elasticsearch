@@ -259,6 +259,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testTriggeredWatchLoading() throws Exception {
+        cluster().wipeIndices(TriggeredWatchStoreField.INDEX_NAME);
         createIndex("output");
         client().prepareIndex()
             .setIndex("my-index")

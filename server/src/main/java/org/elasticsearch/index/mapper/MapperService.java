@@ -524,8 +524,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         final Map<String, Settings> settings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
         final List<String> reloadedAnalyzers = new ArrayList<>();
         for (NamedAnalyzer namedAnalyzer : indexAnalyzers.getAnalyzers().values()) {
-            if (namedAnalyzer.analyzer() instanceof ReloadableCustomAnalyzer) {
-                ReloadableCustomAnalyzer analyzer = (ReloadableCustomAnalyzer) namedAnalyzer.analyzer();
+            if (namedAnalyzer.analyzer()instanceof ReloadableCustomAnalyzer analyzer) {
                 String analyzerName = namedAnalyzer.name();
                 Settings analyzerSettings = settings.get(analyzerName);
                 analyzer.reload(analyzerName, analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);

@@ -109,7 +109,8 @@ public class QuantilesTests extends AbstractSerializingTestCase<Quantiles> {
     }
 
     public void testStrictParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123456789, \"quantile_state\":\"...\", \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp": 123456789, "quantile_state":"...", "foo":"bar"}""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Quantiles.STRICT_PARSER.apply(parser, null));
 
@@ -118,7 +119,8 @@ public class QuantilesTests extends AbstractSerializingTestCase<Quantiles> {
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123456789, \"quantile_state\":\"...\", \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp": 123456789, "quantile_state":"...", "foo":"bar"}""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             Quantiles.LENIENT_PARSER.apply(parser, null);
         }

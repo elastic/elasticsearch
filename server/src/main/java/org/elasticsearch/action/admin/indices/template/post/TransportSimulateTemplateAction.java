@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -33,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
@@ -48,8 +51,9 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
     private final MetadataIndexTemplateService indexTemplateService;
     private final NamedXContentRegistry xContentRegistry;
     private final IndicesService indicesService;
-    private AliasValidator aliasValidator;
+    private final AliasValidator aliasValidator;
     private final SystemIndices systemIndices;
+    private final Set<IndexSettingProvider> indexSettingProviders;
 
     @Inject
     public TransportSimulateTemplateAction(
@@ -61,7 +65,8 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        IndexSettingProviders indexSettingProviders
     ) {
         super(
             SimulateTemplateAction.NAME,
@@ -79,6 +84,7 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         this.indicesService = indicesService;
         this.aliasValidator = new AliasValidator();
         this.systemIndices = systemIndices;
+        this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
     }
 
     @Override
@@ -157,7 +163,8 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             xContentRegistry,
             indicesService,
             aliasValidator,
-            systemIndices
+            systemIndices,
+            indexSettingProviders
         );
         listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
     }

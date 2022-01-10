@@ -19,7 +19,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureSta
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -644,11 +645,12 @@ public class SystemIndices {
     public static void validateFeatureName(String name, String plugin) {
         if (SnapshotsService.NO_FEATURE_STATES_VALUE.equalsIgnoreCase(name)) {
             throw new IllegalArgumentException(
-                "feature name cannot be reserved name [\""
-                    + SnapshotsService.NO_FEATURE_STATES_VALUE
-                    + "\"], but was for plugin ["
-                    + plugin
-                    + "]"
+                String.format(
+                    Locale.ROOT,
+                    "feature name cannot be reserved name [\"%s\"], but was for plugin [%s]",
+                    SnapshotsService.NO_FEATURE_STATES_VALUE,
+                    plugin
+                )
             );
         }
     }

@@ -37,15 +37,16 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         // Set logging level to trace
         // see: https://github.com/elastic/elasticsearch/issues/45562
         Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
-        addFailureRetrySetting.setJsonEntity(
-            "{\"persistent\": {\"xpack.transform.num_transform_failure_retries\": \""
-                + 0
-                + "\","
-                + "\"logger.org.elasticsearch.action.bulk\": \"info\","
-                + // reduces bulk failure spam
-                "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\","
-                + "\"logger.org.elasticsearch.xpack.transform\": \"trace\"}}"
-        );
+        // reduces bulk failure spam
+        addFailureRetrySetting.setJsonEntity("""
+            {
+              "persistent": {
+                "xpack.transform.num_transform_failure_retries": "0",
+                "logger.org.elasticsearch.action.bulk": "info",
+                "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "trace",
+                "logger.org.elasticsearch.xpack.transform": "trace"
+              }
+            }""");
         client().performRequest(addFailureRetrySetting);
     }
 

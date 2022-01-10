@@ -10,7 +10,7 @@ package org.elasticsearch.document;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 
-import static org.elasticsearch.client.Requests.createIndexRequest;
+import static org.elasticsearch.client.internal.Requests.createIndexRequest;
 
 public class AliasedIndexDocumentActionsIT extends DocumentActionsIT {
 

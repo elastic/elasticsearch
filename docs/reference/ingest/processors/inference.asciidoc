@@ -38,22 +38,6 @@ include::common-options.asciidoc[]
 --------------------------------------------------
 // NOTCONSOLE
 
-
-[discrete]
-[[inference-processor-regression-opt]]
-==== {regression-cap} configuration options
-
-Regression configuration for inference.
-
-`results_field`::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field-processor]
-
-`num_top_feature_importance_values`::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
-
-
 [discrete]
 [[inference-processor-classification-opt]]
 ==== {classification-cap} configuration options
@@ -167,6 +151,20 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-truncate]
 =======
 =====
+
+[discrete]
+[[inference-processor-regression-opt]]
+==== {regression-cap} configuration options
+
+Regression configuration for inference.
+
+`results_field`::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field-processor]
+
+`num_top_feature_importance_values`::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
 
 [[inference-processor-text-classification-opt]]
 ==== Text classification configuration options

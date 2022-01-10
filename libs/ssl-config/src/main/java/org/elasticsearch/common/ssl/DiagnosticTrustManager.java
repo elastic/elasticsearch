@@ -137,8 +137,7 @@ public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
     }
 
     private SSLSession session(Socket socket) {
-        if (socket instanceof SSLSocket) {
-            final SSLSocket ssl = (SSLSocket) socket;
+        if (socket instanceof final SSLSocket ssl) {
             final SSLSession handshakeSession = ssl.getHandshakeSession();
             if (handshakeSession == null) {
                 return ssl.getSession();

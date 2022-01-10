@@ -749,6 +749,7 @@ public class Node implements Closeable {
                 client,
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
             );
+            searchTransportService.registerClusterSettingsListeners(settings, settingsModule.getClusterSettings());
             final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
             final IndexingPressure indexingLimits = new IndexingPressure(settings);
 

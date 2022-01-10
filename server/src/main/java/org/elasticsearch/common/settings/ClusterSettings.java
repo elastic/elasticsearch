@@ -10,6 +10,7 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -295,6 +296,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         MasterService.MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING,
         SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
         SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
+        SearchTransportService.SEARCH_LONG_TAIL_TRY_NEXT_ENABLE,
+        SearchTransportService.SEARCH_LONG_TAIL_MAX_RETRY_QPS,
         TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
         TransportSearchAction.DEFAULT_PRE_FILTER_SHARD_SIZE,
         RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,

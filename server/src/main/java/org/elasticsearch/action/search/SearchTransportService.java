@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
@@ -713,6 +714,7 @@ public class SearchTransportService {
         }
     }
 
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     class LongTailReaper implements Runnable {
         @Override
         public void run() {
@@ -732,7 +734,9 @@ public class SearchTransportService {
         }
     }
 
-    public void registerClusterSettingsListeners (ClusterSettings clusterSettings) {
+    public void registerClusterSettingsListeners (Settings settings, ClusterSettings clusterSettings) {
+        searchLongTailTryNextEnable = SEARCH_LONG_TAIL_TRY_NEXT_ENABLE.get(settings);
+        searchLongTailMaxRetryQps = SEARCH_LONG_TAIL_MAX_RETRY_QPS.get(settings);
         clusterSettings.addSettingsUpdateConsumer(SEARCH_LONG_TAIL_TRY_NEXT_ENABLE, this::setSearchLongTailTryNextEnable);
         clusterSettings.addSettingsUpdateConsumer(SEARCH_LONG_TAIL_MAX_RETRY_QPS, this::setSearchLongTailMaxRetryQps);
     }

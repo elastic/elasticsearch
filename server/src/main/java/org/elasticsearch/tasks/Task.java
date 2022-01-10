@@ -75,6 +75,7 @@ public class Task {
      */
     private final long startTimeNanos;
 
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private AbstractSearchAsyncAction searchAsyncAction = null;
 
     public Task(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
@@ -236,10 +237,12 @@ public class Task {
         }
     }
 
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void setSearchAsyncAction(AbstractSearchAsyncAction searchAsyncAction){
         this.searchAsyncAction = searchAsyncAction;
     }
 
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public AbstractSearchAsyncAction getSearchAsyncAction(){
         return searchAsyncAction;
     }

@@ -435,33 +435,32 @@ public class SimpleVersioningIT extends ESIntegTestCase {
     }
 
     private IDSource getRandomIDs() {
-        IDSource ids;
         final Random random = random();
-        switch (random.nextInt(6)) {
-            case 0:
+        return switch (random.nextInt(6)) {
+            case 0 -> {
                 // random simple
                 logger.info("--> use random simple ids");
-                ids = new IDSource() {
+                yield new IDSource() {
                     @Override
                     public String next() {
                         return TestUtil.randomSimpleString(random, 1, 10);
                     }
                 };
-                break;
-            case 1:
+            }
+            case 1 -> {
                 // random realistic unicode
                 logger.info("--> use random realistic unicode ids");
-                ids = new IDSource() {
+                yield new IDSource() {
                     @Override
                     public String next() {
                         return TestUtil.randomRealisticUnicodeString(random, 1, 20);
                     }
                 };
-                break;
-            case 2:
+            }
+            case 2 -> {
                 // sequential
                 logger.info("--> use sequential ids");
-                ids = new IDSource() {
+                yield new IDSource() {
                     int upto;
 
                     @Override
@@ -469,11 +468,11 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                         return Integer.toString(upto++);
                     }
                 };
-                break;
-            case 3:
+            }
+            case 3 -> {
                 // zero-pad sequential
                 logger.info("--> use zero-padded sequential ids");
-                ids = new IDSource() {
+                yield new IDSource() {
                     final String zeroPad = String.format(Locale.ROOT, "%0" + TestUtil.nextInt(random, 4, 20) + "d", 0);
                     int upto;
 
@@ -483,11 +482,11 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                         return zeroPad.substring(zeroPad.length() - s.length()) + s;
                     }
                 };
-                break;
-            case 4:
+            }
+            case 4 -> {
                 // random long
                 logger.info("--> use random long ids");
-                ids = new IDSource() {
+                yield new IDSource() {
                     final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
 
                     @Override
@@ -495,11 +494,11 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                         return Long.toString(random.nextLong() & 0x3ffffffffffffffL, radix);
                     }
                 };
-                break;
-            case 5:
+            }
+            case 5 -> {
                 // zero-pad random long
                 logger.info("--> use zero-padded random long ids");
-                ids = new IDSource() {
+                yield new IDSource() {
                     final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
 
                     @Override
@@ -507,12 +506,9 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                         return Long.toString(random.nextLong() & 0x3ffffffffffffffL, radix);
                     }
                 };
-                break;
-            default:
-                throw new AssertionError();
-        }
-
-        return ids;
+            }
+            default -> throw new AssertionError();
+        };
     }
 
     private static class IDAndVersion {

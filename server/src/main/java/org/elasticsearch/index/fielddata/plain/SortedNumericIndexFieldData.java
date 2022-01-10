@@ -130,18 +130,13 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         final LeafReader reader = context.reader();
         final String field = fieldName;
 
-        switch (numericType) {
-            case HALF_FLOAT:
-                return new SortedNumericHalfFloatFieldData(reader, field);
-            case FLOAT:
-                return new SortedNumericFloatFieldData(reader, field);
-            case DOUBLE:
-                return new SortedNumericDoubleFieldData(reader, field);
-            case DATE_NANOSECONDS:
-                return new NanoSecondFieldData(reader, field, numericType);
-            default:
-                return new SortedNumericLongFieldData(reader, field, numericType);
-        }
+        return switch (numericType) {
+            case HALF_FLOAT -> new SortedNumericHalfFloatFieldData(reader, field);
+            case FLOAT -> new SortedNumericFloatFieldData(reader, field);
+            case DOUBLE -> new SortedNumericDoubleFieldData(reader, field);
+            case DATE_NANOSECONDS -> new NanoSecondFieldData(reader, field, numericType);
+            default -> new SortedNumericLongFieldData(reader, field, numericType);
+        };
     }
 
     /**

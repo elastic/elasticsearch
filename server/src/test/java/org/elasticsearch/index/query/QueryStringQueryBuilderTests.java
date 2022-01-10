@@ -794,20 +794,18 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             final int len;
             final int expectedEdits;
             switch (i) {
-                case 0:
+                case 0 -> {
                     len = randomIntBetween(1, 2);
                     expectedEdits = 0;
-                    break;
-
-                case 1:
+                }
+                case 1 -> {
                     len = randomIntBetween(3, 5);
                     expectedEdits = 1;
-                    break;
-
-                default:
+                }
+                default -> {
                     len = randomIntBetween(6, 20);
                     expectedEdits = 2;
-                    break;
+                }
             }
             char[] bytes = new char[len];
             Arrays.fill(bytes, 'a');

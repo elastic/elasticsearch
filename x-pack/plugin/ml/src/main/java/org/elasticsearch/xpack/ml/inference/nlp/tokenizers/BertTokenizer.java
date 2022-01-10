@@ -121,17 +121,15 @@ public class BertTokenizer implements NlpTokenizer {
         boolean isTruncated = false;
         if (numTokens > maxSequenceLength) {
             switch (truncate) {
-                case FIRST:
-                case SECOND:
+                case FIRST, SECOND -> {
                     isTruncated = true;
                     wordPieceTokens = wordPieceTokens.subList(0, withSpecialTokens ? maxSequenceLength - 2 : maxSequenceLength);
-                    break;
-                case NONE:
-                    throw ExceptionsHelper.badRequestException(
-                        "Input too large. The tokenized input length [{}] exceeds the maximum sequence length [{}]",
-                        numTokens,
-                        maxSequenceLength
-                    );
+                }
+                case NONE -> throw ExceptionsHelper.badRequestException(
+                    "Input too large. The tokenized input length [{}] exceeds the maximum sequence length [{}]",
+                    numTokens,
+                    maxSequenceLength
+                );
             }
             numTokens = maxSequenceLength;
         }
@@ -180,7 +178,7 @@ public class BertTokenizer implements NlpTokenizer {
         boolean isTruncated = false;
         if (numTokens > maxSequenceLength) {
             switch (truncate) {
-                case FIRST:
+                case FIRST -> {
                     isTruncated = true;
                     if (wordPieceTokenSeq2s.size() > maxSequenceLength - 3) {
                         throw ExceptionsHelper.badRequestException(
@@ -193,8 +191,8 @@ public class BertTokenizer implements NlpTokenizer {
                         );
                     }
                     wordPieceTokenSeq1s = wordPieceTokenSeq1s.subList(0, maxSequenceLength - 3 - wordPieceTokenSeq2s.size());
-                    break;
-                case SECOND:
+                }
+                case SECOND -> {
                     isTruncated = true;
                     if (wordPieceTokenSeq1s.size() > maxSequenceLength - 3) {
                         throw ExceptionsHelper.badRequestException(
@@ -207,13 +205,12 @@ public class BertTokenizer implements NlpTokenizer {
                         );
                     }
                     wordPieceTokenSeq2s = wordPieceTokenSeq2s.subList(0, maxSequenceLength - 3 - wordPieceTokenSeq1s.size());
-                    break;
-                case NONE:
-                    throw ExceptionsHelper.badRequestException(
-                        "Input too large. The tokenized input length [{}] exceeds the maximum sequence length [{}]",
-                        numTokens,
-                        maxSequenceLength
-                    );
+                }
+                case NONE -> throw ExceptionsHelper.badRequestException(
+                    "Input too large. The tokenized input length [{}] exceeds the maximum sequence length [{}]",
+                    numTokens,
+                    maxSequenceLength
+                );
             }
             numTokens = maxSequenceLength;
         }

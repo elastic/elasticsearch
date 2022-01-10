@@ -3578,18 +3578,9 @@ public class InternalEngineTests extends EngineTestCase {
                 while (stop == false) {
                     try {
                         switch (operation) {
-                            case "optimize": {
-                                engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
-                                break;
-                            }
-                            case "refresh": {
-                                engine.refresh("test refresh");
-                                break;
-                            }
-                            case "flush": {
-                                engine.flush(true, true);
-                                break;
-                            }
+                            case "optimize" -> engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+                            case "refresh" -> engine.refresh("test refresh");
+                            case "flush" -> engine.flush(true, true);
                         }
                     } catch (Exception e) {
                         exception.set(e);
@@ -5086,15 +5077,15 @@ public class InternalEngineTests extends EngineTestCase {
             ParsedDocument doc = createParsedDoc(id, null);
             Engine.Operation.TYPE type = randomFrom(Engine.Operation.TYPE.values());
             switch (type) {
-                case INDEX:
+                case INDEX -> {
                     Engine.IndexResult index = engine.index(replicaIndexForDoc(doc, between(1, 100), i, randomBoolean()));
                     assertThat(index.getFailure(), nullValue());
-                    break;
-                case DELETE:
+                }
+                case DELETE -> {
                     Engine.DeleteResult delete = engine.delete(replicaDeleteForDoc(doc.id(), between(1, 100), i, randomNonNegativeLong()));
                     assertThat(delete.getFailure(), nullValue());
-                    break;
-                case NO_OP:
+                }
+                case NO_OP -> {
                     long seqNo = i;
                     Engine.NoOpResult noOp = engine.noOp(
                         new Engine.NoOp(seqNo, primaryTerm.get(), randomFrom(Engine.Operation.Origin.values()), randomNonNegativeLong(), "")
@@ -5102,9 +5093,8 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(noOp.getTerm(), equalTo(primaryTerm.get()));
                     assertThat(noOp.getSeqNo(), equalTo(seqNo));
                     assertThat(noOp.getFailure(), nullValue());
-                    break;
-                default:
-                    throw new IllegalStateException("Invalid op [" + type + "]");
+                }
+                default -> throw new IllegalStateException("Invalid op [" + type + "]");
             }
             if (randomBoolean()) {
                 engine.refresh("test");

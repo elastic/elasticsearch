@@ -355,20 +355,11 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         List<Map<String, Object>> timestampCaps = fieldCaps.get("date").getAggs();
         for (Map.Entry<String, Object> entry : timestampCaps.get(0).entrySet()) {
             switch (entry.getKey()) {
-                case "agg":
-                    assertThat(entry.getValue(), equalTo("date_histogram"));
-                    break;
-                case "delay":
-                    assertThat(entry.getValue(), equalTo("foo"));
-                    break;
-                case "calendar_interval":
-                    assertThat(entry.getValue(), equalTo("1d"));
-                    break;
-                case "time_zone":
-                    assertThat(entry.getValue(), equalTo("UTC"));
-                    break;
-                default:
-                    fail("Unknown field cap: [" + entry.getKey() + "]");
+                case "agg" -> assertThat(entry.getValue(), equalTo("date_histogram"));
+                case "delay" -> assertThat(entry.getValue(), equalTo("foo"));
+                case "calendar_interval" -> assertThat(entry.getValue(), equalTo("1d"));
+                case "time_zone" -> assertThat(entry.getValue(), equalTo("UTC"));
+                default -> fail("Unknown field cap: [" + entry.getKey() + "]");
             }
         }
 
@@ -469,20 +460,11 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         List<Map<String, Object>> timestampCaps = fieldCaps.get("date").getAggs();
         for (Map.Entry<String, Object> entry : timestampCaps.get(0).entrySet()) {
             switch (entry.getKey()) {
-                case "agg":
-                    assertThat(entry.getValue(), equalTo("date_histogram"));
-                    break;
-                case "delay":
-                    assertThat(entry.getValue(), equalTo("foo"));
-                    break;
-                case "calendar_interval":
-                    assertThat(entry.getValue(), equalTo("1d"));
-                    break;
-                case "time_zone":
-                    assertThat(entry.getValue(), equalTo("UTC"));
-                    break;
-                default:
-                    fail("Unknown field cap: [" + entry.getKey() + "]");
+                case "agg" -> assertThat(entry.getValue(), equalTo("date_histogram"));
+                case "delay" -> assertThat(entry.getValue(), equalTo("foo"));
+                case "calendar_interval" -> assertThat(entry.getValue(), equalTo("1d"));
+                case "time_zone" -> assertThat(entry.getValue(), equalTo("UTC"));
+                default -> fail("Unknown field cap: [" + entry.getKey() + "]");
             }
         }
 

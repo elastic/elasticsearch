@@ -539,16 +539,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 return;
             }
             switch (datafeedTask.setDatafeedRunner(datafeedRunner)) {
-                case NEITHER:
-                    datafeedRunner.run(datafeedTask, datafeedTask::completeOrFailIfRequired);
-                    break;
-                case ISOLATED:
-                    logger.info("[{}] datafeed isolated immediately after reassignment.", params.getDatafeedId());
-                    break;
-                case STOPPED:
+                case NEITHER -> datafeedRunner.run(datafeedTask, datafeedTask::completeOrFailIfRequired);
+                case ISOLATED -> logger.info("[{}] datafeed isolated immediately after reassignment.", params.getDatafeedId());
+                case STOPPED -> {
                     logger.info("[{}] datafeed stopped immediately after reassignment. Marking as completed", params.getDatafeedId());
                     datafeedTask.completeOrFailIfRequired(null);
-                    break;
+                }
             }
         }
 

@@ -158,7 +158,7 @@ public abstract class BWCCodec extends Codec {
         };
     }
 
-    // mark all fields as having no postings, no doc values, and no points.
+    // mark all fields as having no postings, no term vectors, no norms, no payloads, no points, and no vectors.
     private static FieldInfos filterFields(FieldInfos fieldInfos) {
         List<FieldInfo> fieldInfoCopy = new ArrayList<>(fieldInfos.size());
         for (FieldInfo fieldInfo : fieldInfos) {

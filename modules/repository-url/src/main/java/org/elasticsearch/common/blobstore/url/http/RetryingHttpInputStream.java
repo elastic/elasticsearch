@@ -252,8 +252,8 @@ class RetryingHttpInputStream extends InputStream {
             });
         } catch (PrivilegedActionException e) {
             final Throwable cause = e.getCause();
-            if (cause instanceof IOException) {
-                throw (IOException) cause;
+            if (cause instanceof IOException ioException) {
+                throw ioException;
             }
             throw new IOException(getErrorMessage(), e);
         } catch (Exception e) {

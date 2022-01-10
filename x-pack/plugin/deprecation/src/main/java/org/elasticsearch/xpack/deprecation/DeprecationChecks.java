@@ -61,7 +61,8 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
             ClusterDeprecationChecks::checkGeoShapeTemplates,
             ClusterDeprecationChecks::checkSparseVectorTemplates,
-            ClusterDeprecationChecks::checkILMFreezeActions
+            ClusterDeprecationChecks::checkILMFreezeActions,
+            ClusterDeprecationChecks::emptyDataTierPreferenceCheck
         )
     );
 
@@ -263,8 +264,7 @@ public class DeprecationChecks {
             (clusterState, indexMetadata) -> IndexDeprecationChecks.checkGeoShapeMappings(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.frozenIndexSettingCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.httpContentTypeRequiredSettingCheck(indexMetadata),
-            (clusterState, indexMetadata) -> IndexDeprecationChecks.mapperDyamicSettingCheck(indexMetadata),
-            IndexDeprecationChecks::emptyDataTierPreferenceCheck
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.mapperDyamicSettingCheck(indexMetadata)
         )
     );
 

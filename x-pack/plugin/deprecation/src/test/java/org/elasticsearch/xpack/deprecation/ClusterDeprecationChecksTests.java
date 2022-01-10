@@ -6,14 +6,20 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -36,6 +42,7 @@ import org.elasticsearch.xpack.core.ilm.Phase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -48,9 +55,11 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
 import static org.elasticsearch.xpack.deprecation.IndexDeprecationChecksTests.addRandomFields;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 
 public class ClusterDeprecationChecksTests extends ESTestCase {
 
@@ -1652,5 +1661,76 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             null
         );
         assertEquals(singletonList(expected), issues);
+    }
+
+    public void testEmptyDataTierPreference() {
+        List<String> indexNames = new ArrayList<>();
+        indexNames.add(".some_dotted_index");
+        for (int i = 0; i < 15; i++) {
+            indexNames.add("test-index-name-" + i);
+        }
+
+        List<IndexMetadata> indices = new ArrayList<>();
+        for (String indexName : indexNames) {
+            indices.add(
+                IndexMetadata.builder(indexName)
+                    .settings(settings(Version.CURRENT).put(DataTier.TIER_PREFERENCE_SETTING.getKey(), "  "))
+                    .numberOfShards(randomIntBetween(1, 100))
+                    .numberOfReplicas(randomIntBetween(1, 100))
+                    .build()
+            );
+        }
+
+        {
+            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(ClusterState.EMPTY_STATE));
+            assertThat(issues, empty());
+        }
+
+        {
+            Metadata.Builder metadata = Metadata.builder();
+            for (IndexMetadata indexMetadata : indices) {
+                metadata.put(indexMetadata, false);
+            }
+            ClusterState clusterState = ClusterState.builder(clusterStateWithoutAllDataRoles()).metadata(metadata).build();
+
+            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(clusterState));
+            assertThat(
+                issues,
+                contains(
+                    new DeprecationIssue(
+                        DeprecationIssue.Level.WARNING,
+                        "No [index.routing.allocation.include._tier_preference] is set for indices [test-index-name-0, "
+                            + "test-index-name-1, test-index-name-10, test-index-name-11, test-index-name-12, test-index-name-13, "
+                            + "test-index-name-14, test-index-name-2, test-index-name-3, test-index-name-4, test-index-name-5, "
+                            + "test-index-name-6, test-index-name-7, test-index-name-8, ... (16 in total, 2 omitted)].",
+                        "https://ela.st/es-deprecation-7-empty-tier-preference",
+                        "Specify a data tier preference for these indices.",
+                        false,
+                        null
+                    )
+                )
+            );
+        }
+    }
+
+    private static ClusterState clusterStateWithoutAllDataRoles() {
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        List<DiscoveryNode> nodesList = org.elasticsearch.core.List.of(
+            new DiscoveryNode(
+                "name_0",
+                "node_0",
+                buildNewFakeTransportAddress(),
+                org.elasticsearch.core.Map.of(),
+                org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE),
+                Version.CURRENT
+            )
+        );
+        for (DiscoveryNode node : nodesList) {
+            discoBuilder = discoBuilder.add(node);
+        }
+        discoBuilder.localNodeId(randomFrom(nodesList).getId());
+        discoBuilder.masterNodeId(randomFrom(nodesList).getId());
+
+        return ClusterState.builder(ClusterState.EMPTY_STATE).nodes(discoBuilder.build()).build();
     }
 }

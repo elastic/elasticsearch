@@ -461,7 +461,6 @@ public final class DocumentParser {
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = context.parser().currentName();
-                splitAndValidatePath(currentFieldName);
             } else if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, mapper, currentFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
@@ -649,7 +648,6 @@ public final class DocumentParser {
     ) throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token;
-        splitAndValidatePath(lastFieldName);
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, mapper, lastFieldName);

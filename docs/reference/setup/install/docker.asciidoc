@@ -145,19 +145,22 @@ How you set `vm.max_map_count` depends on your platform:
 * Linux
 +
 --
-The `vm.max_map_count` setting should be set permanently in `/etc/sysctl.conf`:
-[source,sh]
---------------------------------------------
-grep vm.max_map_count /etc/sysctl.conf
-vm.max_map_count=262144
---------------------------------------------
-
 To apply the setting on a live system, run:
 
 [source,sh]
 --------------------------------------------
 sysctl -w vm.max_map_count=262144
 --------------------------------------------
+
+The setting should be set permanently in `/etc/sysctl.conf`:
+
+To view any current value set in the file:
+[source,sh]
+--------------------------------------------
+grep vm.max_map_count /etc/sysctl.conf
+vm.max_map_count=262144
+--------------------------------------------
+
 --
 
 * macOS with https://docs.docker.com/docker-for-mac[Docker for Mac]

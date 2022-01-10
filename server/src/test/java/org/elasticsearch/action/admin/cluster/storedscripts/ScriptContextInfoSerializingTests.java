@@ -50,22 +50,19 @@ public class ScriptContextInfoSerializingTests extends AbstractSerializingTestCa
             names = new HashSet<>();
             names.add(instance.name);
         }
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return new ScriptContextInfo(
-                    randomValueOtherThanMany(names::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH)),
-                    instance.execute,
-                    instance.getters
-                );
-            case 1:
-                return new ScriptContextInfo(instance.name, ScriptMethodInfoSerializingTests.mutate(instance.execute), instance.getters);
-            default:
-                return new ScriptContextInfo(
-                    instance.name,
-                    instance.execute,
-                    ScriptMethodInfoSerializingTests.mutateOneGetter(instance.getters)
-                );
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new ScriptContextInfo(
+                randomValueOtherThanMany(names::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH)),
+                instance.execute,
+                instance.getters
+            );
+            case 1 -> new ScriptContextInfo(instance.name, ScriptMethodInfoSerializingTests.mutate(instance.execute), instance.getters);
+            default -> new ScriptContextInfo(
+                instance.name,
+                instance.execute,
+                ScriptMethodInfoSerializingTests.mutateOneGetter(instance.getters)
+            );
+        };
     }
 
     static Set<ScriptContextInfo> mutateOne(Collection<ScriptContextInfo> instances) {

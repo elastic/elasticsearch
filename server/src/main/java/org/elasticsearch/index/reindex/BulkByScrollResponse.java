@@ -230,42 +230,21 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
                 parser.skipChildren();
             } else if (token == Token.START_OBJECT) {
                 switch (name) {
-                    case SearchFailure.REASON_FIELD:
-                        searchExc = ElasticsearchException.fromXContent(parser);
-                        break;
-                    case Failure.CAUSE_FIELD:
-                        bulkExc = ElasticsearchException.fromXContent(parser);
-                        break;
-                    default:
-                        parser.skipChildren();
+                    case SearchFailure.REASON_FIELD -> searchExc = ElasticsearchException.fromXContent(parser);
+                    case Failure.CAUSE_FIELD -> bulkExc = ElasticsearchException.fromXContent(parser);
+                    default -> parser.skipChildren();
                 }
             } else if (token == Token.VALUE_STRING) {
                 switch (name) {
                     // This field is the same as SearchFailure.index
-                    case Failure.INDEX_FIELD:
-                        index = parser.text();
-                        break;
-                    case Failure.ID_FIELD:
-                        id = parser.text();
-                        break;
-                    case SearchFailure.NODE_FIELD:
-                        nodeId = parser.text();
-                        break;
-                    default:
-                        // Do nothing
-                        break;
+                    case Failure.INDEX_FIELD -> index = parser.text();
+                    case Failure.ID_FIELD -> id = parser.text();
+                    case SearchFailure.NODE_FIELD -> nodeId = parser.text();
                 }
             } else if (token == Token.VALUE_NUMBER) {
                 switch (name) {
-                    case Failure.STATUS_FIELD:
-                        status = parser.intValue();
-                        break;
-                    case SearchFailure.SHARD_FIELD:
-                        shardId = parser.intValue();
-                        break;
-                    default:
-                        // Do nothing
-                        break;
+                    case Failure.STATUS_FIELD -> status = parser.intValue();
+                    case SearchFailure.SHARD_FIELD -> shardId = parser.intValue();
                 }
             }
         }

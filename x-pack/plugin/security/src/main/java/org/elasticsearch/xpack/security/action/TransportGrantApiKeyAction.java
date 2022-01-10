@@ -98,16 +98,19 @@ public final class TransportGrantApiKeyAction extends HandledTransportAction<Gra
         ActionListener<Authentication> listener
     ) {
         switch (grant.getType()) {
-            case GrantApiKeyRequest.PASSWORD_GRANT_TYPE:
+            case GrantApiKeyRequest.PASSWORD_GRANT_TYPE -> {
                 final UsernamePasswordToken token = new UsernamePasswordToken(grant.getUsername(), grant.getPassword());
                 authenticationService.authenticate(super.actionName, transportRequest, token, listener);
                 return;
-            case GrantApiKeyRequest.ACCESS_TOKEN_GRANT_TYPE:
+            }
+            case GrantApiKeyRequest.ACCESS_TOKEN_GRANT_TYPE -> {
                 tokenService.authenticateToken(grant.getAccessToken(), listener);
                 return;
-            default:
+            }
+            default -> {
                 listener.onFailure(new ElasticsearchSecurityException("the grant type [{}] is not supported", grant.getType()));
                 return;
+            }
         }
     }
 

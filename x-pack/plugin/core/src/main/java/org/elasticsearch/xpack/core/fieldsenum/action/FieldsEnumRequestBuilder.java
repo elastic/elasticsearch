@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.fieldsenum.action;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class FieldsEnumRequestBuilder extends BroadcastOperationRequestBuilder<
     FieldsEnumRequest,

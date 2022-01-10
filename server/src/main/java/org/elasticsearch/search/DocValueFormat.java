@@ -196,8 +196,7 @@ public interface DocValueFormat extends NamedWriteable {
     };
 
     static DocValueFormat withNanosecondResolution(final DocValueFormat format) {
-        if (format instanceof DateTime) {
-            DateTime dateTime = (DateTime) format;
+        if (format instanceof DateTime dateTime) {
             return new DateTime(dateTime.formatter, dateTime.timeZone, DateFieldMapper.Resolution.NANOSECONDS, dateTime.formatSortValues);
         } else {
             throw new IllegalArgumentException("trying to convert a known date time formatter to a nanosecond one, wrong field used?");
@@ -205,8 +204,7 @@ public interface DocValueFormat extends NamedWriteable {
     }
 
     static DocValueFormat enableFormatSortValues(DocValueFormat format) {
-        if (format instanceof DateTime) {
-            DateTime dateTime = (DateTime) format;
+        if (format instanceof DateTime dateTime) {
             return new DateTime(dateTime.formatter, dateTime.timeZone, dateTime.resolution, true);
         }
         throw new IllegalArgumentException("require a date_time formatter; got [" + format.getWriteableName() + "]");

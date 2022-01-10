@@ -1274,20 +1274,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
      */
     public void testConcreteIndicesAllPatternRandom() {
         for (int i = 0; i < 10; i++) {
-            final String[] allIndices;
-            switch (randomIntBetween(0, 2)) {
-                case 0:
-                    allIndices = null;
-                    break;
-                case 1:
-                    allIndices = new String[0];
-                    break;
-                case 2:
-                    allIndices = new String[] { Metadata.ALL };
-                    break;
-                default:
-                    throw new UnsupportedOperationException();
-            }
+            final String[] allIndices = switch (randomIntBetween(0, 2)) {
+                case 0 -> null;
+                case 1 -> new String[0];
+                case 2 -> new String[] { Metadata.ALL };
+                default -> throw new UnsupportedOperationException();
+            };
             final IndicesOptions indicesOptions = IndicesOptions.fromOptions(
                 randomBoolean(),
                 randomBoolean(),

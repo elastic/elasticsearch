@@ -32,13 +32,13 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         String fieldName = null;
         Object value;
         switch (randomIntBetween(0, 3)) {
-            case 0:
+            case 0 -> {
                 if (randomBoolean()) {
                     fieldName = BOOLEAN_FIELD_NAME;
                 }
                 value = randomBoolean();
-                break;
-            case 1:
+            }
+            case 1 -> {
                 if (randomBoolean()) {
                     fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME);
                 }
@@ -49,21 +49,20 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                     JsonStringEncoder encoder = JsonStringEncoder.getInstance();
                     value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
                 }
-                break;
-            case 2:
+            }
+            case 2 -> {
                 if (randomBoolean()) {
                     fieldName = INT_FIELD_NAME;
                 }
                 value = randomInt(10000);
-                break;
-            case 3:
+            }
+            case 3 -> {
                 if (randomBoolean()) {
                     fieldName = DOUBLE_FIELD_NAME;
                 }
                 value = randomDouble();
-                break;
-            default:
-                throw new UnsupportedOperationException();
+            }
+            default -> throw new UnsupportedOperationException();
         }
 
         if (fieldName == null) {
@@ -90,8 +89,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 .or(instanceOf(AutomatonQuery.class))
         );
         MappedFieldType mapper = context.getFieldType(queryBuilder.fieldName());
-        if (query instanceof TermQuery) {
-            TermQuery termQuery = (TermQuery) query;
+        if (query instanceof TermQuery termQuery) {
 
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
             assertThat(termQuery.getTerm().field(), equalTo(expectedFieldName));
@@ -174,6 +172,23 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
             }""";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+    }
+
+    public void testParseFailsWithMultipleValues() {
+        String json = """
+            {
+              "term" : {
+                "message1" : {
+                  "value" : ["this", "that"]
+                }
+              }
+            }""";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals(
+            "[term] query does not support arrays for value - use a bool query with multiple term clauses "
+                + "in the should section or use a Terms query if scoring is not required",
+            e.getMessage()
+        );
     }
 
     public void testParseAndSerializeBigInteger() throws IOException {

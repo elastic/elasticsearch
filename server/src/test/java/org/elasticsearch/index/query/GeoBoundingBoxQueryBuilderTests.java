@@ -48,17 +48,12 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
             // check the top-left/bottom-right combination of setters
             int path = randomIntBetween(0, 2);
             switch (path) {
-                case 0:
-                    builder.setCorners(new GeoPoint(box.getMaxY(), box.getMinX()), new GeoPoint(box.getMinY(), box.getMaxX()));
-                    break;
-                case 1:
-                    builder.setCorners(
-                        Geohash.stringEncode(box.getMinX(), box.getMaxY()),
-                        Geohash.stringEncode(box.getMaxX(), box.getMinY())
-                    );
-                    break;
-                default:
-                    builder.setCorners(box.getMaxY(), box.getMinX(), box.getMinY(), box.getMaxX());
+                case 0 -> builder.setCorners(new GeoPoint(box.getMaxY(), box.getMinX()), new GeoPoint(box.getMinY(), box.getMaxX()));
+                case 1 -> builder.setCorners(
+                    Geohash.stringEncode(box.getMinX(), box.getMaxY()),
+                    Geohash.stringEncode(box.getMaxX(), box.getMinY())
+                );
+                default -> builder.setCorners(box.getMaxY(), box.getMinX(), box.getMinY(), box.getMaxX());
             }
         } else {
             // check the bottom-left/ top-right combination of setters

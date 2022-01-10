@@ -390,7 +390,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     @Override
     public final FieldMapper merge(Mapper mergeWith) {
-
+        if (mergeWith == this) {
+            return this;
+        }
         if (mergeWith instanceof FieldMapper == false) {
             throw new IllegalArgumentException(
                 "mapper ["
@@ -874,12 +876,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Function<FieldMapper, Explicit<Boolean>> initializer,
             boolean defaultValue
         ) {
-            Explicit<Boolean> defaultExplicit = new Explicit<>(defaultValue, false);
             return new Parameter<>(
                 name,
                 updateable,
-                () -> defaultExplicit,
-                (n, c, o) -> new Explicit<>(XContentMapValues.nodeBooleanValue(o), true),
+                defaultValue ? () -> Explicit.IMPLICIT_TRUE : () -> Explicit.IMPLICIT_FALSE,
+                (n, c, o) -> Explicit.explicitBoolean(XContentMapValues.nodeBooleanValue(o)),
                 initializer
             ).setSerializer((b, n, v) -> b.field(n, v.value()), v -> Boolean.toString(v.value()));
         }

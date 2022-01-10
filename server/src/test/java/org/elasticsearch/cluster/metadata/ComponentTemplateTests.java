@@ -133,7 +133,7 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
         switch (randomIntBetween(0, 2)) {
             case 0:
                 switch (randomIntBetween(0, 2)) {
-                    case 0:
+                    case 0 -> {
                         Template ot = orig.template();
                         return new ComponentTemplate(
                             new Template(
@@ -144,7 +144,8 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
                             orig.version(),
                             orig.metadata()
                         );
-                    case 1:
+                    }
+                    case 1 -> {
                         Template ot2 = orig.template();
                         return new ComponentTemplate(
                             new Template(
@@ -155,7 +156,8 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
                             orig.version(),
                             orig.metadata()
                         );
-                    case 2:
+                    }
+                    case 2 -> {
                         Template ot3 = orig.template();
                         return new ComponentTemplate(
                             new Template(
@@ -166,8 +168,8 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
                             orig.version(),
                             orig.metadata()
                         );
-                    default:
-                        throw new IllegalStateException("illegal randomization branch");
+                    }
+                    default -> throw new IllegalStateException("illegal randomization branch");
                 }
             case 1:
                 return new ComponentTemplate(

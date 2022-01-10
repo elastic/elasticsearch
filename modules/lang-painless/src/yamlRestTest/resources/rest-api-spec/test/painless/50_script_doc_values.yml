@@ -90,6 +90,7 @@ setup:
               byte: [16, 32, 64, 8, 4]
               double: [3.141592653588, 2.141592653587]
               float: [1.123, 2.234]
+              half_float: [1.123, 2.234]
               scaled_float: [-3.5, 2.5]
 
 
@@ -1306,6 +1307,9 @@ setup:
 
 ---
 "half_float":
+    - skip:
+        features: close_to
+
     - do:
         search:
             rest_total_hits_as_int: true
@@ -1315,7 +1319,7 @@ setup:
                     field:
                         script:
                             source: "doc['half_float'].get(0)"
-    - match: { hits.hits.0.fields.field.0: 3.140625 }
+    - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
 
     - do:
         search:
@@ -1326,7 +1330,72 @@ setup:
                     field:
                         script:
                             source: "doc['half_float'].value"
-    - match: { hits.hits.0.fields.field.0: 3.140625 }
+    - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('half_float').get(0.0)"
+    - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - close_to: { hits.hits.2.fields.field.0: { value: 1.123, error: 0.001 } }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid stash */ $('half_float', 0.0)"
+    - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - close_to: { hits.hits.2.fields.field.0: { value: 1.123, error: 0.001 } }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('half_float').get(1, 0.0)"
+    - match: { hits.hits.0.fields.field.0: 0.0 }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - close_to: { hits.hits.2.fields.field.0: { value: 2.234, error: 0.001 } }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('half_float').asDouble(0.0)"
+    - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - close_to: { hits.hits.2.fields.field.0: { value: 1.123, error: 0.0001 } }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('half_float').asDouble(1, 0.0)"
+    - match: { hits.hits.0.fields.field.0: 0.0 }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - close_to: { hits.hits.2.fields.field.0: { value: 2.234, error: 0.001 } }
 
 ---
 "scaled_float":

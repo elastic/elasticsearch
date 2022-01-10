@@ -69,16 +69,12 @@ public class SerialDiffIT extends ESIntegTestCase {
     private ValuesSourceAggregationBuilder<? extends ValuesSourceAggregationBuilder<?>> randomMetric(String name, String field) {
         int rand = randomIntBetween(0, 3);
 
-        switch (rand) {
-            case 0:
-                return min(name).field(field);
-            case 2:
-                return max(name).field(field);
-            case 3:
-                return avg(name).field(field);
-            default:
-                return avg(name).field(field);
-        }
+        return switch (rand) {
+            case 0 -> min(name).field(field);
+            case 2 -> max(name).field(field);
+            case 3 -> avg(name).field(field);
+            default -> avg(name).field(field);
+        };
     }
 
     private void assertValidIterators(Iterator<?> expectedBucketIter, Iterator<?> expectedCountsIter, Iterator<?> expectedValuesIter) {

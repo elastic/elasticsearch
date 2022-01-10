@@ -287,24 +287,12 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         // change ither one of the shared SuggestionBuilder parameters, or delegate to the specific tests mutate method
         if (randomBoolean()) {
             switch (randomIntBetween(0, 5)) {
-                case 0:
-                    mutation.text(randomValueOtherThan(mutation.text(), () -> randomAlphaOfLengthBetween(2, 20)));
-                    break;
-                case 1:
-                    mutation.prefix(randomValueOtherThan(mutation.prefix(), () -> randomAlphaOfLengthBetween(2, 20)));
-                    break;
-                case 2:
-                    mutation.regex(randomValueOtherThan(mutation.regex(), () -> randomAlphaOfLengthBetween(2, 20)));
-                    break;
-                case 3:
-                    mutation.analyzer(randomValueOtherThan(mutation.analyzer(), () -> randomAlphaOfLengthBetween(2, 20)));
-                    break;
-                case 4:
-                    mutation.size(randomValueOtherThan(mutation.size(), () -> randomIntBetween(1, 20)));
-                    break;
-                case 5:
-                    mutation.shardSize(randomValueOtherThan(mutation.shardSize(), () -> randomIntBetween(1, 20)));
-                    break;
+                case 0 -> mutation.text(randomValueOtherThan(mutation.text(), () -> randomAlphaOfLengthBetween(2, 20)));
+                case 1 -> mutation.prefix(randomValueOtherThan(mutation.prefix(), () -> randomAlphaOfLengthBetween(2, 20)));
+                case 2 -> mutation.regex(randomValueOtherThan(mutation.regex(), () -> randomAlphaOfLengthBetween(2, 20)));
+                case 3 -> mutation.analyzer(randomValueOtherThan(mutation.analyzer(), () -> randomAlphaOfLengthBetween(2, 20)));
+                case 4 -> mutation.size(randomValueOtherThan(mutation.size(), () -> randomIntBetween(1, 20)));
+                case 5 -> mutation.shardSize(randomValueOtherThan(mutation.shardSize(), () -> randomIntBetween(1, 20)));
             }
         } else {
             mutateSpecificParameters(firstBuilder);

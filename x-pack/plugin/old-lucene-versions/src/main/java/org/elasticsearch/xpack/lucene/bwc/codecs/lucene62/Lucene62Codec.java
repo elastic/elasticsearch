@@ -24,11 +24,14 @@ import org.apache.lucene.backward_codecs.lucene50.Lucene50LiveDocsFormat;
 import org.apache.lucene.backward_codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.backward_codecs.lucene60.Lucene60FieldInfosFormat;
 import org.apache.lucene.codecs.CompoundFormat;
+import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.LiveDocsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
+import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene54.Lucene54DocValuesFormat;
 
 import java.util.Objects;
 
@@ -44,6 +47,13 @@ public class Lucene62Codec extends BWCCodec {
     private final LiveDocsFormat liveDocsFormat = new Lucene50LiveDocsFormat();
     private final CompoundFormat compoundFormat = new Lucene50CompoundFormat();
     private final StoredFieldsFormat storedFieldsFormat;
+    private final DocValuesFormat defaultDocValuesFormat = new Lucene54DocValuesFormat();
+    private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
+        @Override
+        public DocValuesFormat getDocValuesFormatForField(String field) {
+            return defaultDocValuesFormat;
+        }
+    };
 
     public Lucene62Codec() {
         this(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
@@ -77,5 +87,10 @@ public class Lucene62Codec extends BWCCodec {
     @Override
     public final CompoundFormat compoundFormat() {
         return compoundFormat;
+    }
+
+    @Override
+    public DocValuesFormat docValuesFormat() {
+        return docValuesFormat;
     }
 }

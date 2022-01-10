@@ -71,6 +71,8 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin {
 
     private static SegmentInfos convertToNewerLuceneVersion(OldSegmentInfos oldSegmentInfos) {
         final SegmentInfos segmentInfos = new SegmentInfos(org.apache.lucene.util.Version.LATEST.major);
+        segmentInfos.version = oldSegmentInfos.version;
+        segmentInfos.counter = oldSegmentInfos.counter;
         segmentInfos.setNextWriteGeneration(oldSegmentInfos.getGeneration() + 1);
         final Map<String, String> map = new HashMap<>(oldSegmentInfos.getUserData());
         if (map.containsKey(Engine.HISTORY_UUID_KEY) == false) {
@@ -85,21 +87,21 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin {
         if (map.containsKey(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) == false) {
             map.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, "-1");
         }
-        segmentInfos.setUserData(map, true);
+        segmentInfos.setUserData(map, false);
         for (SegmentCommitInfo infoPerCommit : oldSegmentInfos.asList()) {
             final SegmentInfo newInfo = BWCCodec.wrap(infoPerCommit.info);
-
-            segmentInfos.add(
-                new SegmentCommitInfo(
-                    newInfo,
-                    infoPerCommit.getDelCount(),
-                    infoPerCommit.getSoftDelCount(),
-                    infoPerCommit.getDelGen(),
-                    infoPerCommit.getFieldInfosGen(),
-                    infoPerCommit.getDocValuesGen(),
-                    infoPerCommit.getId()
-                )
+            final SegmentCommitInfo commitInfo = new SegmentCommitInfo(
+                newInfo,
+                infoPerCommit.getDelCount(),
+                infoPerCommit.getSoftDelCount(),
+                infoPerCommit.getDelGen(),
+                infoPerCommit.getFieldInfosGen(),
+                infoPerCommit.getDocValuesGen(),
+                infoPerCommit.getId()
             );
+            commitInfo.setDocValuesUpdatesFiles(infoPerCommit.getDocValuesUpdatesFiles());
+            commitInfo.setFieldInfosFiles(infoPerCommit.getFieldInfosFiles());
+            segmentInfos.add(commitInfo);
         }
         return segmentInfos;
     }

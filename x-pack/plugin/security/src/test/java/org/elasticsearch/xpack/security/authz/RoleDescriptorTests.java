@@ -121,7 +121,7 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testToXContentRoundtrip() throws Exception {
-        final RoleDescriptor descriptor = randomRoleDescriptor();
+        final RoleDescriptor descriptor = randomRoleDescriptor(Version.CURRENT);
         final XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference xContentValue = toShuffledXContent(descriptor, xContentType, ToXContent.EMPTY_PARAMS, false);
         final RoleDescriptor parsed = RoleDescriptor.parse(descriptor.getName(), xContentValue, false, xContentType);
@@ -234,7 +234,7 @@ public class RoleDescriptorTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         output.setVersion(version);
 
-        final RoleDescriptor descriptor = randomRoleDescriptor();
+        final RoleDescriptor descriptor = randomRoleDescriptor(version);
         descriptor.writeTo(output);
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
         StreamInput streamInput = new NamedWriteableAwareStreamInput(
@@ -388,13 +388,16 @@ public class RoleDescriptorTests extends ESTestCase {
         }
     }
 
-    private RoleDescriptor randomRoleDescriptor() {
+    /**
+     * @param compatibleVersion Return a role descriptor that is compatible with the features that existed in this version of Elasticsearch
+     */
+    private RoleDescriptor randomRoleDescriptor(Version compatibleVersion) {
         final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(0, 3)];
         for (int i = 0; i < indexPrivileges.length; i++) {
             final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
                 .privileges(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
                 .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
-                .allowRestrictedIndices(randomBoolean());
+                .allowRestrictedIndices(compatibleVersion.onOrAfter(Version.V_6_7_0) && randomBoolean());
             if (randomBoolean()) {
                 builder.query(
                     randomBoolean()

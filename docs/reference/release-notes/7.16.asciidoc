@@ -22,7 +22,7 @@ Authorization::
 * Fix docs and error message for role `field_security` {es-pull}81283[#81283]
 
 Infra/Scripting::
-* Script: track this pointer capture from blocks within lambdas {es-pull}82228[#82228] (issue: {es-issue}82224[#82224])
+* Track this pointer capture from blocks within lambdas {es-pull}82228[#82228] (issue: {es-issue}82224[#82224])
 
 
 

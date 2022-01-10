@@ -1,3 +1,39 @@
+[[release-notes-7.16.3]]
+== {es} version 7.16.3
+
+Also see <<breaking-changes-7.16,Breaking changes in 7.16>>.
+
+coming::[7.16.3]
+
+[[enhancement-7.16.3]]
+[float]
+=== Enhancements
+
+Security::
+* Add "maintenance" permission to the fleet-server service account {es-pull}82125[#82125]
+
+
+
+[[bug-7.16.3]]
+[float]
+=== Bug fixes
+
+Authorization::
+* Fix docs and error message for role `field_security` {es-pull}81283[#81283]
+
+Infra/Scripting::
+* Script: track this pointer capture from blocks within lambdas {es-pull}82228[#82228] (issue: {es-issue}82224[#82224])
+
+
+
+[[upgrade-7.16.3]]
+[float]
+=== Upgrades
+
+Infra/Logging::
+* Upgrade to log4j 2.17.1 {es-pull}82111[#82111]
+
+
 [[release-notes-7.16.2]]
 == {es} version 7.16.2
 

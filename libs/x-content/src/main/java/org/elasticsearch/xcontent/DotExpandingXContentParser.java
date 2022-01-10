@@ -76,7 +76,7 @@ public class DotExpandingXContentParser extends FilterXContentParser {
             throw new IllegalArgumentException("field name cannot be an empty string");
         }
         if (fullFieldPath.contains(".") == false) {
-            return new String[]{fullFieldPath};
+            return new String[] { fullFieldPath };
         }
         String[] parts = fullFieldPath.split("\\.");
         if (parts.length == 0) {

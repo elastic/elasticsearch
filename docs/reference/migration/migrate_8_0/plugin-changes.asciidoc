@@ -40,7 +40,7 @@ version of {es}, then you can still remove them with
 will succeed but print a warnings.
 
 If you run {es} using Docker and you are managing plugins using a
-<<manage-plugins-using-configuration-file,configuration file>>, then when
+{plugins}/manage-plugins-using-configuration-file.html[configuration file], then when
 {es} first starts after you upgrade it, it will remove the above plugins if
 they already installed. If any of these plugins are specified in your
 configuration file, {es} will ignore them and emit a warning log message.

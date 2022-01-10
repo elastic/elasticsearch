@@ -97,7 +97,7 @@ URL repository. See <<snapshots-read-only-repository>>.
 
 More repository types are available through these official plugins:
 
-* <<repository-s3,repository-s3>> for S3 repository support
+* <<repository-s3, repository-s3>> for S3 repository support
 * {plugins}/repository-hdfs.html[repository-hdfs] for HDFS repository support in
   Hadoop environments
 * <<repository-azure,repository-azure>> for Azure storage repositories

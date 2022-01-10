@@ -36,10 +36,7 @@ public class NodeFieldsEnumRequest extends TransportRequest implements IndicesRe
     private Set<ShardId> shardIds;
     private String nodeId;
 
-    public NodeFieldsEnumRequest(final String nodeId,
-                                final Set<ShardId> shardIds,
-                                FieldsEnumRequest request,
-                                long taskStartTimeMillis) {
+    public NodeFieldsEnumRequest(final String nodeId, final Set<ShardId> shardIds, FieldsEnumRequest request, long taskStartTimeMillis) {
         this.string = request.string();
         this.caseInsensitive = request.caseInsensitive();
         this.size = request.size();
@@ -74,7 +71,7 @@ public class NodeFieldsEnumRequest extends TransportRequest implements IndicesRe
         out.writeVInt(size);
         // Adjust the amount of permitted time the shard has remaining to gather terms.
         long timeSpentSoFarInCoordinatingNode = System.currentTimeMillis() - taskStartedTimeMillis;
-        long remainingTimeForShardToUse =  (timeout - timeSpentSoFarInCoordinatingNode);
+        long remainingTimeForShardToUse = (timeout - timeSpentSoFarInCoordinatingNode);
         // TODO - if already timed out can we shortcut the trip somehow? Throw exception if remaining time < 0?
         out.writeVLong(remainingTimeForShardToUse);
         out.writeVLong(taskStartedTimeMillis);
@@ -125,6 +122,7 @@ public class NodeFieldsEnumRequest extends TransportRequest implements IndicesRe
     public long timeout() {
         return timeout;
     }
+
     public String nodeId() {
         return nodeId;
     }

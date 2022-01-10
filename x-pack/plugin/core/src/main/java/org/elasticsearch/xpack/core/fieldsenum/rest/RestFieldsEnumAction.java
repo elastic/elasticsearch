@@ -25,9 +25,7 @@ public class RestFieldsEnumAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/{index}/_fields_enum"),
-            new Route(POST, "/{index}/_fields_enum"));
+        return List.of(new Route(GET, "/{index}/_fields_enum"), new Route(POST, "/{index}/_fields_enum"));
     }
 
     @Override
@@ -38,11 +36,12 @@ public class RestFieldsEnumAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            FieldsEnumRequest fieldEnumRequest = FieldsEnumAction.fromXContent(parser, 
-                Strings.splitStringByCommaToArray(request.param("index")));
-            return channel ->
-            client.execute(FieldsEnumAction.INSTANCE, fieldEnumRequest, new RestToXContentListener<>(channel));
-        }        
+            FieldsEnumRequest fieldEnumRequest = FieldsEnumAction.fromXContent(
+                parser,
+                Strings.splitStringByCommaToArray(request.param("index"))
+            );
+            return channel -> client.execute(FieldsEnumAction.INSTANCE, fieldEnumRequest, new RestToXContentListener<>(channel));
+        }
     }
-    
+
 }

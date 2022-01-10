@@ -54,8 +54,7 @@ public class CCSFieldsEnumIT extends AbstractMultiClustersTestCase {
         remoteClient.admin().indices().prepareRefresh(remoteIndex).get();
 
         // _terms_enum on a remote cluster
-        FieldsEnumRequest req = new FieldsEnumRequest("remote_cluster:remote_test")
-            .string("foo.keyword");
+        FieldsEnumRequest req = new FieldsEnumRequest("remote_cluster:remote_test").string("foo.keyword");
         FieldsEnumResponse response = client().execute(FieldsEnumAction.INSTANCE, req).actionGet();
         assertTrue(response.isComplete());
         assertThat(response.getTerms().size(), equalTo(3));
@@ -64,8 +63,7 @@ public class CCSFieldsEnumIT extends AbstractMultiClustersTestCase {
         assertThat(response.getTerms().get(2), equalTo("zar"));
 
         // _terms_enum on mixed clusters (local + remote)
-        req = new FieldsEnumRequest("remote_cluster:remote_test", "local_test")
-            .string("foo.keyword");
+        req = new FieldsEnumRequest("remote_cluster:remote_test", "local_test").string("foo.keyword");
         response = client().execute(FieldsEnumAction.INSTANCE, req).actionGet();
         assertTrue(response.isComplete());
         assertThat(response.getTerms().size(), equalTo(4));

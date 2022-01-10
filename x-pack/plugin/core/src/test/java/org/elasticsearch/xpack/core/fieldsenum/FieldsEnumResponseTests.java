@@ -37,13 +37,11 @@ public class FieldsEnumResponseTests extends AbstractBroadcastResponseTestCase<F
         int successfulShards = randomIntBetween(0, totalShards);
         int failedShards = totalShards - successfulShards;
         List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>(failedShards);
-        for (int i=0; i<failedShards; i++) {
+        for (int i = 0; i < failedShards; i++) {
             ElasticsearchException exc = new ElasticsearchException("some_error_" + randomInt());
             String index = "index_" + randomInt(1000);
             int shard = randomInt(100);
-            shardFailures.add(
-                new DefaultShardOperationFailedException(index, shard, exc)
-            );
+            shardFailures.add(new DefaultShardOperationFailedException(index, shard, exc));
         }
         return new FieldsEnumResponse(getRandomTerms(), totalShards, successfulShards, failedShards, shardFailures, randomBoolean());
     }
@@ -66,8 +64,12 @@ public class FieldsEnumResponseTests extends AbstractBroadcastResponseTestCase<F
     }
 
     @Override
-    protected FieldsEnumResponse createTestInstance(int totalShards, int successfulShards, int failedShards,
-                                                       List<DefaultShardOperationFailedException> failures) {
+    protected FieldsEnumResponse createTestInstance(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> failures
+    ) {
         return new FieldsEnumResponse(getRandomTerms(), totalShards, successfulShards, failedShards, failures, randomBoolean());
 
     }
@@ -80,8 +82,9 @@ public class FieldsEnumResponseTests extends AbstractBroadcastResponseTestCase<F
         FieldsEnumResponse response = new FieldsEnumResponse(terms, 10, 10, 0, new ArrayList<>(), true);
 
         String output = Strings.toString(response);
-        assertEquals("{\"_shards\":{\"total\":10,\"successful\":10,\"failed\":0},\"terms\":[" +
-            "\""+ s +"\""+
-            "],\"complete\":true}", output);
+        assertEquals(
+            "{\"_shards\":{\"total\":10,\"successful\":10,\"failed\":0},\"terms\":[" + "\"" + s + "\"" + "],\"complete\":true}",
+            output
+        );
     }
 }

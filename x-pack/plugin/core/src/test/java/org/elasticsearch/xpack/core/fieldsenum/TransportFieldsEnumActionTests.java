@@ -38,7 +38,7 @@ public class TransportFieldsEnumActionTests extends ESSingleNodeTestCase {
             }
 
         };
-        client().execute(FieldsEnumAction.INSTANCE, new FieldsEnumRequest("non-existent-index"),listener);
+        client().execute(FieldsEnumAction.INSTANCE, new FieldsEnumRequest("non-existent-index"), listener);
         assertThat(invoked.get(), equalTo(true)); // ensure that onFailure was invoked
     }
 

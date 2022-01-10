@@ -84,13 +84,11 @@ public class FieldsEnumRequest extends BroadcastRequest<FieldsEnumRequest> imple
             validationException = ValidateActions.addValidationError("Timeout cannot be null", validationException);
         } else {
             if (timeout().getSeconds() > 60) {
-                validationException = ValidateActions.addValidationError("Timeout cannot be > 1 minute",
-                    validationException);
+                validationException = ValidateActions.addValidationError("Timeout cannot be > 1 minute", validationException);
             }
         }
         return validationException;
     }
-
 
     /**
      * The string required in matching field values
@@ -152,9 +150,19 @@ public class FieldsEnumRequest extends BroadcastRequest<FieldsEnumRequest> imple
 
     @Override
     public String toString() {
-        return "[" + Arrays.toString(indices) + "], string[" + string + "] "  + " size=" + size + " timeout="
-            + timeout().getMillis() + " case_insensitive="
-            + caseInsensitive + " indexFilter = "+ indexFilter;
+        return "["
+            + Arrays.toString(indices)
+            + "], string["
+            + string
+            + "] "
+            + " size="
+            + size
+            + " timeout="
+            + timeout().getMillis()
+            + " case_insensitive="
+            + caseInsensitive
+            + " indexFilter = "
+            + indexFilter;
     }
 
     @Override

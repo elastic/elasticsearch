@@ -21,7 +21,6 @@ public class FieldsEnumAction extends ActionType<FieldsEnumResponse> {
     public static final FieldsEnumAction INSTANCE = new FieldsEnumAction();
     public static final String NAME = "indices:data/read/xpack/fieldsenum/list";
 
-
     static final ParseField INDEX_FILTER = new ParseField("index_filter");
     static final ParseField TIMEOUT = new ParseField("timeout");
 
@@ -40,9 +39,12 @@ public class FieldsEnumAction extends ActionType<FieldsEnumResponse> {
         PARSER.declareString(FieldsEnumRequest::string, new ParseField("string"));
         PARSER.declareInt(FieldsEnumRequest::size, new ParseField("size"));
         PARSER.declareBoolean(FieldsEnumRequest::caseInsensitive, new ParseField("case_insensitive"));
-        PARSER.declareField(FieldsEnumRequest::timeout,
+        PARSER.declareField(
+            FieldsEnumRequest::timeout,
             (p, c) -> TimeValue.parseTimeValue(p.text(), TIMEOUT.getPreferredName()),
-            TIMEOUT, ObjectParser.ValueType.STRING);
-        PARSER.declareObject(FieldsEnumRequest::indexFilter, (p, context) -> parseInnerQueryBuilder(p),INDEX_FILTER);
+            TIMEOUT,
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareObject(FieldsEnumRequest::indexFilter, (p, context) -> parseInnerQueryBuilder(p), INDEX_FILTER);
     }
 }

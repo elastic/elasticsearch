@@ -67,7 +67,8 @@ public class FieldsEnumResponse extends BroadcastResponse {
         int totalShards,
         int successfulShards,
         int failedShards,
-        List<DefaultShardOperationFailedException> shardFailures, boolean complete
+        List<DefaultShardOperationFailedException> shardFailures,
+        boolean complete
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.terms = terms == null ? Collections.emptyList() : terms;

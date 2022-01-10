@@ -56,45 +56,37 @@ public class LongRareTermsTests extends InternalRareTermsTestCase {
             Map<String, Object> metadata = longRareTerms.getMetadata();
             List<LongRareTerms.Bucket> buckets = longRareTerms.getBuckets();
             switch (between(0, 3)) {
-                case 0:
-                    name += randomAlphaOfLength(5);
-                    break;
-                case 1:
-                    maxDocCount = between(1, 5);
-                    break;
-                case 2:
+                case 0 -> name += randomAlphaOfLength(5);
+                case 1 -> maxDocCount = between(1, 5);
+                case 2 -> {
                     buckets = new ArrayList<>(buckets);
                     buckets.add(new LongRareTerms.Bucket(randomLong(), randomNonNegativeLong(), InternalAggregations.EMPTY, format));
-                    break;
-                case 3:
+                }
+                case 3 -> {
                     if (metadata == null) {
                         metadata = new HashMap<>(1);
                     } else {
                         metadata = new HashMap<>(instance.getMetadata());
                     }
                     metadata.put(randomAlphaOfLength(15), randomInt());
-                    break;
-                default:
-                    throw new AssertionError("Illegal randomisation branch");
+                }
+                default -> throw new AssertionError("Illegal randomisation branch");
             }
             return new LongRareTerms(name, order, metadata, format, buckets, maxDocCount, null);
         } else {
             String name = instance.getName();
             Map<String, Object> metadata = instance.getMetadata();
             switch (between(0, 1)) {
-                case 0:
-                    name += randomAlphaOfLength(5);
-                    break;
-                case 1:
+                case 0 -> name += randomAlphaOfLength(5);
+                case 1 -> {
                     if (metadata == null) {
                         metadata = new HashMap<>(1);
                     } else {
                         metadata = new HashMap<>(instance.getMetadata());
                     }
                     metadata.put(randomAlphaOfLength(15), randomInt());
-                    break;
-                default:
-                    throw new AssertionError("Illegal randomisation branch");
+                }
+                default -> throw new AssertionError("Illegal randomisation branch");
             }
             return new UnmappedRareTerms(name, metadata);
         }

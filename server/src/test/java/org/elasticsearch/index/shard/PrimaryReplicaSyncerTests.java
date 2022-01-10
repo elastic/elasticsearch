@@ -274,18 +274,10 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         assertEquals(status.hashCode(), sameStatus.hashCode());
 
         switch (randomInt(3)) {
-            case 0:
-                task.setPhase("otherPhase");
-                break;
-            case 1:
-                task.setResyncedOperations(task.getResyncedOperations() + 1);
-                break;
-            case 2:
-                task.setSkippedOperations(task.getSkippedOperations() + 1);
-                break;
-            case 3:
-                task.setTotalOperations(task.getTotalOperations() + 1);
-                break;
+            case 0 -> task.setPhase("otherPhase");
+            case 1 -> task.setResyncedOperations(task.getResyncedOperations() + 1);
+            case 2 -> task.setSkippedOperations(task.getSkippedOperations() + 1);
+            case 3 -> task.setTotalOperations(task.getTotalOperations() + 1);
         }
 
         PrimaryReplicaSyncer.ResyncTask.Status differentStatus = task.getStatus();

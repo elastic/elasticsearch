@@ -235,55 +235,35 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
     private static Function<String, Set<String>> getPhaseToValidActions() {
         return (phase) -> {
-            switch (phase) {
-                case "hot":
-                    return new HashSet<>(TimeseriesLifecycleType.VALID_HOT_ACTIONS);
-                case "warm":
-                    return new HashSet<>(TimeseriesLifecycleType.VALID_WARM_ACTIONS);
-                case "cold":
-                    return new HashSet<>(TimeseriesLifecycleType.VALID_COLD_ACTIONS);
-                case "frozen":
-                    return new HashSet<>(TimeseriesLifecycleType.VALID_FROZEN_ACTIONS);
-                case "delete":
-                    return new HashSet<>(TimeseriesLifecycleType.VALID_DELETE_ACTIONS);
-                default:
-                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
-            }
+            return switch (phase) {
+                case "hot" -> new HashSet<>(TimeseriesLifecycleType.VALID_HOT_ACTIONS);
+                case "warm" -> new HashSet<>(TimeseriesLifecycleType.VALID_WARM_ACTIONS);
+                case "cold" -> new HashSet<>(TimeseriesLifecycleType.VALID_COLD_ACTIONS);
+                case "frozen" -> new HashSet<>(TimeseriesLifecycleType.VALID_FROZEN_ACTIONS);
+                case "delete" -> new HashSet<>(TimeseriesLifecycleType.VALID_DELETE_ACTIONS);
+                default -> throw new IllegalArgumentException("invalid phase [" + phase + "]");
+            };
         };
     }
 
     private static Function<String, LifecycleAction> getNameToActionFunction() {
         return (action) -> {
-            switch (action) {
-                case AllocateAction.NAME:
-                    return AllocateActionTests.randomInstance();
-                case WaitForSnapshotAction.NAME:
-                    return WaitForSnapshotActionTests.randomInstance();
-                case DeleteAction.NAME:
-                    return new DeleteAction();
-                case ForceMergeAction.NAME:
-                    return ForceMergeActionTests.randomInstance();
-                case ReadOnlyAction.NAME:
-                    return new ReadOnlyAction();
-                case RolloverAction.NAME:
-                    return RolloverActionTests.randomInstance();
-                case ShrinkAction.NAME:
-                    return ShrinkActionTests.randomInstance();
-                case FreezeAction.NAME:
-                    return new FreezeAction();
-                case SetPriorityAction.NAME:
-                    return SetPriorityActionTests.randomInstance();
-                case UnfollowAction.NAME:
-                    return new UnfollowAction();
-                case SearchableSnapshotAction.NAME:
-                    return new SearchableSnapshotAction("repo", randomBoolean());
-                case MigrateAction.NAME:
-                    return new MigrateAction(false);
-                case RollupILMAction.NAME:
-                    return RollupILMActionTests.randomInstance();
-                default:
-                    throw new IllegalArgumentException("invalid action [" + action + "]");
-            }
+            return switch (action) {
+                case AllocateAction.NAME -> AllocateActionTests.randomInstance();
+                case WaitForSnapshotAction.NAME -> WaitForSnapshotActionTests.randomInstance();
+                case DeleteAction.NAME -> new DeleteAction();
+                case ForceMergeAction.NAME -> ForceMergeActionTests.randomInstance();
+                case ReadOnlyAction.NAME -> new ReadOnlyAction();
+                case RolloverAction.NAME -> RolloverActionTests.randomInstance();
+                case ShrinkAction.NAME -> ShrinkActionTests.randomInstance();
+                case FreezeAction.NAME -> new FreezeAction();
+                case SetPriorityAction.NAME -> SetPriorityActionTests.randomInstance();
+                case UnfollowAction.NAME -> new UnfollowAction();
+                case SearchableSnapshotAction.NAME -> new SearchableSnapshotAction("repo", randomBoolean());
+                case MigrateAction.NAME -> new MigrateAction(false);
+                case RollupILMAction.NAME -> RollupILMActionTests.randomInstance();
+                default -> throw new IllegalArgumentException("invalid action [" + action + "]");
+            };
         };
     }
 
@@ -308,10 +288,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         String name = instance.getName();
         Map<String, Phase> phases = instance.getPhases();
         switch (between(0, 1)) {
-            case 0:
-                name = name + randomAlphaOfLengthBetween(1, 5);
-                break;
-            case 1:
+            case 0 -> name = name + randomAlphaOfLengthBetween(1, 5);
+            case 1 -> {
                 // Remove the frozen phase, because it makes a lot of invalid phases when randomly mutating an existing policy
                 phases.remove(TimeseriesLifecycleType.FROZEN_PHASE);
                 // Remove a random phase
@@ -328,9 +306,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 );
                 phases = new LinkedHashMap<>(phases);
                 phases.put(phaseName, new Phase(phaseName, null, Collections.emptyMap()));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases, randomMeta());
     }

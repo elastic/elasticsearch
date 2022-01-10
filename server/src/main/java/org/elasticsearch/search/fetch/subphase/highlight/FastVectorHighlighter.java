@@ -278,24 +278,26 @@ public class FastVectorHighlighter implements Highlighter {
             ? fieldOptions.boundaryScannerType()
             : HighlightBuilder.BoundaryScannerType.CHARS;
         switch (type) {
-            case SENTENCE:
+            case SENTENCE -> {
                 if (boundaryScannerLocale != null) {
                     return new BreakIteratorBoundaryScanner(BreakIterator.getSentenceInstance(boundaryScannerLocale));
                 }
                 return DEFAULT_SENTENCE_BOUNDARY_SCANNER;
-            case WORD:
+            }
+            case WORD -> {
                 if (boundaryScannerLocale != null) {
                     return new BreakIteratorBoundaryScanner(BreakIterator.getWordInstance(boundaryScannerLocale));
                 }
                 return DEFAULT_WORD_BOUNDARY_SCANNER;
-            case CHARS:
+            }
+            case CHARS -> {
                 if (fieldOptions.boundaryMaxScan() != SimpleBoundaryScanner.DEFAULT_MAX_SCAN
                     || fieldOptions.boundaryChars() != SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS) {
                     return new SimpleBoundaryScanner(fieldOptions.boundaryMaxScan(), fieldOptions.boundaryChars());
                 }
                 return DEFAULT_SIMPLE_BOUNDARY_SCANNER;
-            default:
-                throw new IllegalArgumentException("Invalid boundary scanner type: " + type.toString());
+            }
+            default -> throw new IllegalArgumentException("Invalid boundary scanner type: " + type.toString());
         }
     }
 

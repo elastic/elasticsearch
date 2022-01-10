@@ -260,32 +260,24 @@ final class TypeConverter {
 
     private static Double doubleValue(Object v) {
         if (v instanceof String) {
-            switch ((String) v) {
-                case "NaN":
-                    return Double.NaN;
-                case "Infinity":
-                    return Double.POSITIVE_INFINITY;
-                case "-Infinity":
-                    return Double.NEGATIVE_INFINITY;
-                default:
-                    return Double.parseDouble((String) v);
-            }
+            return switch ((String) v) {
+                case "NaN" -> Double.NaN;
+                case "Infinity" -> Double.POSITIVE_INFINITY;
+                case "-Infinity" -> Double.NEGATIVE_INFINITY;
+                default -> Double.parseDouble((String) v);
+            };
         }
         return ((Number) v).doubleValue();
     }
 
     private static Float floatValue(Object v) {
         if (v instanceof String) {
-            switch ((String) v) {
-                case "NaN":
-                    return Float.NaN;
-                case "Infinity":
-                    return Float.POSITIVE_INFINITY;
-                case "-Infinity":
-                    return Float.NEGATIVE_INFINITY;
-                default:
-                    return Float.parseFloat((String) v);
-            }
+            return switch ((String) v) {
+                case "NaN" -> Float.NaN;
+                case "Infinity" -> Float.POSITIVE_INFINITY;
+                case "-Infinity" -> Float.NEGATIVE_INFINITY;
+                default -> Float.parseFloat((String) v);
+            };
         }
         return ((Number) v).floatValue();
     }
@@ -305,23 +297,13 @@ final class TypeConverter {
     }
 
     private static Boolean asBoolean(Object val, EsType columnType, String typeString) throws SQLException {
-        switch (columnType) {
-            case BOOLEAN:
-            case BYTE:
-            case SHORT:
-            case INTEGER:
-            case LONG:
-            case FLOAT:
-            case HALF_FLOAT:
-            case SCALED_FLOAT:
-            case DOUBLE:
-                return Boolean.valueOf(Integer.signum(((Number) val).intValue()) != 0);
-            case KEYWORD:
-            case TEXT:
-                return Boolean.valueOf((String) val);
-            default:
-                return failConversion(val, columnType, typeString, Boolean.class);
-        }
+        return switch (columnType) {
+            case BOOLEAN, BYTE, SHORT, INTEGER, LONG, FLOAT, HALF_FLOAT, SCALED_FLOAT, DOUBLE -> Boolean.valueOf(
+                Integer.signum(((Number) val).intValue()) != 0
+            );
+            case KEYWORD, TEXT -> Boolean.valueOf((String) val);
+            default -> failConversion(val, columnType, typeString, Boolean.class);
+        };
     }
 
     private static Byte asByte(Object val, EsType columnType, String typeString) throws SQLException {

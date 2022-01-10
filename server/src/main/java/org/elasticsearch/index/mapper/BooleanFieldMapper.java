@@ -198,14 +198,11 @@ public class BooleanFieldMapper extends FieldMapper {
             } else {
                 sValue = value.toString();
             }
-            switch (sValue) {
-                case "true":
-                    return Values.TRUE;
-                case "false":
-                    return Values.FALSE;
-                default:
-                    throw new IllegalArgumentException("Can't parse boolean value [" + sValue + "], expected [true] or [false]");
-            }
+            return switch (sValue) {
+                case "true" -> Values.TRUE;
+                case "false" -> Values.FALSE;
+                default -> throw new IllegalArgumentException("Can't parse boolean value [" + sValue + "], expected [true] or [false]");
+            };
         }
 
         @Override
@@ -213,14 +210,11 @@ public class BooleanFieldMapper extends FieldMapper {
             if (value == null) {
                 return null;
             }
-            switch (value.toString()) {
-                case "F":
-                    return false;
-                case "T":
-                    return true;
-                default:
-                    throw new IllegalArgumentException("Expected [T] or [F] but got [" + value + "]");
-            }
+            return switch (value.toString()) {
+                case "F" -> false;
+                case "T" -> true;
+                default -> throw new IllegalArgumentException("Expected [T] or [F] but got [" + value + "]");
+            };
         }
 
         @Override

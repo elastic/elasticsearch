@@ -142,17 +142,13 @@ public class UserPrivilegeResolverTests extends ESTestCase {
 
         final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
         Function<String, Set<String>> roleMapping = action -> {
-            switch (action) {
-                case viewerAction:
-                    return Set.of("viewer");
-                case adminAction:
-                    return Set.of("admin");
-                case operatorAction:
-                    return Set.of("operator");
-                case monitorAction:
-                    return Set.of("monitor");
-            }
-            return Set.of();
+            return switch (action) {
+                case viewerAction -> Set.of("viewer");
+                case adminAction -> Set.of("admin");
+                case operatorAction -> Set.of("operator");
+                case monitorAction -> Set.of("monitor");
+                default -> Set.of();
+            };
         };
         resolver.resolve(service(app, resource, roleMapping), future);
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();

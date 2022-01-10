@@ -1470,16 +1470,19 @@ public class JobResultsProvider {
         // There might be an easy short-circuit if the latest model size stats say which number to use
         if (latestModelSizeStats.getAssignmentMemoryBasis() != null) {
             switch (latestModelSizeStats.getAssignmentMemoryBasis()) {
-                case MODEL_MEMORY_LIMIT:
+                case MODEL_MEMORY_LIMIT -> {
                     handler.accept(0L);
                     return;
-                case CURRENT_MODEL_BYTES:
+                }
+                case CURRENT_MODEL_BYTES -> {
                     handler.accept(latestModelSizeStats.getModelBytes());
                     return;
-                case PEAK_MODEL_BYTES:
+                }
+                case PEAK_MODEL_BYTES -> {
                     Long storedPeak = latestModelSizeStats.getPeakModelBytes();
                     handler.accept((storedPeak != null) ? storedPeak : latestModelSizeStats.getModelBytes());
                     return;
+                }
             }
         }
 

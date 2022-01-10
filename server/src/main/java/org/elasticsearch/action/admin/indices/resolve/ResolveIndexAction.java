@@ -569,10 +569,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             IndexAbstraction ia = lookup.get(indexAbstraction);
             if (ia != null) {
                 switch (ia.getType()) {
-                    case CONCRETE_INDEX:
+                    case CONCRETE_INDEX -> {
                         IndexMetadata writeIndex = metadata.index(ia.getWriteIndex());
                         String[] aliasNames = writeIndex.getAliases().keySet().stream().sorted().toArray(String[]::new);
-
                         List<String> attributes = new ArrayList<>();
                         attributes.add(writeIndex.getState() == IndexMetadata.State.OPEN ? "open" : "closed");
                         if (ia.isHidden()) {
@@ -583,7 +582,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                             attributes.add("frozen");
                         }
                         attributes.sort(String::compareTo);
-
                         indices.add(
                             new ResolvedIndex(
                                 ia.getName(),
@@ -592,13 +590,13 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                                 ia.getParentDataStream() == null ? null : ia.getParentDataStream().getName()
                             )
                         );
-                        break;
-                    case ALIAS:
+                    }
+                    case ALIAS -> {
                         String[] indexNames = ia.getIndices().stream().map(Index::getName).toArray(String[]::new);
                         Arrays.sort(indexNames);
                         aliases.add(new ResolvedAlias(ia.getName(), indexNames));
-                        break;
-                    case DATA_STREAM:
+                    }
+                    case DATA_STREAM -> {
                         IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) ia;
                         String[] backingIndices = dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new);
                         dataStreams.add(
@@ -608,9 +606,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                                 dataStream.getDataStream().getTimeStampField().getName()
                             )
                         );
-                        break;
-                    default:
-                        throw new IllegalStateException("unknown index abstraction type: " + ia.getType());
+                    }
+                    default -> throw new IllegalStateException("unknown index abstraction type: " + ia.getType());
                 }
             }
         }

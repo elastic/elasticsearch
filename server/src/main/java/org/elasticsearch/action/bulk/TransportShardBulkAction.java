@@ -285,23 +285,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             }
             // execute translated update request
             switch (updateResult.getResponseResult()) {
-                case CREATED:
-                case UPDATED:
+                case CREATED, UPDATED -> {
                     IndexRequest indexRequest = updateResult.action();
                     IndexMetadata metadata = context.getPrimary().indexSettings().getIndexMetadata();
                     MappingMetadata mappingMd = metadata.mapping();
                     indexRequest.process(metadata.getCreationVersion(), mappingMd, updateRequest.concreteIndex());
                     context.setRequestToExecute(indexRequest);
-                    break;
-                case DELETED:
-                    context.setRequestToExecute(updateResult.action());
-                    break;
-                case NOOP:
+                }
+                case DELETED -> context.setRequestToExecute(updateResult.action());
+                case NOOP -> {
                     context.markOperationAsNoOp(updateResult.action());
                     context.markAsCompleted(context.getExecutionResult());
                     return true;
-                default:
-                    throw new IllegalStateException("Illegal update operation " + updateResult.getResponseResult());
+                }
+                default -> throw new IllegalStateException("Illegal update operation " + updateResult.getResponseResult());
             }
         } else {
             context.setRequestToExecute(context.getCurrent());
@@ -584,8 +581,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     ) throws Exception {
         final Engine.Result result;
         switch (docWriteRequest.opType()) {
-            case CREATE:
-            case INDEX:
+            case CREATE, INDEX -> {
                 final IndexRequest indexRequest = (IndexRequest) docWriteRequest;
                 final ShardId shardId = replica.shardId();
                 final SourceToParse sourceToParse = new SourceToParse(
@@ -604,8 +600,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     indexRequest.isRetry(),
                     sourceToParse
                 );
-                break;
-            case DELETE:
+            }
+            case DELETE -> {
                 DeleteRequest deleteRequest = (DeleteRequest) docWriteRequest;
                 result = replica.applyDeleteOperationOnReplica(
                     primaryResponse.getSeqNo(),
@@ -613,10 +609,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     primaryResponse.getVersion(),
                     deleteRequest.id()
                 );
-                break;
-            default:
+            }
+            default -> {
                 assert false : "Unexpected request operation type on replica: " + docWriteRequest + ";primary result: " + primaryResponse;
                 throw new IllegalStateException("Unexpected request operation type on replica: " + docWriteRequest.opType().getLowercase());
+            }
         }
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
             // Even though the primary waits on all nodes to ack the mapping changes to the master

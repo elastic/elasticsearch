@@ -374,21 +374,11 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             }
 
             private void writeProgressToLegacy(StreamOutput out) throws IOException {
-                String targetPhase = null;
-                switch (state) {
-                    case ANALYZING:
-                        targetPhase = "analyzing";
-                        break;
-                    case REINDEXING:
-                        targetPhase = "reindexing";
-                        break;
-                    case STARTING:
-                    case STARTED:
-                    case STOPPED:
-                    case STOPPING:
-                    default:
-                        break;
-                }
+                String targetPhase =  switch (state) {
+                    case ANALYZING -> "analyzing";
+                    case REINDEXING ->  "reindexing";
+                    default -> null;
+                };
 
                 Integer legacyProgressPercent = null;
                 for (PhaseProgress phaseProgress : progress) {

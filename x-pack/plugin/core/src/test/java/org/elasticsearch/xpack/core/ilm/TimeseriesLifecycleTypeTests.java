@@ -1085,44 +1085,32 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     private ConcurrentMap<String, LifecycleAction> convertActionNamesToActions(String... availableActionNames) {
         return Arrays.asList(availableActionNames).stream().map(n -> {
-            switch (n) {
-                case AllocateAction.NAME:
-                    return new AllocateAction(
-                        null,
-                        null,
-                        Collections.singletonMap("foo", "bar"),
-                        Collections.emptyMap(),
-                        Collections.emptyMap()
-                    );
-                case DeleteAction.NAME:
-                    return new DeleteAction();
-                case ForceMergeAction.NAME:
-                    return new ForceMergeAction(1, null);
-                case ReadOnlyAction.NAME:
-                    return new ReadOnlyAction();
-                case RolloverAction.NAME:
-                    return new RolloverAction(
-                        ByteSizeValue.parseBytesSizeValue("0b", "test"),
-                        ByteSizeValue.parseBytesSizeValue("0b", "test"),
-                        TimeValue.ZERO,
-                        1L
-                    );
-                case ShrinkAction.NAME:
-                    return new ShrinkAction(1, null);
-                case FreezeAction.NAME:
-                    return new FreezeAction();
-                case SetPriorityAction.NAME:
-                    return new SetPriorityAction(0);
-                case UnfollowAction.NAME:
-                    return new UnfollowAction();
-                case MigrateAction.NAME:
-                    return new MigrateAction(true);
-                case RollupILMAction.NAME:
-                    return TEST_ROLLUP_ACTION;
-                case SearchableSnapshotAction.NAME:
-                    return TEST_SEARCHABLE_SNAPSHOT_ACTION;
-            }
-            return new DeleteAction();
+            return switch (n) {
+                case AllocateAction.NAME -> new AllocateAction(
+                    null,
+                    null,
+                    Collections.singletonMap("foo", "bar"),
+                    Collections.emptyMap(),
+                    Collections.emptyMap()
+                );
+                case DeleteAction.NAME -> new DeleteAction();
+                case ForceMergeAction.NAME -> new ForceMergeAction(1, null);
+                case ReadOnlyAction.NAME -> new ReadOnlyAction();
+                case RolloverAction.NAME -> new RolloverAction(
+                    ByteSizeValue.parseBytesSizeValue("0b", "test"),
+                    ByteSizeValue.parseBytesSizeValue("0b", "test"),
+                    TimeValue.ZERO,
+                    1L
+                );
+                case ShrinkAction.NAME -> new ShrinkAction(1, null);
+                case FreezeAction.NAME -> new FreezeAction();
+                case SetPriorityAction.NAME -> new SetPriorityAction(0);
+                case UnfollowAction.NAME -> new UnfollowAction();
+                case MigrateAction.NAME -> new MigrateAction(true);
+                case RollupILMAction.NAME -> TEST_ROLLUP_ACTION;
+                case SearchableSnapshotAction.NAME -> TEST_SEARCHABLE_SNAPSHOT_ACTION;
+                default -> new DeleteAction();
+            };
         }).collect(Collectors.toConcurrentMap(LifecycleAction::getWriteableName, Function.identity()));
     }
 
@@ -1171,35 +1159,21 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     }
 
     private LifecycleAction getTestAction(String actionName) {
-        switch (actionName) {
-            case AllocateAction.NAME:
-                return TEST_ALLOCATE_ACTION;
-            case WaitForSnapshotAction.NAME:
-                return TEST_WAIT_FOR_SNAPSHOT_ACTION;
-            case DeleteAction.NAME:
-                return TEST_DELETE_ACTION;
-            case ForceMergeAction.NAME:
-                return TEST_FORCE_MERGE_ACTION;
-            case ReadOnlyAction.NAME:
-                return TEST_READ_ONLY_ACTION;
-            case RolloverAction.NAME:
-                return TEST_ROLLOVER_ACTION;
-            case ShrinkAction.NAME:
-                return TEST_SHRINK_ACTION;
-            case FreezeAction.NAME:
-                return TEST_FREEZE_ACTION;
-            case SetPriorityAction.NAME:
-                return TEST_PRIORITY_ACTION;
-            case UnfollowAction.NAME:
-                return TEST_UNFOLLOW_ACTION;
-            case SearchableSnapshotAction.NAME:
-                return TEST_SEARCHABLE_SNAPSHOT_ACTION;
-            case MigrateAction.NAME:
-                return TEST_MIGRATE_ACTION;
-            case RollupILMAction.NAME:
-                return TEST_ROLLUP_ACTION;
-            default:
-                throw new IllegalArgumentException("unsupported timeseries phase action [" + actionName + "]");
-        }
+        return switch (actionName) {
+            case AllocateAction.NAME -> TEST_ALLOCATE_ACTION;
+            case WaitForSnapshotAction.NAME -> TEST_WAIT_FOR_SNAPSHOT_ACTION;
+            case DeleteAction.NAME -> TEST_DELETE_ACTION;
+            case ForceMergeAction.NAME -> TEST_FORCE_MERGE_ACTION;
+            case ReadOnlyAction.NAME -> TEST_READ_ONLY_ACTION;
+            case RolloverAction.NAME -> TEST_ROLLOVER_ACTION;
+            case ShrinkAction.NAME -> TEST_SHRINK_ACTION;
+            case FreezeAction.NAME -> TEST_FREEZE_ACTION;
+            case SetPriorityAction.NAME -> TEST_PRIORITY_ACTION;
+            case UnfollowAction.NAME -> TEST_UNFOLLOW_ACTION;
+            case SearchableSnapshotAction.NAME -> TEST_SEARCHABLE_SNAPSHOT_ACTION;
+            case MigrateAction.NAME -> TEST_MIGRATE_ACTION;
+            case RollupILMAction.NAME -> TEST_ROLLUP_ACTION;
+            default -> throw new IllegalArgumentException("unsupported timeseries phase action [" + actionName + "]");
+        };
     }
 }

@@ -279,14 +279,11 @@ public abstract class StringUtils {
     }
 
     public static boolean parseBoolean(String input) {
-        switch (input) {
-            case "true":
-                return true;
-            case "false":
-                return false;
-            default:
-                throw new IllegalArgumentException("must be [true] or [false]");
-        }
+        return switch (input) {
+            case "true" -> true;
+            case "false" -> false;
+            default -> throw new IllegalArgumentException("must be [true] or [false]");
+        };
     }
 
     public static String asHexString(byte[] content, int offset, int length) {

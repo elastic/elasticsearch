@@ -838,17 +838,12 @@ public class AuthorizationService {
 
     private static String getAction(BulkItemRequest item) {
         final DocWriteRequest<?> docWriteRequest = item.request();
-        switch (docWriteRequest.opType()) {
-            case INDEX:
-                return IMPLIED_INDEX_ACTION;
-            case CREATE:
-                return IMPLIED_CREATE_ACTION;
-            case UPDATE:
-                return UpdateAction.NAME;
-            case DELETE:
-                return DeleteAction.NAME;
-        }
-        throw new IllegalArgumentException("No equivalent action for opType [" + docWriteRequest.opType() + "]");
+        return switch (docWriteRequest.opType()) {
+            case INDEX -> IMPLIED_INDEX_ACTION;
+            case CREATE -> IMPLIED_CREATE_ACTION;
+            case UPDATE -> UpdateAction.NAME;
+            case DELETE -> DeleteAction.NAME;
+        };
     }
 
     private void putTransientIfNonExisting(String key, Object value) {

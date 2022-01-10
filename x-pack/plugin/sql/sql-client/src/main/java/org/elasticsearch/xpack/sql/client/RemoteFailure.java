@@ -145,7 +145,7 @@ public class RemoteFailure {
         RemoteFailure exception = null;
 
         /* It'd be lovely to use the high level constructs that we have in core like ObjectParser
-        * but, alas, we aren't going to modularize those out any time soon. */
+         * but, alas, we aren't going to modularize those out any time soon. */
         JsonToken token = parser.nextToken();
         if (token != JsonToken.START_OBJECT) {
             throw new IllegalArgumentException(
@@ -158,7 +158,7 @@ public class RemoteFailure {
                 fieldName = parser.getCurrentName();
             } else {
                 switch (fieldName) {
-                    case "error" -> {
+                    case "error":
                         if (token != JsonToken.START_OBJECT && token != JsonToken.VALUE_STRING) {
                             throw new IOException(
                                 "Expected [error] to be an object or string but was [" + token + "][" + parser.getText() + "]"
@@ -170,17 +170,14 @@ public class RemoteFailure {
                             exception = parseFailure(parser);
                         }
                         continue;
-                    }
-                    case "status" -> {
+                    case "status":
                         if (token != JsonToken.VALUE_NUMBER_INT) {
                             throw new IOException("Expected [status] to be a string but was [" + token + "][" + parser.getText() + "]");
                         }
                         // Intentionally ignored
                         continue;
-                    }
-                    default -> throw new IOException(
-                        "Expected one of [error, status] but got [" + fieldName + "][" + parser.getText() + "]"
-                    );
+                    default:
+                        throw new IOException("Expected one of [error, status] but got [" + fieldName + "][" + parser.getText() + "]");
                 }
             }
         }

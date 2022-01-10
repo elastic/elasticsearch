@@ -839,14 +839,10 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private static InferenceConfig inferenceConfigFromTargetType(TargetType targetType) {
-        switch (targetType) {
-            case REGRESSION:
-                return RegressionConfig.EMPTY_PARAMS;
-            case CLASSIFICATION:
-                return ClassificationConfig.EMPTY_PARAMS;
-            default:
-                throw ExceptionsHelper.badRequestException("unsupported target type [{}]", targetType);
-        }
+        return switch (targetType) {
+            case REGRESSION -> RegressionConfig.EMPTY_PARAMS;
+            case CLASSIFICATION -> ClassificationConfig.EMPTY_PARAMS;
+        };
     }
 
     /**

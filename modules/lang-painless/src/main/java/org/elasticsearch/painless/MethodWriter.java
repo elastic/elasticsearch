@@ -331,16 +331,10 @@ public final class MethodWriter extends GeneratorAdapter {
         Type methodType = Type.getMethodType(getType(returnType), getType(lhs), getType(rhs));
 
         switch (operation) {
-            case MUL:
-                invokeDefCall("mul", methodType, DefBootstrap.BINARY_OPERATOR, flags);
-                break;
-            case DIV:
-                invokeDefCall("div", methodType, DefBootstrap.BINARY_OPERATOR, flags);
-                break;
-            case REM:
-                invokeDefCall("rem", methodType, DefBootstrap.BINARY_OPERATOR, flags);
-                break;
-            case ADD:
+            case MUL -> invokeDefCall("mul", methodType, DefBootstrap.BINARY_OPERATOR, flags);
+            case DIV -> invokeDefCall("div", methodType, DefBootstrap.BINARY_OPERATOR, flags);
+            case REM -> invokeDefCall("rem", methodType, DefBootstrap.BINARY_OPERATOR, flags);
+            case ADD -> {
                 // if either side is primitive, then the + operator should always throw NPE on null,
                 // so we don't need a special NPE guard.
                 // otherwise, we need to allow nulls for possible string concatenation.
@@ -349,30 +343,15 @@ public final class MethodWriter extends GeneratorAdapter {
                     flags |= DefBootstrap.OPERATOR_ALLOWS_NULL;
                 }
                 invokeDefCall("add", methodType, DefBootstrap.BINARY_OPERATOR, flags);
-                break;
-            case SUB:
-                invokeDefCall("sub", methodType, DefBootstrap.BINARY_OPERATOR, flags);
-                break;
-            case LSH:
-                invokeDefCall("lsh", methodType, DefBootstrap.SHIFT_OPERATOR, flags);
-                break;
-            case USH:
-                invokeDefCall("ush", methodType, DefBootstrap.SHIFT_OPERATOR, flags);
-                break;
-            case RSH:
-                invokeDefCall("rsh", methodType, DefBootstrap.SHIFT_OPERATOR, flags);
-                break;
-            case BWAND:
-                invokeDefCall("and", methodType, DefBootstrap.BINARY_OPERATOR, flags);
-                break;
-            case XOR:
-                invokeDefCall("xor", methodType, DefBootstrap.BINARY_OPERATOR, flags);
-                break;
-            case BWOR:
-                invokeDefCall("or", methodType, DefBootstrap.BINARY_OPERATOR, flags);
-                break;
-            default:
-                throw location.createError(new IllegalStateException("Illegal tree structure."));
+            }
+            case SUB -> invokeDefCall("sub", methodType, DefBootstrap.BINARY_OPERATOR, flags);
+            case LSH -> invokeDefCall("lsh", methodType, DefBootstrap.SHIFT_OPERATOR, flags);
+            case USH -> invokeDefCall("ush", methodType, DefBootstrap.SHIFT_OPERATOR, flags);
+            case RSH -> invokeDefCall("rsh", methodType, DefBootstrap.SHIFT_OPERATOR, flags);
+            case BWAND -> invokeDefCall("and", methodType, DefBootstrap.BINARY_OPERATOR, flags);
+            case XOR -> invokeDefCall("xor", methodType, DefBootstrap.BINARY_OPERATOR, flags);
+            case BWOR -> invokeDefCall("or", methodType, DefBootstrap.BINARY_OPERATOR, flags);
+            default -> throw location.createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
@@ -389,41 +368,18 @@ public final class MethodWriter extends GeneratorAdapter {
         }
 
         switch (operation) {
-            case MUL:
-                math(GeneratorAdapter.MUL, getType(clazz));
-                break;
-            case DIV:
-                math(GeneratorAdapter.DIV, getType(clazz));
-                break;
-            case REM:
-                math(GeneratorAdapter.REM, getType(clazz));
-                break;
-            case ADD:
-                math(GeneratorAdapter.ADD, getType(clazz));
-                break;
-            case SUB:
-                math(GeneratorAdapter.SUB, getType(clazz));
-                break;
-            case LSH:
-                math(GeneratorAdapter.SHL, getType(clazz));
-                break;
-            case USH:
-                math(GeneratorAdapter.USHR, getType(clazz));
-                break;
-            case RSH:
-                math(GeneratorAdapter.SHR, getType(clazz));
-                break;
-            case BWAND:
-                math(GeneratorAdapter.AND, getType(clazz));
-                break;
-            case XOR:
-                math(GeneratorAdapter.XOR, getType(clazz));
-                break;
-            case BWOR:
-                math(GeneratorAdapter.OR, getType(clazz));
-                break;
-            default:
-                throw location.createError(new IllegalStateException("Illegal tree structure."));
+            case MUL -> math(GeneratorAdapter.MUL, getType(clazz));
+            case DIV -> math(GeneratorAdapter.DIV, getType(clazz));
+            case REM -> math(GeneratorAdapter.REM, getType(clazz));
+            case ADD -> math(GeneratorAdapter.ADD, getType(clazz));
+            case SUB -> math(GeneratorAdapter.SUB, getType(clazz));
+            case LSH -> math(GeneratorAdapter.SHL, getType(clazz));
+            case USH -> math(GeneratorAdapter.USHR, getType(clazz));
+            case RSH -> math(GeneratorAdapter.SHR, getType(clazz));
+            case BWAND -> math(GeneratorAdapter.AND, getType(clazz));
+            case XOR -> math(GeneratorAdapter.XOR, getType(clazz));
+            case BWOR -> math(GeneratorAdapter.OR, getType(clazz));
+            default -> throw location.createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 

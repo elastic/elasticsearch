@@ -408,24 +408,16 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         public static ShardState fromValue(byte value) {
-            switch (value) {
-                case 0:
-                    return INIT;
-                case 2:
-                    return SUCCESS;
-                case 3:
-                    return FAILED;
-                case 4:
-                    return ABORTED;
-                case 5:
-                    return MISSING;
-                case 6:
-                    return WAITING;
-                case 7:
-                    return QUEUED;
-                default:
-                    throw new IllegalArgumentException("No shard snapshot state for value [" + value + "]");
-            }
+            return switch (value) {
+                case 0 -> INIT;
+                case 2 -> SUCCESS;
+                case 3 -> FAILED;
+                case 4 -> ABORTED;
+                case 5 -> MISSING;
+                case 6 -> WAITING;
+                case 7 -> QUEUED;
+                default -> throw new IllegalArgumentException("No shard snapshot state for value [" + value + "]");
+            };
         }
     }
 
@@ -454,20 +446,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         public static State fromValue(byte value) {
-            switch (value) {
-                case 0:
-                    return INIT;
-                case 1:
-                    return STARTED;
-                case 2:
-                    return SUCCESS;
-                case 3:
-                    return FAILED;
-                case 4:
-                    return ABORTED;
-                default:
-                    throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
-            }
+            return switch (value) {
+                case 0 -> INIT;
+                case 1 -> STARTED;
+                case 2 -> SUCCESS;
+                case 3 -> FAILED;
+                case 4 -> ABORTED;
+                default -> throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
+            };
         }
     }
 

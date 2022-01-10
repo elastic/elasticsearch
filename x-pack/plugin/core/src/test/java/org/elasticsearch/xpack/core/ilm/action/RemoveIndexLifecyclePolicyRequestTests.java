@@ -49,29 +49,24 @@ public class RemoveIndexLifecyclePolicyRequestTests extends AbstractWireSerializ
         String[] indices = instance.indices();
         IndicesOptions indicesOptions = instance.indicesOptions();
         switch (between(0, 1)) {
-            case 0:
-                indices = randomValueOtherThanMany(
-                    i -> Arrays.equals(i, instance.indices()),
-                    () -> generateRandomStringArray(20, 20, false)
-                );
-                break;
-            case 1:
-                indicesOptions = randomValueOtherThan(
-                    indicesOptions,
-                    () -> IndicesOptions.fromOptions(
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean()
-                    )
-                );
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> indices = randomValueOtherThanMany(
+                i -> Arrays.equals(i, instance.indices()),
+                () -> generateRandomStringArray(20, 20, false)
+            );
+            case 1 -> indicesOptions = randomValueOtherThan(
+                indicesOptions,
+                () -> IndicesOptions.fromOptions(
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean()
+                )
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         Request newRequest = new Request(indices);
         newRequest.indicesOptions(indicesOptions);

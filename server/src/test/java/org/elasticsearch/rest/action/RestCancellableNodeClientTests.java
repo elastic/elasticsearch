@@ -168,7 +168,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             switch (action.name()) {
-                case CancelTasksAction.NAME:
+                case CancelTasksAction.NAME -> {
                     CancelTasksRequest cancelTasksRequest = (CancelTasksRequest) request;
                     assertTrue("tried to cancel the same task more than once", cancelledTasks.add(cancelTasksRequest.getTargetTaskId()));
                     Task task = request.createTask(counter.getAndIncrement(), "cancel_task", action.name(), null, Collections.emptyMap());
@@ -178,9 +178,9 @@ public class RestCancellableNodeClientTests extends ESTestCase {
                         // test that cancel tasks is best effort, failure received are not propagated
                         listener.onFailure(new IllegalStateException());
                     }
-
                     return task;
-                case SearchAction.NAME:
+                }
+                case SearchAction.NAME -> {
                     searchRequests.incrementAndGet();
                     Task searchTask = request.createTask(counter.getAndIncrement(), "search", action.name(), null, Collections.emptyMap());
                     if (timeout == false) {
@@ -192,8 +192,8 @@ public class RestCancellableNodeClientTests extends ESTestCase {
                         }
                     }
                     return searchTask;
-                default:
-                    throw new UnsupportedOperationException();
+                }
+                default -> throw new UnsupportedOperationException();
             }
 
         }

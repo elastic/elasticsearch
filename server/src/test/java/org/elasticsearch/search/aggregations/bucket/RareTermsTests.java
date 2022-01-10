@@ -34,16 +34,10 @@ public class RareTermsTests extends BaseAggregationTestCase<RareTermsAggregation
         if (randomBoolean()) {
             IncludeExclude incExc = null;
             switch (randomInt(6)) {
-                case 0:
-                    incExc = new IncludeExclude(new RegExp("foobar"), null);
-                    break;
-                case 1:
-                    incExc = new IncludeExclude(null, new RegExp("foobaz"));
-                    break;
-                case 2:
-                    incExc = new IncludeExclude(new RegExp("foobar"), new RegExp("foobaz"));
-                    break;
-                case 3:
+                case 0 -> incExc = new IncludeExclude(new RegExp("foobar"), null);
+                case 1 -> incExc = new IncludeExclude(null, new RegExp("foobaz"));
+                case 2 -> incExc = new IncludeExclude(new RegExp("foobar"), new RegExp("foobaz"));
+                case 3 -> {
                     SortedSet<BytesRef> includeValues = new TreeSet<>();
                     int numIncs = randomIntBetween(1, 20);
                     for (int i = 0; i < numIncs; i++) {
@@ -51,8 +45,8 @@ public class RareTermsTests extends BaseAggregationTestCase<RareTermsAggregation
                     }
                     SortedSet<BytesRef> excludeValues = null;
                     incExc = new IncludeExclude(includeValues, excludeValues);
-                    break;
-                case 4:
+                }
+                case 4 -> {
                     SortedSet<BytesRef> includeValues2 = null;
                     SortedSet<BytesRef> excludeValues2 = new TreeSet<>();
                     int numExcs2 = randomIntBetween(1, 20);
@@ -60,8 +54,8 @@ public class RareTermsTests extends BaseAggregationTestCase<RareTermsAggregation
                         excludeValues2.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
                     }
                     incExc = new IncludeExclude(includeValues2, excludeValues2);
-                    break;
-                case 5:
+                }
+                case 5 -> {
                     SortedSet<BytesRef> includeValues3 = new TreeSet<>();
                     int numIncs3 = randomIntBetween(1, 20);
                     for (int i = 0; i < numIncs3; i++) {
@@ -73,14 +67,13 @@ public class RareTermsTests extends BaseAggregationTestCase<RareTermsAggregation
                         excludeValues3.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
                     }
                     incExc = new IncludeExclude(includeValues3, excludeValues3);
-                    break;
-                case 6:
+                }
+                case 6 -> {
                     final int numPartitions = randomIntBetween(1, 100);
                     final int partition = randomIntBetween(0, numPartitions - 1);
                     incExc = new IncludeExclude(partition, numPartitions);
-                    break;
-                default:
-                    fail();
+                }
+                default -> fail();
             }
             factory.includeExclude(incExc);
         }

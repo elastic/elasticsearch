@@ -232,26 +232,19 @@ public abstract class PackagingTestCase extends Assert {
 
     protected static void install() throws Exception {
         switch (distribution.packaging) {
-            case TAR:
-            case ZIP:
+            case TAR, ZIP -> {
                 installation = Archives.installArchive(sh, distribution);
                 Archives.verifyArchiveInstallation(installation, distribution);
-                break;
-            case DEB:
-            case RPM:
+            }
+            case DEB, RPM -> {
                 installation = Packages.installPackage(sh, distribution);
                 Packages.verifyPackageInstallation(installation, distribution, sh);
-                break;
-            case DOCKER:
-            case DOCKER_UBI:
-            case DOCKER_IRON_BANK:
-            case DOCKER_CLOUD:
-            case DOCKER_CLOUD_ESS:
+            }
+            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS -> {
                 installation = Docker.runContainer(distribution);
                 Docker.verifyContainerInstallation(installation);
-                break;
-            default:
-                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+            }
+            default -> throw new IllegalStateException("Unknown Elasticsearch packaging type.");
         }
 
         // the purpose of the packaging tests are not to all test auto heap, so we explicitly set heap size to 1g
@@ -364,23 +357,10 @@ public abstract class PackagingTestCase extends Assert {
     public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
         assertThat("Startup command should succeed. Stderr: [" + result + "]", result.exitCode, equalTo(0));
         switch (distribution.packaging) {
-            case TAR:
-            case ZIP:
-                Archives.assertElasticsearchStarted(installation);
-                break;
-            case DEB:
-            case RPM:
-                Packages.assertElasticsearchStarted(sh, installation);
-                break;
-            case DOCKER:
-            case DOCKER_UBI:
-            case DOCKER_IRON_BANK:
-            case DOCKER_CLOUD:
-            case DOCKER_CLOUD_ESS:
-                Docker.waitForElasticsearchToStart();
-                break;
-            default:
-                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+            case TAR, ZIP -> Archives.assertElasticsearchStarted(installation);
+            case DEB, RPM -> Packages.assertElasticsearchStarted(sh, installation);
+            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS -> Docker.waitForElasticsearchToStart();
+            default -> throw new IllegalStateException("Unknown Elasticsearch packaging type.");
         }
     }
 

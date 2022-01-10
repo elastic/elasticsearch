@@ -101,10 +101,8 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             {"persistent": {"logger.org.elasticsearch.xpack.ml": "trace"}}""");
         client().performRequest(adjustLoggingLevels);
         switch (CLUSTER_TYPE) {
-            case OLD:
-                createJobAndSnapshots();
-                break;
-            case MIXED:
+            case OLD -> createJobAndSnapshots();
+            case MIXED -> {
                 assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
                 ensureHealth((request -> {
                     request.addParameter("timeout", "70s");
@@ -112,8 +110,8 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("wait_for_status", "yellow");
                 }));
                 testSnapshotUpgradeFailsOnMixedCluster();
-                break;
-            case UPGRADED:
+            }
+            case UPGRADED -> {
                 assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
                 ensureHealth((request -> {
                     request.addParameter("timeout", "70s");
@@ -122,9 +120,8 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                 }));
                 testSnapshotUpgrade();
                 waitForPendingUpgraderTasks();
-                break;
-            default:
-                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+            }
+            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
     }
 

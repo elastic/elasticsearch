@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.sql.proto.content.ContentLocation;
+import org.elasticsearch.xpack.sql.proto.core.TimeValue;
 
 /**
  * Utility class that handles conversion of classes in sql-proto (without any Elasticsearch dependencies)
@@ -17,17 +18,37 @@ final class ProtoShim {
 
     private ProtoShim() {}
 
-    static TimeValue fromProto(org.elasticsearch.xpack.sql.proto.core.TimeValue protoTimeValue) {
-        if (protoTimeValue == null) {
+    //
+    // Core classes
+    //
+    static org.elasticsearch.core.TimeValue fromProto(TimeValue fromProto) {
+        if (fromProto == null) {
             return null;
         }
-        return new TimeValue(protoTimeValue.duration(), protoTimeValue.timeUnit());
+        return new org.elasticsearch.core.TimeValue(fromProto.duration(), fromProto.timeUnit());
     }
 
-    static org.elasticsearch.xpack.sql.proto.core.TimeValue toProto(TimeValue timeValue) {
-        if (timeValue == null) {
+    static TimeValue toProto(org.elasticsearch.core.TimeValue toProto) {
+        if (toProto == null) {
             return null;
         }
-        return new org.elasticsearch.xpack.sql.proto.core.TimeValue(timeValue.duration(), timeValue.timeUnit());
+        return new TimeValue(toProto.duration(), toProto.timeUnit());
+    }
+
+    //
+    // XContent classes
+    //
+    static org.elasticsearch.xcontent.XContentLocation fromProto(ContentLocation fromProto) {
+        if (fromProto == null) {
+            return null;
+        }
+        return new org.elasticsearch.xcontent.XContentLocation(fromProto.lineNumber, fromProto.columnNumber);
+    }
+
+    static ContentLocation toProto(org.elasticsearch.xcontent.XContentLocation toProto) {
+        if (toProto == null) {
+            return null;
+        }
+        return new ContentLocation(toProto.lineNumber, toProto.columnNumber);
     }
 }

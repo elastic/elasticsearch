@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.xpack.sql.client.ClientException;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
@@ -23,7 +24,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 
 /**
@@ -68,14 +68,12 @@ class JdbcHttpClient {
             fetch,
             TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
             TimeValue.timeValueMillis(meta.pageTimeoutInMs()),
-            null,
             Boolean.FALSE,
             null,
             new RequestInfo(Mode.JDBC, ClientVersion.CURRENT),
             conCfg.fieldMultiValueLeniency(),
             conCfg.indexIncludeFrozen(),
-            conCfg.binaryCommunication(),
-            emptyMap()
+            conCfg.binaryCommunication()
         );
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
@@ -109,9 +107,13 @@ class JdbcHttpClient {
     }
 
     private InfoResponse fetchServerInfo() throws SQLException {
-        MainResponse mainResponse = httpClient.serverInfo();
-        SqlVersion version = SqlVersion.fromString(mainResponse.getVersion());
-        return new InfoResponse(mainResponse.getClusterName(), version);
+        try {
+            MainResponse mainResponse = httpClient.serverInfo();
+            SqlVersion version = SqlVersion.fromString(mainResponse.getVersion());
+            return new InfoResponse(mainResponse.getClusterName(), version);
+        } catch (ClientException ex) {
+            throw new SQLException(ex);
+        }
     }
 
     private void checkServerVersion() throws SQLException {

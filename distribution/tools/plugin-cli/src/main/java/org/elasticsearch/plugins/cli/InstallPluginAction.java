@@ -264,15 +264,12 @@ public class InstallPluginAction implements Closeable {
 
     private static void handleInstallXPack(final Build.Flavor flavor) throws UserException {
         switch (flavor) {
-            case DEFAULT:
-                throw new UserException(ExitCodes.CONFIG, "this distribution of Elasticsearch contains X-Pack by default");
-            case OSS:
-                throw new UserException(
-                    ExitCodes.CONFIG,
-                    "X-Pack is not available with the oss distribution; to use X-Pack features use the default distribution"
-                );
-            case UNKNOWN:
-                throw new IllegalStateException("your distribution is broken");
+            case DEFAULT -> throw new UserException(ExitCodes.CONFIG, "this distribution of Elasticsearch contains X-Pack by default");
+            case OSS -> throw new UserException(
+                ExitCodes.CONFIG,
+                "X-Pack is not available with the oss distribution; to use X-Pack features use the default distribution"
+            );
+            case UNKNOWN -> throw new IllegalStateException("your distribution is broken");
         }
     }
 

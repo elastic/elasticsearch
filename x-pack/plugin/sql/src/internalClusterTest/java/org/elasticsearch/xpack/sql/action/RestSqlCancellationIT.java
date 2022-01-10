@@ -7,13 +7,15 @@
 
 package org.elasticsearch.xpack.sql.action;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -23,10 +25,18 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
+import org.elasticsearch.xpack.sql.proto.CoreProtocol;
+import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.Payloads;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
+import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
+import org.elasticsearch.xpack.sql.proto.content.ContentFactory;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
@@ -112,13 +122,10 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
         // We are cancelling during both mapping and searching but we cancel during mapping so we should never reach the second block
         List<SearchBlockPlugin> plugins = initBlockFactory(true, true);
-        SqlQueryRequest sqlRequest = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(
-            "SELECT event_type FROM test WHERE val=1"
-        ).request();
         String id = randomAlphaOfLength(10);
 
         Request request = new Request("POST", Protocol.SQL_QUERY_REST_ENDPOINT);
-        request.setJsonEntity(Strings.toString(sqlRequest));
+        request.setJsonEntity(queryAsJson("SELECT event_type FROM test WHERE val=1"));
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, id));
         logger.trace("Preparing search");
 
@@ -171,6 +178,31 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
         latch.await();
         assertThat(error.get(), instanceOf(CancellationException.class));
+    }
+
+    private static String queryAsJson(String query) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        try (JsonGenerator generator = ContentFactory.generator(ContentFactory.ContentType.JSON, out)) {
+            Payloads.generate(
+                generator,
+                new SqlQueryRequest(
+                    query,
+                    Collections.emptyList(),
+                    CoreProtocol.TIME_ZONE,
+                    null,
+                    CoreProtocol.FETCH_SIZE,
+                    CoreProtocol.REQUEST_TIMEOUT,
+                    CoreProtocol.PAGE_TIMEOUT,
+                    null,
+                    null,
+                    new RequestInfo(Mode.PLAIN),
+                    CoreProtocol.FIELD_MULTI_VALUE_LENIENCY,
+                    CoreProtocol.INDEX_INCLUDE_FROZEN,
+                    CoreProtocol.BINARY_COMMUNICATION
+                )
+            );
+        }
+        return out.bytes().utf8ToString();
     }
 
     @Override

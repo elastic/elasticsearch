@@ -187,18 +187,13 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
         }
 
         public static OpType fromId(byte id) {
-            switch (id) {
-                case 0:
-                    return INDEX;
-                case 1:
-                    return CREATE;
-                case 2:
-                    return UPDATE;
-                case 3:
-                    return DELETE;
-                default:
-                    throw new IllegalArgumentException("Unknown opType: [" + id + "]");
-            }
+            return switch (id) {
+                case 0 -> INDEX;
+                case 1 -> CREATE;
+                case 2 -> UPDATE;
+                case 3 -> DELETE;
+                default -> throw new IllegalArgumentException("Unknown opType: [" + id + "]");
+            };
         }
 
         public static OpType fromString(String sOpType) {

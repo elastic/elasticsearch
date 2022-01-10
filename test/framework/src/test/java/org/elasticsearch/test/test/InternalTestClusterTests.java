@@ -152,6 +152,7 @@ public class InternalTestClusterTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82212")
     public void testBeforeTest() throws Exception {
         final boolean autoManageMinMasterNodes = randomBoolean();
         long clusterSeed = randomLong();
@@ -480,16 +481,12 @@ public class InternalTestClusterTests extends ESTestCase {
         try {
             cluster.beforeTest(random());
             switch (randomInt(2)) {
-                case 0:
+                case 0 -> {
                     cluster.stopRandomDataNode();
                     cluster.startNode();
-                    break;
-                case 1:
-                    cluster.rollingRestart(InternalTestCluster.EMPTY_CALLBACK);
-                    break;
-                case 2:
-                    cluster.fullRestart();
-                    break;
+                }
+                case 1 -> cluster.rollingRestart(InternalTestCluster.EMPTY_CALLBACK);
+                case 2 -> cluster.fullRestart();
             }
         } finally {
             cluster.close();

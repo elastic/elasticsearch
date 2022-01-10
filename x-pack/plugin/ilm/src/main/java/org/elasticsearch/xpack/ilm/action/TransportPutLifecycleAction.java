@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -98,20 +99,34 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
 
         LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
 
+        {
+            IndexLifecycleMetadata lifecycleMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+            LifecyclePolicyMetadata existingPolicy = lifecycleMetadata.getPolicyMetadatas().get(request.getPolicy().getName());
+            // Make the request a no-op if the policy and filtered headers match exactly
+            if (isNoopUpdate(existingPolicy, request.getPolicy(), filteredHeaders)) {
+                listener.onResponse(AcknowledgedResponse.TRUE);
+                return;
+            }
+        }
+
         clusterService.submitStateUpdateTask(
             "put-lifecycle-" + request.getPolicy().getName(),
             new AckedClusterStateUpdateTask(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
+                    final IndexLifecycleMetadata currentMetadata = currentState.metadata()
+                        .custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+                    final LifecyclePolicyMetadata existingPolicyMetadata = currentMetadata.getPolicyMetadatas()
+                        .get(request.getPolicy().getName());
+
+                    // Double-check for no-op in the state update task, in case it was changed/reset in the meantime
+                    if (isNoopUpdate(existingPolicyMetadata, request.getPolicy(), filteredHeaders)) {
+                        return currentState;
+                    }
+
                     validatePrerequisites(request.getPolicy(), currentState);
 
                     ClusterState.Builder stateBuilder = ClusterState.builder(currentState);
-                    IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
-                    if (currentMetadata == null) { // first time using index-lifecycle feature, bootstrap metadata
-                        currentMetadata = IndexLifecycleMetadata.EMPTY;
-                    }
-                    LifecyclePolicyMetadata existingPolicyMetadata = currentMetadata.getPolicyMetadatas()
-                        .get(request.getPolicy().getName());
                     long nextVersion = (existingPolicyMetadata == null) ? 1L : existingPolicyMetadata.getVersion() + 1L;
                     SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
                     LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(
@@ -158,6 +173,21 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                 }
             }
         );
+    }
+
+    /**
+     * Returns 'true' if the ILM policy is effectually the same (same policy and headers), and thus can be a no-op update.
+     */
+    static boolean isNoopUpdate(
+        @Nullable LifecyclePolicyMetadata existingPolicy,
+        LifecyclePolicy newPolicy,
+        Map<String, String> filteredHeaders
+    ) {
+        if (existingPolicy == null) {
+            return false;
+        } else {
+            return newPolicy.equals(existingPolicy.getPolicy()) && filteredHeaders.equals(existingPolicy.getHeaders());
+        }
     }
 
     /**

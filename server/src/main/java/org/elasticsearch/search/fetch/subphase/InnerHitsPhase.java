@@ -80,8 +80,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
                 ScoreDoc scoreDoc = topDoc.topDocs.scoreDocs[j];
                 SearchHit searchHitFields = internalHits[j];
                 searchHitFields.score(scoreDoc.score);
-                if (scoreDoc instanceof FieldDoc) {
-                    FieldDoc fieldDoc = (FieldDoc) scoreDoc;
+                if (scoreDoc instanceof FieldDoc fieldDoc) {
                     searchHitFields.sortValues(fieldDoc.fields, innerHitsContext.sort().formats);
                 }
             }

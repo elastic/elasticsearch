@@ -74,27 +74,15 @@ enum LZ4SafeUtils {
             int dec = 0;
             assert dOff >= matchOff && dOff - matchOff < 8;
             switch (dOff - matchOff) {
-                case 1:
-                    matchOff -= 3;
-                    break;
-                case 2:
-                    matchOff -= 2;
-                    break;
-                case 3:
+                case 1 -> matchOff -= 3;
+                case 2 -> matchOff -= 2;
+                case 3 -> {
                     matchOff -= 3;
                     dec = -1;
-                    break;
-                case 5:
-                    dec = 1;
-                    break;
-                case 6:
-                    dec = 2;
-                    break;
-                case 7:
-                    dec = 3;
-                    break;
-                default:
-                    break;
+                }
+                case 5 -> dec = 1;
+                case 6 -> dec = 2;
+                case 7 -> dec = 3;
             }
 
             copy4Bytes(dest, matchOff, dest, dOff);

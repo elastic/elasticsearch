@@ -1604,29 +1604,18 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     }
 
     private JDBCType jdbcTypeFor(String esType) {
-        switch (esType) {
-            case "long":
-                return JDBCType.BIGINT;
-            case "integer":
-                return JDBCType.INTEGER;
-            case "short":
-                return JDBCType.SMALLINT;
-            case "byte":
-                return JDBCType.TINYINT;
-            case "float":
-                return JDBCType.REAL;
-            case "double":
-                return JDBCType.DOUBLE;
-            case "half_float":
-                return JDBCType.FLOAT;
-            case "scaled_float":
-                return JDBCType.DOUBLE;
-            case "unsigned_long":
-                return JDBCType.BIGINT;
-            case "ip":
-                return JDBCType.VARCHAR;
-            default:
-                throw new AssertionError("Illegal value [" + esType + "] for data type");
-        }
+        return switch (esType) {
+            case "long" -> JDBCType.BIGINT;
+            case "integer" -> JDBCType.INTEGER;
+            case "short" -> JDBCType.SMALLINT;
+            case "byte" -> JDBCType.TINYINT;
+            case "float" -> JDBCType.REAL;
+            case "double" -> JDBCType.DOUBLE;
+            case "half_float" -> JDBCType.FLOAT;
+            case "scaled_float" -> JDBCType.DOUBLE;
+            case "ip" -> JDBCType.VARCHAR;
+            case "unsigned_long" -> JDBCType.BIGINT;
+            default -> throw new AssertionError("Illegal value [" + esType + "] for data type");
+        };
     }
 }

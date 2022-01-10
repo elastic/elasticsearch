@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;

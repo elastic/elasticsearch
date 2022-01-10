@@ -509,8 +509,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("the [has_child] query is unsupported inside a percolator query");
         } else if (queryBuilder.getName().equals("has_parent")) {
             throw new IllegalArgumentException("the [has_parent] query is unsupported inside a percolator query");
-        } else if (queryBuilder instanceof BoolQueryBuilder) {
-            BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) queryBuilder;
+        } else if (queryBuilder instanceof BoolQueryBuilder boolQueryBuilder) {
             List<QueryBuilder> clauses = new ArrayList<>();
             clauses.addAll(boolQueryBuilder.filter());
             clauses.addAll(boolQueryBuilder.must());
@@ -519,15 +518,14 @@ public class PercolatorFieldMapper extends FieldMapper {
             for (QueryBuilder clause : clauses) {
                 verifyQuery(clause);
             }
-        } else if (queryBuilder instanceof ConstantScoreQueryBuilder) {
-            verifyQuery(((ConstantScoreQueryBuilder) queryBuilder).innerQuery());
-        } else if (queryBuilder instanceof FunctionScoreQueryBuilder) {
-            verifyQuery(((FunctionScoreQueryBuilder) queryBuilder).query());
-        } else if (queryBuilder instanceof BoostingQueryBuilder) {
-            verifyQuery(((BoostingQueryBuilder) queryBuilder).negativeQuery());
-            verifyQuery(((BoostingQueryBuilder) queryBuilder).positiveQuery());
-        } else if (queryBuilder instanceof DisMaxQueryBuilder) {
-            DisMaxQueryBuilder disMaxQueryBuilder = (DisMaxQueryBuilder) queryBuilder;
+        } else if (queryBuilder instanceof ConstantScoreQueryBuilder constantScoreQueryBuilder) {
+            verifyQuery(constantScoreQueryBuilder.innerQuery());
+        } else if (queryBuilder instanceof FunctionScoreQueryBuilder functionScoreQueryBuilder) {
+            verifyQuery(functionScoreQueryBuilder.query());
+        } else if (queryBuilder instanceof BoostingQueryBuilder boostingQueryBuilder) {
+            verifyQuery(boostingQueryBuilder.negativeQuery());
+            verifyQuery(boostingQueryBuilder.positiveQuery());
+        } else if (queryBuilder instanceof DisMaxQueryBuilder disMaxQueryBuilder) {
             for (QueryBuilder innerQueryBuilder : disMaxQueryBuilder.innerQueries()) {
                 verifyQuery(innerQueryBuilder);
             }

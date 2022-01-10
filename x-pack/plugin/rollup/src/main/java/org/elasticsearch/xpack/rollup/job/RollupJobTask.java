@@ -15,8 +15,8 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -368,11 +368,8 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
 
         final IndexerState newState = indexer.stop();
         switch (newState) {
-            case STOPPED:
-                listener.onResponse(new StopRollupJobAction.Response(true));
-                break;
-
-            case STOPPING:
+            case STOPPED -> listener.onResponse(new StopRollupJobAction.Response(true));
+            case STOPPING -> {
                 // update the persistent state to STOPPED. There are two scenarios and both are safe:
                 // 1. we persist STOPPED now, indexer continues a bit then sees the flag and checkpoints another
                 // STOPPED with the more recent position.
@@ -396,15 +393,12 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                         )
                     );
                 }));
-                break;
-
-            default:
-                listener.onFailure(
-                    new ElasticsearchException(
-                        "Cannot stop task for Rollup Job [" + job.getConfig().getId() + "] because" + " state was [" + newState + "]"
-                    )
-                );
-                break;
+            }
+            default -> listener.onFailure(
+                new ElasticsearchException(
+                    "Cannot stop task for Rollup Job [" + job.getConfig().getId() + "] because" + " state was [" + newState + "]"
+                )
+            );
         }
     }
 

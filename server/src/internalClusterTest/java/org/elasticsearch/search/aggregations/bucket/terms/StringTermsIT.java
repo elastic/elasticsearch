@@ -286,10 +286,6 @@ public class StringTermsIT extends AbstractTermsTestCase {
         );
     }
 
-    private String key(Terms.Bucket bucket) {  // NOCOMMIT delete me
-        return bucket.getKeyAsString();
-    }
-
     // the main purpose of this test is to make sure we're not allocating 2GB of memory per shard
     public void testSizeIsZero() {
         final int minDocCount = randomInt(1);
@@ -371,7 +367,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         for (int i = 0; i < 5; i++) {
             StringTerms.Bucket bucket = terms.getBucketByKey("foo_val" + i);
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("foo_val" + i));
+            assertThat(bucket.getKeyAsString(), equalTo("foo_val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }
@@ -395,7 +391,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
         StringTerms.Bucket bucket = terms.getBucketByKey("val");
         assertThat(bucket, notNullValue());
-        assertThat(key(bucket), equalTo("val"));
+        assertThat(bucket.getKeyAsString(), equalTo("val"));
         assertThat(bucket.getDocCount(), equalTo(5L));
     }
 
@@ -425,7 +421,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         for (int i = 0; i < 6; i++) {
             Terms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("val" + i));
+            assertThat(bucket.getKeyAsString(), equalTo("val" + i));
             if (i == 0 || i == 5) {
                 assertThat(bucket.getDocCount(), equalTo(1L));
             } else {
@@ -454,7 +450,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         for (int i = 0; i < 6; i++) {
             StringTerms.Bucket bucket = terms.getBucketByKey("foo_val" + i);
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("foo_val" + i));
+            assertThat(bucket.getKeyAsString(), equalTo("foo_val" + i));
             if (i == 0 || i == 5) {
                 assertThat(bucket.getDocCount(), equalTo(1L));
             } else {
@@ -501,7 +497,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         for (int i = 0; i < 5; i++) {
             StringTerms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("val" + i));
+            assertThat(bucket.getKeyAsString(), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }
@@ -532,7 +528,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         for (int i = 0; i < 5; i++) {
             StringTerms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("val" + i));
+            assertThat(bucket.getKeyAsString(), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }
@@ -564,7 +560,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         for (int i = 0; i < 6; i++) {
             StringTerms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("val" + i));
+            assertThat(bucket.getKeyAsString(), equalTo("val" + i));
             if (i == 0 || i == 5) {
                 assertThat(bucket.getDocCount(), equalTo(1L));
             } else {
@@ -592,7 +588,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         for (int i = 0; i < 5; i++) {
             StringTerms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("val" + i));
+            assertThat(bucket.getKeyAsString(), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }
@@ -620,7 +616,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         for (int i = 2; i <= 4; i++) {
             StringTerms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("val" + i));
+            assertThat(bucket.getKeyAsString(), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(i == 3 ? 2L : 1L));
         }
     }
@@ -684,7 +680,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
         Terms.Bucket tag = iters.next();
         assertThat(tag, notNullValue());
-        assertThat(key(tag), equalTo(asc ? "less" : "more"));
+        assertThat(tag.getKeyAsString(), equalTo(asc ? "less" : "more"));
         assertThat(tag.getDocCount(), equalTo(asc ? 2L : 3L));
         Filter filter = tag.getAggregations().get("filter");
         assertThat(filter, notNullValue());
@@ -692,7 +688,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
         tag = iters.next();
         assertThat(tag, notNullValue());
-        assertThat(key(tag), equalTo(asc ? "more" : "less"));
+        assertThat(tag.getKeyAsString(), equalTo(asc ? "more" : "less"));
         assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
         filter = tag.getAggregations().get("filter");
         assertThat(filter, notNullValue());
@@ -729,7 +725,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
         StringTerms.Bucket tag = iters.next();
         assertThat(tag, notNullValue());
-        assertThat(key(tag), equalTo(asc ? "more" : "less"));
+        assertThat(tag.getKeyAsString(), equalTo(asc ? "more" : "less"));
         assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
         Filter filter1 = tag.getAggregations().get("filter1");
         assertThat(filter1, notNullValue());
@@ -743,7 +739,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
         tag = iters.next();
         assertThat(tag, notNullValue());
-        assertThat(key(tag), equalTo(asc ? "less" : "more"));
+        assertThat(tag.getKeyAsString(), equalTo(asc ? "less" : "more"));
         assertThat(tag.getDocCount(), equalTo(asc ? 2L : 3L));
         filter1 = tag.getAggregations().get("filter1");
         assertThat(filter1, notNullValue());
@@ -792,7 +788,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
         StringTerms.Bucket tag = iters.next();
         assertThat(tag, notNullValue());
-        assertThat(key(tag), equalTo(asc ? "more" : "less"));
+        assertThat(tag.getKeyAsString(), equalTo(asc ? "more" : "less"));
         assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
         Filter filter1 = tag.getAggregations().get("filter1");
         assertThat(filter1, notNullValue());
@@ -806,7 +802,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
         tag = iters.next();
         assertThat(tag, notNullValue());
-        assertThat(key(tag), equalTo(asc ? "less" : "more"));
+        assertThat(tag.getKeyAsString(), equalTo(asc ? "less" : "more"));
         assertThat(tag.getDocCount(), equalTo(asc ? 2L : 3L));
         filter1 = tag.getAggregations().get("filter1");
         assertThat(filter1, notNullValue());
@@ -855,7 +851,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
         StringTerms.Bucket tag = iters.next();
         assertThat(tag, notNullValue());
-        assertThat(key(tag), equalTo(asc ? "more" : "less"));
+        assertThat(tag.getKeyAsString(), equalTo(asc ? "more" : "less"));
         assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
         Filter filter1 = tag.getAggregations().get("filter1");
         assertThat(filter1, notNullValue());
@@ -869,7 +865,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
         tag = iters.next();
         assertThat(tag, notNullValue());
-        assertThat(key(tag), equalTo(asc ? "less" : "more"));
+        assertThat(tag.getKeyAsString(), equalTo(asc ? "less" : "more"));
         assertThat(tag.getDocCount(), equalTo(asc ? 2L : 3L));
         filter1 = tag.getAggregations().get("filter1");
         assertThat(filter1, notNullValue());
@@ -1000,7 +996,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         int i = 0;
         for (StringTerms.Bucket bucket : terms.getBuckets()) {
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("val" + i));
+            assertThat(bucket.getKeyAsString(), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
 
             Stats stats = bucket.getAggregations().get("stats");
@@ -1032,7 +1028,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         int i = 4;
         for (StringTerms.Bucket bucket : terms.getBuckets()) {
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("val" + i));
+            assertThat(bucket.getKeyAsString(), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
 
             Stats stats = bucket.getAggregations().get("stats");
@@ -1065,7 +1061,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         int i = 0;
         for (StringTerms.Bucket bucket : terms.getBuckets()) {
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("val" + i));
+            assertThat(bucket.getKeyAsString(), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
 
             ExtendedStats stats = bucket.getAggregations().get("stats");
@@ -1101,7 +1097,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         int i = 0;
         for (StringTerms.Bucket bucket : terms.getBuckets()) {
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo("val" + i));
+            assertThat(bucket.getKeyAsString(), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
 
             ExtendedStats stats = bucket.getAggregations().get("stats");
@@ -1114,7 +1110,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             int j = i;
             for (StringTerms.Bucket subBucket : subTermsAgg.getBuckets()) {
                 assertThat(subBucket, notNullValue());
-                assertThat(key(subBucket), equalTo("val" + j));
+                assertThat(subBucket.getKeyAsString(), equalTo("val" + j));
                 assertThat(subBucket.getDocCount(), equalTo(1L));
                 j++;
             }
@@ -1185,7 +1181,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         int i = 0;
         for (StringTerms.Bucket bucket : terms.getBuckets()) {
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo(expectedKeys[i]));
+            assertThat(bucket.getKeyAsString(), equalTo(expectedKeys[i]));
             assertThat(bucket.getDocCount(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("_count")));
             Avg avg = bucket.getAggregations().get("avg_l");
             assertThat(avg, notNullValue());
@@ -1215,7 +1211,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         int i = 0;
         for (StringTerms.Bucket bucket : terms.getBuckets()) {
             assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo(i == 0 ? "idx" : "empty_bucket_idx"));
+            assertThat(bucket.getKeyAsString(), equalTo(i == 0 ? "idx" : "empty_bucket_idx"));
             assertThat(bucket.getDocCount(), equalTo(i == 0 ? 5L : 2L));
             i++;
         }

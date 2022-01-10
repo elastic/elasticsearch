@@ -381,7 +381,14 @@ public class IndexRequestTests extends ESTestCase {
             );
             assertThat(
                 e.getMessage(),
-                equalTo("no index available for a document with an @timestamp of [$time]".replace("$time", formatInstant(end2)))
+                equalTo(
+                    "the document timestamp [$time] is outside of ranges of currently writable indices [[$start1,$end1][$start2,$end2]]"
+                        .replace("$time", formatInstant(end2))
+                        .replace("$start1", formatInstant(start1))
+                        .replace("$end1", formatInstant(end1))
+                        .replace("$start2", formatInstant(start2))
+                        .replace("$end2", formatInstant(end2))
+                )
             );
         }
     }

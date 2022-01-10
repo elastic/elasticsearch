@@ -19,10 +19,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
@@ -156,6 +159,42 @@ public class PluginCliTests extends PackagingTestCase {
             );
         } finally {
             FileUtils.rm(installation.config("elasticsearch-plugins.yml"));
+        }
+    }
+
+    /**
+     * Check that attempting to install a plugin that has been promoted to a module
+     * succeeds, but does nothing.
+     */
+    public void test40InstallOfModularizedPluginsSucceedsButDoesNothing() {
+        for (String pluginId : List.of("repository-azure", "repository-gcs", "repository-s3")) {
+            String stderr = installation.executables().pluginTool.run("install " + pluginId).stderr;
+            assertThat(
+                "Expected plugin installed to warn about migrated plugins",
+                stderr,
+                containsString("[" + pluginId + "] is no longer a plugin")
+            );
+
+            String pluginList = installation.executables().pluginTool.run("list").stdout;
+            assertThat(pluginId + " should not appear in the plugin list", pluginList, not(containsString(pluginId)));
+        }
+    }
+
+    /**
+     * Check that attempting to remove a plugin that has been promoted to a module
+     * succeeds, but does nothing.
+     */
+    public void test41RemovalOfModularizedPluginsSucceedsButDoesNothing() {
+        String pluginList = installation.executables().pluginTool.run("list").stdout;
+        assertThat("Expected no plugins to be installed", pluginList.trim(), is(emptyString()));
+
+        for (String pluginId : List.of("repository-azure", "repository-gcs", "repository-s3")) {
+            String stderr = installation.executables().pluginTool.run("remove " + pluginId).stderr;
+            assertThat(
+                "Expected plugin installer to warn about migrated plugins",
+                stderr,
+                containsString("[" + pluginId + "] is no longer a plugin")
+            );
         }
     }
 }

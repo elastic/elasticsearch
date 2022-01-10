@@ -22,7 +22,6 @@ import org.elasticsearch.packaging.util.Shell.Result;
 import org.elasticsearch.packaging.util.docker.DockerRun;
 import org.elasticsearch.packaging.util.docker.DockerShell;
 import org.elasticsearch.packaging.util.docker.MockServer;
-import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -36,7 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.StringJoiner;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -77,6 +75,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -172,28 +171,9 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that Cloud images bundle a selection of plugins.
-     */
-    public void test021PluginsListWithDefaultCloudPlugins() {
-        assumeTrue(
-            "Only applies to Cloud images",
-            distribution.packaging == Packaging.DOCKER_CLOUD || distribution().packaging == Packaging.DOCKER_CLOUD_ESS
-        );
-
-        final Installation.Executables bin = installation.executables();
-        final List<String> plugins = sh.run(bin.pluginTool + " list").stdout.lines().collect(Collectors.toList());
-
-        assertThat(
-            "Expected standard plugins to be listed",
-            plugins,
-            equalTo(List.of("repository-azure", "repository-gcs", "repository-s3"))
-        );
-    }
-
-    /**
      * Check that a plugin can be installed without special permissions.
      */
-    public void test022InstallPlugin() {
+    public void test021InstallPlugin() {
         runContainer(
             distribution(),
             builder().envVar("ELASTIC_PASSWORD", PASSWORD).volume(Path.of(EXAMPLE_PLUGIN_PATH), "/analysis-icu.zip")
@@ -205,20 +185,13 @@ public class DockerTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         sh.run(bin.pluginTool + " install file:///analysis-icu.zip");
 
-        final boolean isCloudImage = distribution().packaging == Packaging.DOCKER_CLOUD
-            || distribution().packaging == Packaging.DOCKER_CLOUD_ESS;
-
-        final Matcher<Iterable<?>> matcher = isCloudImage
-            ? containsInAnyOrder("repository-azure", "repository-gcs", "repository-s3", "analysis-icu")
-            : equalTo(List.of("analysis-icu"));
-
-        assertThat("Expected installed plugins to be listed", listPlugins(), matcher);
+        assertThat("Expected installed plugins to be listed", listPlugins(), equalTo(List.of("analysis-icu")));
     }
 
     /**
      * Checks that ESS images can install plugins from the local archive.
      */
-    public void test023InstallPluginsFromLocalArchive() {
+    public void test022InstallPluginsFromLocalArchive() {
         assumeTrue("Only ESS images have a local archive", distribution().packaging == Packaging.DOCKER_CLOUD_ESS);
 
         final String plugin = "analysis-icu";
@@ -237,22 +210,13 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Checks that plugins can be installed by deploying a plugins config file.
      */
-    public void test024InstallPluginUsingConfigFile() {
-        final boolean isCloudImage = distribution().packaging == Packaging.DOCKER_CLOUD
-            || distribution().packaging == Packaging.DOCKER_CLOUD_ESS;
-
-        final StringJoiner pluginsDescriptor = new StringJoiner("\n", "", "\n");
-        pluginsDescriptor.add("plugins:");
-        pluginsDescriptor.add("  - id: analysis-icu");
-        pluginsDescriptor.add("    location: file:///analysis-icu.zip");
-        if (isCloudImage) {
-            // The repository plugins have to be present, because (1) they are preinstalled, and (2) they
-            // are owned by `root` and can't be removed.
-            Stream.of("repository-s3", "repository-azure", "repository-gcs").forEach(plugin -> pluginsDescriptor.add("  - id: " + plugin));
-        }
-
+    public void test023InstallPluginUsingConfigFile() {
         final String filename = "elasticsearch-plugins.yml";
-        append(tempDir.resolve(filename), pluginsDescriptor.toString());
+        append(tempDir.resolve(filename), """
+            plugins:
+              - id: analysis-icu
+                location: file:///analysis-icu.zip
+            """);
 
         // Restart the container. This will sync the plugins automatically. Also
         // stuff the proxy settings with garbage, so any attempt to go out to the internet would fail. The
@@ -277,21 +241,15 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Checks that ESS images can manage plugins from the local archive by deploying a plugins config file.
      */
-    public void test025InstallPluginFromArchiveUsingConfigFile() {
+    public void test024InstallPluginFromArchiveUsingConfigFile() {
         assumeTrue("Only ESS image has a plugin archive", distribution().packaging == Packaging.DOCKER_CLOUD_ESS);
 
-        // The repository plugins have to be present, because (1) they are preinstalled, and (2) they
-        // are owned by `root` and can't be removed.
-        final String[] plugins = { "repository-s3", "repository-azure", "repository-gcs", "analysis-icu", "analysis-phonetic" };
-
-        final StringJoiner pluginsDescriptor = new StringJoiner("\n", "", "\n");
-        pluginsDescriptor.add("plugins:");
-        for (String plugin : plugins) {
-            pluginsDescriptor.add("  - id: " + plugin);
-        }
-
         final String filename = "elasticsearch-plugins.yml";
-        append(tempDir.resolve(filename), pluginsDescriptor.toString());
+        append(tempDir.resolve(filename), """
+            plugins:
+              - id: analysis-icu
+              - id: analysis-phonetic
+            """);
 
         // Restart the container. This will sync the plugins automatically. Also
         // stuff the proxy settings with garbage, so any attempt to go out to the internet would fail. The
@@ -309,40 +267,31 @@ public class DockerTests extends PackagingTestCase {
         // Since ES is doing the installing, give it a chance to complete
         waitForElasticsearch(installation, "elastic", PASSWORD);
 
-        assertThat("List of installed plugins is incorrect", listPlugins(), containsInAnyOrder(plugins));
+        assertThat("List of installed plugins is incorrect", listPlugins(), containsInAnyOrder("analysis-icu", "analysis-phonetic"));
     }
 
     /**
      * Check that when using Elasticsearch's plugins sync capability, it will use a proxy when configured to do so.
      * This could either be in the plugins config file, or via the standard Java system properties.
      */
-    public void test024SyncPluginsUsingProxy() {
+    public void test025SyncPluginsUsingProxy() {
         MockServer.withMockServer(mockServer -> {
             for (boolean useConfigFile : List.of(true, false)) {
                 mockServer.clearExpectations();
 
-                final StringJoiner config = new StringJoiner("\n", "", "\n");
-                config.add("plugins:");
-                // The repository plugins have to be present for Cloud images, because (1) they are preinstalled, and (2) they
-                // are owned by `root` and can't be removed.
-                if (distribution().packaging == Packaging.DOCKER_CLOUD || distribution().packaging == Packaging.DOCKER_CLOUD_ESS) {
-                    for (String plugin : List.of("repository-s3", "repository-azure", "repository-gcs", "analysis-icu")) {
-                        config.add("  - id: " + plugin);
-                    }
-                }
-                // This is the new plugin to install. We don't use an official plugin because then Elasticsearch
-                // will attempt an SSL connection and that just makes everything more complicated.
-                config.add("  - id: my-plugin");
-                config.add("    location: http://example.com/my-plugin.zip");
-
-                if (useConfigFile) {
-                    config.add("proxy: mockserver:" + mockServer.getPort());
-                }
+                final String config = """
+                    plugins:
+                        # This is the new plugin to install. We don't use an official plugin because then Elasticsearch
+                        # will attempt an SSL connection and that just makes everything more complicated.
+                      - id: my-plugin
+                        location: http://example.com/my-plugin.zip
+                    %s
+                    """.formatted(useConfigFile ? "proxy: mockserver:" + mockServer.getPort() : "");
 
                 final String filename = "elasticsearch-plugins.yml";
                 final Path pluginsConfigPath = tempDir.resolve(filename);
                 deleteIfExists(pluginsConfigPath);
-                append(pluginsConfigPath, config.toString());
+                append(pluginsConfigPath, config);
 
                 final DockerRun builder = builder().volume(pluginsConfigPath, installation.config.resolve(filename))
                     .extraArgs("--link " + mockServer.getContainerId() + ":mockserver");
@@ -368,6 +317,52 @@ public class DockerTests extends PackagingTestCase {
                 assertThat(interaction, hasEntry("httpRequest.path", "/my-plugin.zip"));
             }
         });
+    }
+
+    /**
+     * Check that attempting to install the repository plugins that have been migrated to modules succeeds, but does nothing.
+     */
+    public void test026InstallBundledRepositoryPlugins() {
+        assertThat("Expected no plugins to be installed", listPlugins(), is(empty()));
+
+        installation.executables().pluginTool.run("install repository-azure repository-gcs repository-s3");
+
+        assertThat("Still expected no plugins to be installed", listPlugins(), is(empty()));
+
+        // Removal should also succeed
+        installation.executables().pluginTool.run("remove repository-azure repository-gcs repository-s3");
+    }
+
+    /**
+     * Check that attempting to install the repository plugins that have been migrated to modules succeeds
+     * when using a plugins config file but does nothing.
+     */
+    public void test026InstallBundledRepositoryPluginsViaConfigFile() {
+        final String filename = "elasticsearch-plugins.yml";
+        append(tempDir.resolve(filename), """
+            plugins:
+              - id: repository-azure
+              - id: repository-gcs
+              - id: repository-s3
+            """);
+
+        // Restart the container. This will sync the plugins automatically. Also
+        // stuff the proxy settings with garbage, so any attempt to go out to the internet would fail. The
+        // sync shouldn't be doing anything anyway.
+        runContainer(
+            distribution(),
+            builder().volume(tempDir.resolve(filename), installation.config.resolve(filename))
+                .envVar("ELASTIC_PASSWORD", PASSWORD)
+                .envVar(
+                    "ES_JAVA_OPTS",
+                    "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999"
+                )
+        );
+
+        // Since ES is doing the installing, give it a chance to complete
+        waitForElasticsearch(installation, "elastic", PASSWORD);
+
+        assertThat("Expected no plugins to be installed", listPlugins(), is(empty()));
     }
 
     /**
@@ -749,7 +744,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that environment variables are translated to -E options even for commands invoked under
      * `docker exec`, where the Docker image's entrypoint is not executed.
      */
-    public void test085EnvironmentVariablesAreRespectedUnderDockerExec() throws Exception {
+    public void test085EnvironmentVariablesAreRespectedUnderDockerExec() {
         installation = runContainer(distribution(), builder().envVar("ELASTIC_PASSWORD", "hunter2"));
 
         // The tool below requires a keystore, so ensure that ES is fully initialised before proceeding.
@@ -996,7 +991,7 @@ public class DockerTests extends PackagingTestCase {
         waitForElasticsearch(installation, "elastic", PASSWORD);
 
         final Result containerLogs = getContainerLogs();
-        final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
+        final List<String> stdout = containerLogs.stdout.lines().toList();
         // We select to look for a line near the beginning so that we don't stumble upon the stdout printing of auto-configured credentials
         assertThat("Container logs should be formatted using the stack config", stdout.get(10), matchesPattern("^\\[\\d\\d\\d\\d-.*"));
         assertThat("[logs/docker-cluster.log] should exist but it doesn't", existsInContainer("logs/docker-cluster.log"), is(true));
@@ -1011,7 +1006,7 @@ public class DockerTests extends PackagingTestCase {
         waitForElasticsearch(installation, "elastic", PASSWORD);
 
         final Result containerLogs = getContainerLogs();
-        final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
+        final List<String> stdout = containerLogs.stdout.lines().toList();
         // We select to look for a line near the beginning so that we don't stumble upon the stdout printing of auto-configured credentials
         assertThat("Container logs should be formatted using the docker config", stdout.get(10), startsWith("{\""));
         assertThat("[logs/docker-cluster.log] shouldn't exist but it does", existsInContainer("logs/docker-cluster.log"), is(false));

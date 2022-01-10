@@ -1785,13 +1785,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         Exception e = expectThrows(MapperParsingException.class, () -> mapperService.documentMapper().parse(source("""
             {"top..foo.":{"a":1}}
-            """
-        )));
+            """)));
 
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("object field cannot contain only whitespace: ['top..foo.']")
-        );
+        assertThat(e.getCause().getMessage(), containsString("object field cannot contain only whitespace: ['top..foo.']"));
     }
 
     public void testDynamicFieldsEmptyName() throws Exception {

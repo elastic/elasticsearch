@@ -621,7 +621,8 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
             int j = i;
             irRightNode.visit(this, (e) -> irStringConcatenationNode.getArgumentNodes().set(j + 1, e));
 
-            if (irLeftNode instanceof ConstantNode irConstantNode && irRightNode instanceof ConstantNode) {
+            if (irLeftNode instanceof ConstantNode && irRightNode instanceof ConstantNode) {
+                ConstantNode irConstantNode = (ConstantNode) irLeftNode;
                 irConstantNode.attachDecoration(
                     new IRDConstant(
                         "" + irConstantNode.getDecorationValue(IRDConstant.class) + irRightNode.getDecorationValue(IRDConstant.class)
@@ -629,11 +630,13 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                 );
                 irConstantNode.attachDecoration(new IRDExpressionType(String.class));
                 irStringConcatenationNode.getArgumentNodes().remove(i + 1);
-            } else if (irLeftNode instanceof NullNode && irRightNode instanceof ConstantNode irConstantNode) {
+            } else if (irLeftNode instanceof NullNode && irRightNode instanceof ConstantNode) {
+                ConstantNode irConstantNode = (ConstantNode) irRightNode;
                 irConstantNode.attachDecoration(new IRDConstant("" + null + irRightNode.getDecorationValue(IRDConstant.class)));
                 irConstantNode.attachDecoration(new IRDExpressionType(String.class));
                 irStringConcatenationNode.getArgumentNodes().remove(i);
-            } else if (irLeftNode instanceof ConstantNode irConstantNode && irRightNode instanceof NullNode) {
+            } else if (irLeftNode instanceof ConstantNode && irRightNode instanceof NullNode) {
+                ConstantNode irConstantNode = (ConstantNode) irLeftNode;
                 irConstantNode.attachDecoration(new IRDConstant("" + irLeftNode.getDecorationValue(IRDConstant.class) + null));
                 irConstantNode.attachDecoration(new IRDExpressionType(String.class));
                 irStringConcatenationNode.getArgumentNodes().remove(i + 1);

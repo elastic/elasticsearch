@@ -563,7 +563,7 @@ public abstract class MappedFieldType {
                 + "]."
         );
     }
-    
+
     /**
      * This method is used to support auto-complete services and implementations
      * are expected to find field names containing the provided string very quickly.
@@ -573,7 +573,7 @@ public abstract class MappedFieldType {
      * @param caseInsensitive if matches should be case insensitive
      * @param string the partially complete word the user has typed (can be empty)
      * @param queryShardContext the shard context
-     * @return null or an enumeration of matching terms 
+     * @return null or an enumeration of matching terms
      * @throws IOException Errors accessing data
      */
     public TermsEnum getMatchingFieldNames(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext)
@@ -590,5 +590,5 @@ public abstract class MappedFieldType {
         }
         return result;
     }
-    
+
 }

@@ -353,8 +353,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             } else {
                 return new TranslatingTermsEnum(automaton.getTermsEnum(terms));
             }
-        }        
-        
+        }
+
         public TermsEnum getFieldNames(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
             throws IOException {
             IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
@@ -374,17 +374,17 @@ public final class FlattenedFieldMapper extends FieldMapper {
             automata.add(Automata.makeAnyString());
             automata.add(Automata.makeString(FlattenedFieldParser.SEPARATOR));
             automata.add(Automata.makeAnyString());
-            Automaton a =  Operations.concatenate(automata);
+            Automaton a = Operations.concatenate(automata);
 
             CompiledAutomaton automaton = new CompiledAutomaton(a);
             if (searchAfter != null) {
                 BytesRef searchAfterWithFieldName = new BytesRef(key + FlattenedFieldParser.SEPARATOR + searchAfter);
                 TermsEnum seekedEnum = terms.intersect(automaton, searchAfterWithFieldName);
                 return new TranslatingTermsEnum(seekedEnum);
-            } else { 
+            } else {
                 return new TranslatingTermsEnum(automaton.getTermsEnum(terms));
             }
-        }          
+        }
 
         @Override
         public BytesRef indexedValueForSearch(Object value) {
@@ -428,8 +428,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         TranslatingTermsEnum(TermsEnum delegate) {
             this(delegate, true);
-        } 
-        
+        }
+
         TranslatingTermsEnum(TermsEnum delegate, boolean stripFields) {
             this.delegate = delegate;
             this.stripFields = stripFields;
@@ -711,7 +711,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public MappedFieldType getChildFieldType(String childPath) {
             return new KeyedFlattenedFieldType(name(), childPath, this);
         }
-        
+
         // Used by GetFields method - wraps a raw Lucene TermsEnum to support infix matching
         // on full-path e.g. match `oo.bar` search on flattened object `foo` with indexed property `bar`
         class TranslatingTermsEnumToFullPath extends TermsEnum {
@@ -720,9 +720,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
             TranslatingTermsEnumToFullPath(TermsEnum delegate) {
                 this.delegate = delegate;
-                this.rootPrefix = name()+".";
+                this.rootPrefix = name() + ".";
             }
-            
+
             @Override
             public BytesRef next() throws IOException {
                 // Strip the term of the fieldname value
@@ -745,16 +745,16 @@ public final class FlattenedFieldMapper extends FieldMapper {
             @Override
             public int docFreq() throws IOException {
                 return delegate.docFreq();
-            }         
+            }
 
             @Override
             public AttributeSource attributes() {
                 return delegate.attributes();
             }
-            
+
             private BytesRef stripRootPrefix(BytesRef term) {
                 String termAsString = term.utf8ToString();
-                if(termAsString.startsWith(rootPrefix)) {
+                if (termAsString.startsWith(rootPrefix)) {
                     String strippedString = termAsString.substring(rootPrefix.length());
                     return new BytesRef(strippedString);
                 }
@@ -770,8 +770,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             public SeekStatus seekCeil(BytesRef text) throws IOException {
                 return delegate.seekCeil(stripRootPrefix(text));
             }
-            //===============  All other TermsEnum methods not supported =================
-            
+            // =============== All other TermsEnum methods not supported =================
+
             @Override
             public void seekExact(long ord) throws IOException {
                 throw new UnsupportedOperationException();
@@ -806,28 +806,26 @@ public final class FlattenedFieldMapper extends FieldMapper {
             public TermState termState() throws IOException {
                 throw new UnsupportedOperationException();
             }
-           
+
         }
 
-               
-        
         private class TranslatingTermsToFullPath extends FilterTerms {
-          TranslatingTermsToFullPath(Terms in) {
-              super(in);
-          }
-          
-          @Override
-          public TermsEnum iterator() throws IOException {
-              return new TranslatingTermsEnumToFullPath(in.iterator());
-          }
-      }
+            TranslatingTermsToFullPath(Terms in) {
+                super(in);
+            }
+
+            @Override
+            public TermsEnum iterator() throws IOException {
+                return new TranslatingTermsEnumToFullPath(in.iterator());
+            }
+        }
 
         @Override
         public TermsEnum getMatchingFieldNames(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext)
-        throws IOException {
+            throws IOException {
             IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
-            Terms terms = MultiTerms.getTerms(reader, name()+ KEYED_FIELD_SUFFIX);
-            
+            Terms terms = MultiTerms.getTerms(reader, name() + KEYED_FIELD_SUFFIX);
+
             if (terms == null) {
                 // Field does not exist on this shard.
                 return null;
@@ -839,7 +837,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             automata.add(Automata.makeAnyString());
             if (caseInsensitive) {
                 automata.add(AutomatonQueries.toCaseInsensitiveString(string, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
-                
+
             } else {
                 automata.add(Automata.makeString(string));
             }
@@ -849,9 +847,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
             Automaton a = Operations.concatenate(automata);
             CompiledAutomaton automaton = new CompiledAutomaton(a);
             return new TranslatingTermsEnum(automaton.getTermsEnum(terms), false);
-        }            
+        }
     }
-    
+
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
 

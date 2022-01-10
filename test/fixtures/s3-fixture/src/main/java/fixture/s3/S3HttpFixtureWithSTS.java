@@ -58,37 +58,34 @@ public class S3HttpFixtureWithSTS extends S3HttpFixture {
                     exchange.close();
                     return;
                 }
-                final byte[] response = ("<AssumeRoleWithWebIdentityResponse xmlns=\"https://sts.amazonaws.com/doc/2011-06-15/\">\n"
-                    + "  <AssumeRoleWithWebIdentityResult>\n"
-                    + "    <SubjectFromWebIdentityToken>amzn1.account.AF6RHO7KZU5XRVQJGXK6HB56KR2A</SubjectFromWebIdentityToken>\n"
-                    + "    <Audience>client.5498841531868486423.1548@apps.example.com</Audience>\n"
-                    + "    <AssumedRoleUser>\n"
-                    + "      <Arn>"
-                    + ROLE_ARN
-                    + "</Arn>\n"
-                    + "      <AssumedRoleId>AROACLKWSDQRAOEXAMPLE:"
-                    + ROLE_NAME
-                    + "</AssumedRoleId>\n"
-                    + "    </AssumedRoleUser>\n"
-                    + "    <Credentials>\n"
-                    + "      <SessionToken>"
-                    + sessionToken
-                    + "</SessionToken>\n"
-                    + "      <SecretAccessKey>secret_access_key</SecretAccessKey>\n"
-                    + "      <Expiration>"
-                    + ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ"))
-                    + "</Expiration>\n"
-                    + "      <AccessKeyId>"
-                    + accessKey
-                    + "</AccessKeyId>\n"
-                    + "    </Credentials>\n"
-                    + "    <SourceIdentity>SourceIdentityValue</SourceIdentity>\n"
-                    + "    <Provider>www.amazon.com</Provider>\n"
-                    + "  </AssumeRoleWithWebIdentityResult>\n"
-                    + "  <ResponseMetadata>\n"
-                    + "    <RequestId>ad4156e9-bce1-11e2-82e6-6b6efEXAMPLE</RequestId>\n"
-                    + "  </ResponseMetadata>\n"
-                    + "</AssumeRoleWithWebIdentityResponse>").getBytes(StandardCharsets.UTF_8);
+                final byte[] response = """
+                    <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+                      <AssumeRoleWithWebIdentityResult>
+                        <SubjectFromWebIdentityToken>amzn1.account.AF6RHO7KZU5XRVQJGXK6HB56KR2A</SubjectFromWebIdentityToken>
+                        <Audience>client.5498841531868486423.1548@apps.example.com</Audience>
+                        <AssumedRoleUser>
+                          <Arn>%s</Arn>
+                          <AssumedRoleId>AROACLKWSDQRAOEXAMPLE:%s</AssumedRoleId>
+                        </AssumedRoleUser>
+                        <Credentials>
+                          <SessionToken>%s</SessionToken>
+                          <SecretAccessKey>secret_access_key</SecretAccessKey>
+                          <Expiration>%s</Expiration>
+                          <AccessKeyId>%s</AccessKeyId>
+                        </Credentials>
+                        <SourceIdentity>SourceIdentityValue</SourceIdentity>
+                        <Provider>www.amazon.com</Provider>
+                      </AssumeRoleWithWebIdentityResult>
+                      <ResponseMetadata>
+                        <RequestId>ad4156e9-bce1-11e2-82e6-6b6efEXAMPLE</RequestId>
+                      </ResponseMetadata>
+                    </AssumeRoleWithWebIdentityResponse>""".formatted(
+                    ROLE_ARN,
+                    ROLE_NAME,
+                    sessionToken,
+                    ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ")),
+                    accessKey
+                ).getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "text/xml; charset=UTF-8");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);

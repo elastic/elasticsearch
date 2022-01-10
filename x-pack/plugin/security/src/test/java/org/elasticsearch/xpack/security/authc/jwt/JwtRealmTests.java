@@ -50,6 +50,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -88,29 +89,6 @@ public class JwtRealmTests extends JwtTestCase {
     public void shutdown() throws InterruptedException {
         this.resourceWatcherService.close();
         terminate(this.threadPool);
-    }
-
-    public void testRealmInitialization() throws Exception {
-        final int roleCount = randomIntBetween(1, 3);
-        final String[] roleNames = IntStream.range(0, roleCount).mapToObj(i -> "role" + i).toArray(String[]::new);
-        final String principal = "principal" + randomIntBetween(1, 9);
-        final String authcName = "jwt" + randomIntBetween(1, 9);
-        final Settings authcSettings = super.generateRealmSettings(authcName).build();
-        final RealmConfig authcConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, authcName, authcSettings, Integer.valueOf(0));
-        final UserRoleMapper authcUserRoleMapper = super.buildRoleMapper(principal, Set.of(roleNames));
-        final JwtRealm authcRealm = new JwtRealm(
-            authcConfig,
-            this.threadPool,
-            this.sslService,
-            authcUserRoleMapper,
-            this.resourceWatcherService
-        );
-        final List<Realm> realms = List.of(authcRealm);
-        authcRealm.initialize(realms, this.licenseState); // initialize once is expected
-        final Exception exception = expectThrows(IllegalStateException.class, () -> {
-            authcRealm.initialize(realms, this.licenseState); // initialize twice throws an exception
-        });
-        assertThat(exception.getMessage(), equalTo("Realm has already been initialized"));
     }
 
     public void testJwtAuthcRealmAuthenticateWithEmptyRoles() throws Exception {
@@ -488,7 +466,10 @@ public class JwtRealmTests extends JwtTestCase {
         }
         assertThat("AuthenticatedUser is null. Expected a realm to authenticate.", authenticatedUser, is(notNullValue()));
         assertThat(authenticatedUser.principal(), equalTo(selectedPrincipal));
-        assertThat(authenticatedUser.roles(), equalTo(selectedRoleNames));
+        assertThat(
+            new TreeSet<String>(Arrays.asList(authenticatedUser.roles())),
+            equalTo(new TreeSet<String>(Arrays.asList(selectedRoleNames)))
+        );
         if (selectedPopulateUserMetadata) {
             assertThat(authenticatedUser.metadata(), is(not(anEmptyMap())));
         }

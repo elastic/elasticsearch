@@ -80,7 +80,7 @@ import static org.mockito.Mockito.mock;
 
 public abstract class JwtTestCase extends ESTestCase {
 
-    private static final Logger LOGGER = LogManager.getLogger(JwtRealm.class);
+    private static final Logger LOGGER = LogManager.getLogger(JwtTestCase.class);
 
     protected String pathHome;
     protected Settings globalSettings;
@@ -112,49 +112,58 @@ public abstract class JwtTestCase extends ESTestCase {
 
     public static Object generateSecretKeyOrKeyPair(final String signatureAlgorithm) throws JOSEException {
         final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
-        if (JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS.contains(signatureAlgorithm)) {
+        if (JWSAlgorithm.Family.HMAC_SHA.contains(signatureAlgorithm)) {
             return generateSecretKey(signatureAlgorithm); // SecretKeySpec
-        } else if (JwtRealmSettings.SUPPORTED_PUBLIC_KEY_RSA_SIGNATURE_ALGORITHMS.contains(signatureAlgorithm)) {
+        } else if (JWSAlgorithm.Family.RSA.contains(signatureAlgorithm)) {
             return generateRsaKeyPair(signatureAlgorithm); // KeyPair(RSAPublicKey,RSAPrivateKey)
-        } else if (JwtRealmSettings.SUPPORTED_PUBLIC_KEY_EC_SIGNATURE_ALGORITHMS.contains(signatureAlgorithm)) {
+        } else if (JWSAlgorithm.Family.EC.contains(signatureAlgorithm)) {
             return generateEcKeyPair(signatureAlgorithm); // KeyPair(ECPublicKey,ECPrivateKey)
         }
-        fail("Test does not support signing algorithm " + jwsAlgorithm);
-        return null;
+        throw new JOSEException("Unsupported RSA, EC, or HMAC family signature algorithm " + signatureAlgorithm);
     }
 
     // Nimbus JOSE+JWT requires HMAC keys to match or exceed digest strength.
     public static SecretKey generateSecretKey(final String signatureAlgorithm) throws JOSEException {
         final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
-        final int minRequiredSecretBytesLength = MACSigner.getMinRequiredSecretLength(jwsAlgorithm) / 8;
-        final byte[] hmacKeyBytes = new byte[randomIntBetween(minRequiredSecretBytesLength, minRequiredSecretBytesLength * 3)];
-        random().nextBytes(hmacKeyBytes);
-        return new SecretKeySpec(hmacKeyBytes, "HMAC");
+        if (JWSAlgorithm.Family.HMAC_SHA.contains(jwsAlgorithm)) {
+            final int minRequiredSecretBytesLength = MACSigner.getMinRequiredSecretLength(jwsAlgorithm) / 8;
+            final byte[] hmacKeyBytes = new byte[randomIntBetween(minRequiredSecretBytesLength, minRequiredSecretBytesLength * 3)];
+            random().nextBytes(hmacKeyBytes);
+            return new SecretKeySpec(hmacKeyBytes, signatureAlgorithm);
+        }
+        throw new JOSEException("Unsupported HMAC family signature algorithm " + signatureAlgorithm);
     }
 
     public static KeyPair generateKeyPair(final String signatureAlgorithm) throws JOSEException {
-        if (JwtRealmSettings.SUPPORTED_PUBLIC_KEY_RSA_SIGNATURE_ALGORITHMS.contains(signatureAlgorithm)) {
+        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
+        if (JWSAlgorithm.Family.RSA.contains(jwsAlgorithm)) {
             return generateRsaKeyPair(signatureAlgorithm);
-        } else if (JwtRealmSettings.SUPPORTED_PUBLIC_KEY_EC_SIGNATURE_ALGORITHMS.contains(signatureAlgorithm)) {
-            return generateRsaKeyPair(signatureAlgorithm);
+        } else if (JWSAlgorithm.Family.EC.contains(jwsAlgorithm)) {
+            return generateEcKeyPair(signatureAlgorithm);
         }
-        return generateEcKeyPair(signatureAlgorithm);
+        throw new JOSEException("Unsupported signature algorithm " + signatureAlgorithm);
     }
 
     // Nimbus JOSE+JWT requires RSA keys to match or exceed 2048-bit strength. No dependency on digest strength.
     public static KeyPair generateRsaKeyPair(final String signatureAlgorithm) throws JOSEException {
         final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
-        final Integer rsaSize = randomFrom(2048, 3072);
-        final RSAKey privateKey = new RSAKeyGenerator(rsaSize).generate();
-        return new KeyPair(privateKey.toPublicKey(), privateKey.toPrivateKey());
+        if (JWSAlgorithm.Family.RSA.contains(jwsAlgorithm)) {
+            final Integer rsaSize = randomFrom(2048, 3072);
+            final RSAKey privateKey = new RSAKeyGenerator(rsaSize, false).generate();
+            return new KeyPair(privateKey.toPublicKey(), privateKey.toPrivateKey());
+        }
+        throw new JOSEException("Unsupported RSA family signature algorithm " + signatureAlgorithm);
     }
 
     // Nimbus JOSE+JWT requires EC curves to match digest strength (as per RFC 7519).
     public static KeyPair generateEcKeyPair(final String signatureAlgorithm) throws JOSEException {
         final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
-        final Curve ecCurve = randomFrom(Curve.forJWSAlgorithm(jwsAlgorithm)); // EC curves by specific SHA-2 lengths.
-        final ECKey privateKey = new ECKeyGenerator(ecCurve).generate();
-        return new KeyPair(privateKey.toPublicKey(), privateKey.toPrivateKey());
+        if (JWSAlgorithm.Family.EC.contains(jwsAlgorithm)) {
+            final Curve ecCurve = randomFrom(Curve.forJWSAlgorithm(jwsAlgorithm)); // EC curves by specific SHA-2 lengths.
+            final ECKey privateKey = new ECKeyGenerator(ecCurve).generate();
+            return new KeyPair(privateKey.toPublicKey(), privateKey.toPrivateKey());
+        }
+        throw new JOSEException("Unsupported EC family signature algorithm " + signatureAlgorithm);
     }
 
     public static SignedJWT generateValidSignedJWT(final JWSSigner jwsSigner, final String signatureAlgorithm) throws Exception {

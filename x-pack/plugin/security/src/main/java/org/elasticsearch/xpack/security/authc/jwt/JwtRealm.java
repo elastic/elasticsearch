@@ -23,6 +23,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -44,6 +46,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
@@ -116,35 +119,36 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         // constructor looks up realm settings in super.config.settings()
         // JWT issuer settings
-        this.allowedIssuer = super.config.getSetting(JwtRealmSettings.ALLOWED_ISSUER);
-        this.allowedSignatureAlgorithms = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
-        this.allowedClientSkew = super.config.getSetting(JwtRealmSettings.ALLOWED_CLOCK_SKEW);
-        this.jwkSetPath = super.config.getSetting(JwtRealmSettings.JWKSET_PATH);
-        this.hmacSecretKey = super.config.getSetting(JwtRealmSettings.ISSUER_HMAC_SECRET_KEY);
+        // RealmConfig realmConfig = super.config;
+        this.allowedIssuer = realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER);
+        this.allowedSignatureAlgorithms = realmConfig.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
+        this.allowedClientSkew = realmConfig.getSetting(JwtRealmSettings.ALLOWED_CLOCK_SKEW);
+        this.jwkSetPath = realmConfig.getSetting(JwtRealmSettings.JWKSET_PATH);
+        this.hmacSecretKey = realmConfig.getSetting(JwtRealmSettings.ISSUER_HMAC_SECRET_KEY);
 
         // JWT audience settings
-        this.allowedAudiences = super.config.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES);
+        this.allowedAudiences = realmConfig.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES);
 
         // JWT end-user settings
-        this.principalAttribute = ClaimParser.forSetting(LOGGER, JwtRealmSettings.CLAIMS_PRINCIPAL, super.config, true);
-        this.groupsAttribute = ClaimParser.forSetting(LOGGER, JwtRealmSettings.CLAIMS_GROUPS, super.config, false);
-        this.populateUserMetadata = super.config.getSetting(JwtRealmSettings.POPULATE_USER_METADATA);
+        this.principalAttribute = ClaimParser.forSetting(LOGGER, JwtRealmSettings.CLAIMS_PRINCIPAL, realmConfig, true);
+        this.groupsAttribute = ClaimParser.forSetting(LOGGER, JwtRealmSettings.CLAIMS_GROUPS, realmConfig, false);
+        this.populateUserMetadata = realmConfig.getSetting(JwtRealmSettings.POPULATE_USER_METADATA);
 
         // JWT client settings
-        this.clientAuthorizationType = super.config.getSetting(JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE);
-        this.clientAuthorizationSharedSecret = super.config.getSetting(JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET);
+        this.clientAuthorizationType = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE);
+        this.clientAuthorizationSharedSecret = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET);
 
         // JWT cache settings
-        this.cacheTtl = super.config.getSetting(JwtRealmSettings.CACHE_TTL);
-        this.cacheMaxUsers = super.config.getSetting(JwtRealmSettings.CACHE_MAX_USERS);
-        this.cacheHashAlgo = super.config.getSetting(JwtRealmSettings.CACHE_HASH_ALGO);
+        this.cacheTtl = realmConfig.getSetting(JwtRealmSettings.CACHE_TTL);
+        this.cacheMaxUsers = realmConfig.getSetting(JwtRealmSettings.CACHE_MAX_USERS);
+        this.cacheHashAlgo = realmConfig.getSetting(JwtRealmSettings.CACHE_HASH_ALGO);
 
         // Standard HTTP settings for outgoing connections to get JWT issuer jwkset_path
-        this.httpConnectTimeout = super.config.getSetting(JwtRealmSettings.HTTP_CONNECT_TIMEOUT);
-        this.httpConnectionReadTimeout = super.config.getSetting(JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT);
-        this.httpSocketTimeout = super.config.getSetting(JwtRealmSettings.HTTP_SOCKET_TIMEOUT);
-        this.httpMaxConnections = super.config.getSetting(JwtRealmSettings.HTTP_MAX_CONNECTIONS);
-        this.httpMaxEndpointConnections = super.config.getSetting(JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS);
+        this.httpConnectTimeout = realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECT_TIMEOUT);
+        this.httpConnectionReadTimeout = realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT);
+        this.httpSocketTimeout = realmConfig.getSetting(JwtRealmSettings.HTTP_SOCKET_TIMEOUT);
+        this.httpMaxConnections = realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_CONNECTIONS);
+        this.httpMaxEndpointConnections = realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS);
 
         // constructor derives these members
         if (this.cacheTtl.getNanos() > 0) {
@@ -158,15 +162,37 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.hasher = Hasher.resolve(this.cacheHashAlgo);
 
         // Validate Client Authorization Type and Client Authorization Credential format
-        switch (this.clientAuthorizationType) {
+        validateClientAuthorizationSettings(
+            this.clientAuthorizationType,
+            this.clientAuthorizationSharedSecret,
+            this.hmacSecretKey,
+            super.config
+        );
+
+        // Validate that at least one of JWT Set Path and HMAC Key Set are set. If HMAC Key Set, validate Base64Url-encoding.
+        validateIssuerCredentialSettings(super.config, this.hmacSecretKey, this.jwkSetPath, this.allowedSignatureAlgorithms);
+
+        final Tuple<URL, Path> urlOrPath = validateJwkSetPathSetting(realmConfig, this.jwkSetPath);
+        this.jwkSetPathUrl = urlOrPath.v1();
+        this.jwkSetPathObj = urlOrPath.v2();
+    }
+
+    // This logic is in a method for easy unit testing
+    public static void validateClientAuthorizationSettings(
+        final String clientAuthorizationType,
+        final SecureString clientAuthorizationSharedSecret,
+        final SecureString hmacSecretKey,
+        final RealmConfig realmConfig
+    ) throws SettingsException {
+        switch (clientAuthorizationType) {
             case JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET:
                 // If type is "SharedSecret", the shared secret value must be set
-                if (Strings.hasText(this.clientAuthorizationSharedSecret) == false) {
+                if (Strings.hasText(clientAuthorizationSharedSecret) == false) {
                     throw new SettingsException(
                         "Missing setting for ["
-                            + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET)
+                            + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET)
                             + "]. It is required when setting ["
-                            + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE)
+                            + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE)
                             + "] is configured as ["
                             + JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET
                             + "]"
@@ -174,11 +200,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 }
                 // If type is "SharedSecret", the shared secret value must Base64url-encoded
                 try {
-                    Base64.getUrlDecoder().decode(this.hmacSecretKey.toString());
+                    Base64.getUrlDecoder().decode(hmacSecretKey.toString());
                 } catch (Exception e) {
                     throw new SettingsException(
                         "Base64Url-encoding is required for the Client Authorization Shared Secret ["
-                            + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET)
+                            + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET)
                             + "]"
                     );
                 }
@@ -186,12 +212,12 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             case JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE:
             default:
                 // If type is "None", the shared secret value must not be set
-                if (Strings.hasText(this.clientAuthorizationSharedSecret)) {
+                if (Strings.hasText(clientAuthorizationSharedSecret)) {
                     throw new SettingsException(
                         "Setting ["
-                            + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET)
+                            + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET)
                             + "] is not supported, because setting ["
-                            + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE)
+                            + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE)
                             + "] is configured as ["
                             + JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE
                             + "]"
@@ -199,118 +225,173 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 }
                 break;
         }
+    }
 
-        // Validate that at least one of JWT Set Path and HMAC Key Set are set. If HMAC Key Set, validate Base64Url-encoding.
-        if (Strings.hasText(this.hmacSecretKey)) {
+    // This logic is in a method for easy unit testing
+    public static void validateIssuerCredentialSettings(
+        final RealmConfig realmConfig,
+        final SecureString hmacSecretKey,
+        final String jwkSetPath,
+        final List<String> allowedSignatureAlgorithms
+    ) throws SettingsException {
+        final boolean hasHmacSecretKey = Strings.hasText(hmacSecretKey);
+        final boolean hasJwkSetPath = Strings.hasText(jwkSetPath);
+
+        // Validate HMAC or JWK Set are set, or both.
+        if ((hasHmacSecretKey == false) && (hasJwkSetPath == false)) {
+            throw new SettingsException(
+                "At least one setting is required for settings ["
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.ISSUER_HMAC_SECRET_KEY)
+                    + "] or ["
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.JWKSET_PATH)
+                    + "]"
+            );
+        }
+
+        // Validate HMAC SecretKey Base64Url-encoding is OK, and decoded value is non-empty
+        if (hasHmacSecretKey) {
+            byte[] decodedHmacSecretKeyBytes = null;
             try {
-                Base64.getUrlDecoder().decode(this.hmacSecretKey.toString());
+                decodedHmacSecretKeyBytes = Base64.getUrlDecoder().decode(hmacSecretKey.toString());
             } catch (Exception e) {
                 throw new SettingsException(
-                    "Base64Url-encoding is required for the Issuer HMAC Key  ["
-                        + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.ISSUER_HMAC_SECRET_KEY)
+                    "Base64Url decoding failed for setting ["
+                        + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.ISSUER_HMAC_SECRET_KEY)
                         + "]",
                     e
                 );
             }
-        } else if (Strings.hasText(this.jwkSetPath) == false) {
-            throw new SettingsException(
-                "At least one setting must be configured for ["
-                    + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.JWKSET_PATH)
-                    + "] or ["
-                    + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.ISSUER_HMAC_SECRET_KEY)
-                    + "]"
-            );
-        }
-        // If JWK Set Path is configured, validate it is an HTTPS URL, or a local config file which exists and is non-empty.
-        URL jwkSetPathUrlTemp = null;
-        Path jwkSetPathObjTemp = null;
-        if (Strings.hasText(this.jwkSetPath)) {
-            if (this.jwkSetPath.startsWith("https://")) {
-                try {
-                    jwkSetPathUrlTemp = new URL(this.jwkSetPath);
-                } catch (Exception e) {
-                    throw new SettingsException(
-                        "Invalid HTTPS URL for setting ["
-                            + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.JWKSET_PATH)
-                            + "]",
-                        e
-                    );
-                }
-            } else if (this.jwkSetPath.startsWith("http://")) {
+            if (decodedHmacSecretKeyBytes.length == 0) {
                 throw new SettingsException(
-                    "Invalid JWK Set Path setting ["
-                        + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.JWKSET_PATH)
-                        + "]. HTTP not supported, use HTTPS."
+                    "Base64Url decoded value is empty for setting ["
+                        + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.ISSUER_HMAC_SECRET_KEY)
+                        + "]"
                 );
-            } else {
-                jwkSetPathObjTemp = realmConfig.env().configFile().resolve(this.jwkSetPath);
-                try {
-                    final String jwtSetPathContents = Files.readString(jwkSetPathObjTemp, StandardCharsets.UTF_8);
-                    if (Strings.hasText(jwtSetPathContents) == false) {
-                        throw new SettingsException(
-                            "Empty JWK Set Path file for setting ["
-                                + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.JWKSET_PATH)
-                                + "]"
-                        );
-                    }
-                } catch (SettingsException e) {
-                    throw e; // re-throw inner SettingsException
-                } catch (Exception e) {
-                    throw new SettingsException(
-                        "Invalid JWK Set Path setting ["
-                            + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.JWKSET_PATH)
-                            + "]",
-                        e
-                    );
-                }
             }
+            Arrays.fill(decodedHmacSecretKeyBytes, (byte) 0); // clear decoded secret key
         }
-        this.jwkSetPathUrl = jwkSetPathUrlTemp;
-        this.jwkSetPathObj = jwkSetPathObjTemp;
+
+        // Validate JWK Set Path is HTTPS URL or local file. If local file, validate it exists and is non-empty.
+        final Tuple<URL, Path> urlOrPath = validateJwkSetPathSetting(realmConfig, jwkSetPath);
 
         // If Issuer HMAC Secret Key is set, at least one HMAC Signature Algorithm is required.
         // If at least one HMAC Signature Algorithm is set, Issuer HMAC Secret Key is required.
-        final boolean anySecretKeySignatureAlgorithms = this.allowedSignatureAlgorithms.stream()
+        final boolean anySecretKeySignatureAlgorithms = allowedSignatureAlgorithms.stream()
             .anyMatch(JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS::contains);
-        if ((Strings.hasText(this.hmacSecretKey)) && (anySecretKeySignatureAlgorithms == false)) {
+        if (hasHmacSecretKey && (anySecretKeySignatureAlgorithms == false)) {
             throw new SettingsException(
-                "Issuer HMAC Key is configured in setting ["
-                    + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.ISSUER_HMAC_SECRET_KEY)
+                "Issuer HMAC Secret Key is configured in setting ["
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.ISSUER_HMAC_SECRET_KEY)
                     + "], but no HMAC signature algorithms were found in setting ["
-                    + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)
                     + "]"
             );
-        } else if ((anySecretKeySignatureAlgorithms) && (Strings.hasText(this.hmacSecretKey) == false)) {
+        } else if ((anySecretKeySignatureAlgorithms) && (hasHmacSecretKey == false)) {
             throw new SettingsException(
                 "HMAC signature algorithms were found in setting ["
-                    + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)
-                    + "], but no Issuer HMAC Key is configured in setting ["
-                    + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.JWKSET_PATH)
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)
+                    + "], but no Issuer HMAC Secret Key is configured in setting ["
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.JWKSET_PATH)
                     + "]"
             );
         }
 
         // If JWT Set Path is set, at least one Public Key Signature Algorithm is required.
         // If at least one Public Key Signature Algorithm is set, JWT Set Path is required.
-        final boolean anyPublicKeySignatureAlgorithms = this.allowedSignatureAlgorithms.stream()
+        final boolean anyPublicKeySignatureAlgorithms = allowedSignatureAlgorithms.stream()
             .anyMatch(JwtRealmSettings.SUPPORTED_PUBLIC_KEY_SIGNATURE_ALGORITHMS::contains);
-        if ((Strings.hasText(this.jwkSetPath)) && (anyPublicKeySignatureAlgorithms == false)) {
+        if (hasJwkSetPath && (anyPublicKeySignatureAlgorithms == false)) {
             throw new SettingsException(
                 "JWT Set Path is configured in setting ["
-                    + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.JWKSET_PATH)
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.JWKSET_PATH)
                     + "], but no public key signature algorithms were found in setting ["
-                    + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)
                     + "]"
             );
-        } else if ((anyPublicKeySignatureAlgorithms) && (Strings.hasText(this.jwkSetPath) == false)) {
+        } else if ((anyPublicKeySignatureAlgorithms) && (hasJwkSetPath == false)) {
             throw new SettingsException(
                 "Public key signature algorithms were found in setting ["
-                    + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)
                     + "], but no JWT Set Path is configured in setting ["
-                    + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.JWKSET_PATH)
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.JWKSET_PATH)
                     + "]"
             );
         }
+    }
+
+    public static Tuple<URL, Path> validateJwkSetPathSetting(final RealmConfig realmConfig, final String jwkSetPath) {
+        if (jwkSetPath == null) {
+            return null;
+        }
+        // Suppress any URL parsing exception. If needed, it will be added to a SettingsException at the end.
+        Exception urlException = null;
+        if (jwkSetPath.startsWith("http://")) {
+            urlException = new Exception(
+                "HTTP URL ["
+                    + jwkSetPath
+                    + "] is not allowed for setting ["
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.JWKSET_PATH)
+                    + "]. Must use HTTPS or local file."
+            );
+        } else if (jwkSetPath.startsWith("https://")) {
+            try {
+                return new Tuple<>(new URL(jwkSetPath), null); // RETURN URL AS NON-NULL AND PATH AS NULL
+            } catch (Exception e) {
+                LOGGER.trace(
+                    "HTTPS URL ["
+                        + jwkSetPath
+                        + "] parsing failed for setting ["
+                        + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.JWKSET_PATH)
+                        + "]",
+                    e
+                );
+                urlException = e;
+            }
+        } else {
+            urlException = new Exception(
+                "URL ["
+                    + jwkSetPath
+                    + "] is not valid for setting ["
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.JWKSET_PATH)
+                    + "]. Must use HTTPS or local file."
+            );
+        }
+        // Suppress any Path parsing exception. If needed, it will be added to a SettingsException at the end.
+        Exception pathException = null;
+        try {
+            // Use separate lines, in case any are null. That allows NPE stack trace line number to show exactly which one is null.
+            final Environment environment = realmConfig.env();
+            final Path directoryPath = environment.configFile();
+            final Path filePath = directoryPath.resolve(jwkSetPath);
+            // Check file exists, accessible, and non-empty. TODO Maybe return parsed contents here instead of later in a watcher thread.
+            final String fileContents = Files.readString(filePath, StandardCharsets.UTF_8);
+            if (Strings.hasText(fileContents) == false) {
+                throw new Exception(
+                    "Empty file ["
+                        + jwkSetPath
+                        + "] for setting ["
+                        + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.JWKSET_PATH)
+                        + "]"
+                );
+            }
+            return new Tuple<>(null, filePath); // RETURN URL AS NULL AND PATH AS NON-NULL (i.e. URL Exception is discarded)
+        } catch (Exception e) {
+            pathException = new Exception(
+                "Error loading file ["
+                    + jwkSetPath
+                    + "] for setting ["
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.JWKSET_PATH)
+                    + "]",
+                e
+            );
+        }
+        // Throw SettingsException with the two suppressed exceptions.
+        final SettingsException settingsException = new SettingsException(
+            "Invalid value [" + jwkSetPath + "] for setting " + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.JWKSET_PATH)
+        );
+        settingsException.addSuppressed(urlException);
+        settingsException.addSuppressed(pathException);
+        throw settingsException;
     }
 
     private void ensureExpectedValueForInitialized(final boolean expectedValue) {

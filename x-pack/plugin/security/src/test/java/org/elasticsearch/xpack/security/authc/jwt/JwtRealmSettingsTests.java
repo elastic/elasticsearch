@@ -35,7 +35,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
 
     public void testAllSettings() throws Exception {
         final String realmName = "jwt" + randomIntBetween(1, 9);
-        final Settings settings = super.generateRealmSettings(realmName).build();
+        final Settings settings = super.generateRandomRealmSettings(realmName).build();
         final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
         for (final Setting.AffixSetting<?> setting : JwtRealmSettings.getSettings()) {
             realmConfig.getConcreteSetting(setting);

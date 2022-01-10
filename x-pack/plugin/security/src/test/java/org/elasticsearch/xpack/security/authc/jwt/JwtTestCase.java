@@ -6,35 +6,13 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
-import com.nimbusds.jose.JOSEException;
-import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.JWSSigner;
-import com.nimbusds.jose.JWSVerifier;
-import com.nimbusds.jose.crypto.ECDSASigner;
-import com.nimbusds.jose.crypto.ECDSAVerifier;
-import com.nimbusds.jose.crypto.MACSigner;
-import com.nimbusds.jose.crypto.MACVerifier;
-import com.nimbusds.jose.crypto.RSASSASigner;
-import com.nimbusds.jose.crypto.RSASSAVerifier;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
-import com.nimbusds.jose.jwk.RSAKey;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
-import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
-import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.SignedJWT;
-import com.nimbusds.openid.connect.sdk.Nonce;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -51,30 +29,16 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.KeyPair;
-import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.ECPublicKey;
-import java.security.interfaces.RSAPrivateKey;
-import java.security.interfaces.RSAPublicKey;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
-
-import static java.time.Instant.now;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isA;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 
@@ -95,136 +59,7 @@ public abstract class JwtTestCase extends ESTestCase {
         this.threadContext = new ThreadContext(this.globalSettings);
     }
 
-    public static Tuple<JWSSigner, JWSVerifier> createJwsSignerJWSVerifierTuple(final Object secretKeyOrKeyPair) throws JOSEException {
-        assertThat(secretKeyOrKeyPair, is(notNullValue()));
-        assertThat(secretKeyOrKeyPair, is(anyOf(isA(SecretKey.class), isA(KeyPair.class))));
-        if (secretKeyOrKeyPair instanceof SecretKey hmacKey) {
-            return new Tuple<>(new MACSigner(hmacKey), new MACVerifier(hmacKey));
-        } else if (secretKeyOrKeyPair instanceof KeyPair keyPair) {
-            if (keyPair.getPrivate()instanceof RSAPrivateKey rsaPrivateKey) {
-                return new Tuple<>(new RSASSASigner(rsaPrivateKey), new RSASSAVerifier((RSAPublicKey) keyPair.getPublic()));
-            } else if (keyPair.getPrivate()instanceof ECPrivateKey ecPrivateKey) {
-                return new Tuple<>(new ECDSASigner(ecPrivateKey), new ECDSAVerifier((ECPublicKey) keyPair.getPublic()));
-            }
-        }
-        return null;
-    }
-
-    public static Object generateSecretKeyOrKeyPair(final String signatureAlgorithm) throws JOSEException {
-        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
-        if (JWSAlgorithm.Family.HMAC_SHA.contains(signatureAlgorithm)) {
-            return generateSecretKey(signatureAlgorithm); // SecretKeySpec
-        } else if (JWSAlgorithm.Family.RSA.contains(signatureAlgorithm)) {
-            return generateRsaKeyPair(signatureAlgorithm); // KeyPair(RSAPublicKey,RSAPrivateKey)
-        } else if (JWSAlgorithm.Family.EC.contains(signatureAlgorithm)) {
-            return generateEcKeyPair(signatureAlgorithm); // KeyPair(ECPublicKey,ECPrivateKey)
-        }
-        throw new JOSEException("Unsupported RSA, EC, or HMAC family signature algorithm " + signatureAlgorithm);
-    }
-
-    // Nimbus JOSE+JWT requires HMAC keys to match or exceed digest strength.
-    public static SecretKey generateSecretKey(final String signatureAlgorithm) throws JOSEException {
-        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
-        if (JWSAlgorithm.Family.HMAC_SHA.contains(jwsAlgorithm)) {
-            final int minRequiredSecretBytesLength = MACSigner.getMinRequiredSecretLength(jwsAlgorithm) / 8;
-            final byte[] hmacKeyBytes = new byte[randomIntBetween(minRequiredSecretBytesLength, minRequiredSecretBytesLength * 3)];
-            random().nextBytes(hmacKeyBytes);
-            return new SecretKeySpec(hmacKeyBytes, signatureAlgorithm);
-        }
-        throw new JOSEException("Unsupported HMAC family signature algorithm " + signatureAlgorithm);
-    }
-
-    public static KeyPair generateKeyPair(final String signatureAlgorithm) throws JOSEException {
-        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
-        if (JWSAlgorithm.Family.RSA.contains(jwsAlgorithm)) {
-            return generateRsaKeyPair(signatureAlgorithm);
-        } else if (JWSAlgorithm.Family.EC.contains(jwsAlgorithm)) {
-            return generateEcKeyPair(signatureAlgorithm);
-        }
-        throw new JOSEException("Unsupported signature algorithm " + signatureAlgorithm);
-    }
-
-    // Nimbus JOSE+JWT requires RSA keys to match or exceed 2048-bit strength. No dependency on digest strength.
-    public static KeyPair generateRsaKeyPair(final String signatureAlgorithm) throws JOSEException {
-        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
-        if (JWSAlgorithm.Family.RSA.contains(jwsAlgorithm)) {
-            final Integer rsaSize = randomFrom(2048, 3072);
-            final RSAKey privateKey = new RSAKeyGenerator(rsaSize, false).generate();
-            return new KeyPair(privateKey.toPublicKey(), privateKey.toPrivateKey());
-        }
-        throw new JOSEException("Unsupported RSA family signature algorithm " + signatureAlgorithm);
-    }
-
-    // Nimbus JOSE+JWT requires EC curves to match digest strength (as per RFC 7519).
-    public static KeyPair generateEcKeyPair(final String signatureAlgorithm) throws JOSEException {
-        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
-        if (JWSAlgorithm.Family.EC.contains(jwsAlgorithm)) {
-            final Curve ecCurve = randomFrom(Curve.forJWSAlgorithm(jwsAlgorithm)); // EC curves by specific SHA-2 lengths.
-            final ECKey privateKey = new ECKeyGenerator(ecCurve).generate();
-            return new KeyPair(privateKey.toPublicKey(), privateKey.toPrivateKey());
-        }
-        throw new JOSEException("Unsupported EC family signature algorithm " + signatureAlgorithm);
-    }
-
-    public static SignedJWT generateValidSignedJWT(final JWSSigner jwsSigner, final String signatureAlgorithm) throws Exception {
-        final Tuple<JWSHeader, JWTClaimsSet> headerAndBody = createJwsHeaderAndJwtClaimsSet(
-            jwsSigner,
-            signatureAlgorithm,
-            randomFrom("https://www.example.com/", "") + "iss1" + randomIntBetween(0, 99),
-            randomFrom(List.of("rp_client1"), List.of("aud1", "aud2", "aud3")),
-            randomFrom("sub", "uid", "name", "dn", "email", "custom"),
-            "principal1",
-            randomBoolean() ? null : randomFrom("groups", "roles", "other"),
-            randomFrom(List.of(""), List.of("grp1"), List.of("rol1", "rol2", "rol3"), List.of("per1"))
-        );
-        return signSignedJwt(jwsSigner, headerAndBody.v1(), headerAndBody.v2());
-    }
-
-    public static SignedJWT signSignedJwt(final JWSSigner jwtSigner, final JWSHeader jwsHeader, final JWTClaimsSet jwtClaimsSet)
-        throws JOSEException {
-        final SignedJWT signedJwt = new SignedJWT(jwsHeader, jwtClaimsSet);
-        signedJwt.sign(jwtSigner);
-        return signedJwt;
-    }
-
-    public static boolean verifySignedJWT(final JWSVerifier jwtVerifier, final SignedJWT signedJwt) throws Exception {
-        return signedJwt.verify(jwtVerifier);
-    }
-
-    public static Tuple<JWSHeader, JWTClaimsSet> createJwsHeaderAndJwtClaimsSet(
-        final JWSSigner jwtSigner,
-        final String signatureAlgorithm,
-        final String issuer,
-        final List<String> audiences,
-        final String principalClaimName,
-        final String principalClaimValue,
-        final String groupsClaimName,
-        final List<String> groupsClaimValue
-    ) {
-        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
-        final JWSHeader jwtHeader = new JWSHeader.Builder(jwsAlgorithm).build();
-        final JWTClaimsSet.Builder jwtClaimsSetBuilder = new JWTClaimsSet.Builder().jwtID(
-            randomFrom((String) null, randomAlphaOfLengthBetween(1, 20))
-        )
-            .issueTime(randomFrom((Date) null, Date.from(now().minusSeconds(randomLongBetween(1, 60)))))
-            .notBeforeTime(randomFrom((Date) null, Date.from(now().minusSeconds(randomLongBetween(1, 60)))))
-            .expirationTime(randomFrom((Date) null, Date.from(now().plusSeconds(randomLongBetween(3600, 7200)))))
-            .issuer(issuer)
-            .audience(audiences)
-            // .subject(subject)
-            .claim("nonce", new Nonce());
-        if ((Strings.hasText(principalClaimName)) && (principalClaimValue != null)) {
-            jwtClaimsSetBuilder.claim(principalClaimName, principalClaimValue.toString());
-        }
-        if ((Strings.hasText(groupsClaimName)) && (groupsClaimValue != null)) {
-            jwtClaimsSetBuilder.claim(groupsClaimName, groupsClaimValue.toString());
-        }
-        final JWTClaimsSet jwtClaimsSet = jwtClaimsSetBuilder.build();
-        final Tuple<JWSHeader, JWTClaimsSet> headerAndBody = new Tuple<>(jwtHeader, jwtClaimsSet);
-        return headerAndBody;
-    }
-
-    protected Settings.Builder generateRealmSettings(final String name) throws IOException {
+    protected Settings.Builder generateRandomRealmSettings(final String name) throws IOException {
         final boolean includeRsa = randomBoolean();
         final boolean includeEc = randomBoolean();
         final boolean includePublicKey = includeRsa || includeEc;

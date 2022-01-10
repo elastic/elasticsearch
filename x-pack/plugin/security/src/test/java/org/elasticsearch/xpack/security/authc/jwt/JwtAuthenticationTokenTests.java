@@ -22,9 +22,9 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
 
     public void testJwtAuthenticationTokenParse() throws Exception {
         final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
-        final Object secretKeyOrKeyPair = generateSecretKeyOrKeyPair(signatureAlgorithm);
-        final Tuple<JWSSigner, JWSVerifier> jwsSignerAndVerifier = createJwsSignerJWSVerifierTuple(secretKeyOrKeyPair);
-        final String serializedJWTOriginal = generateValidSignedJWT(jwsSignerAndVerifier.v1(), signatureAlgorithm).serialize();
+        final Object secretKeyOrKeyPair = JwtUtil.generateSecretKeyOrKeyPair(signatureAlgorithm);
+        final Tuple<JWSSigner, JWSVerifier> jwsSignerAndVerifier = JwtUtil.createJwsSignerJWSVerifier(secretKeyOrKeyPair);
+        final String serializedJWTOriginal = JwtUtil.generateValidSignedJWT(jwsSignerAndVerifier.v1(), signatureAlgorithm).serialize();
 
         final SecureString jwt = new SecureString(serializedJWTOriginal.toCharArray());
         final SecureString clientSharedSecret = randomBoolean() ? null : new SecureString(randomAlphaOfLengthBetween(10, 20).toCharArray());

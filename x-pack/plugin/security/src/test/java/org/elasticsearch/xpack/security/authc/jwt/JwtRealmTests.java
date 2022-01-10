@@ -189,10 +189,10 @@ public class JwtRealmTests extends JwtTestCase {
                 : randomFrom(supportedSignatureAlgorithmsPublicKey);
             // generate one each for SecretKey and KeyPair (one may be null)
             final SecretKey signatureSecretKey = Strings.hasText(signatureAlgorithmSecretKey)
-                ? generateSecretKey(signatureAlgorithmSecretKey)
+                ? JwtUtil.generateSecretKey(signatureAlgorithmSecretKey)
                 : null;
             final KeyPair signatureKeyPair = Strings.hasText(signatureAlgorithmPublicKey)
-                ? generateKeyPair(signatureAlgorithmPublicKey)
+                ? JwtUtil.generateKeyPair(signatureAlgorithmPublicKey)
                 : null;
 
             final String jwkSetPath = supportedSignatureAlgorithmsPublicKey.isEmpty()
@@ -379,9 +379,8 @@ public class JwtRealmTests extends JwtTestCase {
         final Object signatureSecretKeyOrPublicKey = useSecretKey ? selectedSignatureSecretKey : selectedSignatureKeyPair;
 
         // use selected algorithm and key to sign a JWT
-        final Tuple<JWSSigner, JWSVerifier> jwsSignerAndVerifier = createJwsSignerJWSVerifierTuple(signatureSecretKeyOrPublicKey);
-        final Tuple<JWSHeader, JWTClaimsSet> jwsHeaderAndJwtClaimsSet = createJwsHeaderAndJwtClaimsSet(
-            jwsSignerAndVerifier.v1(),
+        final Tuple<JWSSigner, JWSVerifier> jwsSignerAndVerifier = JwtUtil.createJwsSignerJWSVerifier(signatureSecretKeyOrPublicKey);
+        final Tuple<JWSHeader, JWTClaimsSet> jwsHeaderAndJwtClaimsSet = JwtUtil.createJwsHeaderAndJwtClaimsSet(
             signatureAlgorithm,
             selectedIssuer,
             selectedAudiences,
@@ -391,7 +390,13 @@ public class JwtRealmTests extends JwtTestCase {
             List.of(selectedRoleNames)
         );
         LOGGER.info("Using issuer [" + signatureSecretKeyOrPublicKey.getClass() + "]");
-        final SignedJWT signedJWT = signSignedJwt(jwsSignerAndVerifier.v1(), jwsHeaderAndJwtClaimsSet.v1(), jwsHeaderAndJwtClaimsSet.v2());
+        final SignedJWT signedJWT = JwtUtil.signSignedJwt(
+            jwsSignerAndVerifier.v1(),
+            jwsHeaderAndJwtClaimsSet.v1(),
+            jwsHeaderAndJwtClaimsSet.v2()
+        );
+        // verify the signature of the signed JWT
+        assertThat(JwtUtil.verifySignedJWT(jwsSignerAndVerifier.v2(), signedJWT), is(equalTo(true)));
 
         // signed JWT corresponds to a SecretKey or PrivateKey in one-and-only-one of the JWT authc realms
         LOGGER.info("Using JWT [" + signedJWT.serialize() + "] and client secret [" + selectedClientAuthorizationSharedSecret + "]");

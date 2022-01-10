@@ -266,7 +266,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         public Builder coerce(boolean coerce) {
-            this.coerce.setValue(new Explicit<>(coerce, true));
+            this.coerce.setValue(Explicit.explicitBoolean(coerce));
             return this;
         }
 

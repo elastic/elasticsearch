@@ -712,8 +712,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
                 } catch (IndexNotFoundException | IndexClosedException e) {}
             }
         } else {
-            if (requestBuilder instanceof SearchRequestBuilder) {
-                SearchRequestBuilder searchRequestBuilder = (SearchRequestBuilder) requestBuilder;
+            if (requestBuilder instanceof SearchRequestBuilder searchRequestBuilder) {
                 assertHitCount(searchRequestBuilder.get(), expectedCount);
             } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();

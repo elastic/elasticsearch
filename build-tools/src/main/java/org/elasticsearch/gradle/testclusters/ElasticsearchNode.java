@@ -1208,10 +1208,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     syncMethod.accept(destination, source);
                 }
             });
-        } catch (NoSuchFileException e) {
-            // Ignore these files that are sometimes left behind by the JVM
-            if (e.getFile() == null || e.getFile().contains(".attach_pid") == false) {
-                throw new UncheckedIOException(e);
+        } catch (UncheckedIOException e) {
+            if (e.getCause() instanceof NoSuchFileException) {
+                NoSuchFileException cause = (NoSuchFileException) e.getCause();
+                // Ignore these files that are sometimes left behind by the JVM
+                if (cause.getFile() == null || cause.getFile().contains(".attach_pid") == false) {
+                    throw new UncheckedIOException(cause);
+                }
+            } else {
+                throw e;
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Can't walk source " + sourceRoot, e);

@@ -90,6 +90,7 @@ setup:
               byte: [16, 32, 64, 8, 4]
               double: [3.141592653588, 2.141592653587]
               float: [1.123, 2.234]
+              scaled_float: [-3.5, 2.5]
 
 
     - do:
@@ -1342,6 +1343,45 @@ setup:
 
     - do:
         search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('scaled_float').get(0.0)"
+    - match: { hits.hits.0.fields.field.0: 3.14 }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - match: { hits.hits.2.fields.field.0: -3.5 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid stash */ $('scaled_float', 0.0)"
+    - match: { hits.hits.0.fields.field.0: 3.14 }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - match: { hits.hits.2.fields.field.0: -3.5 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('scaled_float').get(1, 0.0)"
+    - match: { hits.hits.0.fields.field.0: 0.0 }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - match: { hits.hits.2.fields.field.0: 2.5 }
+
+    - do:
+        search:
             rest_total_hits_as_int: true
             body:
                 query: { term: { _id: 1 } }
@@ -1406,3 +1446,81 @@ setup:
               script:
                 source: "int value = field('dne').get(1, 1); value"
   - match: { hits.hits.0.fields.field.0: 1 }
+
+---
+"version and sequence number":
+  - do:
+      indices.create:
+        index: versiontest
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 3000
+        version: 50
+        version_type: external
+        body:
+          keyword: "3k"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 3000 } }
+          script_fields:
+            ver:
+              script:
+                source: "field('_version').get(10000)"
+            seq:
+              script:
+                source: "field('_seq_no').get(10000)"
+  - match: { hits.hits.0.fields.ver.0: 50 }
+  - match: { hits.hits.0.fields.seq.0: 3 }
+
+  - do:
+      index:
+        index: test
+        id: 3000
+        version: 60
+        version_type: external
+        body:
+          keyword: "3k+1"
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch:      conflict
+      index:
+        index: test
+        id: 3000
+        version: 55
+        version_type: external
+        body:
+          keyword: "3k+2"
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 3000 } }
+          script_fields:
+            ver:
+              script:
+                source: "field('_version').get(10000)"
+            seq:
+              script:
+                source: "field('_seq_no').get(10000)"
+  - match: { hits.hits.0.fields.ver.0: 60 }
+  - match: { hits.hits.0.fields.seq.0: 4 }

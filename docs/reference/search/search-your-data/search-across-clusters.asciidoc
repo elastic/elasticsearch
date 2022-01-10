@@ -20,6 +20,7 @@ The following APIs support {ccs}:
 * <<multi-search-template,Multi search template>>
 * <<search-field-caps,Field capabilities>>
 * experimental:[] <<eql-search-api,EQL search>>
+* experimental:[] <<sql-search-api,SQL search>>
 * experimental:[] <<search-vector-tile-api,Vector tile search>>
 
 [discrete]

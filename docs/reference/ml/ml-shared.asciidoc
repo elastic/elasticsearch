@@ -169,10 +169,14 @@ end::bucket-count-anomaly-jobs[]
 
 tag::bucket-span[]
 The size of the interval that the analysis is aggregated into, typically between
-`5m` and `1h`. The default value is `5m`. If the {anomaly-job} uses a {dfeed}
-with {ml-docs}/ml-configuring-aggregation.html[aggregations], this value must be
-divisible by the interval of the date histogram aggregation. For more
-information, see {ml-docs}/ml-ad-finding-anomalies.html#ml-ad-bucket-span[Bucket span].
+`5m` and `1h`. This value should be either a whole number of days or equate to a
+whole number of buckets in one day;
+deprecated:[8.1, Values that do not meet these recommendations are deprecated and will be disallowed in a future version].
+If the {anomaly-job} uses a {dfeed} with
+{ml-docs}/ml-configuring-aggregation.html[aggregations], this value must also be
+divisible by the interval of the date histogram aggregation. The default value
+is `5m`. For more information, see
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-bucket-span[Bucket span].
 end::bucket-span[]
 
 tag::bucket-span-results[]

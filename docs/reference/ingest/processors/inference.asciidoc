@@ -6,7 +6,8 @@
 ++++
 
 
-Uses a pre-trained {dfanalytics} model to infer against the data that is being
+Uses a pre-trained {dfanalytics} model or a model deployed for natural
+language processing tasks to infer against the data that is being
 ingested in the pipeline.
 
 

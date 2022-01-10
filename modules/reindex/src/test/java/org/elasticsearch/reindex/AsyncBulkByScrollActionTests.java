@@ -1068,8 +1068,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 lastSearch.set(new RequestAndListener<>((SearchRequest) request, (ActionListener<SearchResponse>) responseActionListener));
                 return;
             }
-            if (request instanceof SearchScrollRequest) {
-                SearchScrollRequest scroll = (SearchScrollRequest) request;
+            if (request instanceof SearchScrollRequest scroll) {
                 boolean newRequest = usedScolls.add(scroll);
                 assertTrue("We can't reuse scroll requests", newRequest);
                 if (scrollAttempts.incrementAndGet() <= scrollsToReject) {
@@ -1079,14 +1078,12 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 lastScroll.set(new RequestAndListener<>(scroll, (ActionListener<SearchResponse>) responseActionListener));
                 return;
             }
-            if (request instanceof ClearScrollRequest) {
-                ClearScrollRequest clearScroll = (ClearScrollRequest) request;
+            if (request instanceof ClearScrollRequest clearScroll) {
                 scrollsCleared.addAll(clearScroll.getScrollIds());
                 responseActionListener.onResponse((Response) new ClearScrollResponse(true, clearScroll.getScrollIds().size()));
                 return;
             }
-            if (request instanceof BulkRequest) {
-                BulkRequest bulk = (BulkRequest) request;
+            if (request instanceof BulkRequest bulk) {
                 int toReject;
                 if (bulksAttempts.incrementAndGet() > bulksToReject) {
                     toReject = -1;
@@ -1098,8 +1095,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                     DocWriteRequest<?> item = bulk.requests().get(i);
                     DocWriteResponse response;
                     ShardId shardId = new ShardId(new Index(item.index(), "uuid"), 0);
-                    if (item instanceof IndexRequest) {
-                        IndexRequest index = (IndexRequest) item;
+                    if (item instanceof IndexRequest index) {
                         response = new IndexResponse(
                             shardId,
                             index.id() == null ? "dummy_id" : index.id(),
@@ -1108,8 +1104,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                             randomIntBetween(0, Integer.MAX_VALUE),
                             true
                         );
-                    } else if (item instanceof UpdateRequest) {
-                        UpdateRequest update = (UpdateRequest) item;
+                    } else if (item instanceof UpdateRequest update) {
                         response = new UpdateResponse(
                             shardId,
                             update.id(),
@@ -1118,8 +1113,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                             randomIntBetween(0, Integer.MAX_VALUE),
                             Result.CREATED
                         );
-                    } else if (item instanceof DeleteRequest) {
-                        DeleteRequest delete = (DeleteRequest) item;
+                    } else if (item instanceof DeleteRequest delete) {
                         response = new DeleteResponse(
                             shardId,
                             delete.id(),

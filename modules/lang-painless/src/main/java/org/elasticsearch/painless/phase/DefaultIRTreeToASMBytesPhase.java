@@ -456,8 +456,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         if (irInitializerNode instanceof DeclarationBlockNode) {
             visit(irInitializerNode, writeScope);
-        } else if (irInitializerNode instanceof ExpressionNode) {
-            ExpressionNode irExpressionNode = (ExpressionNode) irInitializerNode;
+        } else if (irInitializerNode instanceof ExpressionNode irExpressionNode) {
 
             visit(irExpressionNode, writeScope);
             methodWriter.writePop(MethodWriter.getType(irExpressionNode.getDecorationValue(IRDExpressionType.class)).getSize());
@@ -1672,8 +1671,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             // handle the case for unknown functional interface
             // to hint at which values are the call's arguments
             // versus which values are captures
-            if (irArgumentNode instanceof DefInterfaceReferenceNode) {
-                DefInterfaceReferenceNode defInterfaceReferenceNode = (DefInterfaceReferenceNode) irArgumentNode;
+            if (irArgumentNode instanceof DefInterfaceReferenceNode defInterfaceReferenceNode) {
                 List<String> captureNames = defInterfaceReferenceNode.getDecorationValueOrDefault(
                     IRDCaptureNames.class,
                     Collections.emptyList()

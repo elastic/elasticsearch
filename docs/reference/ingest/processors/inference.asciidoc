@@ -82,7 +82,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification
 
 [discrete]
 [[inference-processor-fill-mask-opt]]
-==== Fill Mask configuration options
+==== Fill mask configuration options
 
 `num_top_classes`::
 (Optional, integer)

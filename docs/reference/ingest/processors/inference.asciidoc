@@ -218,7 +218,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 
 [discrete]
 [[inference-processor-text-embedding-opt]]
-==== Text Embedding configuration options
+==== Text embedding configuration options
 
 `results_field`::
 (Optional, string)

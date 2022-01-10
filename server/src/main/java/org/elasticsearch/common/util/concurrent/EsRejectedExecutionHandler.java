@@ -24,8 +24,11 @@ public abstract class EsRejectedExecutionHandler implements RejectedExecutionHan
         return rejected.count();
     }
 
-    protected final EsRejectedExecutionException newRejectedException(Runnable r, ThreadPoolExecutor executor, boolean isExecutorShutdown) {
+    protected void incrementRejections() {
         rejected.inc();
+    }
+
+    protected final EsRejectedExecutionException newRejectedException(Runnable r, ThreadPoolExecutor executor, boolean isExecutorShutdown) {
         return new EsRejectedExecutionException("rejected execution of " + r + " on " + executor, isExecutorShutdown);
     }
 }

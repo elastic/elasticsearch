@@ -330,6 +330,7 @@ public class EsExecutors {
         @Override
         public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
             if (rejectAfterShutdown && executor.isShutdown()) {
+                incrementRejections();
                 throw newRejectedException(r, executor, true);
             }
             try {

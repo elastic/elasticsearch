@@ -30,6 +30,7 @@ public class EsAbortPolicy extends EsRejectedExecutionHandler {
                 return;
             }
         }
+        incrementRejections();
         throw newRejectedException(r, executor, executor.isShutdown());
     }
 }

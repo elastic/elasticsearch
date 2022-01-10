@@ -644,8 +644,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         networkDisruption.stopDisrupting();
 
         logger.info("--> make sure all failing requests get a response");
-        expectThrows(RepositoryException.class, firstDeleteFuture::actionGet);
-        expectThrows(RepositoryException.class, secondDeleteFuture::actionGet);
+        assertAcked(firstDeleteFuture.actionGet());
+        assertAcked(secondDeleteFuture.actionGet());
         expectThrows(SnapshotException.class, createThirdSnapshot::actionGet);
 
         awaitNoMoreRunningOperations();
@@ -689,7 +689,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> make sure all failing requests get a response");
         expectThrows(SnapshotException.class, firstFailedSnapshotFuture::actionGet);
         expectThrows(SnapshotException.class, secondFailedSnapshotFuture::actionGet);
-        expectThrows(RepositoryException.class, failedDeleteFuture::actionGet);
+        assertAcked(failedDeleteFuture.get());
 
         awaitNoMoreRunningOperations();
     }
@@ -1037,7 +1037,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final List<String> snapshotNames = createNSnapshots(repoName, randomIntBetween(2, 5));
         final String masterName = internalCluster().getMasterName();
         blockMasterFromDeletingIndexNFile(repoName);
-        final ActionFuture<CreateSnapshotResponse> snapshotThree = startFullSnapshotFromMasterClient(repoName, "snap-other");
+        final ActionFuture<CreateSnapshotResponse> snapshotOther = startFullSnapshotFromMasterClient(repoName, "snap-other");
         waitForBlock(masterName, repoName);
 
         final String snapshotOne = snapshotNames.get(0);
@@ -1050,11 +1050,14 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         networkDisruption.stopDisrupting();
         ensureStableCluster(4);
 
-        assertSuccessful(snapshotThree);
+        assertSuccessful(snapshotOther);
         try {
             deleteSnapshotOne.actionGet();
         } catch (RepositoryException re) {
             // ignored
+        } catch (SnapshotMissingException re) {
+            // When master node is isolated during this test, the newly elected master takes over and executes the snapshot deletion. In
+            // this case the retried delete snapshot operation on the new master can fail with SnapshotMissingException
         }
         awaitNoMoreRunningOperations();
     }

@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -270,6 +271,84 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
             assertThat(scalingExecutor.getQueue().size(), rejectAfterShutdown ? equalTo(0) : equalTo(queuedAfterTermination));
             assertThat(failed.get(), equalTo(0L));
+
+        } finally {
+            ThreadPool.terminate(scalingExecutor, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testScalingThreadPoolRejectDuringShutdown() throws Exception {
+        final int min = 1;
+        final int max = randomIntBetween(min, 3);
+
+        final EsThreadPoolExecutor scalingExecutor = EsExecutors.newScaling(
+            getTestName().toLowerCase(Locale.ROOT),
+            min,
+            max,
+            randomLongBetween(0, 100),
+            TimeUnit.MILLISECONDS,
+            true,
+            EsExecutors.daemonThreadFactory(getTestName().toLowerCase(Locale.ROOT)),
+            new ThreadContext(Settings.EMPTY)
+        );
+        try {
+            final AtomicLong executed = new AtomicLong();
+            final AtomicLong rejected = new AtomicLong();
+            final AtomicLong failed = new AtomicLong();
+
+            final CountDownLatch latch = new CountDownLatch(max);
+            final CountDownLatch block = new CountDownLatch(1);
+            for (int i = 0; i < max; i++) {
+                execute(scalingExecutor, () -> {
+                    try {
+                        latch.countDown();
+                        block.await();
+                    } catch (InterruptedException e) {
+                        fail(e.toString());
+                    }
+                }, executed, rejected, failed);
+            }
+            latch.await();
+
+            assertThat(scalingExecutor.getCompletedTaskCount(), equalTo(0L));
+            assertThat(scalingExecutor.getActiveCount(), equalTo(max));
+            assertThat(scalingExecutor.getQueue().size(), equalTo(0));
+
+            final CyclicBarrier barrier = new CyclicBarrier(randomIntBetween(1, 5) + 1);
+            final Thread[] threads = new Thread[barrier.getParties()];
+
+            for (int t = 0; t < barrier.getParties(); t++) {
+                if (t == 0) {
+                    threads[t] = new Thread(() -> {
+                        try {
+                            barrier.await();
+                            scalingExecutor.shutdown();
+                        } catch (Exception e) {
+                            throw new AssertionError(e);
+                        }
+                    });
+                } else {
+                    threads[t] = new Thread(() -> {
+                        try {
+                            barrier.await();
+                            execute(scalingExecutor, () -> {}, executed, rejected, failed);
+                        } catch (Exception e) {
+                            throw new AssertionError(e);
+                        }
+                    });
+                }
+                threads[t].start();
+            }
+            block.countDown();
+
+            for (Thread thread : threads) {
+                thread.join();
+            }
+
+            assertBusy(() -> assertTrue(scalingExecutor.isTerminated()));
+            assertThat(scalingExecutor.getCompletedTaskCount(), greaterThanOrEqualTo((long) max));
+            assertThat(scalingExecutor.getQueue().size(), equalTo(0));
+            assertThat(scalingExecutor.getActiveCount(), equalTo(0));
 
         } finally {
             ThreadPool.terminate(scalingExecutor, 10, TimeUnit.SECONDS);

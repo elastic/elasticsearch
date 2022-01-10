@@ -103,13 +103,9 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange<Inte
         List<InternalRange.Bucket> buckets = instance.getBuckets();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                keyed = keyed == false;
-                break;
-            case 2:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> keyed = keyed == false;
+            case 2 -> {
                 buckets = new ArrayList<>(buckets);
                 double from = randomDouble();
                 buckets.add(
@@ -123,17 +119,16 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange<Inte
                         format
                     )
                 );
-                break;
-            case 3:
+            }
+            case 3 -> {
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalRange<>(name, buckets, format, keyed, metadata);
     }

@@ -234,23 +234,12 @@ public class MatchQueryParser {
             }
         }
 
-        Query query;
-        switch (type) {
-            case BOOLEAN:
-                query = builder.createBooleanQuery(resolvedFieldName, stringValue, occur);
-                break;
-            case BOOLEAN_PREFIX:
-                query = builder.createBooleanPrefixQuery(resolvedFieldName, stringValue, occur);
-                break;
-            case PHRASE:
-                query = builder.createPhraseQuery(resolvedFieldName, stringValue, phraseSlop);
-                break;
-            case PHRASE_PREFIX:
-                query = builder.createPhrasePrefixQuery(resolvedFieldName, stringValue, phraseSlop);
-                break;
-            default:
-                throw new IllegalStateException("No type found for [" + type + "]");
-        }
+        Query query = switch (type) {
+            case BOOLEAN -> builder.createBooleanQuery(resolvedFieldName, stringValue, occur);
+            case BOOLEAN_PREFIX -> builder.createBooleanPrefixQuery(resolvedFieldName, stringValue, occur);
+            case PHRASE -> builder.createPhraseQuery(resolvedFieldName, stringValue, phraseSlop);
+            case PHRASE_PREFIX -> builder.createPhrasePrefixQuery(resolvedFieldName, stringValue, phraseSlop);
+        };
         return query == null ? zeroTermsQuery.asQuery() : query;
     }
 

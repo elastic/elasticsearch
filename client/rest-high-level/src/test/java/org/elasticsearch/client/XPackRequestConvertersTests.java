@@ -27,19 +27,16 @@ public class XPackRequestConvertersTests extends ESTestCase {
         }
         int option = ESTestCase.between(0, 2);
         switch (option) {
-            case 0:
-                infoRequest.setCategories(EnumSet.allOf(XPackInfoRequest.Category.class));
-                break;
-            case 1:
+            case 0 -> infoRequest.setCategories(EnumSet.allOf(XPackInfoRequest.Category.class));
+            case 1 -> {
                 infoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES));
                 expectedParams.put("categories", "features");
-                break;
-            case 2:
+            }
+            case 2 -> {
                 infoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES, XPackInfoRequest.Category.BUILD));
                 expectedParams.put("categories", "build,features");
-                break;
-            default:
-                throw new IllegalArgumentException("invalid option [" + option + "]");
+            }
+            default -> throw new IllegalArgumentException("invalid option [" + option + "]");
         }
 
         Request request = XPackRequestConverters.info(infoRequest);

@@ -87,8 +87,7 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
 
         boolean rejectedAfterAllRetries = false;
         for (Object response : responses) {
-            if (response instanceof BulkResponse) {
-                BulkResponse bulkResponse = (BulkResponse) response;
+            if (response instanceof BulkResponse bulkResponse) {
                 for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
                     if (bulkItemResponse.isFailed()) {
                         BulkItemResponse.Failure failure = bulkItemResponse.getFailure();

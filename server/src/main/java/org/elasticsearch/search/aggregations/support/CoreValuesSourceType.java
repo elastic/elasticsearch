@@ -330,8 +330,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
                             @Override
                             public void visitLeaf(Query query) {
-                                if (query instanceof PointRangeQuery) {
-                                    PointRangeQuery prq = (PointRangeQuery) query;
+                                if (query instanceof PointRangeQuery prq) {
                                     range[0] = Math.max(range[0], dft.resolution().parsePointAsMillis(prq.getLowerPoint()));
                                     range[1] = Math.min(range[1], dft.resolution().parsePointAsMillis(prq.getUpperPoint()));
                                 }

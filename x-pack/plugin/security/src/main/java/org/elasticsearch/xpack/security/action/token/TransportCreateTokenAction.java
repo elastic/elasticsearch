@@ -69,11 +69,8 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
         CreateTokenRequest.GrantType type = CreateTokenRequest.GrantType.fromString(request.getGrantType());
         assert type != null : "type should have been validated in the action";
         switch (type) {
-            case PASSWORD:
-            case KERBEROS:
-                authenticateAndCreateToken(type, request, listener);
-                break;
-            case CLIENT_CREDENTIALS:
+            case PASSWORD, KERBEROS -> authenticateAndCreateToken(type, request, listener);
+            case CLIENT_CREDENTIALS -> {
                 Authentication authentication = securityContext.getAuthentication();
                 if (authentication.isAuthenticatedWithServiceAccount() && false == authentication.getUser().isRunAs()) {
                     // Service account itself cannot create OAuth2 tokens.
@@ -83,12 +80,10 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
                     return;
                 }
                 createToken(type, request, authentication, authentication, false, listener);
-                break;
-            default:
-                listener.onFailure(
-                    new IllegalStateException("grant_type [" + request.getGrantType() + "] is not supported by the create token action")
-                );
-                break;
+            }
+            default -> listener.onFailure(
+                new IllegalStateException("grant_type [" + request.getGrantType() + "] is not supported by the create token action")
+            );
         }
     }
 

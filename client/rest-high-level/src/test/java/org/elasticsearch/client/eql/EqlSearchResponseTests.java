@@ -116,17 +116,19 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<
 
     private static Tuple<DocumentField, DocumentField> randomDocumentField(XContentType xType) {
         switch (randomIntBetween(0, 2)) {
-            case 0:
+            case 0 -> {
                 String fieldName = randomAlphaOfLengthBetween(3, 10);
                 Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xType);
                 DocumentField input = new DocumentField(fieldName, tuple.v1());
                 DocumentField expected = new DocumentField(fieldName, tuple.v2());
                 return Tuple.tuple(input, expected);
-            case 1:
+            }
+            case 1 -> {
                 List<Object> listValues = randomList(1, 5, () -> randomList(1, 5, ESTestCase::randomInt));
                 DocumentField listField = new DocumentField(randomAlphaOfLength(5), listValues);
                 return Tuple.tuple(listField, listField);
-            case 2:
+            }
+            case 2 -> {
                 List<Object> objectValues = randomList(
                     1,
                     5,
@@ -141,8 +143,8 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<
                 );
                 DocumentField objectField = new DocumentField(randomAlphaOfLength(5), objectValues);
                 return Tuple.tuple(objectField, objectField);
-            default:
-                throw new IllegalStateException();
+            }
+            default -> throw new IllegalStateException();
         }
     }
 
@@ -212,14 +214,11 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<
 
     public static org.elasticsearch.xpack.eql.action.EqlSearchResponse createRandomInstance(TotalHits totalHits, XContentType xType) {
         int type = between(0, 1);
-        switch (type) {
-            case 0:
-                return createRandomEventsResponse(totalHits, xType);
-            case 1:
-                return createRandomSequencesResponse(totalHits, xType);
-            default:
-                return null;
-        }
+        return switch (type) {
+            case 0 -> createRandomEventsResponse(totalHits, xType);
+            case 1 -> createRandomSequencesResponse(totalHits, xType);
+            default -> null;
+        };
     }
 
     @Override

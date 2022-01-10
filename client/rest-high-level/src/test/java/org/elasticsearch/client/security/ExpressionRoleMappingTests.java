@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
@@ -79,71 +78,56 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     }
 
     private static ExpressionRoleMapping mutateTestItem(ExpressionRoleMapping original) throws IOException {
-        ExpressionRoleMapping mutated = null;
-        switch (randomIntBetween(0, 5)) {
-            case 0:
-                mutated = new ExpressionRoleMapping(
-                    "namechanged",
-                    FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"),
-                    singletonList("superuser"),
-                    Collections.emptyList(),
-                    null,
-                    true
-                );
-                break;
-            case 1:
-                mutated = new ExpressionRoleMapping(
-                    "kerberosmapping",
-                    FieldRoleMapperExpression.ofKeyValues("changed", "changed"),
-                    singletonList("superuser"),
-                    Collections.emptyList(),
-                    null,
-                    true
-                );
-                break;
-            case 2:
-                mutated = new ExpressionRoleMapping(
-                    "kerberosmapping",
-                    FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"),
-                    singletonList("changed"),
-                    Collections.emptyList(),
-                    null,
-                    true
-                );
-                break;
-            case 3:
-                Map<String, Object> metadata = new HashMap<>();
-                metadata.put("a", "b");
-                mutated = new ExpressionRoleMapping(
-                    "kerberosmapping",
-                    FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"),
-                    singletonList("superuser"),
-                    Collections.emptyList(),
-                    metadata,
-                    true
-                );
-                break;
-            case 4:
-                mutated = new ExpressionRoleMapping(
-                    "kerberosmapping",
-                    FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"),
-                    Collections.emptyList(),
-                    singletonList(new TemplateRoleName(Collections.singletonMap("source", "superuser"), TemplateRoleName.Format.STRING)),
-                    null,
-                    true
-                );
-                break;
-            case 5:
-                mutated = new ExpressionRoleMapping(
-                    "kerberosmapping",
-                    FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"),
-                    singletonList("superuser"),
-                    Collections.emptyList(),
-                    null,
-                    false
-                );
-                break;
-        }
-        return mutated;
+        return switch (randomIntBetween(0, 5)) {
+            case 0 -> new ExpressionRoleMapping(
+                "namechanged",
+                FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"),
+                singletonList("superuser"),
+                Collections.emptyList(),
+                null,
+                true
+            );
+            case 1 -> new ExpressionRoleMapping(
+                "kerberosmapping",
+                FieldRoleMapperExpression.ofKeyValues("changed", "changed"),
+                singletonList("superuser"),
+                Collections.emptyList(),
+                null,
+                true
+            );
+            case 2 -> new ExpressionRoleMapping(
+                "kerberosmapping",
+                FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"),
+                singletonList("changed"),
+                Collections.emptyList(),
+                null,
+                true
+            );
+            case 3 -> new ExpressionRoleMapping(
+                "kerberosmapping",
+                FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"),
+                singletonList("superuser"),
+                Collections.emptyList(),
+                Map.of("a", "b"),
+                true
+            );
+            case 4 -> new ExpressionRoleMapping(
+                "kerberosmapping",
+                FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"),
+                Collections.emptyList(),
+                singletonList(new TemplateRoleName(Collections.singletonMap("source", "superuser"), TemplateRoleName.Format.STRING)),
+                null,
+                true
+            );
+            case 5 -> new ExpressionRoleMapping(
+                "kerberosmapping",
+                FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"),
+                singletonList("superuser"),
+                Collections.emptyList(),
+                null,
+                false
+            );
+            default -> throw new UnsupportedOperationException();
+        };
     }
 }

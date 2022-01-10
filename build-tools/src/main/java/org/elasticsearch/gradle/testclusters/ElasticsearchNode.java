@@ -1209,8 +1209,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 }
             });
         } catch (UncheckedIOException e) {
-            if (e.getCause() instanceof NoSuchFileException) {
-                NoSuchFileException cause = (NoSuchFileException) e.getCause();
+            if (e.getCause()instanceof NoSuchFileException cause) {
                 // Ignore these files that are sometimes left behind by the JVM
                 if (cause.getFile() == null || cause.getFile().contains(".attach_pid") == false) {
                     throw new UncheckedIOException(cause);

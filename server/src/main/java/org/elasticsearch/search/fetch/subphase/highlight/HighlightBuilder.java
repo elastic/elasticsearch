@@ -207,16 +207,15 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
      */
     public HighlightBuilder tagsSchema(String schemaName) {
         switch (schemaName) {
-            case "default":
+            case "default" -> {
                 preTags(DEFAULT_PRE_TAGS);
                 postTags(DEFAULT_POST_TAGS);
-                break;
-            case "styled":
+            }
+            case "styled" -> {
                 preTags(DEFAULT_STYLED_PRE_TAG);
                 postTags(DEFAULT_STYLED_POST_TAGS);
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown tag schema [" + schemaName + "]");
+            }
+            default -> throw new IllegalArgumentException("Unknown tag schema [" + schemaName + "]");
         }
         return this;
     }

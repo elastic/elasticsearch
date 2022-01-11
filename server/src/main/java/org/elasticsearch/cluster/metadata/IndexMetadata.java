@@ -122,7 +122,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         EnumSet.of(ClusterBlockLevel.WRITE)
     );
 
-    public enum State {
+    public enum State implements Writeable {
         OPEN((byte) 0),
         CLOSE((byte) 1);
 
@@ -145,6 +145,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             throw new IllegalStateException("No state match for id [" + id + "]");
         }
 
+        public static State readFrom(StreamInput in) throws IOException {
+            byte id = in.readByte();
+            return switch (id) {
+                case 0 -> OPEN;
+                case 1 -> CLOSE;
+                default -> throw new IllegalStateException("No state match for id [" + id + "]");
+            };
+        }
+
         public static State fromString(String state) {
             if ("open".equals(state)) {
                 return OPEN;
@@ -152,6 +161,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 return CLOSE;
             }
             throw new IllegalStateException("No state match for [" + state + "]");
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByte(id);
         }
     }
 

@@ -234,17 +234,10 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
     private static ContextMapping<?> load(Map<String, Object> contextConfig) {
         String name = extractRequiredValue(contextConfig, FIELD_NAME);
         String type = extractRequiredValue(contextConfig, FIELD_TYPE);
-        final ContextMapping<?> contextMapping;
-        switch (Type.fromString(type)) {
-            case CATEGORY:
-                contextMapping = CategoryContextMapping.load(name, contextConfig);
-                break;
-            case GEO:
-                contextMapping = GeoContextMapping.load(name, contextConfig);
-                break;
-            default:
-                throw new ElasticsearchParseException("unknown context type[" + type + "]");
-        }
+        final ContextMapping<?> contextMapping = switch (Type.fromString(type)) {
+            case CATEGORY -> CategoryContextMapping.load(name, contextConfig);
+            case GEO -> GeoContextMapping.load(name, contextConfig);
+        };
         MappingParser.checkNoRemainingFields(name, contextConfig);
         return contextMapping;
     }

@@ -143,28 +143,18 @@ public final class CsvTestUtils {
     }
 
     private static String resolveColumnType(String type) {
-        switch (type.toLowerCase(Locale.ROOT)) {
-            case "s":
-                return "string";
-            case "b":
-                return "boolean";
-            case "i":
-                return "integer";
-            case "l":
-                return "long";
-            case "f":
-                return "float";
-            case "d":
-                return "double";
-            case "ts":
-                return "timestamp";
-            case "bt":
-                return "byte";
-            case "sh":
-                return "short";
-            default:
-                return type;
-        }
+        return switch (type.toLowerCase(Locale.ROOT)) {
+            case "s" -> "string";
+            case "b" -> "boolean";
+            case "i" -> "integer";
+            case "l" -> "long";
+            case "f" -> "float";
+            case "d" -> "double";
+            case "ts" -> "timestamp";
+            case "bt" -> "byte";
+            case "sh" -> "short";
+            default -> type;
+        };
     }
 
     /**

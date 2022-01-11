@@ -175,16 +175,12 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
             randomReadAndSlice(indexInput, firstReadLen);
             expectThrows(IOException.class, () -> {
                 switch (randomIntBetween(0, 2)) {
-                    case 0:
-                        indexInput.seek(Integer.MAX_VALUE + 4L);
-                        break;
-                    case 1:
-                        indexInput.seek(-randomIntBetween(1, 10));
-                        break;
-                    default:
+                    case 0 -> indexInput.seek(Integer.MAX_VALUE + 4L);
+                    case 1 -> indexInput.seek(-randomIntBetween(1, 10));
+                    default -> {
                         int seek = input.length + randomIntBetween(1, 100);
                         indexInput.seek(seek);
-                        break;
+                    }
                 }
             });
         }

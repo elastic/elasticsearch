@@ -52,22 +52,13 @@ public class FetchSourcePhaseBenchmark {
 
     @Setup
     public void setup() throws IOException {
-        switch (source) {
-            case "tiny":
-                sourceBytes = new BytesArray("{\"message\": \"short\"}");
-                break;
-            case "short":
-                sourceBytes = read300BytesExample();
-                break;
-            case "one_4k_field":
-                sourceBytes = buildBigExample("huge".repeat(1024));
-                break;
-            case "one_4m_field":
-                sourceBytes = buildBigExample("huge".repeat(1024 * 1024));
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown source [" + source + "]");
-        }
+        sourceBytes = switch (source) {
+            case "tiny" -> new BytesArray("{\"message\": \"short\"}");
+            case "short" -> read300BytesExample();
+            case "one_4k_field" -> buildBigExample("huge".repeat(1024));
+            case "one_4m_field" -> buildBigExample("huge".repeat(1024 * 1024));
+            default -> throw new IllegalArgumentException("Unknown source [" + source + "]");
+        };
         fetchContext = new FetchSourceContext(
             true,
             Strings.splitStringByCommaToArray(includes),

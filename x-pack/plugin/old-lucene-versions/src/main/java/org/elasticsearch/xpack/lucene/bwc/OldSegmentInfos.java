@@ -329,15 +329,12 @@ public class OldSegmentInfos implements Cloneable, Iterable<SegmentCommitInfo> {
             if (format > VERSION_74) {
                 byte marker = input.readByte();
                 switch (marker) {
-                    case 1:
+                    case 1 -> {
                         sciId = new byte[StringHelper.ID_LENGTH];
                         input.readBytes(sciId, 0, sciId.length);
-                        break;
-                    case 0:
-                        sciId = null;
-                        break;
-                    default:
-                        throw new CorruptIndexException("invalid SegmentCommitInfo ID marker: " + marker, input);
+                    }
+                    case 0 -> sciId = null;
+                    default -> throw new CorruptIndexException("invalid SegmentCommitInfo ID marker: " + marker, input);
                 }
             } else {
                 sciId = null;

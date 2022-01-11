@@ -152,10 +152,10 @@ public class EsExecutors {
      * @return non fatal exception or null if no exception.
      */
     public static Throwable rethrowErrors(Runnable runnable) {
-        if (runnable instanceof RunnableFuture) {
-            assert ((RunnableFuture) runnable).isDone();
+        if (runnable instanceof RunnableFuture<?> runnableFuture) {
+            assert runnableFuture.isDone();
             try {
-                ((RunnableFuture) runnable).get();
+                runnableFuture.get();
             } catch (final Exception e) {
                 /*
                  * In theory, Future#get can only throw a cancellation exception, an interrupted exception, or an execution

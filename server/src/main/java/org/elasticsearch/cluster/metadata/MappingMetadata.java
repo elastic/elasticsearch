@@ -22,7 +22,6 @@ import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -33,7 +32,10 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  */
 public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
 
-    public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata("_doc", Collections.emptyMap());
+    public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(
+        MapperService.SINGLE_MAPPING_NAME,
+        Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of())
+    );
 
     private final String type;
 
@@ -61,22 +63,14 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
     @SuppressWarnings("unchecked")
     public MappingMetadata(String type, Map<String, Object> mapping) {
         this.type = type;
-        Map<String, Object> withoutType = mapping;
-        final boolean isWrapped = mapping.size() == 1 && mapping.containsKey(type);
-        if (isWrapped) {
-            withoutType = (Map<String, Object>) mapping.get(type);
-        }
         try {
-            this.source = new CompressedXContent((builder, params) -> {
-                if (isWrapped) {
-                    builder.mapContents(mapping);
-                } else {
-                    builder.field(type, mapping);
-                }
-                return builder;
-            });
+            this.source = new CompressedXContent((builder, params) -> builder.mapContents(mapping));
         } catch (IOException e) {
             throw new UncheckedIOException(e);  // XContent exception, should never happen
+        }
+        Map<String, Object> withoutType = mapping;
+        if (mapping.size() == 1 && mapping.containsKey(type)) {
+            withoutType = (Map<String, Object>) mapping.get(type);
         }
         this.routingRequired = routingRequired(withoutType);
     }

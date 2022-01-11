@@ -965,6 +965,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * and some routing configuration.
      */
     public void testSnapshotRestore() throws IOException {
+        final String closedIndexName = index + "_closed";
         int count;
         if (isRunningAgainstOldCluster()) {
             // Create the index
@@ -975,6 +976,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
             createIndex(index, settings.build());
             indexRandomDocuments(count, true, true, randomBoolean(), i -> jsonBuilder().startObject().field("field", "value").endObject());
+
+            createIndex(closedIndexName, settings.build());
+            closeIndex(closedIndexName);
         } else {
             count = countOfIndexedRandomDocuments();
         }
@@ -1065,6 +1069,16 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         if (false == isRunningAgainstOldCluster()) {
             checkSnapshot("new_snap", count, Version.CURRENT);
         }
+
+        final String closedSnapshotName = isRunningAgainstOldCluster() ? "old_snap_closed" : "new_snap_closed";
+        Request createSnapshotOfClosedIndex = new Request("PUT", "/_snapshot/repo/" + closedSnapshotName);
+        createSnapshotOfClosedIndex.addParameter("wait_for_completion", "true");
+        createSnapshotOfClosedIndex.setJsonEntity("{\"indices\": \"" + closedIndexName + "\"}");
+        final ResponseException responseException = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(createSnapshotOfClosedIndex)
+        );
+        assertThat(responseException.getMessage(), containsString("index closed"));
     }
 
     public void testHistoryUUIDIsAdded() throws Exception {

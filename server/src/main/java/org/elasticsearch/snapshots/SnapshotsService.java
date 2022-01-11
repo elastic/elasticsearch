@@ -2792,6 +2792,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             if (indexMetadata == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.
                 builder.put(new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0), ShardSnapshotStatus.MISSING);
+            } else if (isClosedIndexWithoutRoutingTable(indexMetadata, currentState)) {
+                throw new IllegalStateException("index closed");
             } else {
                 final IndexRoutingTable indexRoutingTable = currentState.routingTable().index(indexName);
                 assert indexRoutingTable != null;
@@ -2826,6 +2828,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
 
         return builder.build();
+    }
+
+    private static boolean isClosedIndexWithoutRoutingTable(IndexMetadata indexMetadata, ClusterState currentState) {
+        return indexMetadata.getState() == IndexMetadata.State.CLOSE
+            && currentState.routingTable().index(indexMetadata.getIndex().getName()) == null;
     }
 
     /**

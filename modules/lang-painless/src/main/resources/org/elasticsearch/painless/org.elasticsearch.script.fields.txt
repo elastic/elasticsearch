@@ -61,6 +61,15 @@ class org.elasticsearch.script.field.ScaledFloatDocValuesField @dynamic_type {
   double get(int, double)
 }
 
+# defaults are cast to float, taking an double facilitates resolution with constants without casting
+class org.elasticsearch.script.field.HalfFloatDocValuesField @dynamic_type {
+  float get(double)
+  float get(int, double)
+  List asDoubles()
+  double asDouble(double)
+  double asDouble(int, double)
+}
+
 # defaults are cast to byte, taking an int facilitates resolution with constants without casting
 class org.elasticsearch.script.field.ByteDocValuesField @dynamic_type {
   byte get(int)

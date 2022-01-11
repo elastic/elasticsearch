@@ -13,7 +13,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConcurrentTopScoreDocCollector;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -21,6 +20,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
@@ -141,7 +141,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                         maxScoreCollector = new MaxScoreCollector();
                     }
                 } else {
-                    topDocsCollector = ConcurrentTopScoreDocCollector.create(topN, Integer.MAX_VALUE);
+                    topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
                     maxScoreCollector = new MaxScoreCollector();
                 }
                 for (LeafReaderContext ctx : this.context.searcher().getIndexReader().leaves()) {

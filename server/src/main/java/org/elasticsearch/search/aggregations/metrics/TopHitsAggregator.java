@@ -13,7 +13,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.ConcurrentTopScoreDocCollector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MultiCollector;
@@ -24,6 +23,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MaxScoreCollector;
@@ -128,7 +128,7 @@ class TopHitsAggregator extends MetricsAggregator {
                     // but here we create collectors ourselves and we need prevent OOM because of crazy an offset and size.
                     topN = Math.min(topN, subSearchContext.searcher().getIndexReader().maxDoc());
                     if (sort == null) {
-                        collectors = new Collectors(ConcurrentTopScoreDocCollector.create(topN, Integer.MAX_VALUE), null);
+                        collectors = new Collectors(TopScoreDocCollector.create(topN, Integer.MAX_VALUE), null);
                     } else {
                         // TODO: can we pass trackTotalHits=subSearchContext.trackTotalHits(){
                         // Note that this would require to catch CollectionTerminatedException

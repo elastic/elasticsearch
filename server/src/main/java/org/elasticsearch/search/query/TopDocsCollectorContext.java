@@ -20,7 +20,6 @@ import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.ConcurrentTopScoreDocCollector;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldDoc;
@@ -36,6 +35,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.MaxScoreCollector;
@@ -211,7 +211,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             int hitCountThreshold
         ) {
             if (sortAndFormats == null) {
-                return ConcurrentTopScoreDocCollector.create(numHits, searchAfter, hitCountThreshold);
+                return TopScoreDocCollector.create(numHits, searchAfter, hitCountThreshold);
             } else {
                 return TopFieldCollector.create(sortAndFormats.sort, numHits, (FieldDoc) searchAfter, hitCountThreshold);
             }

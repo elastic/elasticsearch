@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -20,7 +19,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -29,7 +27,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.Sum;
-import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.aggregations.timeseries.TimeSeries;
 import org.elasticsearch.search.sort.SortOrder;
@@ -363,8 +360,8 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
 
     public void testRetrievingHits() {
         Map.Entry<String, Double> filterMetric = randomMetricAndValue(data);
-        double lowerVal = filterMetric.getValue() - randomDoubleBetween(0, 100, true);
-        double upperVal = filterMetric.getValue() + randomDoubleBetween(0, 100, true);
+        double lowerVal = filterMetric.getValue() - randomDoubleBetween(0, 100000, true);
+        double upperVal = filterMetric.getValue() + randomDoubleBetween(0, 100000, true);
         Map<Map<String, String>, Map<Long, Map<String, Double>>> filteredData = dataFilteredByMetric(
             dataFilteredByMetric(data, filterMetric.getKey(), upperVal, false),
             filterMetric.getKey(),
@@ -373,42 +370,17 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
         );
         QueryBuilder queryBuilder = QueryBuilders.rangeQuery(filterMetric.getKey()).gt(lowerVal).lte(upperVal);
         int expectedSize = count(filteredData);
-        SearchResponse response = client().prepareSearch("index")
-            .setQuery(queryBuilder)
-            .setSize(expectedSize * 2)
-            .addAggregation(timeSeries("by_ts").subAggregation(topHits("hits").size(100)))
-            .get();
-        assertSearchResponse(response);
-        Aggregations aggregations = response.getAggregations();
-        assertNotNull(aggregations);
-        TimeSeries timeSeries = aggregations.get("by_ts");
-        assertThat(
-            timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
-            equalTo(filteredData.keySet())
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> client().prepareSearch("index")
+                .setQuery(queryBuilder)
+                .setSize(expectedSize * 2)
+                .addAggregation(timeSeries("by_ts").subAggregation(topHits("hits").size(100)))
+                .addAggregation(topHits("top_hits").size(100)) // top level top hits
+                .get()
         );
-        for (TimeSeries.Bucket bucket : timeSeries.getBuckets()) {
-            @SuppressWarnings("unchecked")
-            Map<String, String> key = (Map<String, String>) bucket.getKey();
-            Map<Long, Map<String, Double>> value = filteredData.get(key);
-            assertThat(bucket.getDocCount(), equalTo((long) value.size()));
-
-            TopHits topHits = bucket.getAggregations().get("hits");
-
-            if (topHits.getHits().getHits().length < 100) {
-                for (SearchHit hit : topHits.getHits().getHits()) {
-                    long timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(
-                        hit.getSourceAsMap().get("@timestamp").toString()
-                    );
-                    Map<String, Double> metrics = value.get(timestamp);
-                    for (Map.Entry<String, Double> entry : metrics.entrySet()) {
-                        assertThat((Double) hit.getSourceAsMap().get(entry.getKey()), closeTo(entry.getValue(), 0.001));
-                    }
-                }
-            }
-        }
-        assertThat(response.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
-        assertThat(response.getHits().getTotalHits().value, equalTo((long) expectedSize));
-
+        assertThat(e.getDetailedMessage(), containsString("Top hits aggregations cannot be used together with time series aggregations"));
+        // TODO: Fix the top hits aggregation
     }
 
     /**

@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.timeseries;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -23,6 +22,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.search.aggregations.BucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
 
@@ -38,9 +39,9 @@ public class TimeSeriesIndexSearcher {
         this.searcher = searcher;
     }
 
-    public void search(Query query, Collector queryCollector) throws IOException {
+    public void search(Query query, BucketCollector bucketCollector) throws IOException {
         query = searcher.rewrite(query);
-        Weight weight = searcher.createWeight(query, queryCollector.scoreMode(), 1);
+        Weight weight = searcher.createWeight(query, bucketCollector.scoreMode(), 1);
         PriorityQueue<LeafWalker> queue = new PriorityQueue<>(searcher.getIndexReader().leaves().size()) {
             @Override
             protected boolean lessThan(LeafWalker a, LeafWalker b) {
@@ -54,7 +55,7 @@ public class TimeSeriesIndexSearcher {
             }
         };
         for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
-            LeafCollector leafCollector = queryCollector.getLeafCollector(leaf);
+            LeafBucketCollector leafCollector = bucketCollector.getLeafCollector(leaf);
             Scorer scorer = weight.scorer(leaf);
             if (scorer != null) {
                 LeafWalker walker = new LeafWalker(leaf, scorer, leafCollector);

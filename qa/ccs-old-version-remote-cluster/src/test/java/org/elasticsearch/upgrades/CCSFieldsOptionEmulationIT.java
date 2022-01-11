@@ -99,8 +99,7 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
     public void testFieldsOptionEmulation() throws Exception {
         String localIndex = "test_bwc_fields_index";
         String remoteIndex = "test_bwc_fields_remote_index";
-        try (RestHighLevelClient localClient = newLocalClient(LOGGER);
-             RestHighLevelClient remoteClient = newRemoteClient()) {
+        try (RestHighLevelClient localClient = newLocalClient(LOGGER); RestHighLevelClient remoteClient = newRemoteClient()) {
             localClient.indices()
                 .create(
                     new CreateIndexRequest(localIndex).settings(
@@ -188,7 +187,7 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
                 ObjectPath responseObject = ObjectPath.createFromResponse(response);
                 List<Map<String, Object>> failures = responseObject.evaluate("_shards.failures");
                 assertEquals(1, failures.size());
-                assertEquals(CLUSTER_ALIAS + ":" +remoteNoSourceIndex, responseObject.evaluate("_shards.failures.0.index"));
+                assertEquals(CLUSTER_ALIAS + ":" + remoteNoSourceIndex, responseObject.evaluate("_shards.failures.0.index"));
                 assertEquals("illegal_argument_exception", responseObject.evaluate("_shards.failures.0.reason.type"));
                 assertThat(
                     responseObject.evaluate("_shards.failures.0.reason.reason"),
@@ -198,20 +197,15 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
 
                 // also check for only no-source remote index
                 request = new Request("POST", "/_search");
-                request.addParameter(
-                    "index",
-                    localIndex + "," + CLUSTER_ALIAS + ":" + remoteNoSourceIndex
-                );
+                request.addParameter("index", localIndex + "," + CLUSTER_ALIAS + ":" + remoteNoSourceIndex);
                 request.addParameter("ccs_minimize_roundtrips", minimizeRoundTrips);
                 request.addParameter("enable_fields_emulation", "true");
-                request.setJsonEntity(
-                    "{\"_source\": false, \"fields\": [\"*\"] , \"size\": " + localNumDocs + remoteNoSourceNumDocs + "}"
-                );
+                request.setJsonEntity("{\"_source\": false, \"fields\": [\"*\"] , \"size\": " + localNumDocs + remoteNoSourceNumDocs + "}");
                 response = lowLevelClient.performRequest(request);
                 responseObject = ObjectPath.createFromResponse(response);
                 failures = responseObject.evaluate("_shards.failures");
                 assertEquals(1, failures.size());
-                assertEquals(CLUSTER_ALIAS + ":" +remoteNoSourceIndex, responseObject.evaluate("_shards.failures.0.index"));
+                assertEquals(CLUSTER_ALIAS + ":" + remoteNoSourceIndex, responseObject.evaluate("_shards.failures.0.index"));
                 assertEquals("illegal_argument_exception", responseObject.evaluate("_shards.failures.0.reason.type"));
                 assertThat(
                     responseObject.evaluate("_shards.failures.0.reason.reason"),

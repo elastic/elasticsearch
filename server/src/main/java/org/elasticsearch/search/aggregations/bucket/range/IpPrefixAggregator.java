@@ -42,13 +42,13 @@ public final class IpPrefixAggregator extends BucketsAggregator {
         final boolean isIpv6;
         final int prefixLength;
         final boolean appendPrefixLength;
-        final BytesRef mask;
+        final BytesRef netmask;
 
-        public IpPrefix(boolean isIpv6, int prefixLength, boolean appendPrefixLength, BytesRef mask) {
+        public IpPrefix(boolean isIpv6, int prefixLength, boolean appendPrefixLength, BytesRef netmask) {
             this.isIpv6 = isIpv6;
             this.prefixLength = prefixLength;
             this.appendPrefixLength = appendPrefixLength;
-            this.mask = mask;
+            this.netmask = netmask;
         }
 
         public boolean isIpv6() {
@@ -63,8 +63,8 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             return appendPrefixLength;
         }
 
-        public BytesRef getMask() {
-            return mask;
+        public BytesRef getNetmask() {
+            return netmask;
         }
 
         @Override
@@ -75,12 +75,12 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             return isIpv6 == ipPrefix.isIpv6
                 && prefixLength == ipPrefix.prefixLength
                 && appendPrefixLength == ipPrefix.appendPrefixLength
-                && Objects.equals(mask, ipPrefix.mask);
+                && Objects.equals(netmask, ipPrefix.netmask);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(isIpv6, prefixLength, appendPrefixLength, mask);
+            return Objects.hash(isIpv6, prefixLength, appendPrefixLength, netmask);
         }
     }
 
@@ -141,12 +141,12 @@ public final class IpPrefixAggregator extends BucketsAggregator {
                 for (int i = 0; i < valuesCount; ++i) {
                     BytesRef value = values.nextValue();
                     byte[] ipAddress = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
-                    byte[] mask = Arrays.copyOfRange(
-                        ipPrefix.mask.bytes,
-                        ipPrefix.mask.offset,
-                        ipPrefix.mask.offset + ipPrefix.mask.length
+                    byte[] netmask = Arrays.copyOfRange(
+                        ipPrefix.netmask.bytes,
+                        ipPrefix.netmask.offset,
+                        ipPrefix.netmask.offset + ipPrefix.netmask.length
                     );
-                    byte[] subnet = maskIpAddress(ipAddress, mask);
+                    byte[] subnet = maskIpAddress(ipAddress, netmask);
                     if (Arrays.equals(subnet, previousSubnet)) {
                         continue;
                     }
@@ -162,19 +162,19 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             }
         }
 
-        private byte[] maskIpAddress(byte[] ipAddress, byte[] subnetMask) {
+        private byte[] maskIpAddress(byte[] ipAddress, byte[] netmask) {
             // NOTE: ip addresses are always encoded to 16 bytes by IpFieldMapper
             if (ipAddress.length != 16) {
                 throw new IllegalArgumentException("Invalid length for ip address [" + ipAddress.length + "]");
             }
-            if (subnetMask.length == 4) {
-                return mask(Arrays.copyOfRange(ipAddress, 12, 16), subnetMask);
+            if (netmask.length == 4) {
+                return mask(Arrays.copyOfRange(ipAddress, 12, 16), netmask);
             }
-            if (subnetMask.length == 16) {
-                return mask(ipAddress, subnetMask);
+            if (netmask.length == 16) {
+                return mask(ipAddress, netmask);
             }
 
-            throw new IllegalArgumentException("Invalid length for subnet mask [" + subnetMask.length + "]");
+            throw new IllegalArgumentException("Invalid length for netmask [" + netmask.length + "]");
         }
 
         private byte[] mask(byte[] ipAddress, byte[] subnetMask) {

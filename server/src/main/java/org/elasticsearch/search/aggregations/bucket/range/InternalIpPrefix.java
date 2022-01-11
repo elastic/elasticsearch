@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -100,24 +99,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
         }
 
         private static BytesRef netmask(int prefixLength) {
-            final BitSet bs = new BitSet(32);
-            bs.set(0, 32, false);
-            bs.set(32 - prefixLength, 32, true);
-            return new BytesRef(toBigEndian(toIpv4ByteArray(bs.toByteArray())));
-        }
-
-        private static byte[] toIpv4ByteArray(byte[] array) {
-            byte[] netmask = new byte[4];
-            System.arraycopy(array, 0, netmask, 0, array.length);
-            return netmask;
-        }
-
-        public static byte[] toBigEndian(byte[] array) {
-            byte[] result = new byte[array.length];
-            for (int i = 0; i < array.length; i++) {
-                result[array.length - i - 1] = array[i];
-            }
-            return result;
+            return IpPrefixAggregationBuilder.extractNetmask(prefixLength, false);
         }
 
         @Override

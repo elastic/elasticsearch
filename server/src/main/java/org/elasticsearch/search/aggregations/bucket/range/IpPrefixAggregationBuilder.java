@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
@@ -196,25 +197,11 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
             );
         }
 
-        byte[] subnet = extractSubnet(prefixLength, isIpv6);
-        if (subnet == null) {
-            throw new IllegalArgumentException(
-                "["
-                    + PREFIX_LENGTH_FIELD.getPreferredName()
-                    + "] must be in range ["
-                    + MIN_PREFIX_LENGTH
-                    + ", "
-                    + IPV4_MAX_PREFIX_LENGTH
-                    + "] for aggregation ["
-                    + this.getName()
-                    + "]"
-            );
-        }
         IpPrefixAggregator.IpPrefix ipPrefix = new IpPrefixAggregator.IpPrefix(
             isIpv6,
             prefixLength,
             appendPrefixLength,
-            new BytesRef(subnet)
+            extractNetmask(prefixLength, isIpv6)
         );
 
         return new IpPrefixAggregatorFactory(
@@ -231,9 +218,26 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
         );
     }
 
-    private static byte[] extractSubnet(int prefixLength, boolean isIpv6) {
+    /**
+     * @param prefixLength the network prefix length which defines the size of the network.
+     * @param isIpv6 true for an IPv6 netmask, false for an IPv4 netmask.
+     *
+     * @return a 16-bytes representation of the subnet with 1s identifying the network
+     *         part and 0s identifying the host part.
+     *
+     * @throws IllegalArgumentException if prefixLength is not in range [0, 128] for an IPv6
+     *         network, or is not in range [0, 32] for an IPv4 network.
+     */
+    public static BytesRef extractNetmask(int prefixLength, boolean isIpv6) {
         if (prefixLength < 0 || (!isIpv6 && prefixLength > 32) || (isIpv6 && prefixLength > 128)) {
-            return null;
+            throw new IllegalArgumentException(
+                "[" + PREFIX_LENGTH_FIELD.getPreferredName()
+                    + "] must be in range ["
+                    + MIN_PREFIX_LENGTH
+                    + ", "
+                    + (isIpv6 ? IPV6_MAX_PREFIX_LENGTH : IPV4_MAX_PREFIX_LENGTH)
+                    + "]"
+            );
         }
 
         byte[] ipv4Address = { 0, 0, 0, 0 };
@@ -254,9 +258,9 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
         }
 
         try {
-            return InetAddress.getByAddress(ipAddress).getAddress();
+            return new BytesRef(InetAddress.getByAddress(ipAddress).getAddress());
         } catch (UnknownHostException e) {
-            return null;
+            throw new IllegalArgumentException("Unable to get the ip address for [" + Arrays.toString(ipAddress) + "]", e);
         }
     }
 

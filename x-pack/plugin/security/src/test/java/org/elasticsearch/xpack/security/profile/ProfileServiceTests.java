@@ -142,7 +142,7 @@ public class ProfileServiceTests extends ESTestCase {
                     uid,
                     true,
                     lastSynchronized,
-                    new Profile.ProfileUser("foo", "realm_name", null, "foo@example.com", "User Foo", "Curious Foo"),
+                    new Profile.ProfileUser("foo", "realm_name", null, "foo@example.com", "User Foo", "Curious Foo", true),
                     new Profile.Access(List.of("role1", "role2"), Map.of()),
                     applicationData,
                     new Profile.VersionControl(1, 0)

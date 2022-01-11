@@ -14,7 +14,6 @@ import com.nimbusds.jwt.SignedJWT;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.security.authc.BearerToken;
 
 import java.text.ParseException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -22,11 +21,12 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * An {@link AuthenticationToken} to hold JWT authentication related content.
  */
-public class JwtAuthenticationToken extends BearerToken {
-    // Stored members (Note: also includes super.bearerString, which is a SecureString too)
+public class JwtAuthenticationToken implements AuthenticationToken {
+    // Stored members
+    protected final SecureString endUserSecret; // required
     protected final SecureString clientAuthorizationSharedSecret; // optional, nullable
 
-    // Processed members (ParseException)
+    // Parsed members
     protected final AtomicReference<SignedJWT> signedJwt = new AtomicReference<>(null);
     protected final AtomicReference<JWSHeader> jwsHeader = new AtomicReference<>(null);
     protected final AtomicReference<JWTClaimsSet> jwtClaimsSet = new AtomicReference<>(null);
@@ -35,18 +35,22 @@ public class JwtAuthenticationToken extends BearerToken {
     /**
      * Store a mandatory JWT and optional Shared Secret. Parse the JWT, and extract the header, claims set, and signature.
      * Throws IllegalArgumentException if bearerString is missing, or if JWT parsing fails.
-     * @param bearerString Base64Url-encoded JWT for End-user authorization. Required by all JWT realms.
-     * @param sharedSecret Base64Url-encoded Shared Secret for Client authorization. Required by some JWT realms.
+     * @param endUserSecret Base64Url-encoded JWT for End-user authorization. Required by all JWT realms.
+     * @param clientAuthorizationSharedSecret Base64Url-encoded Shared Secret for Client authorization. Required by some JWT realms.
      */
-    public JwtAuthenticationToken(final SecureString bearerString, @Nullable final SecureString sharedSecret) {
-        super(bearerString); // super.bearerString
-        if (bearerString == null) {
+    public JwtAuthenticationToken(final SecureString endUserSecret, @Nullable final SecureString clientAuthorizationSharedSecret) {
+        if (endUserSecret == null) {
             throw new IllegalArgumentException("JWT bearer token must be non-null");
+        } else if (endUserSecret.isEmpty()) {
+            throw new IllegalArgumentException("JWT bearer token must be non-empty");
+        } else if ((clientAuthorizationSharedSecret != null) && (clientAuthorizationSharedSecret.isEmpty())) {
+            throw new IllegalArgumentException("Client shared secret must be non-empty");
         }
-        this.clientAuthorizationSharedSecret = sharedSecret; // optional, nullable
+        this.endUserSecret = endUserSecret; // required
+        this.clientAuthorizationSharedSecret = clientAuthorizationSharedSecret; // optional, nullable
         // Parse JWT
         try {
-            final SignedJWT parsed = SignedJWT.parse(bearerString.toString());
+            final SignedJWT parsed = SignedJWT.parse(this.endUserSecret.toString());
             this.signedJwt.set(parsed);
             this.jwsHeader.set(parsed.getHeader());
             this.jwtClaimsSet.set(parsed.getJWTClaimsSet());
@@ -62,16 +66,20 @@ public class JwtAuthenticationToken extends BearerToken {
 
     @Override
     public String principal() {
-        return super.credentials().toString();
+        return this.endUserSecret.toString();
     }
 
     @Override
     public SecureString credentials() {
-        return super.credentials();
+        return this.endUserSecret;
     }
 
     public SecureString getSerializedJwt() {
-        return super.credentials();
+        return this.endUserSecret;
+    }
+
+    public SecureString getClientAuthorizationSharedSecret() {
+        return this.clientAuthorizationSharedSecret;
     }
 
     public SignedJWT getSignedJwt() {
@@ -90,13 +98,8 @@ public class JwtAuthenticationToken extends BearerToken {
         return this.jwtSignature.get();
     }
 
-    public SecureString getClientAuthorizationSharedSecret() {
-        return this.clientAuthorizationSharedSecret;
-    }
-
-    @Override
     public void clearCredentials() {
-        super.clearCredentials(); // super.bearerString.close()
+        this.endUserSecret.close();
         if (this.clientAuthorizationSharedSecret != null) {
             this.clientAuthorizationSharedSecret.close();
         }

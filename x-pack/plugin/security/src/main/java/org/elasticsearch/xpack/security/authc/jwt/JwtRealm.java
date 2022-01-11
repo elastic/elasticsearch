@@ -433,7 +433,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             LOGGER.trace("Attempting to perform authentication of JwtAuthenticationToken with realm [{}].", super.name());
             final JWSHeader jwsHeader = jwtAuthenticationToken.getJwsHeader();
             final JWTClaimsSet jwtClaimsSet = jwtAuthenticationToken.getJwtClaimsSet();
-            final String clientAuthorizationSharedSecret = jwtAuthenticationToken.getClientAuthorizationSharedSecret().toString();
+            final SecureString clientAuthorizationSharedSecret = jwtAuthenticationToken.getClientAuthorizationSharedSecret();
+            final String clientAuthorizationSharedSecretString = (clientAuthorizationSharedSecret==null)
+                ?null:clientAuthorizationSharedSecret.toString();
 
             // Filter steps (before any validation)
 
@@ -500,11 +502,20 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             // Client Authorization
             switch (this.clientAuthorizationType) {
                 case JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET:
-                    if (this.clientAuthorizationSharedSecret.equals(clientAuthorizationSharedSecret) == false) {
+                    if (Strings.hasText(clientAuthorizationSharedSecretString) == false) {
                         final String msg = String.format(
                             Locale.ROOT,
-                            "Realm [%s] client authentication failed for [%s].",
+                            "Realm [%s] client authentication [%s] failed because request header value is missing.",
+                            super.name(),
+                            this.clientAuthorizationType
+                        );
+                        LOGGER.debug(msg);
+                        listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
+                        return;
+                    } else if (this.clientAuthorizationSharedSecret.equals(clientAuthorizationSharedSecretString) == false) {
+                        final String msg = String.format(
                             Locale.ROOT,
+                            "Realm [%s] client authentication [%s] failed because request header value did not match.",
                             super.name(),
                             this.clientAuthorizationType
                         );
@@ -512,11 +523,24 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                         return;
                     }
-                    LOGGER.debug("Realm [{}] client authentication succeeded for [{}].", super.name(), this.clientAuthorizationType);
+                    LOGGER.debug("Realm [{}] client authentication [{}] succeeded because request header value matched.",
+                        super.name(), this.clientAuthorizationType);
                     break;
                 case JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE:
                 default:
-                    LOGGER.debug("Realm [{}] client authentication skipped for [{}].", super.name(), this.clientAuthorizationType);
+                    if (Strings.hasText(clientAuthorizationSharedSecretString)) {
+                        final String msg = String.format(
+                            Locale.ROOT,
+                            "Realm [%s] client authentication [%s] failed because a request header value is present.",
+                            super.name(),
+                            this.clientAuthorizationType
+                        );
+                        LOGGER.debug(msg);
+                        listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
+                        return;
+                    }
+                    LOGGER.debug("Realm [{}] client authentication [{}] succeeded because request header value is not present.",
+                        super.name(), this.clientAuthorizationType);
                     break;
             }
 

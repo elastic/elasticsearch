@@ -512,10 +512,12 @@ public class JwtRealmTests extends JwtTestCase {
             JwtRealmSettings.HEADER_ENDUSER_AUTHORIZATION,
             JwtRealmSettings.HEADER_ENDUSER_AUTHORIZATION_SCHEME + " " + signedJWT.serialize()
         );
-        super.threadContext.putHeader(
-            JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION,
-            JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET + " " + selectedClientAuthorizationSharedSecret
-        );
+        if (selectedClientAuthorizationSharedSecret != null) {
+            super.threadContext.putHeader(
+                JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION,
+                JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET + " " + selectedClientAuthorizationSharedSecret
+            );
+        }
 
         // Loop through all realms to see if any JWT authc realms can recognize and parse the 1-2 request headers
         AuthenticationToken authenticationToken = null;

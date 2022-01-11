@@ -17,7 +17,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -193,7 +193,8 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         ClusterState clusterState = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("index-name", "0.0"));
         ElasticsearchMappings.addDocMappingIfMissing(
             "index-name",
-            () -> "{\"_doc\":{\"properties\":{\"some-field\":{\"type\":\"long\"}}}}",
+            () -> """
+                {"_doc":{"properties":{"some-field":{"type":"long"}}}}""",
             client,
             clusterState,
             MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
@@ -207,7 +208,8 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
         PutMappingRequest request = requestCaptor.getValue();
         assertThat(request.indices(), equalTo(new String[] { "index-name" }));
-        assertThat(request.source(), equalTo("{\"_doc\":{\"properties\":{\"some-field\":{\"type\":\"long\"}}}}"));
+        assertThat(request.source(), equalTo("""
+            {"_doc":{"properties":{"some-field":{"type":"long"}}}}"""));
     }
 
     private ClusterState getClusterStateWithMappingsWithMetadata(Map<String, Object> namesAndVersions) {

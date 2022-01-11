@@ -110,23 +110,14 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
             || ("/latest/meta-data/iam/security-credentials/my_iam_profile".equals(request.getPath())
                 && HttpGet.METHOD_NAME.equals(request.getMethod()))) {
             final Date expiration = new Date(new Date().getTime() + TimeUnit.DAYS.toMillis(1));
-            final String response = "{"
-                + "\"AccessKeyId\": \""
-                + "ec2_integration_test_access_key"
-                + "\","
-                + "\"Expiration\": \""
-                + DateUtils.formatISO8601Date(expiration)
-                + "\","
-                + "\"RoleArn\": \""
-                + "test"
-                + "\","
-                + "\"SecretAccessKey\": \""
-                + "ec2_integration_test_secret_key"
-                + "\","
-                + "\"Token\": \""
-                + "test"
-                + "\""
-                + "}";
+            final String response = """
+                {
+                  "AccessKeyId": "ec2_integration_test_access_key",
+                  "Expiration": "%s",
+                  "RoleArn": "test",
+                  "SecretAccessKey": "ec2_integration_test_secret_key",
+                  "Token": "test"
+                }""".formatted(DateUtils.formatISO8601Date(expiration));
 
             final Map<String, String> headers = new HashMap<>(contentType("application/json"));
             return new Response(RestStatus.OK.getStatus(), headers, response.getBytes(UTF_8));

@@ -230,19 +230,20 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
 
     public void testRuntimeFields() {
         String sourceIndex = "test-explain-runtime-fields";
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"mapped_field\": {\n"
-            + "          \"type\": \"double\"\n"
-            + "        }\n"
-            + "      },\n"
-            + "      \"runtime\": {\n"
-            + "        \"mapped_runtime_field\": {\n"
-            + "          \"type\": \"double\"\n,"
-            + "          \"script\": \"emit(doc['mapped_field'].value + 10.0)\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+                  "properties": {
+                    "mapped_field": {
+                      "type": "double"
+                    }
+                  },
+                  "runtime": {
+                    "mapped_runtime_field": {
+                      "type": "double",
+                      "script": "emit(doc['mapped_field'].value + 10.0)"
+                    }
+                  }
+                }""";
         client().admin().indices().prepareCreate(sourceIndex).setMapping(mapping).get();
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 10; i++) {

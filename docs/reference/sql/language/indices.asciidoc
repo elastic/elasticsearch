@@ -34,6 +34,19 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[fromTablePatternQuoted]
 
 NOTE: There is the restriction that all resolved concrete tables have the exact same mapping.
 
+experimental:[] To run a <<modules-cross-cluster-search,{ccs}>>, specify a
+cluster name using the `<remote_cluster>:<target>` syntax, where
+`<remote_cluster>` maps to a SQL catalog (cluster) and `<target>` to a table
+(index or data stream). The `<remote_cluster>` supports wildcards (`*`)
+and `<target>` can be an index pattern.
+
+For example:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/multi-cluster-with-security/multi-cluster-docs.csv-spec[fromQualifiedTableQuoted]
+----
+
 [[sql-index-patterns-like]]
 [discrete]
 ==== SQL `LIKE` notation

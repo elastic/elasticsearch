@@ -18,8 +18,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -166,13 +166,22 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         final Client client = client();
 
         // Create an index where the mappings have a field data filter
-        assertAcked(
-            prepareCreate("ramtest").setSource(
-                "{\"mappings\": {\"type\": {\"properties\": {\"test\": "
-                    + "{\"type\": \"text\",\"fielddata\": true,\"fielddata_frequency_filter\": {\"max\": 10000}}}}}}",
-                XContentType.JSON
-            )
-        );
+        assertAcked(prepareCreate("ramtest").setSource("""
+            {
+              "mappings": {
+                "type": {
+                  "properties": {
+                    "test": {
+                      "type": "text",
+                      "fielddata": true,
+                      "fielddata_frequency_filter": {
+                        "max": 10000
+                      }
+                    }
+                  }
+                }
+              }
+            }""", XContentType.JSON));
 
         ensureGreen("ramtest");
 

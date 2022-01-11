@@ -637,17 +637,51 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
     }
 
     public void testXContent() throws Exception {
-        String commands = "{\n"
-            + "    \"commands\" : [\n"
-            + "        {\"allocate_empty_primary\" : {\"index\" : \"test\", \"shard\" : 1,"
-            + "         \"node\" : \"node1\", \"accept_data_loss\" : true}}\n"
-            + "       ,{\"allocate_stale_primary\" : {\"index\" : \"test\", \"shard\" : 2,"
-            + "         \"node\" : \"node1\", \"accept_data_loss\" : true}}\n"
-            + "       ,{\"allocate_replica\" : {\"index\" : \"test\", \"shard\" : 2, \"node\" : \"node1\"}}\n"
-            + "       ,{\"move\" : {\"index\" : \"test\", \"shard\" : 3, \"from_node\" : \"node2\", \"to_node\" : \"node3\"}} \n"
-            + "       ,{\"cancel\" : {\"index\" : \"test\", \"shard\" : 4, \"node\" : \"node5\", \"allow_primary\" : true}} \n"
-            + "    ]\n"
-            + "}\n";
+        String commands = """
+            {
+               "commands": [
+                 {
+                   "allocate_empty_primary": {
+                     "index": "test",
+                     "shard": 1,
+                     "node": "node1",
+                     "accept_data_loss": true
+                   }
+                 },
+                 {
+                   "allocate_stale_primary": {
+                     "index": "test",
+                     "shard": 2,
+                     "node": "node1",
+                     "accept_data_loss": true
+                   }
+                 },
+                 {
+                   "allocate_replica": {
+                     "index": "test",
+                     "shard": 2,
+                     "node": "node1"
+                   }
+                 },
+                 {
+                   "move": {
+                     "index": "test",
+                     "shard": 3,
+                     "from_node": "node2",
+                     "to_node": "node3"
+                   }
+                 },
+                 {
+                   "cancel": {
+                     "index": "test",
+                     "shard": 4,
+                     "node": "node5",
+                     "allow_primary": true
+                   }
+                 }
+               ]
+             }
+            """;
         XContentParser parser = createParser(JsonXContent.jsonXContent, commands);
         // move two tokens, parser expected to be "on" `commands` field
         parser.nextToken();

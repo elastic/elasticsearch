@@ -10,6 +10,7 @@ package org.elasticsearch.transport;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -80,7 +82,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseConnectionException;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
@@ -659,56 +660,66 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     // exposed for tests
     static void handleException(TcpChannel channel, Exception e, Lifecycle lifecycle, OutboundHandler outboundHandler) {
-        if (lifecycle.started() == false) {
-            // just close and ignore - we are already stopped and just need to make sure we release all resources
-            CloseableChannel.closeChannel(channel);
-            return;
-        }
 
-        if (isCloseConnectionException(e)) {
-            logger.debug(
-                () -> new ParameterizedMessage(
-                    "close connection exception caught on transport layer [{}], disconnecting from relevant node",
-                    channel
-                ),
-                e
-            );
-            // close the channel, which will cause a node to be disconnected if relevant
-            CloseableChannel.closeChannel(channel);
-        } else if (isConnectException(e)) {
-            logger.debug(() -> new ParameterizedMessage("connect exception caught on transport layer [{}]", channel), e);
-            // close the channel as safe measure, which will cause a node to be disconnected if relevant
-            CloseableChannel.closeChannel(channel);
-        } else if (e instanceof BindException) {
-            logger.debug(() -> new ParameterizedMessage("bind exception caught on transport layer [{}]", channel), e);
-            // close the channel as safe measure, which will cause a node to be disconnected if relevant
-            CloseableChannel.closeChannel(channel);
-        } else if (e instanceof CancelledKeyException) {
-            logger.debug(
-                () -> new ParameterizedMessage(
-                    "cancelled key exception caught on transport layer [{}], disconnecting from relevant node",
-                    channel
-                ),
-                e
-            );
-            // close the channel as safe measure, which will cause a node to be disconnected if relevant
-            CloseableChannel.closeChannel(channel);
-        } else if (e instanceof HttpRequestOnTransportException) {
-            // in case we are able to return data, serialize the exception content and sent it back to the client
-            if (channel.isOpen()) {
-                BytesArray message = new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8));
-                outboundHandler.sendBytes(channel, message, ActionListener.wrap(() -> CloseableChannel.closeChannel(channel)));
+        // these exceptions mean the channel cannot be salvaged: disconnect the node so that we reset everything back to a known-good state
+        boolean closeChannel = true;
+
+        try {
+            if (lifecycle.started() == false) {
+                return;
             }
-        } else if (e instanceof StreamCorruptedException) {
-            logger.warn(() -> new ParameterizedMessage("{}, [{}], closing connection", e.getMessage(), channel));
-            CloseableChannel.closeChannel(channel);
-        } else if (e instanceof TransportNotReadyException) {
-            logger.debug(() -> new ParameterizedMessage("{} on [{}], closing connection", e.getMessage(), channel));
-            CloseableChannel.closeChannel(channel);
-        } else {
-            logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
-            // close the channel, which will cause a node to be disconnected if relevant
-            CloseableChannel.closeChannel(channel);
+
+            final Level closeConnectionExceptionLevel = NetworkExceptionHelper.getCloseConnectionExceptionLevel(e);
+            if (closeConnectionExceptionLevel != Level.OFF) {
+                if (closeConnectionExceptionLevel == Level.INFO && logger.isDebugEnabled() == false) {
+                    logger.info(
+                        "close connection exception caught on transport layer [{}], disconnecting from relevant node: {}",
+                        channel,
+                        e.getMessage()
+                    );
+                } else {
+                    logger.log(
+                        closeConnectionExceptionLevel,
+                        new ParameterizedMessage(
+                            "close connection exception caught on transport layer [{}], disconnecting from relevant node",
+                            channel
+                        ),
+                        e
+                    );
+                }
+            } else if (isConnectException(e)) {
+                logger.debug(() -> new ParameterizedMessage("connect exception caught on transport layer [{}]", channel), e);
+            } else if (e instanceof BindException) {
+                logger.debug(() -> new ParameterizedMessage("bind exception caught on transport layer [{}]", channel), e);
+            } else if (e instanceof CancelledKeyException) {
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "cancelled key exception caught on transport layer [{}], disconnecting from relevant node",
+                        channel
+                    ),
+                    e
+                );
+            } else if (e instanceof HttpRequestOnTransportException) {
+                // in this case the client is speaking HTTP so we can do something a bit more useful than simply closing the channel
+                if (channel.isOpen()) {
+                    outboundHandler.sendBytes(
+                        channel,
+                        new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8)),
+                        ActionListener.wrap(() -> CloseableChannel.closeChannel(channel))
+                    );
+                    closeChannel = false;
+                }
+            } else if (e instanceof StreamCorruptedException) {
+                logger.warn(() -> new ParameterizedMessage("{}, [{}], closing connection", e.getMessage(), channel));
+            } else if (e instanceof TransportNotReadyException) {
+                logger.debug(() -> new ParameterizedMessage("{} on [{}], closing connection", e.getMessage(), channel));
+            } else {
+                logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
+            }
+        } finally {
+            if (closeChannel) {
+                CloseableChannel.closeChannel(channel);
+            }
         }
     }
 

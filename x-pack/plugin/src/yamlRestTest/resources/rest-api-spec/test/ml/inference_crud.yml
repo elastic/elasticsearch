@@ -563,6 +563,10 @@ setup:
 
 ---
 "Test delete given model referenced by pipeline":
+  - skip:
+       version: all
+       reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/80703"
+
   - do:
       ingest.put_pipeline:
         id: "pipeline-using-a-classification-model"

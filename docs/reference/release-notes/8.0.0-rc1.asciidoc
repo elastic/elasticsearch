@@ -1,0 +1,16 @@
+:es-issue: https://github.com/elastic/elasticsearch/issues/
+:es-pull:  https://github.com/elastic/elasticsearch/pull/
+
+[[release-notes-8.0.0-rc1]]
+== {es} version 8.0.0-rc1
+
+coming::[8.0.0-rc1]
+
+Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
+
+[[bug-8.0.0-rc1]]
+[float]
+=== Bug fixes
+
+Machine Learning::
+* Set model state compatibility version to 8.0.0 {ml-pull}2139[#2139]

@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.transform.integration;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,7 +30,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
@@ -1011,6 +1015,74 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             keys = nestedObj.keySet();
             assertThat(keys, equalTo(expectedNestedFields));
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPreviewTransformWithPipelineScript() throws Exception {
+        String pipelineId = "my-preview-pivot-pipeline-script";
+        Request pipelineRequest = new Request("PUT", "/_ingest/pipeline/" + pipelineId);
+        pipelineRequest.setJsonEntity("""
+            {
+              "description": "my pivot preview pipeline",
+              "processors": [
+                {
+                  "script": {
+                    "lang": "painless",
+                    "source": "ctx._id = ctx['non']['existing'];"
+                  }
+                }
+              ]
+            }
+            """);
+        client().performRequest(pipelineRequest);
+
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
+        final Request createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
+        createPreviewRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+
+        String config = """
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "pipeline": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "user.id": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  },
+                  "by_day": {
+                    "date_histogram": {
+                      "fixed_interval": "1d",
+                      "field": "timestamp"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "user.avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""".formatted(REVIEWS_INDEX_NAME, pipelineId);
+        createPreviewRequest.setJsonEntity(config);
+
+        Response createPreviewResponse = client().performRequest(createPreviewRequest);
+        Map<String, Object> previewTransformResponse = entityAsMap(createPreviewResponse);
+        List<Map<String, Object>> preview = (List<Map<String, Object>>) previewTransformResponse.get("preview");
+        // Pipeline failed for all the docs so the preview is empty
+        assertThat(preview, is(empty()));
+        assertThat(createPreviewResponse.getWarnings(), hasSize(1));
+        assertThat(
+            createPreviewResponse.getWarnings().get(0),
+            allOf(containsString("Pipeline returned 100 errors, first error:"), containsString("type=script_exception"))
+        );
     }
 
     public void testPivotWithMaxOnDateField() throws Exception {

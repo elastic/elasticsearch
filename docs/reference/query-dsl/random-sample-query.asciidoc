@@ -46,7 +46,10 @@ speed up performance, {es} automatically caches frequently used filter queries.
 
 `probability`::
 (Required, float) Floating point number indicating the sampling rate for the documents.
-Must be between (0, 1) exclusive.
+Must be between (0, 1) exclusive. The `probability` isn't exactly the percentage of documents sampled,
+but for the majority of cases they can be considered equivalent concepts. Example, a `"probability": 0.01` over
+`1000000` documents will generally sample `100000` (or `1%`) documents. But it may not be exactly `100000` and is
+usually within the window of `[9900, 101000]`.
 
 `seed`::
 (Optional, int) Seed to generate the random sampling of documents. When the seed is provided, the random subset of

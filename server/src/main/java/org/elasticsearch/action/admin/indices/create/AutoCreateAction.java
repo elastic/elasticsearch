@@ -169,7 +169,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             request.index(),
                             dataStreamDescriptor,
                             request.masterNodeTimeout(),
-                            request.timeout()
+                            request.timeout(),
+                            false
                         );
                         ClusterState clusterState = metadataCreateDataStreamService.createDataStream(createRequest, currentState);
                         indexNameRef.set(clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName());

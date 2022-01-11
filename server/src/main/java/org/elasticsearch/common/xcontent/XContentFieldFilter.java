@@ -39,7 +39,8 @@ public interface XContentFieldFilter {
      *
      * @param includes fields to keep, wildcard supported
      * @param excludes fields to remove, wildcard supported
-     * @return filter using {@link XContentMapValues#filter(String[], String[])} if wildcard found in excludes, otherwise return filter using {@link XContentParser}
+     * @return filter using {@link XContentMapValues#filter(String[], String[])} if wildcard found in excludes
+     *         , otherwise return filter using {@link XContentParser}
      */
     static XContentFieldFilter newFieldFilter(String[] includes, String[] excludes) {
         if ((CollectionUtils.isEmpty(excludes) == false) && Arrays.stream(excludes).filter(field -> field.contains("*")).count() > 0) {

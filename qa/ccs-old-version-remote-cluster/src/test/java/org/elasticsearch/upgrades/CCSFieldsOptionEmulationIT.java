@@ -117,6 +117,9 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
             // create a second remote index with "_source : false" to check error behaviour in this case
             String remoteNoSourceIndex = "remote_index_source_disabled";
             String mappings = "{\"_source\":{\"enabled\":false}}";
+            if (UPGRADE_FROM_VERSION.before(Version.V_7_0_0)) {
+                mappings = "{\"_doc\":"+mappings+ "}";
+            }
             remoteClient.indices()
                 .create(
                     new CreateIndexRequest(remoteNoSourceIndex).settings(remoteIndexSettings).mapping(mappings, XContentType.JSON),
@@ -124,7 +127,7 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
                 );
             GetMappingsResponse mapping = remoteClient.indices()
                 .getMapping(new GetMappingsRequest().indices(remoteNoSourceIndex), RequestOptions.DEFAULT);
-            assertEquals("{\"_source\":{\"enabled\":false}}", mapping.mappings().get(remoteNoSourceIndex).source().string());
+            assertEquals(mappings, mapping.mappings().get(remoteNoSourceIndex).source().string());
             int remoteNoSourceNumDocs = indexDocs(remoteClient, remoteNoSourceIndex, between(10, 20));
 
             List<Node> remoteNodes = getNodes(remoteClient.getLowLevelClient());

@@ -15,9 +15,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Tuple;
 
-public class JwtUtilTest extends JwtTestCase {
+public class JwtUtilTests extends JwtTestCase {
 
-    private static final Logger LOGGER = LogManager.getLogger(JwtUtilTest.class);
+    private static final Logger LOGGER = LogManager.getLogger(JwtUtilTests.class);
 
     public void testSignedJwtGenerateSignVerify() throws Exception {
         // All JWSAlgorithm values in Family.HMAC_SHA, Family.RSA, and Family.EC (except ES256K)

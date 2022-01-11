@@ -212,20 +212,24 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            failIfNotIndexed();
+            failIfNotIndexedNorDocValues();
             long scaledValue = Math.round(scale(value));
-            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue);
+            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, isIndexed() == false);
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            failIfNotIndexed();
-            List<Long> scaledValues = new ArrayList<>(values.size());
-            for (Object value : values) {
-                long scaledValue = Math.round(scale(value));
-                scaledValues.add(scaledValue);
+            failIfNotIndexedNorDocValues();
+            if (isIndexed()) {
+                List<Long> scaledValues = new ArrayList<>(values.size());
+                for (Object value : values) {
+                    long scaledValue = Math.round(scale(value));
+                    scaledValues.add(scaledValue);
+                }
+                return NumberFieldMapper.NumberType.LONG.termsQuery(name(), Collections.unmodifiableList(scaledValues));
+            } else {
+                return super.termsQuery(values, context);
             }
-            return NumberFieldMapper.NumberType.LONG.termsQuery(name(), Collections.unmodifiableList(scaledValues));
         }
 
         @Override
@@ -236,7 +240,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            failIfNotIndexed();
+            failIfNotIndexedNorDocValues();
             Long lo = null;
             if (lowerTerm != null) {
                 double dValue = scale(lowerTerm);
@@ -253,7 +257,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue));
             }
-            return NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context);
+            return NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context, isIndexed() == false);
         }
 
         @Override

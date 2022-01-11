@@ -34,6 +34,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertNotEquals(indexed, ft.hasDocValues());
     }
 
+    public void testIsIndexed() {
+        DenseVectorFieldType ft = createFieldType();
+        assertEquals(indexed, ft.isIndexed());
+    }
+
     public void testIsSearchable() {
         DenseVectorFieldType ft = createFieldType();
         assertEquals(indexed, ft.isSearchable());

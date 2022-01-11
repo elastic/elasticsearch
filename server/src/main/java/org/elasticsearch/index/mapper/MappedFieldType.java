@@ -141,9 +141,16 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Returns true if the field is indexed.
+     */
+    public final boolean isIndexed() {
+        return isIndexed;
+    }
+
+    /**
      * Returns true if the field is stored separately.
      */
-    public boolean isStored() {
+    public final boolean isStored() {
         return isStored;
     }
 
@@ -443,6 +450,13 @@ public abstract class MappedFieldType {
         if (isIndexed == false) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
+        }
+    }
+
+    protected final void failIfNotIndexedNorDocValues() {
+        if (isIndexed == false && docValues == false) {
+            // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
+            throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed nor has doc values.");
         }
     }
 

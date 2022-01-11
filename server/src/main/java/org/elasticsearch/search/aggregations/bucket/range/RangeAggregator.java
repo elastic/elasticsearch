@@ -113,7 +113,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
          * {@code toStr}.
          * {@code originalFrom} and {@code originalTo} are used to preserve
          * the original values of {@code from} and {@code to}. This is because
-         * precision is downgraded to float precision when storing float values.
+         * precision is downgraded to float values when they are stored.
          * Downgrading precision for float values surfaces into precision
          * artifacts at serialization time as a result of treating float values
          * as double values.

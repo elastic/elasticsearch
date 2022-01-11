@@ -304,7 +304,7 @@ if (useFixture) {
   tasks.named("check").configure { dependsOn("yamlRestTestSTS") }
 
   testClusters.matching { it.name == "yamlRestTestSTS" }.configureEach {
-    plugin tasks.bundlePlugin.archiveFile
+    module tasks.bundlePlugin.archiveFile
 
     setting 's3.client.integration_test_sts.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-sts', '80')}" }, IGNORE_VALUE
     systemProperty 'com.amazonaws.sdk.stsMetadataServiceEndpointOverride',

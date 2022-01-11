@@ -500,9 +500,10 @@ VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.
 [discrete]
 ==== Using IAM roles for Kubernetes service accounts for authentication
 If you want to use https://aws.amazon.com/blogs/opensource/introducing-fine-grained-iam-roles-service-accounts/[Kubernetes service accounts]
-for authentication, you need to add a symlink to the `$AWS_WEB_IDENTITY_TOKEN_FILE` environment variable 
-(which should automatically set by a Kubernetes pod) in the S3 repository config directory, so the repository 
-can have the read access for the service account (a repository can't read any files outside of its config directory).
+for authentication, you need to add a symlink to the `$AWS_WEB_IDENTITY_TOKEN_FILE` environment variable
+(which should automatically set by a Kubernetes pod) in the S3 repository config directory, so the repository
+can have the read access for the service account (a repository can't read any files outside its config directory).
+For example:
 
 [source,bash]
 ----
@@ -510,6 +511,7 @@ mkdir -p "${ES_PATH_CONF}/repository-s3"
 ln -s $AWS_WEB_IDENTITY_TOKEN_FILE "${ES_PATH_CONF}/repository-s3/aws-web-identity-token-file"
 ----
 
-See the https://github.com/elastic/elasticsearch/pull/81255[Github PR] for implementation details, and the
-https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html[AWS Security Token Service API docs]
-to learn more about exchanging the web identity token for a session token.
+IMPORTANT: The symlink must be readable by the `elasticsearch` user. By default, {es} runs inside the container
+as user `elasticsearch` using uid:gid `1000:0`.
+
+See the https://github.com/elastic/elasticsearch/pull/81255[Github PR] for implementation details.

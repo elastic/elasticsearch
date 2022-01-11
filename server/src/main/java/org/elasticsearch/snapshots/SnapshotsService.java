@@ -2390,6 +2390,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             if (snapshotIds.isEmpty()) {
                 // this deletion overlapped one or more deletions that were successfully processed and there is no remaining snapshot to
                 // delete now, we can avoid reaching to the repository and can complete the deletion.
+                // TODO we should complete the deletion and resolve the listeners of SnapshotDeletionsInProgress with no snapshot sooner,
+                // that would save some cluster state updates.
                 removeSnapshotDeletionFromClusterState(deleteEntry, null, repositoryData);
                 return;
             }

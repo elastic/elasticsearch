@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -72,6 +73,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class IndexNameExpressionResolverTests extends ESTestCase {
 
@@ -2951,6 +2954,88 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             String[] indexNames = indexNameExpressionResolver.concreteIndexNames(context, "cluster:index", "local");
             assertEquals(0, indexNames.length);
         }
+    }
+
+    public void testResolveWriteIndexAbstraction() {
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(new Tuple<>("logs-foobar", 1)),
+            List.of("my-index")
+        );
+        state = ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.getMetadata())
+                    .put(IndexMetadata.builder(state.getMetadata().index("my-index")).putAlias(new AliasMetadata.Builder("my-alias")))
+                    .build()
+            )
+            .build();
+        DocWriteRequest<?> request = new IndexRequest("logs-foobar");
+        IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request);
+        assertThat(result.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(result.getName(), equalTo("logs-foobar"));
+
+        request = new IndexRequest("my-index");
+        result = indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request);
+        assertThat(result.getName(), equalTo("my-index"));
+        assertThat(result.getType(), equalTo(IndexAbstraction.Type.CONCRETE_INDEX));
+
+        request = new IndexRequest("my-alias");
+        result = indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request);
+        assertThat(result.getName(), equalTo("my-alias"));
+        assertThat(result.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+    }
+
+    public void testResolveWriteIndexAbstractionNoWriteIndexForAlias() {
+        ClusterState state1 = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(new Tuple<>("logs-foobar", 1)),
+            List.of("my-index", "my-index2")
+        );
+        ClusterState state2 = ClusterState.builder(state1)
+            .metadata(
+                Metadata.builder(state1.getMetadata())
+                    .put(IndexMetadata.builder(state1.getMetadata().index("my-index")).putAlias(new AliasMetadata.Builder("my-alias")))
+                    .put(IndexMetadata.builder(state1.getMetadata().index("my-index2")).putAlias(new AliasMetadata.Builder("my-alias")))
+                    .build()
+            )
+            .build();
+
+        DocWriteRequest<?> request = new IndexRequest("my-alias");
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state2, request)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "no write index is defined for alias [my-alias]. The write index may be explicitly disabled using is_write_index=false"
+                    + " or the alias points to multiple indices without one being designated as a write index"
+            )
+        );
+    }
+
+    public void testResolveWriteIndexAbstractionMissing() {
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(new Tuple<>("logs-foobar", 1)),
+            List.of("my-index")
+        );
+        DocWriteRequest<?> request = new IndexRequest("logs-my-index");
+        expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request));
+    }
+
+    public void testResolveWriteIndexAbstractionMultipleMatches() {
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(), List.of("logs-foo", "logs-bar"));
+        DocWriteRequest<?> request = mock(DocWriteRequest.class);
+        when(request.index()).thenReturn("logs-*");
+        when(request.indicesOptions()).thenReturn(IndicesOptions.lenientExpandOpen());
+        when(request.opType()).thenReturn(DocWriteRequest.OpType.INDEX);
+        when(request.includeDataStreams()).thenReturn(true);
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("unable to return a single target as the provided expression and options got resolved to multiple targets")
+        );
     }
 
     private ClusterState systemIndexTestClusterState() {

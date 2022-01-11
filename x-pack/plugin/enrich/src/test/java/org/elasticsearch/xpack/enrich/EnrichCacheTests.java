@@ -6,26 +6,18 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.SearchProfileResults;
-import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
-import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -74,27 +66,10 @@ public class EnrichCacheTests extends ESTestCase {
             new SearchSourceBuilder().query(new MatchQueryBuilder("match_field", "2"))
         );
         // Emulated search response (content doesn't matter, since it isn't used, it just a cache entry)
-        var searchResponse = new SearchResponse(
-            new InternalSearchResponse(
-                new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
-                InternalAggregations.EMPTY,
-                new Suggest(Collections.emptyList()),
-                new SearchProfileResults(Collections.emptyMap()),
-                false,
-                false,
-                1
-            ),
-            "",
-            1,
-            1,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        List<Map<?, ?>> searchResponse = List.of(Map.of("test", "entry"));
 
         var enrichCache = new EnrichCache(3) {
-            void warmCache(SearchRequest searchRequest, SearchResponse entry) {
+            void warmCache(SearchRequest searchRequest, List<Map<?, ?>> entry) {
                 this.cache.put(toKey(searchRequest), CompletableFuture.completedFuture(entry));
             }
         };

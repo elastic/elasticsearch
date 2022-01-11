@@ -121,7 +121,7 @@ public class SimpleFeatureFactory {
         } else if (minY == maxY) {
             return line(minX, minY, maxX, minY);
         } else {
-           return box(minX, maxX, minY, maxY);
+            return box(minX, maxX, minY, maxY);
         }
     }
 

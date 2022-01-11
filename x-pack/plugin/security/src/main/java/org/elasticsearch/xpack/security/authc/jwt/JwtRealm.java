@@ -166,8 +166,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         // Validate and parse JWT Set Path
         final Tuple<URL, Path> urlOrPath = validateJwkSetPathSetting(realmConfig, this.jwkSetPath);
-        this.jwkSetPathUrl = (urlOrPath==null) ? null : urlOrPath.v1();
-        this.jwkSetPathObj = (urlOrPath==null) ? null : urlOrPath.v2();
+        this.jwkSetPathUrl = (urlOrPath == null) ? null : urlOrPath.v1();
+        this.jwkSetPathObj = (urlOrPath == null) ? null : urlOrPath.v2();
 
         // Validate that at least one of JWT Set Path and HMAC Key Set are set. If HMAC Key Set, validate Base64Url-encoding.
         validateIssuerCredentialSettings(super.config, this.hmacSecretKey, this.jwkSetPath, this.allowedSignatureAlgorithms);
@@ -434,8 +434,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             final JWSHeader jwsHeader = jwtAuthenticationToken.getJwsHeader();
             final JWTClaimsSet jwtClaimsSet = jwtAuthenticationToken.getJwtClaimsSet();
             final SecureString clientAuthorizationSharedSecret = jwtAuthenticationToken.getClientAuthorizationSharedSecret();
-            final String clientAuthorizationSharedSecretString = (clientAuthorizationSharedSecret==null)
-                ?null:clientAuthorizationSharedSecret.toString();
+            final String clientAuthorizationSharedSecretString = (clientAuthorizationSharedSecret == null)
+                ? null
+                : clientAuthorizationSharedSecret.toString();
 
             // Filter steps (before any validation)
 
@@ -469,8 +470,12 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                 return;
             }
-            LOGGER.debug("Realm [{}] allows audiences [{}]. Allowed audiences are [{}].", super.name(),
-                String.join(",", jwtAudiences), String.join(",", this.allowedAudiences));
+            LOGGER.debug(
+                "Realm [{}] allows audiences [{}]. Allowed audiences are [{}].",
+                super.name(),
+                String.join(",", jwtAudiences),
+                String.join(",", this.allowedAudiences)
+            );
 
             // 3. Skip JWT if signature algorithm does not match any of the signature algorithms allowed by this realm.
             final JWSAlgorithm jwsSignatureAlgorithm = jwsHeader.getAlgorithm();
@@ -523,8 +528,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                         return;
                     }
-                    LOGGER.debug("Realm [{}] client authentication [{}] succeeded because request header value matched.",
-                        super.name(), this.clientAuthorizationType);
+                    LOGGER.debug(
+                        "Realm [{}] client authentication [{}] succeeded because request header value matched.",
+                        super.name(),
+                        this.clientAuthorizationType
+                    );
                     break;
                 case JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE:
                 default:
@@ -539,8 +547,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                         return;
                     }
-                    LOGGER.debug("Realm [{}] client authentication [{}] succeeded because request header value is not present.",
-                        super.name(), this.clientAuthorizationType);
+                    LOGGER.debug(
+                        "Realm [{}] client authentication [{}] succeeded because request header value is not present.",
+                        super.name(),
+                        this.clientAuthorizationType
+                    );
                     break;
             }
 

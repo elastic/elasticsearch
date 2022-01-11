@@ -146,9 +146,10 @@ public class JwtRealmTests extends JwtTestCase {
         // If HTTP URL, verify it is rejected
         JwtRealm.validateJwkSetPathSetting(authcConfig, validJwtSetPathHttps);
         JwtRealm.validateJwkSetPathSetting(authcConfig, validJwkSetPathFile);
-        final Exception exception0 = expectThrows(SettingsException.class, () -> {
-            JwtRealm.validateJwkSetPathSetting(authcConfig, invalidJwkSetPathHttp);
-        });
+        final Exception exception0 = expectThrows(
+            SettingsException.class,
+            () -> { JwtRealm.validateJwkSetPathSetting(authcConfig, invalidJwkSetPathHttp); }
+        );
 
         // If only valid HMAC Secret Key present and only HMAC algorithms, verify it is accepted
         JwtRealm.validateIssuerCredentialSettings(

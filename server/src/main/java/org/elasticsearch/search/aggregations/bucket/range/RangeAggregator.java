@@ -117,7 +117,9 @@ public abstract class RangeAggregator extends BucketsAggregator {
          * Downgrading precision for float values surfaces into precision
          * artifacts at serialization time as a result of treating float values
          * as double values.
-         * (See {@link RangeAggregationBuilder#innerBuild(AggregationContext, ValuesSourceConfig, AggregatorFactory, AggregatorFactories.Builder)})
+         * (See {@link RangeAggregationBuilder#innerBuild(
+         * AggregationContext, ValuesSourceConfig, AggregatorFactory, AggregatorFactories.Builder
+         * )})
          */
         public Range(String key, Double from, Double originalFrom, String fromAsStr, Double to, Double originalTo, String toAsStr) {
             this.key = key;

@@ -117,11 +117,12 @@ public class AllocationService {
             this.batchFetchShardEnable = CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING.get(clusterService.getSettings());
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING, this::setBatchFetchShardEnable);
-            this.batchFetchShardStepSize =
-                CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_STEP_SIZE_SETTING.get(clusterService.getSettings());
+            this.batchFetchShardStepSize = CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_STEP_SIZE_SETTING.get(clusterService.getSettings());
             clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_STEP_SIZE_SETTING,
-                    this::setBatchFetchShardStepSize);
+                .addSettingsUpdateConsumer(
+                    CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_STEP_SIZE_SETTING,
+                    this::setBatchFetchShardStepSize
+                );
         }
     }
 
@@ -576,9 +577,9 @@ public class AllocationService {
                     gatewayAllocator = (GatewayAllocator) allocator;
                 }
 
-                if (gatewayAllocator != null &&
-                    gatewayAllocator.getPrimaryPendingFetchShardCount() > 0 &&
-                    gatewayAllocator.getPrimaryPendingFetchShardCount() % batchFetchShardStepSize == 0) {
+                if (gatewayAllocator != null
+                    && gatewayAllocator.getPrimaryPendingFetchShardCount() > 0
+                    && gatewayAllocator.getPrimaryPendingFetchShardCount() % batchFetchShardStepSize == 0) {
                     gatewayAllocator.flushPendingPrimaryFetchRequests(batchFetchShardStepSize);
                 }
             }
@@ -603,9 +604,9 @@ public class AllocationService {
                     gatewayAllocator = (GatewayAllocator) allocator;
                 }
 
-                if (gatewayAllocator != null &&
-                    gatewayAllocator.getReplicaPendingFetchShardCount() > 0 &&
-                    gatewayAllocator.getReplicaPendingFetchShardCount() % batchFetchShardStepSize == 0) {
+                if (gatewayAllocator != null
+                    && gatewayAllocator.getReplicaPendingFetchShardCount() > 0
+                    && gatewayAllocator.getReplicaPendingFetchShardCount() % batchFetchShardStepSize == 0) {
                     gatewayAllocator.flushPendingReplicaFetchRequests(batchFetchShardStepSize);
                 }
             }

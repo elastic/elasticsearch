@@ -322,15 +322,15 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             @Override
             public void onFailure(Exception e) {
                 List<FailedNodeException> failures = new ArrayList<>(nodes.length);
-                for (final DiscoveryNode node: nodes) {
+                for (final DiscoveryNode node : nodes) {
                     failures.add(new FailedNodeException(node.getId(), "total failure in fetching", e));
                 }
                 processAsyncFetch(null, failures, fetchingRound);
             }
 
             private boolean assertSameNodes(BaseNodesResponse<T> response) {
-                final Map<String, DiscoveryNode> nodesById
-                    = Arrays.stream(nodes).collect(Collectors.toMap(DiscoveryNode::getEphemeralId, Function.identity()));
+                final Map<String, DiscoveryNode> nodesById = Arrays.stream(nodes)
+                    .collect(Collectors.toMap(DiscoveryNode::getEphemeralId, Function.identity()));
                 for (T nodeResponse : response.getNodes()) {
                     final DiscoveryNode responseNode = nodeResponse.getNode();
                     final DiscoveryNode localNode = nodesById.get(responseNode.getEphemeralId());

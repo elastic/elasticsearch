@@ -280,8 +280,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         private final NodeClient client;
         private final AtomicInteger pendingFetchShardCount = new AtomicInteger();
         // node batched shard requests
-        private final Map<DiscoveryNode, Map<ShardId, ShardRequestInfo<NodeGatewayStartedShards>>>
-            queuedRequests = new ConcurrentHashMap<>();
+        private final Map<DiscoveryNode, Map<ShardId, ShardRequestInfo<NodeGatewayStartedShards>>> queuedRequests =
+            new ConcurrentHashMap<>();
 
         InternalPrimaryShardAllocator(NodeClient client) {
             this.client = client;
@@ -347,8 +347,10 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             pendingFetchShardCount.incrementAndGet();
             // group shards by node
             for (DiscoveryNode node : nodes) {
-                Map<ShardId, ShardRequestInfo<NodeGatewayStartedShards>> nodeLevelRequests =
-                    queuedRequests.computeIfAbsent(node, n -> new HashMap<>());
+                Map<ShardId, ShardRequestInfo<NodeGatewayStartedShards>> nodeLevelRequests = queuedRequests.computeIfAbsent(
+                    node,
+                    n -> new HashMap<>()
+                );
                 nodeLevelRequests.put(shardId, new ShardRequestInfo<>(shardId, customDataPath, listener));
             }
             if (logger.isTraceEnabled()) {
@@ -384,7 +386,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                 final var curNodeRequests = queuedRequests.get(node);
                 client.executeLocally(
                     TransportNodesBatchListGatewayStartedShards.TYPE,
-                    new TransportNodesBatchListGatewayStartedShards.Request(shards, new DiscoveryNode[]{node}),
+                    new TransportNodesBatchListGatewayStartedShards.Request(shards, new DiscoveryNode[] { node }),
                     new ActionListener<>() {
                         @Override
                         public void onResponse(NodesGatewayBatchStartedShards nodesBatchStartedShards) {
@@ -393,10 +395,15 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                                 // single node, got failed node request then node response must be empty.
                                 assert nodesBatchStartedShards.getNodes().size() == 0;
                                 for (var request : curNodeRequests.entrySet()) {
-                                    request.getValue().getListener().onResponse(new NodesGatewayStartedShards(
-                                        nodesBatchStartedShards.getClusterName(),
-                                        new ArrayList<>(), // empty response
-                                        nodesBatchStartedShards.failures()));
+                                    request.getValue()
+                                        .getListener()
+                                        .onResponse(
+                                            new NodesGatewayStartedShards(
+                                                nodesBatchStartedShards.getClusterName(),
+                                                new ArrayList<>(), // empty response
+                                                nodesBatchStartedShards.failures()
+                                            )
+                                        );
                                 }
                                 return;
                             }
@@ -592,13 +599,15 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                                 // single node, got failed node request then node response must be empty.
                                 assert nodesBatchStoreFilesMetadata.getNodes().size() == 0;
                                 for (var request : curNodeRequests.entrySet()) {
-                                    request.getValue().getListener().onResponse(
-                                        new NodesStoreFilesMetadata(
-                                            nodesBatchStoreFilesMetadata.getClusterName(),
-                                            new ArrayList<>(), // empty response
-                                            nodesBatchStoreFilesMetadata.failures()
-                                        )
-                                    );
+                                    request.getValue()
+                                        .getListener()
+                                        .onResponse(
+                                            new NodesStoreFilesMetadata(
+                                                nodesBatchStoreFilesMetadata.getClusterName(),
+                                                new ArrayList<>(), // empty response
+                                                nodesBatchStoreFilesMetadata.failures()
+                                            )
+                                        );
                                 }
                                 return;
                             }
@@ -639,7 +648,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                         }
                     }
                 );
-             }
+            }
 
             try {
                 nodeRequestLatch.await();

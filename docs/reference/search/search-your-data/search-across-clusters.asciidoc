@@ -423,19 +423,19 @@ Elastic only supports searches from a local cluster to a remote cluster running:
 * The same version.
 * A newer version. This version must also be compatible with the local cluster
 as outlined in the following matrix.
-
-IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
-clusters must use the same {es} version.
-
-[%collapsible%open]
++
+[%collapsible]
 [[ccs-version-compatibility]]
 .Version compatibility matrix
 ====
 include::{es-repo-dir}/modules/remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
 ====
 
+IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
+clusters must use the same {es} version.
+
 For example, a local 8.0 cluster can search a remote 7.17, 8.0, or 8.1 cluster.
-However, a search from a local 8.0 cluster to a remote 7.15 or 6.8 cluster is
+However, a search from a local 8.0 cluster to a remote 7.16 or 6.8 cluster is
 not supported.
 
 A {ccs} using an unsupported configuration may still work. However, such

@@ -175,11 +175,11 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                 out.writeOptionalString(key);
             }
             out.writeDouble(from);
-            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
                 out.writeOptionalDouble(originalFrom);
             }
             out.writeDouble(to);
-            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
                 out.writeOptionalDouble(originalTo);
             }
             out.writeVLong(docCount);
@@ -281,9 +281,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         for (int i = 0; i < size; i++) {
             String key = in.getVersion().onOrAfter(Version.V_6_4_0) ? in.readString() : in.readOptionalString();
             double from = in.readDouble();
-            Double originalFrom = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalDouble() : Double.valueOf(from);
+            Double originalFrom = in.getVersion().onOrAfter(Version.V_7_17_0) ? in.readOptionalDouble() : Double.valueOf(from);
             double to = in.readDouble();
-            Double originalTo = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalDouble() : Double.valueOf(to);
+            Double originalTo = in.getVersion().onOrAfter(Version.V_7_17_0) ? in.readOptionalDouble() : Double.valueOf(to);
             long docCount = in.readVLong();
             ranges.add(
                 getFactory().createBucket(

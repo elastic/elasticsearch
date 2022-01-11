@@ -164,17 +164,13 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         // Validate Client Authorization Type and Client Authorization Credential format
         validateClientAuthorizationSettings(this.clientAuthorizationType, this.clientAuthorizationSharedSecret, super.config);
 
+        // Validate and parse JWT Set Path
+        final Tuple<URL, Path> urlOrPath = validateJwkSetPathSetting(realmConfig, this.jwkSetPath);
+        this.jwkSetPathUrl = (urlOrPath==null) ? null : urlOrPath.v1();
+        this.jwkSetPathObj = (urlOrPath==null) ? null : urlOrPath.v2();
+
         // Validate that at least one of JWT Set Path and HMAC Key Set are set. If HMAC Key Set, validate Base64Url-encoding.
         validateIssuerCredentialSettings(super.config, this.hmacSecretKey, this.jwkSetPath, this.allowedSignatureAlgorithms);
-
-        if (Strings.hasText(this.jwkSetPath)) {
-            final Tuple<URL, Path> urlOrPath = validateJwkSetPathSetting(realmConfig, this.jwkSetPath);
-            this.jwkSetPathUrl = urlOrPath.v1();
-            this.jwkSetPathObj = urlOrPath.v2();
-        } else {
-            this.jwkSetPathUrl = null;
-            this.jwkSetPathObj = null;
-        }
     }
 
     // This logic is in a method for easy unit testing
@@ -270,11 +266,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             Arrays.fill(decodedHmacSecretKeyBytes, (byte) 0); // clear decoded secret key
         }
 
-        // Validate JWK Set Path is HTTPS URL or local file. If local file, validate it exists and is non-empty.
-        if (hasJwkSetPath) {
-            final Tuple<URL, Path> urlOrPath = validateJwkSetPathSetting(realmConfig, jwkSetPath);
-        }
-
         // If Issuer HMAC Secret Key is set, at least one HMAC Signature Algorithm is required.
         // If at least one HMAC Signature Algorithm is set, Issuer HMAC Secret Key is required.
         final boolean anySecretKeySignatureAlgorithms = allowedSignatureAlgorithms.stream()
@@ -321,7 +312,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     }
 
     public static Tuple<URL, Path> validateJwkSetPathSetting(final RealmConfig realmConfig, final String jwkSetPath) {
-        if (jwkSetPath == null) {
+        if (Strings.hasText(jwkSetPath)) {
             return null;
         }
         // Suppress any URL parsing exception. If needed, it will be added to a SettingsException at the end.

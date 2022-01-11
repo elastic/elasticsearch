@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
@@ -154,7 +155,7 @@ public class IndicesAccessControlTests extends ESTestCase {
         assertThat(documentPermissions1.getQueries(), equalTo(queries));
 
         final DocumentPermissions documentPermissions2 = DocumentPermissions.filteredBy(
-            Set.of(new BytesArray("{\"term\":{ \"public\":true } }"))
+            org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{ \"public\":true } }"))
         );
 
         indicesAccessControl = new IndicesAccessControl(

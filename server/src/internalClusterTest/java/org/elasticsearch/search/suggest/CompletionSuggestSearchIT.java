@@ -1285,15 +1285,11 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 mapping = mapping.startObject()
                     .field("name", contextMapping.getValue().name())
                     .field("type", contextMapping.getValue().type().name());
-                switch (contextMapping.getValue().type()) {
-                    case CATEGORY:
-                        mapping = mapping.field("path", ((CategoryContextMapping) contextMapping.getValue()).getFieldName());
-                        break;
-                    case GEO:
-                        mapping = mapping.field("path", ((GeoContextMapping) contextMapping.getValue()).getFieldName())
-                            .field("precision", ((GeoContextMapping) contextMapping.getValue()).getPrecision());
-                        break;
-                }
+                mapping = switch (contextMapping.getValue().type()) {
+                    case CATEGORY -> mapping.field("path", ((CategoryContextMapping) contextMapping.getValue()).getFieldName());
+                    case GEO -> mapping.field("path", ((GeoContextMapping) contextMapping.getValue()).getFieldName())
+                        .field("precision", ((GeoContextMapping) contextMapping.getValue()).getPrecision());
+                };
 
                 mapping = mapping.endObject();
             }

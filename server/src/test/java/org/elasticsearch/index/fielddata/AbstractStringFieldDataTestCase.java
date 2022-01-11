@@ -387,21 +387,12 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexService.index(), 0));
         IndexSearcher searcher = new IndexSearcher(directoryReader);
         IndexFieldData<?> fieldData = getForField("text");
-        final Object missingValue;
-        switch (randomInt(4)) {
-            case 0:
-                missingValue = "_first";
-                break;
-            case 1:
-                missingValue = "_last";
-                break;
-            case 2:
-                missingValue = new BytesRef(RandomPicks.randomFrom(random(), values));
-                break;
-            default:
-                missingValue = new BytesRef(TestUtil.randomSimpleString(random()));
-                break;
-        }
+        final Object missingValue = switch (randomInt(4)) {
+            case 0 -> "_first";
+            case 1 -> "_last";
+            case 2 -> new BytesRef(RandomPicks.randomFrom(random(), values));
+            default -> new BytesRef(TestUtil.randomSimpleString(random()));
+        };
         Query parentFilter = new TermQuery(new Term("type", "parent"));
         Query childFilter = Queries.not(parentFilter);
         Nested nested = createNested(searcher, parentFilter, childFilter);

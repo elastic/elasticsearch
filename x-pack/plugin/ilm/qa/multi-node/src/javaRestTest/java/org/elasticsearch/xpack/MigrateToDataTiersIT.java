@@ -292,13 +292,6 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             TimeUnit.SECONDS
         );
 
-        // let's stop ILM so we can simulate the migration
-        client().performRequest(new Request("POST", "_ilm/stop"));
-        assertBusy(() -> {
-            Response response = client().performRequest(new Request("GET", "_ilm/status"));
-            assertThat(EntityUtils.toString(response.getEntity()), containsString(OperationMode.STOPPED.toString()));
-        });
-
         String indexWithDataWarmRouting = "indexwithdatawarmrouting";
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)

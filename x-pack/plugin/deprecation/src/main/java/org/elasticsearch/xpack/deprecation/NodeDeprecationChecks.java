@@ -31,7 +31,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.security.authc.RealmSettings.RESERVED_REALM_NAME_PREFIX;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.RESERVED_REALM_AND_DOMAIN_NAME_PREFIX;
 
 public class NodeDeprecationChecks {
 
@@ -111,7 +111,7 @@ public class NodeDeprecationChecks {
         }
         List<RealmConfig.RealmIdentifier> reservedPrefixedRealmIdentifiers = new ArrayList<>();
         for (RealmConfig.RealmIdentifier realmIdentifier : realmSettings.keySet()) {
-            if (realmIdentifier.getName().startsWith(RESERVED_REALM_NAME_PREFIX)) {
+            if (realmIdentifier.getName().startsWith(RESERVED_REALM_AND_DOMAIN_NAME_PREFIX)) {
                 reservedPrefixedRealmIdentifiers.add(realmIdentifier);
             }
         }
@@ -120,7 +120,7 @@ public class NodeDeprecationChecks {
         } else {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
-                "Realm that start with [" + RESERVED_REALM_NAME_PREFIX + "] will not be permitted in a future major release.",
+                "Realm that start with [" + RESERVED_REALM_AND_DOMAIN_NAME_PREFIX + "] will not be permitted in a future major release.",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/deprecated-7.14.html#reserved-prefixed-realm-names",
                 String.format(
                     Locale.ROOT,
@@ -128,7 +128,7 @@ public class NodeDeprecationChecks {
                         + (reservedPrefixedRealmIdentifiers.size() == 1 ? "name" : "names")
                         + " with reserved prefix [%s]: [%s]. "
                         + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
-                    RESERVED_REALM_NAME_PREFIX,
+                    RESERVED_REALM_AND_DOMAIN_NAME_PREFIX,
                     reservedPrefixedRealmIdentifiers.stream()
                         .map(rid -> RealmSettings.PREFIX + rid.getType() + "." + rid.getName())
                         .sorted()

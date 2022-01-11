@@ -74,18 +74,10 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         CompletionSuggestionBuilder testBuilder = new CompletionSuggestionBuilder(randomAlphaOfLengthBetween(2, 20));
         setCommonPropertiesOnRandomBuilder(testBuilder);
         switch (randomIntBetween(0, 3)) {
-            case 0:
-                testBuilder.prefix(randomAlphaOfLength(10));
-                break;
-            case 1:
-                testBuilder.prefix(randomAlphaOfLength(10), FuzzyOptionsTests.randomFuzzyOptions());
-                break;
-            case 2:
-                testBuilder.prefix(randomAlphaOfLength(10), randomFrom(Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO));
-                break;
-            case 3:
-                testBuilder.regex(randomAlphaOfLength(10), RegexOptionsTests.randomRegexOptions());
-                break;
+            case 0 -> testBuilder.prefix(randomAlphaOfLength(10));
+            case 1 -> testBuilder.prefix(randomAlphaOfLength(10), FuzzyOptionsTests.randomFuzzyOptions());
+            case 2 -> testBuilder.prefix(randomAlphaOfLength(10), randomFrom(Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO));
+            case 3 -> testBuilder.regex(randomAlphaOfLength(10), RegexOptionsTests.randomRegexOptions());
         }
         Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
         if (randomBoolean()) {
@@ -121,36 +113,27 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
     @Override
     protected void mutateSpecificParameters(CompletionSuggestionBuilder builder) throws IOException {
         switch (randomIntBetween(0, 5)) {
-            case 0:
+            case 0 -> {
                 int nCatContext = randomIntBetween(1, 5);
                 List<CategoryQueryContext> contexts = new ArrayList<>(nCatContext);
                 for (int i = 0; i < nCatContext; i++) {
                     contexts.add(CategoryQueryContextTests.randomCategoryQueryContext());
                 }
                 builder.contexts(Collections.singletonMap(randomAlphaOfLength(10), contexts));
-                break;
-            case 1:
+            }
+            case 1 -> {
                 int nGeoContext = randomIntBetween(1, 5);
                 List<GeoQueryContext> geoContexts = new ArrayList<>(nGeoContext);
                 for (int i = 0; i < nGeoContext; i++) {
                     geoContexts.add(GeoQueryContextTests.randomGeoQueryContext());
                 }
                 builder.contexts(Collections.singletonMap(randomAlphaOfLength(10), geoContexts));
-                break;
-            case 2:
-                builder.prefix(randomAlphaOfLength(10), FuzzyOptionsTests.randomFuzzyOptions());
-                break;
-            case 3:
-                builder.prefix(randomAlphaOfLength(10), randomFrom(Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO));
-                break;
-            case 4:
-                builder.regex(randomAlphaOfLength(10), RegexOptionsTests.randomRegexOptions());
-                break;
-            case 5:
-                builder.skipDuplicates(builder.skipDuplicates == false);
-                break;
-            default:
-                throw new IllegalStateException("should not through");
+            }
+            case 2 -> builder.prefix(randomAlphaOfLength(10), FuzzyOptionsTests.randomFuzzyOptions());
+            case 3 -> builder.prefix(randomAlphaOfLength(10), randomFrom(Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO));
+            case 4 -> builder.regex(randomAlphaOfLength(10), RegexOptionsTests.randomRegexOptions());
+            case 5 -> builder.skipDuplicates(builder.skipDuplicates == false);
+            default -> throw new IllegalStateException("should not through");
         }
     }
 

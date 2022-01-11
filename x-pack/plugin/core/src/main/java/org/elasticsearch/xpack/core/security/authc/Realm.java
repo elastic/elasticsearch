@@ -56,6 +56,10 @@ public abstract class Realm implements Comparable<Realm> {
         return config.order;
     }
 
+    public String domain() {
+        return config.domain();
+    }
+
     /**
      * Each realm can define response headers to be sent on failure.
      * <p>

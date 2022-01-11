@@ -261,10 +261,8 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         BucketInfo bucketInfo = instance.getBucketInfo();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
                 buckets = new ArrayList<>(buckets);
                 buckets.add(
                     new InternalAutoDateHistogram.Bucket(
@@ -274,21 +272,20 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                         InternalAggregations.EMPTY
                     )
                 );
-                break;
-            case 2:
+            }
+            case 2 -> {
                 int roundingIdx = bucketInfo.roundingIdx == bucketInfo.roundingInfos.length - 1 ? 0 : bucketInfo.roundingIdx + 1;
                 bucketInfo = new BucketInfo(bucketInfo.roundingInfos, roundingIdx, bucketInfo.emptySubAggregations);
-                break;
-            case 3:
+            }
+            case 3 -> {
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, instance.getFormatter(), metadata, 1);
     }

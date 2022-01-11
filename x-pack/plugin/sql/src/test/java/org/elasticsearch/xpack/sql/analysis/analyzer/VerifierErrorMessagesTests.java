@@ -1725,6 +1725,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         checkMsg.accept("SELECT c FROM (SELECT SUM(int) c FROM test) GROUP BY c HAVING COUNT(*) > 10");
         checkMsg.accept("SELECT COUNT(*) FROM (SELECT int i FROM test GROUP BY i)");
         checkMsg.accept("SELECT a.i, COUNT(a.c) FROM (SELECT int i, COUNT(int) c FROM test GROUP BY int) a GROUP BY c");
+        // directly related to https://github.com/elastic/elasticsearch/issues/81577
+        // before the fix, this query was throwing a StackOverflowError
+        checkMsg.accept(
+            "SELECT MAX(int) AS int, AVG(int) AS int, AVG(int) AS s FROM (SELECT MAX(int) AS int FROM test GROUP BY int) WHERE s > 0 "
+        );
     }
 
     private String randomTopHitsFunction() {

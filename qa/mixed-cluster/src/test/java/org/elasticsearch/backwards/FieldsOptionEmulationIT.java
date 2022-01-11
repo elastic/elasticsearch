@@ -209,8 +209,7 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
     }
 
     public void testFieldOptionNoSourceOnOldIndex() throws Exception {
-        Request matchAllRequestFiltered = new Request("POST",
-            "test_field_*,oldversion_no_source/_search");
+        Request matchAllRequestFiltered = new Request("POST", "test_field_*,oldversion_no_source/_search");
         matchAllRequestFiltered.addParameter("enable_fields_emulation", "true");
         matchAllRequestFiltered.setJsonEntity("{\"_source\":false,\"fields\":[\"*\"]}");
         try (

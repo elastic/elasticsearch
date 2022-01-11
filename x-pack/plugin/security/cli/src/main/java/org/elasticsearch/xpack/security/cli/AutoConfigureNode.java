@@ -693,6 +693,13 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     bw.write(XPackSettings.SECURITY_ENABLED.getKey() + ": true");
                     bw.newLine();
                     bw.newLine();
+                    // Set enrollment mode to true unless user explicitly set it to false themselves
+                    if (false == (localFinalEnv.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())
+                        && false == XPackSettings.ENROLLMENT_ENABLED.get(localFinalEnv.settings()))) {
+                        bw.write(XPackSettings.ENROLLMENT_ENABLED.getKey() + ": true");
+                        bw.newLine();
+                        bw.newLine();
+                    }
                     bw.write("# Enable encryption for HTTP API client connections, such as Kibana, Logstash, and Agents");
                     bw.newLine();
                     bw.write("xpack.security.http.ssl:");

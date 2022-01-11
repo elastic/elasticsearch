@@ -45,6 +45,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 public class JwtUtil {
+    // All JWSAlgorithm values in Family.HMAC_SHA, Family.RSA, and Family.EC (except ES256K)
     public static final JWSAlgorithm.Family SUPPORTED_JWS_ALGORITHMS = new JWSAlgorithm.Family(
         ArrayUtils.concat(
             JWSAlgorithm.Family.HMAC_SHA.toArray(new JWSAlgorithm[] {}),

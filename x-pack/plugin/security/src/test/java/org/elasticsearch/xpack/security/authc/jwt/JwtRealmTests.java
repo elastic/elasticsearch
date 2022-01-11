@@ -16,7 +16,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.TestEnvironment;
@@ -89,6 +91,105 @@ public class JwtRealmTests extends JwtTestCase {
     public void shutdown() throws InterruptedException {
         this.resourceWatcherService.close();
         terminate(this.threadPool);
+    }
+
+    public void testClientAuthorizationTypeValidation() {
+        final RealmConfig authcConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, "realmName", Settings.EMPTY, 0);
+        final SecureString validSecret = new SecureString(Base64.getUrlEncoder().encodeToString(randomByteArrayOfLength(32)).toCharArray());
+        final SecureString invalidSecret = new SecureString("=====START CERTIFICATE=====".toCharArray());
+
+        // If type is None, verify null is accepted
+        JwtRealm.validateClientAuthorizationSettings(JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE, null, authcConfig);
+        // If type is SharedSecret, verify a valid Base64Url-encoded value is accepted
+        JwtRealm.validateClientAuthorizationSettings(
+            JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
+            validSecret,
+            authcConfig
+        );
+        // If type is SharedSecret, verify an invalid value is rejected
+        final Exception exception2 = expectThrows(
+            SettingsException.class,
+            "Exception expected for invalidSecret=[" + invalidSecret + "]",
+            () -> {
+                JwtRealm.validateClientAuthorizationSettings(
+                    JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
+                    invalidSecret,
+                    authcConfig
+                );
+            }
+        );
+        // If type is None, verify non-null is rejected
+        final Exception exception3 = expectThrows(
+            SettingsException.class,
+            "Exception expected for invalidSecret=[" + invalidSecret + "]",
+            () -> {
+                JwtRealm.validateClientAuthorizationSettings(
+                    JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE,
+                    invalidSecret,
+                    authcConfig
+                );
+            }
+        );
+    }
+
+    public void testIssuerCredentialsValidation() throws Exception {
+        final RealmConfig authcConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, "realmName", Settings.EMPTY, 0);
+        final SecretKey secretKey = JwtUtil.generateSecretKey(randomFrom(JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS));
+        final SecureString validSecretKey = new SecureString(Base64.getUrlEncoder().encodeToString(secretKey.getEncoded()).toCharArray());
+        final String validJwkSetPath = randomBoolean()
+            ? "https://op.example.com/jwkset.json"
+            : Files.createTempFile(PathUtils.get(this.pathHome), "jwkset.", ".json").toString();
+        if (validJwkSetPath.startsWith("https://") == false) {
+            Files.writeString(PathUtils.get(validJwkSetPath), "Non-empty JWK Set Path contents");
+        }
+
+        // If only valid HMAC Secret Key present and only HMAC algorithms, verify it is accepted
+        JwtRealm.validateIssuerCredentialSettings(
+            authcConfig,
+            validSecretKey,
+            null,
+            JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS
+        );
+        // If only valid JWT Set Path present and only Public Key algorithms, verify it is accepted
+        JwtRealm.validateIssuerCredentialSettings(
+            authcConfig,
+            null,
+            validJwkSetPath,
+            JwtRealmSettings.SUPPORTED_PUBLIC_KEY_SIGNATURE_ALGORITHMS
+        );
+
+        // If both valid credentials present and both algorithms present, verify they are accepted
+        JwtRealm.validateIssuerCredentialSettings(
+            authcConfig,
+            validSecretKey,
+            validJwkSetPath,
+            JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS
+        );
+
+        // If only HMAC Secret Key present but no HMAC algorithms, verify it is rejected
+        final Exception exception1 = expectThrows(SettingsException.class, () -> {
+            JwtRealm.validateIssuerCredentialSettings(
+                authcConfig,
+                validSecretKey,
+                null,
+                JwtRealmSettings.SUPPORTED_PUBLIC_KEY_SIGNATURE_ALGORITHMS
+            );
+        });
+        // If only valid JWT Set Path present but no Public Key algorithms, verify it is rejected
+        final Exception exception2 = expectThrows(SettingsException.class, () -> {
+            JwtRealm.validateIssuerCredentialSettings(
+                authcConfig,
+                null,
+                validJwkSetPath,
+                JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS
+            );
+        });
+
+        // If both credentials missing, verify they are rejected
+        final Exception exception3 = expectThrows(
+            SettingsException.class,
+            () -> { JwtRealm.validateIssuerCredentialSettings(authcConfig, null, "", JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS); }
+        );
     }
 
     public void testJwtAuthcRealmAuthenticateWithEmptyRoles() throws Exception {

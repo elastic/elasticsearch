@@ -64,6 +64,9 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
             this.aggregations = aggregations;
         }
 
+        /**
+         * Read from a stream.
+         */
         public Bucket(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
             this.format = format;
             this.keyed = keyed;
@@ -192,6 +195,9 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
         this.buckets = buckets;
     }
 
+    /**
+     * Stream from a stream.
+     */
     public InternalIpPrefix(StreamInput in) throws IOException {
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);

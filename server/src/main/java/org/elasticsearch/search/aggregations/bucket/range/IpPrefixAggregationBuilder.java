@@ -32,6 +32,9 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * A builder for IP prefix aggregations. This builder can operate with both IPv4 and IPv6 fields.
+ */
 public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<IpPrefixAggregationBuilder> {
     public static final String NAME = "ip_prefix";
     public static final ValuesSourceRegistry.RegistryKey<IpPrefixAggregationSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
@@ -62,6 +65,7 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
     private static final int IPV4_MAX_PREFIX_LENGTH = 32;
     private static final int MIN_PREFIX_LENGTH = 0;
 
+    /** Read from a stream, for internal use only. */
     public IpPrefixAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         this.prefixLength = in.readVInt();
@@ -81,11 +85,17 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
     private boolean appendPrefixLength = false;
     private boolean keyed = false;
 
+    /** Set the minDocCount on this builder, and return the builder so that calls can be chained. */
     public IpPrefixAggregationBuilder minDocCount(long minDocCount) {
         this.minDocCount = minDocCount;
         return this;
     }
 
+    /**
+     * Set the prefixLength on this builder, and return the builder so that calls can be chained.
+     *
+     * @throws IllegalArgumentException if prefixLength is negative.
+     * */
     public IpPrefixAggregationBuilder prefixLength(int prefixLength) {
         if (prefixLength < MIN_PREFIX_LENGTH) {
             throw new IllegalArgumentException("[prefix_len] must not be less than " + MIN_PREFIX_LENGTH + ": [" + name + "]");
@@ -94,21 +104,25 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
         return this;
     }
 
+    /** Set the isIpv6 on this builder, and return the builder so that calls can be chained. */
     public IpPrefixAggregationBuilder isIpv6(boolean isIpv6) {
         this.isIpv6 = isIpv6;
         return this;
     }
 
+    /** Set the appendPrefixLength on this builder, and return the builder so that calls can be chained. */
     public IpPrefixAggregationBuilder appendPrefixLength(boolean appendPrefixLength) {
         this.appendPrefixLength = appendPrefixLength;
         return this;
     }
 
+    /** Set the keyed on this builder, and return the builder so that calls can be chained. */
     public IpPrefixAggregationBuilder keyed(boolean keyed) {
         this.keyed = keyed;
         return this;
     }
 
+    /** Create a new builder with the given name. */
     public IpPrefixAggregationBuilder(String name) {
         super(name);
     }

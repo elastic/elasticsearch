@@ -36,6 +36,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * An IP prefix aggregator for IPv6 or IPv4 subnets.
+ */
 public final class IpPrefixAggregator extends BucketsAggregator {
 
     public static class IpPrefix {

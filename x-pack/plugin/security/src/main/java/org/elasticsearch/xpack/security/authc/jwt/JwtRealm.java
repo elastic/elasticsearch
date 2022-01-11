@@ -83,7 +83,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     // JWT cache settings
     private final TimeValue cacheTtl;
     private final Integer cacheMaxUsers;
-    private final String cacheHashAlgo;
     // Standard HTTP settings for outgoing connections to get JWT issuer jwkset_path
     private final TimeValue httpConnectTimeout;
     private final TimeValue httpConnectionReadTimeout;
@@ -141,7 +140,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         // JWT cache settings
         this.cacheTtl = realmConfig.getSetting(JwtRealmSettings.CACHE_TTL);
         this.cacheMaxUsers = realmConfig.getSetting(JwtRealmSettings.CACHE_MAX_USERS);
-        this.cacheHashAlgo = realmConfig.getSetting(JwtRealmSettings.CACHE_HASH_ALGO);
+        final String cacheHashAlgo = realmConfig.getSetting(JwtRealmSettings.CACHE_HASH_ALGO);
 
         // Standard HTTP settings for outgoing connections to get JWT issuer jwkset_path
         this.httpConnectTimeout = realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECT_TIMEOUT);
@@ -159,7 +158,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         } else {
             this.cachedAuthenticationSuccesses = null;
         }
-        this.hasher = Hasher.resolve(this.cacheHashAlgo);
+        this.hasher = Hasher.resolve(cacheHashAlgo);
 
         // Validate Client Authorization Type and Client Authorization Credential format
         validateClientAuthorizationSettings(this.clientAuthorizationType, this.clientAuthorizationSharedSecret, super.config);

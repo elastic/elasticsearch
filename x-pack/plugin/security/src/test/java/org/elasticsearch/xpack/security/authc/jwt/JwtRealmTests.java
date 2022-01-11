@@ -139,10 +139,8 @@ public class JwtRealmTests extends JwtTestCase {
         final String validJwtSetPathHttps = "https://op.example.com/jwkset.json";
         final String invalidJwkSetPathHttp = "http://invalid.example.com/jwkset.json";
         final String validJwkSetPathFile = Files.createTempFile(PathUtils.get(this.pathHome), "jwkset.", ".json").toString();
+        Files.writeString(PathUtils.get(validJwkSetPathFile), "Non-empty JWK Set Path contents");
         final String validJwkSetPath = randomBoolean() ? validJwtSetPathHttps : validJwkSetPathFile;
-        if (validJwkSetPath.startsWith("https://") == false) {
-            Files.writeString(PathUtils.get(validJwkSetPath), "Non-empty JWK Set Path contents");
-        }
 
         // If HTTPS URL or local file, verify it is accepted
         // If HTTP URL, verify it is rejected

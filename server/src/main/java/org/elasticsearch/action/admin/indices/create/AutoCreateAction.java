@@ -142,6 +142,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     finalListener.onResponse(new CreateIndexResponse(false, false, indexName));
                 }
             }, finalListener::onFailure);
+            //TODO: move this to custom class instead of AckedClusterStateUpdateTask
             AckedClusterStateUpdateTask clusterTask = new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
 
                 @Override

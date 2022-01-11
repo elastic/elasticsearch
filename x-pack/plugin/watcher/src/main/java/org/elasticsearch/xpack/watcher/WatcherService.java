@@ -136,12 +136,6 @@ public class WatcherService {
      * @return true if everything is good to go, so that the service can be started
      */
     public boolean validate(ClusterState state) {
-        // template check makes only sense for non existing indices, we could refine this
-        boolean hasValidWatcherTemplates = WatcherIndexTemplateRegistry.validate(state);
-        if (hasValidWatcherTemplates == false) {
-            logger.debug("missing watcher index templates, will potentially be writing watcher history without mappings");
-        }
-
         IndexMetadata watcherIndexMetadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metadata());
         IndexMetadata triggeredWatchesIndexMetadata = WatchStoreUtils.getConcreteIndex(
             TriggeredWatchStoreField.INDEX_NAME,

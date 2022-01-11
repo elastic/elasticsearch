@@ -23,6 +23,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AdaptingAggregator;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -110,6 +111,13 @@ public abstract class RangeAggregator extends BucketsAggregator {
          * {@code from} and {@code to} parameters if they are non-null
          * and finite. Otherwise they parse from {@code fromrStr} and
          * {@code toStr}.
+         * {@code originalFrom} and {@code originalTo} are used to preserve
+         * the original values of {@code from} and {@code to}. This is because
+         * precision is downgraded to float precision when storing float values.
+         * Downgrading precision for float values surfaces into precision
+         * artifacts at serialization time as a result of treating float values
+         * as double values.
+         * (See {@link RangeAggregationBuilder#innerBuild(AggregationContext, ValuesSourceConfig, AggregatorFactory, AggregatorFactories.Builder)})
          */
         public Range(String key, Double from, Double originalFrom, String fromAsStr, Double to, Double originalTo, String toAsStr) {
             this.key = key;

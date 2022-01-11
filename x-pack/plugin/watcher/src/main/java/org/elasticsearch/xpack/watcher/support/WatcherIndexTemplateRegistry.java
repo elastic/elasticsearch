@@ -20,9 +20,11 @@ import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 import org.elasticsearch.xpack.watcher.Watcher;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
@@ -86,14 +88,9 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     }
 
     public static boolean validate(ClusterState state) {
-        return state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME)
-            || state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM)
-            ||
-            // Template versions 12 or 13 are also ok to have (no breaking changes). At some point these will be upgraded to version 14.
-            state.getMetadata().templatesV2().containsKey(".watch-history-12")
-            || state.getMetadata().templatesV2().containsKey(".watch-history-no-ilm-12")
-            || state.getMetadata().templatesV2().containsKey(".watch-history-13")
-            || state.getMetadata().templatesV2().containsKey(".watch-history-no-ilm-13");
+        return state.getMetadata().templatesV2().keySet().stream().filter(s -> s.startsWith(".watch-history-"))
+            .map(s -> Integer.valueOf(s.substring(s.lastIndexOf('-') + 1)))
+            .anyMatch(version -> version >= 12);
     }
 
     @Override

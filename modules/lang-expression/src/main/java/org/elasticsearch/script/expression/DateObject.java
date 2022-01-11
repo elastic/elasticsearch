@@ -64,112 +64,154 @@ final class DateObject {
     static final String GETYEAR_OF_ERA_METHOD = "getYearOfEra";
 
     static DoubleValuesSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
-        switch (variable) {
-            case CENTURY_OF_ERA_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, zdt -> zdt.get(ChronoField.YEAR_OF_ERA) / 100);
-            case DAY_OF_MONTH_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getDayOfMonth);
-            case DAY_OF_WEEK_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, zdt -> zdt.getDayOfWeek().getValue());
-            case DAY_OF_YEAR_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getDayOfYear);
-            case ERA_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, zdt -> zdt.get(ChronoField.ERA));
-            case HOUR_OF_DAY_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getHour);
-            case MILLIS_OF_DAY_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, zdt -> zdt.get(ChronoField.MILLI_OF_DAY));
-            case MILLIS_OF_SECOND_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, zdt -> zdt.get(ChronoField.MILLI_OF_SECOND));
-            case MINUTE_OF_DAY_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, zdt -> zdt.get(ChronoField.MINUTE_OF_DAY));
-            case MINUTE_OF_HOUR_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getMinute);
-            case MONTH_OF_YEAR_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getMonthValue);
-            case SECOND_OF_DAY_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, zdt -> zdt.get(ChronoField.SECOND_OF_DAY));
-            case SECOND_OF_MINUTE_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getSecond);
-            case WEEK_OF_WEEK_YEAR_VARIABLE:
-                return new DateObjectValueSource(
-                    fieldData,
-                    MultiValueMode.MIN,
-                    variable,
-                    zdt -> zdt.get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear())
-                );
-            case WEEK_YEAR_VARIABLE:
-                return new DateObjectValueSource(
-                    fieldData,
-                    MultiValueMode.MIN,
-                    variable,
-                    zdt -> zdt.get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear())
-                );
-            case YEAR_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getYear);
-            case YEAR_OF_CENTURY_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, zdt -> zdt.get(ChronoField.YEAR_OF_ERA) % 100);
-            case YEAR_OF_ERA_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, zdt -> zdt.get(ChronoField.YEAR_OF_ERA));
-            default:
-                throw new IllegalArgumentException(
-                    "Member variable [" + variable + "] does not exist for date object on field [" + fieldName + "]."
-                );
-        }
+        return switch (variable) {
+            case CENTURY_OF_ERA_VARIABLE -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                variable,
+                zdt -> zdt.get(ChronoField.YEAR_OF_ERA) / 100
+            );
+            case DAY_OF_MONTH_VARIABLE -> new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getDayOfMonth);
+            case DAY_OF_WEEK_VARIABLE -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                variable,
+                zdt -> zdt.getDayOfWeek().getValue()
+            );
+            case DAY_OF_YEAR_VARIABLE -> new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getDayOfYear);
+            case ERA_VARIABLE -> new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, zdt -> zdt.get(ChronoField.ERA));
+            case HOUR_OF_DAY_VARIABLE -> new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getHour);
+            case MILLIS_OF_DAY_VARIABLE -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                variable,
+                zdt -> zdt.get(ChronoField.MILLI_OF_DAY)
+            );
+            case MILLIS_OF_SECOND_VARIABLE -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                variable,
+                zdt -> zdt.get(ChronoField.MILLI_OF_SECOND)
+            );
+            case MINUTE_OF_DAY_VARIABLE -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                variable,
+                zdt -> zdt.get(ChronoField.MINUTE_OF_DAY)
+            );
+            case MINUTE_OF_HOUR_VARIABLE -> new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getMinute);
+            case MONTH_OF_YEAR_VARIABLE -> new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getMonthValue);
+            case SECOND_OF_DAY_VARIABLE -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                variable,
+                zdt -> zdt.get(ChronoField.SECOND_OF_DAY)
+            );
+            case SECOND_OF_MINUTE_VARIABLE -> new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getSecond);
+            case WEEK_OF_WEEK_YEAR_VARIABLE -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                variable,
+                zdt -> zdt.get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear())
+            );
+            case WEEK_YEAR_VARIABLE -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                variable,
+                zdt -> zdt.get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear())
+            );
+            case YEAR_VARIABLE -> new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getYear);
+            case YEAR_OF_CENTURY_VARIABLE -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                variable,
+                zdt -> zdt.get(ChronoField.YEAR_OF_ERA) % 100
+            );
+            case YEAR_OF_ERA_VARIABLE -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                variable,
+                zdt -> zdt.get(ChronoField.YEAR_OF_ERA)
+            );
+            default -> throw new IllegalArgumentException(
+                "Member variable [" + variable + "] does not exist for date object on field [" + fieldName + "]."
+            );
+        };
     }
 
     static DoubleValuesSource getMethod(IndexFieldData<?> fieldData, String fieldName, String method) {
-        switch (method) {
-            case GETCENTURY_OF_ERA_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, zdt -> zdt.get(ChronoField.YEAR_OF_ERA) / 100);
-            case GETDAY_OF_MONTH_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getDayOfMonth);
-            case GETDAY_OF_WEEK_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, zdt -> zdt.getDayOfWeek().getValue());
-            case GETDAY_OF_YEAR_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getDayOfYear);
-            case GETERA_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, zdt -> zdt.get(ChronoField.ERA));
-            case GETHOUR_OF_DAY_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getHour);
-            case GETMILLIS_OF_DAY_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, zdt -> zdt.get(ChronoField.MILLI_OF_DAY));
-            case GETMILLIS_OF_SECOND_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, zdt -> zdt.get(ChronoField.MILLI_OF_SECOND));
-            case GETMINUTE_OF_DAY_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, zdt -> zdt.get(ChronoField.MINUTE_OF_DAY));
-            case GETMINUTE_OF_HOUR_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getMinute);
-            case GETMONTH_OF_YEAR_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getMonthValue);
-            case GETSECOND_OF_DAY_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, zdt -> zdt.get(ChronoField.SECOND_OF_DAY));
-            case GETSECOND_OF_MINUTE_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getSecond);
-            case GETWEEK_OF_WEEK_YEAR_METHOD:
-                return new DateObjectValueSource(
-                    fieldData,
-                    MultiValueMode.MIN,
-                    method,
-                    zdt -> zdt.get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear())
-                );
-            case GETWEEK_YEAR_METHOD:
-                return new DateObjectValueSource(
-                    fieldData,
-                    MultiValueMode.MIN,
-                    method,
-                    zdt -> zdt.get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear())
-                );
-            case GETYEAR_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getYear);
-            case GETYEAR_OF_CENTURY_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, zdt -> zdt.get(ChronoField.YEAR_OF_ERA) % 100);
-            case GETYEAR_OF_ERA_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, zdt -> zdt.get(ChronoField.YEAR_OF_ERA));
-            default:
-                throw new IllegalArgumentException(
-                    "Member method [" + method + "] does not exist for date object on field [" + fieldName + "]."
-                );
-        }
+        return switch (method) {
+            case GETCENTURY_OF_ERA_METHOD -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                method,
+                zdt -> zdt.get(ChronoField.YEAR_OF_ERA) / 100
+            );
+            case GETDAY_OF_MONTH_METHOD -> new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getDayOfMonth);
+            case GETDAY_OF_WEEK_METHOD -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                method,
+                zdt -> zdt.getDayOfWeek().getValue()
+            );
+            case GETDAY_OF_YEAR_METHOD -> new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getDayOfYear);
+            case GETERA_METHOD -> new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, zdt -> zdt.get(ChronoField.ERA));
+            case GETHOUR_OF_DAY_METHOD -> new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getHour);
+            case GETMILLIS_OF_DAY_METHOD -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                method,
+                zdt -> zdt.get(ChronoField.MILLI_OF_DAY)
+            );
+            case GETMILLIS_OF_SECOND_METHOD -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                method,
+                zdt -> zdt.get(ChronoField.MILLI_OF_SECOND)
+            );
+            case GETMINUTE_OF_DAY_METHOD -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                method,
+                zdt -> zdt.get(ChronoField.MINUTE_OF_DAY)
+            );
+            case GETMINUTE_OF_HOUR_METHOD -> new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getMinute);
+            case GETMONTH_OF_YEAR_METHOD -> new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getMonthValue);
+            case GETSECOND_OF_DAY_METHOD -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                method,
+                zdt -> zdt.get(ChronoField.SECOND_OF_DAY)
+            );
+            case GETSECOND_OF_MINUTE_METHOD -> new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getSecond);
+            case GETWEEK_OF_WEEK_YEAR_METHOD -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                method,
+                zdt -> zdt.get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear())
+            );
+            case GETWEEK_YEAR_METHOD -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                method,
+                zdt -> zdt.get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear())
+            );
+            case GETYEAR_METHOD -> new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getYear);
+            case GETYEAR_OF_CENTURY_METHOD -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                method,
+                zdt -> zdt.get(ChronoField.YEAR_OF_ERA) % 100
+            );
+            case GETYEAR_OF_ERA_METHOD -> new DateObjectValueSource(
+                fieldData,
+                MultiValueMode.MIN,
+                method,
+                zdt -> zdt.get(ChronoField.YEAR_OF_ERA)
+            );
+            default -> throw new IllegalArgumentException(
+                "Member method [" + method + "] does not exist for date object on field [" + fieldName + "]."
+            );
+        };
     }
 }

@@ -54,7 +54,6 @@ public class RangeFieldMapper extends FieldMapper {
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
 
     public static class Defaults {
-        public static final Explicit<Boolean> COERCE = new Explicit<>(true, false);
         public static final DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
     }
 

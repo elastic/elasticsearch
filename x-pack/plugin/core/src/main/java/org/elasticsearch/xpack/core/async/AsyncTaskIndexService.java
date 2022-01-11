@@ -21,8 +21,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
@@ -465,21 +465,17 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
                 parser.nextToken();
                 switch (parser.currentName()) {
-                    case RESULT_FIELD:
-                        resp = decodeResponse(parser.charBuffer());
-                        break;
-                    case EXPIRATION_TIME_FIELD:
-                        expirationTime = (long) parser.numberValue();
-                        break;
-                    case HEADERS_FIELD:
+                    case RESULT_FIELD -> resp = decodeResponse(parser.charBuffer());
+                    case EXPIRATION_TIME_FIELD -> expirationTime = (long) parser.numberValue();
+                    case HEADERS_FIELD -> {
                         @SuppressWarnings("unchecked")
                         final Map<String, String> headers = (Map<String, String>) XContentParserUtils.parseFieldsValue(parser);
                         // check the authentication of the current user against the user that initiated the async task
                         if (checkAuthentication && ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication()) == false) {
                             throw new ResourceNotFoundException(asyncExecutionId.getEncoded());
                         }
-                        break;
-                    case RESPONSE_HEADERS_FIELD:
+                    }
+                    case RESPONSE_HEADERS_FIELD -> {
                         @SuppressWarnings("unchecked")
                         final Map<String, List<String>> responseHeaders = (Map<String, List<String>>) XContentParserUtils.parseFieldsValue(
                             parser
@@ -487,10 +483,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                         if (restoreResponseHeaders) {
                             restoreResponseHeadersContext(securityContext.getThreadContext(), responseHeaders);
                         }
-                        break;
-                    default:
-                        XContentParserUtils.parseFieldsValue(parser); // consume and discard unknown fields
-                        break;
+                    }
+                    default -> XContentParserUtils.parseFieldsValue(parser); // consume and discard unknown fields
                 }
             }
             Objects.requireNonNull(resp, "Get result doesn't include [" + RESULT_FIELD + "] field");

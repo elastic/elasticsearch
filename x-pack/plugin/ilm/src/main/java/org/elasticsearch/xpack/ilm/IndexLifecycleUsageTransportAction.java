@@ -108,30 +108,30 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
 
     private void collectActionConfigurations(String actionName, LifecycleAction action, ActionConfigStats.Builder consumer) {
         switch (actionName) {
-            case AllocateAction.NAME:
+            case AllocateAction.NAME -> {
                 AllocateAction allocateAction = (AllocateAction) action;
                 consumer.setAllocateNumberOfReplicas(allocateAction.getNumberOfReplicas());
-                break;
-            case ForceMergeAction.NAME:
+            }
+            case ForceMergeAction.NAME -> {
                 ForceMergeAction forceMergeAction = (ForceMergeAction) action;
                 consumer.setForceMergeMaxNumberOfSegments(forceMergeAction.getMaxNumSegments());
-                break;
-            case RolloverAction.NAME:
+            }
+            case RolloverAction.NAME -> {
                 RolloverAction rolloverAction = (RolloverAction) action;
                 consumer.setRolloverMaxAge(rolloverAction.getMaxAge());
                 consumer.setRolloverMaxDocs(rolloverAction.getMaxDocs());
                 consumer.setRolloverMaxPrimaryShardSize(rolloverAction.getMaxPrimaryShardSize());
                 consumer.setRolloverMaxSize(rolloverAction.getMaxSize());
-                break;
-            case SetPriorityAction.NAME:
+            }
+            case SetPriorityAction.NAME -> {
                 SetPriorityAction setPriorityAction = (SetPriorityAction) action;
                 consumer.setPriority(setPriorityAction.getRecoveryPriority());
-                break;
-            case ShrinkAction.NAME:
+            }
+            case ShrinkAction.NAME -> {
                 ShrinkAction shrinkAction = (ShrinkAction) action;
                 consumer.setShrinkMaxPrimaryShardSize(shrinkAction.getMaxPrimaryShardSize());
                 consumer.setShrinkNumberOfShards(shrinkAction.getNumberOfShards());
-                break;
+            }
         }
     }
 }

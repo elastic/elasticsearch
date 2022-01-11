@@ -18,7 +18,7 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -387,18 +387,9 @@ public class TransportCloseJobAction extends TransportTasksAction<
 
         JobState jobState = MlTasks.getJobState(jobId, tasksMetadata);
         switch (jobState) {
-            case CLOSING:
-                closingJobs.add(jobId);
-                break;
-            case FAILED:
-                failedJobs.add(jobId);
-                break;
-            case OPENING:
-            case OPENED:
-                openJobs.add(jobId);
-                break;
-            default:
-                break;
+            case CLOSING -> closingJobs.add(jobId);
+            case FAILED -> failedJobs.add(jobId);
+            case OPENING, OPENED -> openJobs.add(jobId);
         }
     }
 

@@ -13,7 +13,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -241,7 +241,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
     }
 
     public void testPersistProgress_ProgressDocumentCreated() throws IOException {
-        testPersistProgress(SearchHits.empty(), ".ml-state-write");
+        testPersistProgress(SearchHits.EMPTY_WITH_TOTAL_HITS, ".ml-state-write");
     }
 
     public void testPersistProgress_ProgressDocumentUpdated() throws IOException {
@@ -285,7 +285,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         );
 
         SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getHits()).thenReturn(SearchHits.empty());
+        when(searchResponse.getHits()).thenReturn(SearchHits.EMPTY_WITH_TOTAL_HITS);
         doAnswer(withResponse(searchResponse)).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         IndexResponse indexResponse = mock(IndexResponse.class);

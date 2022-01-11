@@ -36,6 +36,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -115,6 +117,7 @@ public class MetadataIndexTemplateService {
     private final IndexScopedSettings indexScopedSettings;
     private final NamedXContentRegistry xContentRegistry;
     private final SystemIndices systemIndices;
+    private final Set<IndexSettingProvider> indexSettingProviders;
 
     @Inject
     public MetadataIndexTemplateService(
@@ -124,7 +127,8 @@ public class MetadataIndexTemplateService {
         IndicesService indicesService,
         IndexScopedSettings indexScopedSettings,
         NamedXContentRegistry xContentRegistry,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        IndexSettingProviders indexSettingProviders
     ) {
         this.clusterService = clusterService;
         this.aliasValidator = aliasValidator;
@@ -133,6 +137,7 @@ public class MetadataIndexTemplateService {
         this.indexScopedSettings = indexScopedSettings;
         this.xContentRegistry = xContentRegistry;
         this.systemIndices = systemIndices;
+        this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
@@ -277,7 +282,7 @@ public class MetadataIndexTemplateService {
             return currentState;
         }
 
-        validateTemplate(finalSettings, wrappedMappings, indicesService, xContentRegistry);
+        validateTemplate(finalSettings, wrappedMappings, indicesService);
         validate(name, finalComponentTemplate);
 
         // Validate all composable index templates that use this component template
@@ -604,25 +609,7 @@ public class MetadataIndexTemplateService {
             return currentState;
         }
 
-        validate(name, finalIndexTemplate);
-        validateDataStreamsStillReferenced(currentState, name, finalIndexTemplate);
-
-        // Finally, right before adding the template, we need to ensure that the composite settings,
-        // mappings, and aliases are valid after it's been composed with the component templates
-        try {
-            validateCompositeTemplate(currentState, name, finalIndexTemplate, indicesService, xContentRegistry, systemIndices);
-        } catch (Exception e) {
-            throw new IllegalArgumentException(
-                "composable template ["
-                    + name
-                    + "] template after composition "
-                    + (finalIndexTemplate.composedOf().size() > 0
-                        ? "with component templates " + finalIndexTemplate.composedOf() + " "
-                        : "")
-                    + "is invalid",
-                e
-            );
-        }
+        validateIndexTemplateV2(name, finalIndexTemplate, currentState);
         logger.info(
             "{} index template [{}] for index patterns {}",
             existing == null ? "adding" : "updating",
@@ -630,6 +617,61 @@ public class MetadataIndexTemplateService {
             template.indexPatterns()
         );
         return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.metadata()).put(name, finalIndexTemplate)).build();
+    }
+
+    private void validateIndexTemplateV2(String name, ComposableIndexTemplate indexTemplate, ClusterState currentState) {
+        // Workaround for the fact that start_time and end_time are injected by the MetadataCreateDataStreamService upon creation,
+        // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
+        var finalTemplate = Optional.ofNullable(indexTemplate.template());
+        var finalSettings = Settings.builder();
+
+        // First apply settings sourced from index setting providers:
+        for (var provider : indexSettingProviders) {
+            finalSettings.put(
+                provider.getAdditionalIndexSettings(
+                    "validate-index-name",
+                    indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
+                    currentState.getMetadata(),
+                    System.currentTimeMillis(),
+                    finalTemplate.map(Template::settings).orElse(Settings.EMPTY)
+                )
+            );
+        }
+        // Then apply settings resolved from templates:
+        finalSettings.put(finalTemplate.map(Template::settings).orElse(Settings.EMPTY));
+
+        var templateToValidate = new ComposableIndexTemplate(
+            indexTemplate.indexPatterns(),
+            new Template(
+                finalSettings.build(),
+                finalTemplate.map(Template::mappings).orElse(null),
+                finalTemplate.map(Template::aliases).orElse(null)
+            ),
+            indexTemplate.composedOf(),
+            indexTemplate.priority(),
+            indexTemplate.version(),
+            indexTemplate.metadata(),
+            indexTemplate.getDataStreamTemplate(),
+            indexTemplate.getAllowAutoCreate()
+        );
+
+        validate(name, templateToValidate);
+        validateDataStreamsStillReferenced(currentState, name, templateToValidate);
+
+        // Finally, right before adding the template, we need to ensure that the composite settings,
+        // mappings, and aliases are valid after it's been composed with the component templates
+        try {
+            validateCompositeTemplate(currentState, name, templateToValidate, indicesService, xContentRegistry, systemIndices);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                "composable template ["
+                    + name
+                    + "] template after composition "
+                    + (indexTemplate.composedOf().size() > 0 ? "with component templates " + indexTemplate.composedOf() + " " : "")
+                    + "is invalid",
+                e
+            );
+        }
     }
 
     /**
@@ -917,7 +959,7 @@ public class MetadataIndexTemplateService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    validateTemplate(request.settings, request.mappings, indicesService, xContentRegistry);
+                    validateTemplate(request.settings, request.mappings, indicesService);
                     return innerPutTemplate(currentState, request, templateBuilder);
                 }
 
@@ -1387,12 +1429,8 @@ public class MetadataIndexTemplateService {
         });
     }
 
-    private static void validateTemplate(
-        Settings validateSettings,
-        CompressedXContent mappings,
-        IndicesService indicesService,
-        NamedXContentRegistry xContentRegistry
-    ) throws Exception {
+    private static void validateTemplate(Settings validateSettings, CompressedXContent mappings, IndicesService indicesService)
+        throws Exception {
         // Hard to validate settings if they're non-existent, so used empty ones if none were provided
         Settings settings = validateSettings;
         if (settings == null) {
@@ -1424,12 +1462,7 @@ public class MetadataIndexTemplateService {
             createdIndex = dummyIndexService.index();
 
             if (mappings != null) {
-                dummyIndexService.mapperService()
-                    .merge(
-                        MapperService.SINGLE_MAPPING_NAME,
-                        MapperService.parseMapping(xContentRegistry, mappings),
-                        MergeReason.MAPPING_UPDATE
-                    );
+                dummyIndexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.MAPPING_UPDATE);
             }
 
         } finally {

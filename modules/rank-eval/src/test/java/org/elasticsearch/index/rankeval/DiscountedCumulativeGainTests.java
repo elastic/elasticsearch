@@ -319,23 +319,19 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
     }
 
     private static DiscountedCumulativeGain mutateTestItem(DiscountedCumulativeGain original) {
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return new DiscountedCumulativeGain(original.getNormalize() == false, original.getUnknownDocRating(), original.getK());
-            case 1:
-                return new DiscountedCumulativeGain(
-                    original.getNormalize(),
-                    randomValueOtherThan(original.getUnknownDocRating(), () -> randomIntBetween(0, 10)),
-                    original.getK()
-                );
-            case 2:
-                return new DiscountedCumulativeGain(
-                    original.getNormalize(),
-                    original.getUnknownDocRating(),
-                    randomValueOtherThan(original.getK(), () -> randomIntBetween(1, 10))
-                );
-            default:
-                throw new IllegalArgumentException("mutation variant not allowed");
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new DiscountedCumulativeGain(original.getNormalize() == false, original.getUnknownDocRating(), original.getK());
+            case 1 -> new DiscountedCumulativeGain(
+                original.getNormalize(),
+                randomValueOtherThan(original.getUnknownDocRating(), () -> randomIntBetween(0, 10)),
+                original.getK()
+            );
+            case 2 -> new DiscountedCumulativeGain(
+                original.getNormalize(),
+                original.getUnknownDocRating(),
+                randomValueOtherThan(original.getK(), () -> randomIntBetween(1, 10))
+            );
+            default -> throw new IllegalArgumentException("mutation variant not allowed");
+        };
     }
 }

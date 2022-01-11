@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -96,6 +97,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     public static boolean isDedicatedFrozenNode(final Settings settings) {
         return isDedicatedFrozenRoles(getRolesFromSettings(settings));
     }
+
+    private static final StringLiteralDeduplicator nodeStringDeduplicator = new StringLiteralDeduplicator();
 
     private final String nodeName;
     private final String nodeId;
@@ -216,22 +219,22 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Version version
     ) {
         if (nodeName != null) {
-            this.nodeName = nodeName.intern();
+            this.nodeName = nodeStringDeduplicator.deduplicate(nodeName);
         } else {
             this.nodeName = "";
         }
-        this.nodeId = nodeId.intern();
-        this.ephemeralId = ephemeralId.intern();
-        this.hostName = hostName.intern();
+        this.nodeId = nodeStringDeduplicator.deduplicate(nodeId);
+        this.ephemeralId = nodeStringDeduplicator.deduplicate(ephemeralId);
+        this.hostName = nodeStringDeduplicator.deduplicate(hostName);
         assert Strings.hasText(hostAddress);
-        this.hostAddress = hostAddress.intern();
+        this.hostAddress = nodeStringDeduplicator.deduplicate(hostAddress);
         this.address = address;
         if (version == null) {
             this.version = Version.CURRENT;
         } else {
             this.version = version;
         }
-        this.attributes = Collections.unmodifiableMap(attributes);
+        this.attributes = Map.copyOf(attributes);
         assert DiscoveryNodeRole.roleNames().stream().noneMatch(attributes::containsKey)
             : "Node roles must not be provided as attributes but saw attributes " + attributes;
         this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
@@ -249,19 +252,21 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return Set.copyOf(NODE_ROLES_SETTING.get(settings));
     }
 
+    private static final Writeable.Reader<String> readStringLiteral = s -> nodeStringDeduplicator.deduplicate(s.readString());
+
     /**
      * Creates a new {@link DiscoveryNode} by reading from the stream provided as argument
      * @param in the stream
      * @throws IOException if there is an error while reading from the stream
      */
     public DiscoveryNode(StreamInput in) throws IOException {
-        this.nodeName = in.readString().intern();
-        this.nodeId = in.readString().intern();
-        this.ephemeralId = in.readString().intern();
-        this.hostName = in.readString().intern();
-        this.hostAddress = in.readString().intern();
+        this.nodeName = readStringLiteral.read(in);
+        this.nodeId = readStringLiteral.read(in);
+        this.ephemeralId = readStringLiteral.read(in);
+        this.hostName = readStringLiteral.read(in);
+        this.hostAddress = readStringLiteral.read(in);
         this.address = new TransportAddress(in);
-        this.attributes = in.readMap(StreamInput::readString, StreamInput::readString);
+        this.attributes = Collections.unmodifiableMap(in.readMap(readStringLiteral, readStringLiteral));
         int rolesSize = in.readVInt();
         final SortedSet<DiscoveryNodeRole> roles = new TreeSet<>();
         for (int i = 0; i < rolesSize; i++) {

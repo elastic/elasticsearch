@@ -430,7 +430,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public void authenticate(final AuthenticationToken authenticationToken, final ActionListener<AuthenticationResult<User>> listener) {
         this.ensureExpectedValueForInitialized(true);
         if (authenticationToken instanceof JwtAuthenticationToken jwtAuthenticationToken) {
-            LOGGER.trace("Realm [{}] supports JwtAuthenticationToken.", super.name());
+            LOGGER.trace("Attempting to perform authentication of JwtAuthenticationToken with realm [{}].", super.name());
             final JWSHeader jwsHeader = jwtAuthenticationToken.getJwsHeader();
             final JWTClaimsSet jwtClaimsSet = jwtAuthenticationToken.getJwtClaimsSet();
             final String clientAuthorizationSharedSecret = jwtAuthenticationToken.getClientAuthorizationSharedSecret().toString();

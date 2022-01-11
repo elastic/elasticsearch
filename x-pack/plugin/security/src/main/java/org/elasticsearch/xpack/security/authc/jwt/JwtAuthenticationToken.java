@@ -62,16 +62,16 @@ public class JwtAuthenticationToken extends BearerToken {
 
     @Override
     public String principal() {
-        return super.bearerString.toString();
+        return super.credentials().toString();
     }
 
     @Override
     public SecureString credentials() {
-        return super.bearerString;
+        return super.credentials();
     }
 
     public SecureString getSerializedJwt() {
-        return super.bearerString;
+        return super.credentials();
     }
 
     public SignedJWT getSignedJwt() {

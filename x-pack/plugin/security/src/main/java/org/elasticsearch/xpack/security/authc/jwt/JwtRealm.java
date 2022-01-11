@@ -437,7 +437,40 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
             // Filter steps (before any validation)
 
-            // 1. Skip JWT if signature algorithm does not match any of the signature algorithms allowed by this realm.
+            // 1. Skip JWT if issuer does not match the issuer allowed by this realm.
+            final String jwtIssuer = jwtClaimsSet.getIssuer();
+            if ((jwtIssuer == null) || (this.allowedIssuer.equals(jwtIssuer) == false)) {
+                final String msg = String.format(
+                    Locale.ROOT,
+                    "Realm [%s] does not allow issuer [%s]. Allowed issuer is [%s].",
+                    super.name(),
+                    jwtIssuer,
+                    this.allowedIssuer
+                );
+                LOGGER.debug(msg);
+                listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
+                return;
+            }
+            LOGGER.debug("Realm [{}] allows issuer [{}]. Allowed issuer is [{}].", super.name(), jwtIssuer, this.allowedIssuer);
+
+            // 2. Skip JWT if audience does not match any of the audiences allowed by this realm.
+            final List<String> jwtAudiences = jwtClaimsSet.getAudience();
+            if ((jwtAudiences == null) || (this.allowedAudiences.stream().anyMatch(jwtAudiences::contains) == false)) {
+                final String msg = String.format(
+                    Locale.ROOT,
+                    "Realm [%s] does not allow audiences [%s]. Allowed audiences are [%]s.",
+                    super.name(),
+                    String.join(",", jwtAudiences),
+                    String.join(",", this.allowedAudiences)
+                );
+                LOGGER.debug(msg);
+                listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
+                return;
+            }
+            LOGGER.debug("Realm [{}] allows audiences [{}]. Allowed audiences are [{}].", super.name(),
+                String.join(",", jwtAudiences), String.join(",", this.allowedAudiences));
+
+            // 3. Skip JWT if signature algorithm does not match any of the signature algorithms allowed by this realm.
             final JWSAlgorithm jwsSignatureAlgorithm = jwsHeader.getAlgorithm();
             if ((jwsSignatureAlgorithm == null) || (this.allowedSignatureAlgorithms.contains(jwsSignatureAlgorithm.getName()) == false)) {
                 final String msg = String.format(
@@ -457,38 +490,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 jwsSignatureAlgorithm,
                 this.allowedSignatureAlgorithms
             );
-
-            // 2. Skip JWT if issuer does not match the issuer allowed by this realm.
-            final String jwtIssuer = jwtClaimsSet.getIssuer();
-            if ((jwtIssuer == null) || (this.allowedIssuer.contains(jwtIssuer) == false)) {
-                final String msg = String.format(
-                    Locale.ROOT,
-                    "Realm [%s] does not allow issuer [%s]. Allowed issuer is [%s].",
-                    super.name(),
-                    jwtIssuer,
-                    this.allowedIssuer
-                );
-                LOGGER.debug(msg);
-                listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
-                return;
-            }
-            LOGGER.debug("Realm [{}] allows issuer [{}]. Allowed issuer is [{}].", super.name(), jwtIssuer, this.allowedIssuer);
-
-            // 3. Skip JWT if audience does not match any of the audiences allowed by this realm.
-            final List<String> jwtAudiences = jwtClaimsSet.getAudience();
-            if ((jwtAudiences == null) || (this.allowedAudiences.stream().anyMatch(jwtAudiences::contains) == false)) {
-                final String msg = String.format(
-                    Locale.ROOT,
-                    "Realm [%s] does not allow audiences %s. Allowed audiences are %s.",
-                    super.name(),
-                    jwtAudiences,
-                    this.allowedAudiences
-                );
-                LOGGER.debug(msg);
-                listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
-                return;
-            }
-            LOGGER.debug("Realm [{}] allows audiences {}. Allowed audiences are {}.", super.name(), jwtAudiences, this.allowedAudiences);
 
             // TODO The implementation of JWT authentication will be completed in a later PR
             // At this point, this is the right realm to do validation. Trigger AuthenticationResult.unsuccessful() if any problems found.

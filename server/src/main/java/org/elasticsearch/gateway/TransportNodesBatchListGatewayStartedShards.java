@@ -127,8 +127,11 @@ public class TransportNodesBatchListGatewayStartedShards extends TransportNodesA
             final CountDownLatch latch = new CountDownLatch(request.getShards().size());
             for (Map.Entry<ShardId, String> entry : request.getShards().entrySet()) {
                 threadPool.executor(ThreadPool.Names.FETCH_SHARD_STARTED).execute(() -> {
-                    batchStartedShards.addStartedShard(listStartedShard(entry.getKey(), entry.getValue()));
-                    latch.countDown();
+                    try {
+                        batchStartedShards.addStartedShard(listStartedShard(entry.getKey(), entry.getValue()));
+                    } finally {
+                        latch.countDown();
+                    }
                 });
             }
             latch.await();

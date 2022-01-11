@@ -234,6 +234,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING,
         InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING,
         AllocationService.CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING,
+        AllocationService.CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_STEP_SIZE_SETTING,
         InternalSnapshotsInfoService.INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING,
         DestructiveOperations.REQUIRES_NAME_SETTING,
         NoMasterBlockService.NO_MASTER_BLOCK_SETTING,

@@ -74,10 +74,18 @@ public class AllocationService {
     private final ClusterInfoService clusterInfoService;
     private SnapshotsInfoService snapshotsInfoService;
     private boolean batchFetchShardEnable;
+    private int batchFetchShardStepSize;
 
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.batch_fetch_shard.enable",
         false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_STEP_SIZE_SETTING = Setting.intSetting(
+        "cluster.routing.allocation.batch_fetch_shard.step_size",
+        10000,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -109,6 +117,9 @@ public class AllocationService {
             this.batchFetchShardEnable = CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING.get(clusterService.getSettings());
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING, this::setBatchFetchShardEnable);
+            this.batchFetchShardStepSize = CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_STEP_SIZE_SETTING.get(clusterService.getSettings());
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_STEP_SIZE_SETTING, this::setBatchFetchShardStepSize);
         }
     }
 
@@ -562,7 +573,18 @@ public class AllocationService {
                 if (gatewayAllocator == null && allocator instanceof GatewayAllocator) {
                     gatewayAllocator = (GatewayAllocator) allocator;
                 }
+
+                if (gatewayAllocator != null &&
+                    gatewayAllocator.getPrimaryPendingFetchShardCount() > 0 &&
+                    gatewayAllocator.getPrimaryPendingFetchShardCount() % batchFetchShardStepSize == 0) {
+                    gatewayAllocator.flushPendingPrimaryFetchRequests(batchFetchShardStepSize);
+                }
             }
+        }
+
+        // flush the rest primaries
+        if (gatewayAllocator != null) {
+            gatewayAllocator.flushPendingPrimaryFetchRequests(batchFetchShardStepSize);
         }
 
         for (final ExistingShardsAllocator existingShardsAllocator : existingShardsAllocators.values()) {
@@ -578,11 +600,18 @@ public class AllocationService {
                 if (gatewayAllocator == null && allocator instanceof GatewayAllocator) {
                     gatewayAllocator = (GatewayAllocator) allocator;
                 }
+
+                if (gatewayAllocator != null &&
+                    gatewayAllocator.getReplicaPendingFetchShardCount() > 0 &&
+                    gatewayAllocator.getReplicaPendingFetchShardCount() % batchFetchShardStepSize == 0) {
+                    gatewayAllocator.flushPendingReplicaFetchRequests(batchFetchShardStepSize);
+                }
             }
         }
 
+        // flush the rest replicas
         if (gatewayAllocator != null) {
-            gatewayAllocator.flushPendingShardFetchRequests();
+            gatewayAllocator.flushPendingReplicaFetchRequests(batchFetchShardStepSize);
         }
     }
 
@@ -653,6 +682,10 @@ public class AllocationService {
 
     public void setBatchFetchShardEnable(boolean batchFetchShardEnable) {
         this.batchFetchShardEnable = batchFetchShardEnable;
+    }
+
+    public void setBatchFetchShardStepSize(int batchFetchShardStepSize) {
+        this.batchFetchShardStepSize = batchFetchShardStepSize;
     }
 
     /** override this to control time based decisions during allocation */

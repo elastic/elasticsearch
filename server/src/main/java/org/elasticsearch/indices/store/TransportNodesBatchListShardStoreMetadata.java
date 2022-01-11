@@ -118,9 +118,10 @@ public class TransportNodesBatchListShardStoreMetadata extends TransportNodesAct
                 threadPool.executor(ThreadPool.Names.FETCH_SHARD_STORE).execute(() -> {
                     try {
                         batchStoreFiles.addStoreFilesMetadata(listStoreMetadata(entry.getKey(), entry.getValue()));
-                        latch.countDown();
                     } catch (IOException e) {
                         throw new ElasticsearchException("Failed to list store metadata for shard [" + entry.getKey() + "]", e);
+                    } finally {
+                        latch.countDown();
                     }
                 });
             }

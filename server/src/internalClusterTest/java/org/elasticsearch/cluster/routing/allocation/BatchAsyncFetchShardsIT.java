@@ -33,14 +33,18 @@ import static org.hamcrest.Matchers.hasSize;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 3)
 public class BatchAsyncFetchShardsIT extends ESIntegTestCase {
 
-    private Settings buildSettings(boolean batchMode) {
+    private Settings buildSettings(boolean batchMode, int batchStepSize) {
         return Settings.builder()
             .put(AllocationService.CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING.getKey(), batchMode)
+            .put(AllocationService.CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_STEP_SIZE_SETTING.getKey(), batchStepSize)
             .build();
     }
 
     private Settings buildNullSettings() {
-        return Settings.builder().putNull(AllocationService.CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING.getKey()).build();
+        return Settings.builder()
+            .putNull(AllocationService.CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING.getKey())
+            .putNull(AllocationService.CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_STEP_SIZE_SETTING.getKey())
+            .build();
     }
 
     @After
@@ -56,13 +60,33 @@ public class BatchAsyncFetchShardsIT extends ESIntegTestCase {
     /**
      * Test random async batch fetch shards.
      */
-    public void testAsyncFetchShards() throws Exception {
+    public void testRandomBatchMode() throws Exception {
         // random batch
-        Settings settings = buildSettings(randomBoolean());
+        Settings settings = buildSettings(randomBoolean(), 10000);
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).setPersistentSettings(settings).get();
         createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 10).put(SETTING_NUMBER_OF_REPLICAS, 2).build());
 
         ensureGreen();
+        internalCluster().fullRestart();
+        ensureGreen();
+    }
+
+    /**
+     * Test batch step size.
+     * in flush process would assert the queued requests is less or equal to batch step size
+     */
+    public void testBatchStepSize() throws Exception {
+        Settings settings = buildSettings(true, 4);
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).setPersistentSettings(settings).get();
+        createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 6).put(SETTING_NUMBER_OF_REPLICAS, 1).build());
+        ensureGreen();
+
+        client().admin().cluster().prepareState().get().getState();
+        internalCluster().fullRestart();
+        ensureGreen();
+
+        settings = buildSettings(true, 10);
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).setPersistentSettings(settings).get();
         internalCluster().fullRestart();
         ensureGreen();
     }

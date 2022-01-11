@@ -2728,24 +2728,26 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             putTrainedModel(modelId);
         }
 
-        String regressionPipeline = "{"
-            + "    \"processors\": [\n"
-            + "      {\n"
-            + "        \"inference\": {\n"
-            + "          \"target_field\": \"regression_value\",\n"
-            + "          \"model_id\": \""
-            + modelIdPrefix
-            + 0
-            + "\",\n"
-            + "          \"inference_config\": {\"regression\": {}},\n"
-            + "          \"field_map\": {\n"
-            + "            \"col1\": \"col1\",\n"
-            + "            \"col2\": \"col2\",\n"
-            + "            \"col3\": \"col3\",\n"
-            + "            \"col4\": \"col4\"\n"
-            + "          }\n"
-            + "        }\n"
-            + "      }]}\n";
+        String regressionPipeline = """
+            {
+              "processors": [
+                {
+                  "inference": {
+                    "target_field": "regression_value",
+                    "model_id": "%s%s",
+                    "inference_config": {
+                      "regression": {}
+                    },
+                    "field_map": {
+                      "col1": "col1",
+                      "col2": "col2",
+                      "col3": "col3",
+                      "col4": "col4"
+                    }
+                  }
+                }
+              ]
+            }""".formatted(modelIdPrefix, "0");
         String pipelineId = "regression-stats-pipeline";
 
         highLevelClient().ingest()
@@ -3116,25 +3118,30 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source(
-            "{\"job_id\":\""
-                + jobId
-                + "\", \"timestamp\":1541587919000, "
-                + "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", "
-                + "\"snapshot_id\":\""
-                + snapshotId
-                + "\", \"snapshot_doc_count\":1, \"model_size_stats\":{"
-                + "\"job_id\":\""
-                + jobId
-                + "\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, "
-                + "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2,"
-                + "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, "
-                + "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000,"
-                + "\"latest_result_time_stamp\":1519930800000, \"retain\":false, \"min_version\":\""
-                + Version.CURRENT.toString()
-                + "\"}",
-            XContentType.JSON
-        );
+        indexRequest.source("""
+            {
+              "job_id": "%s",
+              "timestamp": 1541587919000,
+              "description": "State persisted due to job close at 2018-11-07T10:51:59+0000",
+              "snapshot_id": "%s",
+              "snapshot_doc_count": 1,
+              "model_size_stats": {
+                "job_id": "%s",
+                "result_type": "model_size_stats",
+                "model_bytes": 51722,
+                "total_by_field_count": 3,
+                "total_over_field_count": 0,
+                "total_partition_field_count": 2,
+                "bucket_allocation_failures_count": 0,
+                "memory_status": "ok",
+                "log_time": 1541587919000,
+                "timestamp": 1519930800000
+              },
+              "latest_record_time_stamp": 1519931700000,
+              "latest_result_time_stamp": 1519930800000,
+              "retain": false,
+              "min_version": "%s"
+            }""".formatted(jobId, snapshotId, jobId, Version.CURRENT.toString()), XContentType.JSON);
 
         highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
     }
@@ -3147,27 +3154,34 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             String documentId = jobId + "_model_snapshot_" + snapshotId;
             IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            indexRequest.source(
-                "{\"job_id\":\""
-                    + jobId
-                    + "\", \"timestamp\":1541587919000, "
-                    + "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", "
-                    + "\"snapshot_id\":\""
-                    + snapshotId
-                    + "\", \"snapshot_doc_count\":1, \"model_size_stats\":{"
-                    + "\"job_id\":\""
-                    + jobId
-                    + "\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, "
-                    + "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2,"
-                    + "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, "
-                    + "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000,"
-                    + "\"latest_result_time_stamp\":1519930800000, \"retain\":false, "
-                    + "\"quantiles\":{\"job_id\":\""
-                    + jobId
-                    + "\", \"timestamp\":1541587919000, "
-                    + "\"quantile_state\":\"state\"}}",
-                XContentType.JSON
-            );
+            indexRequest.source("""
+                {
+                  "job_id": "%s",
+                  "timestamp": 1541587919000,
+                  "description": "State persisted due to job close at 2018-11-07T10:51:59+0000",
+                  "snapshot_id": "%s",
+                  "snapshot_doc_count": 1,
+                  "model_size_stats": {
+                    "job_id": "%s",
+                    "result_type": "model_size_stats",
+                    "model_bytes": 51722,
+                    "total_by_field_count": 3,
+                    "total_over_field_count": 0,
+                    "total_partition_field_count": 2,
+                    "bucket_allocation_failures_count": 0,
+                    "memory_status": "ok",
+                    "log_time": 1541587919000,
+                    "timestamp": 1519930800000
+                  },
+                  "latest_record_time_stamp": 1519931700000,
+                  "latest_result_time_stamp": 1519930800000,
+                  "retain": false,
+                  "quantiles": {
+                    "job_id": "%s",
+                    "timestamp": 1541587919000,
+                    "quantile_state": "state"
+                  }
+                }""".formatted(jobId, snapshotId, jobId, jobId), XContentType.JSON);
             highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
         }
     }

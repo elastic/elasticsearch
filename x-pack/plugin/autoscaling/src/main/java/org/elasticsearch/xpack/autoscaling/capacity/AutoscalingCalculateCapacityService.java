@@ -109,7 +109,8 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         ClusterState state,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
-        AutoscalingMemoryInfo memoryInfo
+        AutoscalingMemoryInfo memoryInfo,
+        Runnable ensureNotCancelled
     ) {
         AutoscalingMetadata autoscalingMetadata = state.metadata().custom(AutoscalingMetadata.NAME);
         if (autoscalingMetadata != null) {
@@ -120,7 +121,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
                     .map(
                         e -> Tuple.tuple(
                             e.getKey(),
-                            calculateForPolicy(e.getValue().policy(), state, clusterInfo, shardSizeInfo, memoryInfo)
+                            calculateForPolicy(e.getValue().policy(), state, clusterInfo, shardSizeInfo, memoryInfo, ensureNotCancelled)
                         )
                     )
                     .collect(Collectors.toMap(Tuple::v1, Tuple::v2))
@@ -135,7 +136,8 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         ClusterState state,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
-        AutoscalingMemoryInfo memoryInfo
+        AutoscalingMemoryInfo memoryInfo,
+        Runnable ensureNotCancelled
     ) {
         if (hasUnknownRoles(policy)) {
             return new AutoscalingDeciderResults(
@@ -145,10 +147,17 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             );
         }
         SortedMap<String, Settings> deciders = addDefaultDeciders(policy);
-        DefaultAutoscalingDeciderContext context = createContext(policy.roles(), state, clusterInfo, shardSizeInfo, memoryInfo);
+        DefaultAutoscalingDeciderContext context = createContext(
+            policy.roles(),
+            state,
+            clusterInfo,
+            shardSizeInfo,
+            memoryInfo,
+            ensureNotCancelled
+        );
         SortedMap<String, AutoscalingDeciderResult> results = deciders.entrySet()
             .stream()
-            .map(entry -> Tuple.tuple(entry.getKey(), calculateForDecider(entry.getKey(), entry.getValue(), context)))
+            .map(entry -> Tuple.tuple(entry.getKey(), calculateForDecider(entry.getKey(), entry.getValue(), context, ensureNotCancelled)))
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> { throw new UnsupportedOperationException(); }, TreeMap::new));
         return new AutoscalingDeciderResults(context.currentCapacity, context.currentNodes, results);
     }
@@ -184,9 +193,10 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         ClusterState state,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
-        AutoscalingMemoryInfo memoryInfo
+        AutoscalingMemoryInfo memoryInfo,
+        Runnable ensureNotCancelled
     ) {
-        return new DefaultAutoscalingDeciderContext(roles, state, clusterInfo, shardSizeInfo, memoryInfo);
+        return new DefaultAutoscalingDeciderContext(roles, state, clusterInfo, shardSizeInfo, memoryInfo, ensureNotCancelled);
     }
 
     /**
@@ -197,8 +207,14 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         return DiscoveryNodeRole.roleNames().containsAll(policy.roles()) == false;
     }
 
-    private AutoscalingDeciderResult calculateForDecider(String name, Settings configuration, AutoscalingDeciderContext context) {
+    private AutoscalingDeciderResult calculateForDecider(
+        String name,
+        Settings configuration,
+        AutoscalingDeciderContext context,
+        Runnable ensureNotCancelled
+    ) {
         assert deciderByName.containsKey(name);
+        ensureNotCancelled.run();
         AutoscalingDeciderService service = deciderByName.get(name);
         return service.scale(configuration, context);
     }
@@ -213,13 +229,15 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         private final SortedSet<DiscoveryNode> currentNodes;
         private final AutoscalingCapacity currentCapacity;
         private final boolean currentCapacityAccurate;
+        private final Runnable ensureNotCancelled;
 
         DefaultAutoscalingDeciderContext(
             SortedSet<String> roles,
             ClusterState state,
             ClusterInfo clusterInfo,
             SnapshotShardSizeInfo snapshotShardSizeInfo,
-            AutoscalingMemoryInfo memoryInfo
+            AutoscalingMemoryInfo memoryInfo,
+            Runnable ensureNotCancelled
         ) {
             this.roles = roles.stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Sets.toUnmodifiableSortedSet());
             Objects.requireNonNull(state);
@@ -233,6 +251,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
                 .collect(Collectors.toCollection(() -> new TreeSet<>(AutoscalingDeciderResults.DISCOVERY_NODE_COMPARATOR)));
             this.currentCapacity = calculateCurrentCapacity();
             this.currentCapacityAccurate = calculateCurrentCapacityAccurate();
+            this.ensureNotCancelled = ensureNotCancelled;
         }
 
         @Override
@@ -325,6 +344,10 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         @Override
         public SnapshotShardSizeInfo snapshotShardSizeInfo() {
             return snapshotShardSizeInfo;
+        }
+
+        public void ensureNotCancelled() {
+            ensureNotCancelled.run();
         }
     }
 }

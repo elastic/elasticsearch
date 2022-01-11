@@ -166,6 +166,8 @@ NOTE: Distributions that use `systemd` require that system resource limits be
 configured via `systemd` rather than via the `/etc/sysconfig/elasticsearch`
 file. See <<systemd>> for more information.
 
+include::connect-clients.asciidoc[]
+
 [[deb-layout]]
 ==== Directory layout of Debian package
 
@@ -199,7 +201,7 @@ locations for a Debian-based system:
 
 | conf
 | Generated TLS keys and certificates for the transport and http layer.
-| /etc/elasticsearch/auto_config_tls_<timestamp>
+| /etc/elasticsearch/certs
 d|
 
 | data

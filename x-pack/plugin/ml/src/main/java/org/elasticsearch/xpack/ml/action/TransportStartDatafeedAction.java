@@ -15,8 +15,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -539,16 +539,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 return;
             }
             switch (datafeedTask.setDatafeedRunner(datafeedRunner)) {
-                case NEITHER:
-                    datafeedRunner.run(datafeedTask, datafeedTask::completeOrFailIfRequired);
-                    break;
-                case ISOLATED:
-                    logger.info("[{}] datafeed isolated immediately after reassignment.", params.getDatafeedId());
-                    break;
-                case STOPPED:
+                case NEITHER -> datafeedRunner.run(datafeedTask, datafeedTask::completeOrFailIfRequired);
+                case ISOLATED -> logger.info("[{}] datafeed isolated immediately after reassignment.", params.getDatafeedId());
+                case STOPPED -> {
                     logger.info("[{}] datafeed stopped immediately after reassignment. Marking as completed", params.getDatafeedId());
                     datafeedTask.completeOrFailIfRequired(null);
-                    break;
+                }
             }
         }
 

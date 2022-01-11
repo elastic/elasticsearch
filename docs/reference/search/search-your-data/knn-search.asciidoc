@@ -139,6 +139,12 @@ GET my-approx-knn-index/_knn_search
 // TEST[s/"k": 10/"k": 3/]
 // TEST[s/"num_candidates": 100/"num_candidates": 3/]
 
+NOTE: Support for approximate kNN search was added in version 8.0. Before
+this, `dense_vector` fields did not support enabling `index` in the mapping.
+If you created an index prior to 8.0 containing `dense_vector` fields, then to
+support approximate kNN search the data must be reindexed using a new field
+mapping that sets `index: true`.
+
 [discrete]
 [[tune-approximate-knn-for-speed-accuracy]]
 ==== Tune approximate kNN for speed or accuracy

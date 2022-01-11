@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
@@ -18,7 +19,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.shard.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
 import java.util.Collection;
@@ -189,6 +190,37 @@ public class DataTier {
     }
 
     /**
+     * Compares the provided tiers for coldness order (eg. warm is colder than hot).
+     *
+     * Similar to {@link java.util.Comparator#compare(Object, Object)} returns
+     *   -1 if tier1 is colder than tier2 (ie. compare("data_cold", "data_hot"))
+     *   0 if tier1 is as cold as tier2 (ie. tier1.equals(tier2) )
+     *   1 if tier1 is warmer than tier2 (ie. compare("data_hot", "data_cold"))
+     *
+     * The provided tiers parameters must be valid data tiers values (ie. {@link #ALL_DATA_TIERS}.
+     * NOTE: `data_content` is treated as "equal to data_hot" in the tiers hierarchy.
+     * If invalid tier names are passed the result is non-deterministic.
+     */
+    public static int compare(String tier1, String tier2) {
+        if (tier1.equals(DATA_CONTENT)) {
+            tier1 = DATA_HOT;
+        }
+        if (tier2.equals(DATA_CONTENT)) {
+            tier2 = DATA_HOT;
+        }
+        int indexOfTier1 = ORDERED_FROZEN_TO_HOT_TIERS.indexOf(tier1);
+        assert indexOfTier1 >= 0 : "expecting a valid tier to compare but got:" + tier1;
+        int indexOfTier2 = ORDERED_FROZEN_TO_HOT_TIERS.indexOf(tier2);
+        assert indexOfTier2 >= 0 : "expecting a valid tier to compare but got:" + tier2;
+
+        if (indexOfTier1 == indexOfTier2) {
+            return 0;
+        } else {
+            return indexOfTier1 < indexOfTier2 ? -1 : 1;
+        }
+    }
+
+    /**
      * This setting provider injects the setting allocating all newly created indices with
      * {@code index.routing.allocation.include._tier_preference: "data_hot"} for a data stream index
      * or {@code index.routing.allocation.include._tier_preference: "data_content"} for an index not part of
@@ -199,8 +231,14 @@ public class DataTier {
         private static final Logger logger = LogManager.getLogger(DefaultHotAllocationSettingProvider.class);
 
         @Override
-        public Settings getAdditionalIndexSettings(String indexName, boolean isDataStreamIndex, Settings indexSettings) {
-            Set<String> settings = indexSettings.keySet();
+        public Settings getAdditionalIndexSettings(
+            String indexName,
+            String dataStreamName,
+            Metadata metadata,
+            long resolvedAt,
+            Settings allSettings
+        ) {
+            Set<String> settings = allSettings.keySet();
             if (settings.contains(TIER_PREFERENCE)) {
                 // just a marker -- this null value will be removed or overridden by the template/request settings
                 return NULL_TIER_PREFERENCE_SETTINGS;
@@ -214,7 +252,7 @@ public class DataTier {
                     // Otherwise, put the setting in place by default, the "hot"
                     // tier if the index is part of a data stream, the "content"
                     // tier if it is not.
-                    if (isDataStreamIndex) {
+                    if (dataStreamName != null) {
                         return DATA_HOT_TIER_PREFERENCE_SETTINGS;
                     } else {
                         return DATA_CONTENT_TIER_PREFERENCE_SETTINGS;

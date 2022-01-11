@@ -44,6 +44,7 @@ import org.elasticsearch.client.core.GetSourceRequest;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.tasks.TaskId;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;

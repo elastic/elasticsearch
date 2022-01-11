@@ -48,7 +48,9 @@ cluster should have write access to the repository. On other clusters, register
 the repository as read-only.
 
 This prevents multiple clusters from writing to the repository at the same time
-and corrupting the repository’s contents.
+and corrupting the repository’s contents. It also prevents {es} from caching the
+repository's contents, which means that changes made by other clusters will
+become visible straight away.
 // end::multi-cluster-repo[]
 --
 
@@ -104,6 +106,9 @@ clusters].
 If you run the {es} on your own hardware, you can use the following built-in
 snapshot repository types:
 
+* <<repository-s3,AWS S3>>
+* <<repository-gcs,Google Cloud Storage>>
+* <<repository-azure,Azure>>
 * <<snapshots-filesystem-repository,Shared file system>>
 * <<snapshots-read-only-repository>>
 * <<snapshots-source-only-repository>>
@@ -111,10 +116,7 @@ snapshot repository types:
 [[snapshots-repository-plugins]]
 Other repository types are available through official plugins:
 
-* {plugins}/repository-s3.html[AWS S3]
-* {plugins}/repository-gcs.html[Google Cloud Storage (GCS)]
 * {plugins}/repository-hdfs.html[Hadoop Distributed File System (HDFS)]
-* {plugins}/repository-azure.html[Microsoft Azure]
 
 You can also use alternative implementations of these repository types, such as
 MinIO, as long as they're compatible. To verify a repository's compatibility,
@@ -333,3 +335,10 @@ When restoring a repository from a backup, you must not register the repository
 with {es} until the repository contents are fully restored. If you alter the
 contents of a repository while it is registered with {es} then the repository
 may become unreadable or may silently lose some of its contents.
+
+
+include::repository-s3.asciidoc[]
+
+include::repository-gcs.asciidoc[]
+
+include::repository-azure.asciidoc[]

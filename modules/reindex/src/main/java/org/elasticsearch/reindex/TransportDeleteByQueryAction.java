@@ -11,11 +11,10 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -41,12 +40,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         ScriptService scriptService,
         ClusterService clusterService
     ) {
-        super(
-            DeleteByQueryAction.NAME,
-            transportService,
-            actionFilters,
-            (Writeable.Reader<DeleteByQueryRequest>) DeleteByQueryRequest::new
-        );
+        super(DeleteByQueryAction.NAME, transportService, actionFilters, DeleteByQueryRequest::new);
         this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;

@@ -19,7 +19,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.TimeValue;
@@ -309,7 +309,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null, (Boolean) null, null),
+            new SettingsConfig(pageSize, null, (Boolean) null, null, null),
             null,
             null,
             null,
@@ -384,7 +384,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null, (Boolean) null, null),
+            new SettingsConfig(pageSize, null, (Boolean) null, null, null),
             null,
             null,
             null,
@@ -448,7 +448,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null, (Boolean) null, null),
+            new SettingsConfig(pageSize, null, (Boolean) null, null, null),
             null,
             null,
             null,

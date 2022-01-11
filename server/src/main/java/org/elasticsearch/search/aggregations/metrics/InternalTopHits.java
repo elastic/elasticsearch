@@ -19,6 +19,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -93,7 +94,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         final SearchHits[] shardHits = new SearchHits[aggregations.size()];
         final int from;
         final int size;
@@ -206,9 +207,8 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             ScoreDoc otherDoc = other.topDocs.topDocs.scoreDocs[d];
             if (thisDoc.doc != otherDoc.doc) return false;
             if (Double.compare(thisDoc.score, otherDoc.score) != 0) return false;
-            if (thisDoc instanceof FieldDoc) {
+            if (thisDoc instanceof FieldDoc thisFieldDoc) {
                 if (false == (otherDoc instanceof FieldDoc)) return false;
-                FieldDoc thisFieldDoc = (FieldDoc) thisDoc;
                 FieldDoc otherFieldDoc = (FieldDoc) otherDoc;
                 if (thisFieldDoc.fields.length != otherFieldDoc.fields.length) return false;
                 for (int f = 0; f < thisFieldDoc.fields.length; f++) {
@@ -230,8 +230,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             ScoreDoc doc = topDocs.topDocs.scoreDocs[d];
             hashCode = 31 * hashCode + doc.doc;
             hashCode = 31 * hashCode + Float.floatToIntBits(doc.score);
-            if (doc instanceof FieldDoc) {
-                FieldDoc fieldDoc = (FieldDoc) doc;
+            if (doc instanceof FieldDoc fieldDoc) {
                 hashCode = 31 * hashCode + Arrays.hashCode(fieldDoc.fields);
             }
         }

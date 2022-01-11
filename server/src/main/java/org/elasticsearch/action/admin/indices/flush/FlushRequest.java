@@ -22,10 +22,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * by flushing data to the index storage and clearing the internal transaction log. By default, Elasticsearch uses
  * memory heuristics in order to automatically trigger flush operations as required in order to clear memory.
  * <p>
- * Best created with {@link org.elasticsearch.client.Requests#flushRequest(String...)}.
+ * Best created with {@link org.elasticsearch.client.internal.Requests#flushRequest(String...)}.
  *
- * @see org.elasticsearch.client.Requests#flushRequest(String...)
- * @see org.elasticsearch.client.IndicesAdminClient#flush(FlushRequest)
+ * @see org.elasticsearch.client.internal.Requests#flushRequest(String...)
+ * @see org.elasticsearch.client.internal.IndicesAdminClient#flush(FlushRequest)
  * @see FlushResponse
  */
 public class FlushRequest extends BroadcastRequest<FlushRequest> {

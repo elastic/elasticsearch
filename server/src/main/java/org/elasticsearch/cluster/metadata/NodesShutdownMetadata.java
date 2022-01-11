@@ -195,6 +195,12 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         static Diff<SingleNodeShutdownMetadata> readNodesDiffFrom(StreamInput in) throws IOException {
             return AbstractDiffable.readDiffFrom(SingleNodeShutdownMetadata::new, in);
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return NODE_SHUTDOWN_VERSION;
+        }
+
     }
 
 }

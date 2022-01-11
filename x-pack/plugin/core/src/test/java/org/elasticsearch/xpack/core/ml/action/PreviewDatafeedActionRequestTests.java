@@ -28,22 +28,18 @@ public class PreviewDatafeedActionRequestTests extends AbstractWireSerializingTe
     @Override
     protected Request createTestInstance() {
         String jobId = randomAlphaOfLength(10);
-        switch (randomInt(2)) {
-            case 0:
-                return new Request(randomAlphaOfLength(10));
-            case 1:
-                return new Request(
-                    DatafeedConfigTests.createRandomizedDatafeedConfig(jobId),
-                    randomBoolean() ? JobTests.buildJobBuilder(jobId) : null
-                );
-            case 2:
-                return new Request.Builder().setJobBuilder(
-                    JobTests.buildJobBuilder(jobId)
-                        .setDatafeed(DatafeedConfigBuilderTests.createRandomizedDatafeedConfigBuilder(null, null, 3600000))
-                ).build();
-            default:
-                throw new IllegalArgumentException("Unexpected test state");
-        }
+        return switch (randomInt(2)) {
+            case 0 -> new Request(randomAlphaOfLength(10));
+            case 1 -> new Request(
+                DatafeedConfigTests.createRandomizedDatafeedConfig(jobId),
+                randomBoolean() ? JobTests.buildJobBuilder(jobId) : null
+            );
+            case 2 -> new Request.Builder().setJobBuilder(
+                JobTests.buildJobBuilder(jobId)
+                    .setDatafeed(DatafeedConfigBuilderTests.createRandomizedDatafeedConfigBuilder(null, null, 3600000))
+            ).build();
+            default -> throw new IllegalArgumentException("Unexpected test state");
+        };
     }
 
     @Override

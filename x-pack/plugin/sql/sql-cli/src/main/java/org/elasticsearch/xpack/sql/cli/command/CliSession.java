@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.sql.cli.command;
 import org.elasticsearch.xpack.sql.client.ClientException;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
+import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.sql.SQLException;
@@ -20,7 +20,7 @@ import java.sql.SQLException;
  */
 public class CliSession {
     private final HttpClient httpClient;
-    private int fetchSize = Protocol.FETCH_SIZE;
+    private int fetchSize = CoreProtocol.FETCH_SIZE;
     private String fetchSeparator = "";
     private boolean debug;
     private boolean binary;

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.test.bench;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;

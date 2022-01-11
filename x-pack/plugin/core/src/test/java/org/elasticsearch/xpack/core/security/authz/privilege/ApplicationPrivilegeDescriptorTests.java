@@ -118,7 +118,8 @@ public class ApplicationPrivilegeDescriptorTests extends ESTestCase {
     }
 
     public void testParseXContentWithoutUsingDefaultNames() throws IOException {
-        final String json = "{" + "  \"application\": \"your_app\"," + "  \"name\": \"write\"," + "  \"actions\": [ \"data:write\" ]" + "}";
+        final String json = """
+            {  "application": "your_app",  "name": "write",  "actions": [ "data:write" ]}""";
         final XContent xContent = XContentType.JSON.xContent();
         try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, json)) {
             final ApplicationPrivilegeDescriptor privilege = ApplicationPrivilegeDescriptor.parse(parser, "my_app", "read", false);

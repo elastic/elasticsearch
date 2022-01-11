@@ -11,14 +11,19 @@ We strongly recommend that when you upgrade you divide your cluster's nodes
 into the following two groups and upgrade the groups in this order:
 
 . Nodes that are not <<master-node,master-eligible>>. You can retrieve a list
-of these nodes with `GET /_nodes/_all,master:false` or by finding all the nodes
-configured with `node.master: false`.
-.. If you are using data tiers, you should
-upgrade the nodes by tier, completing one tier at a time, in this order: frozen, cold, warm and finally hot tier.
-This is to ensure ILM can continue to move between the phases and ensure version
-compatibility.
-.. If you are not using data tiers, you may upgrade the nodes within the group in any order.
+of these nodes with `GET /_nodes/_all,master:false/_none` or by finding all the
+nodes configured with `node.master: false`.
 
+.. If you are using data tiers, or a hot-warm-cold architecture based on node 
+attributes, you should upgrade the nodes tier-by-tier, completing the upgrade
+of each tier before starting the next. Upgrade the frozen tier first, then the
+cold tier, then the warm tier, and finally the hot tier.  This is to ensure ILM
+can continue to move shards between phases and ensure version
+compatibility. You can get the list of nodes from specific tiers by
+`GET /_nodes/data_frozen:true/_none`, `GET /_nodes/data_cold:true/_none` etc.
+
+.. If you are not using data tiers, you may upgrade the nodes within the group 
+in any order.
 
 . Master-eligible nodes, which are the remaining nodes. You can retrieve a list
 of these nodes with `GET /_nodes/master:true`.
@@ -35,13 +40,7 @@ rejoin until they have been upgraded.
 
 Rolling upgrades are supported:
 
-* Between minor versions
-* {stack-ref-68}/upgrading-elastic-stack.html[From 5.6 to 6.8]
-* {stack-ref-70}/upgrading-elastic-stack.html[From 6.8 to 7.0]
-* From {prev-major-version} to {version}
-ifeval::[ "{bare_version}" != "{minor-version}.0" ]
-* From any version since {minor-version}.0 to {version}
-endif::[]
+include::{es-repo-dir}/upgrade.asciidoc[tag=rolling-upgrade-versions]
 
 Upgrading directly to {version} from 6.6 or earlier requires a
 <<restart-upgrade, full cluster restart>>.

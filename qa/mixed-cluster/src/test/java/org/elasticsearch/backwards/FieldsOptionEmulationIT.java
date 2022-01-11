@@ -15,6 +15,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -53,23 +54,27 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
         oldNodeName = bwcNodes.get(0).getNodeName();
         newNodeName = newNodes.get(0).getNodeName();
         bwcNodeVersion = bwcNodes.get(0).getVersion();
-        createIndexOnNode(index, newNodeName, "");
-        createIndexOnNode(index_old, oldNodeName, "");
+        createIndexOnNode(index, newNodeName, null);
+        createIndexOnNode(index_old, oldNodeName, null);
         createIndexOnNode(index_old_no_source, oldNodeName, "\"_source\":{\"enabled\": false}");
         refreshAllIndices();
     }
 
     private void createIndexOnNode(String indexName, String nodeName, String mappings) throws IOException {
         if (indexExists(indexName) == false) {
-            createIndex(
-                indexName,
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", nodeName)
-                    .build(),
-                mappings
-            );
+            Request createIndexRequest = new Request("PUT", "/" + indexName);
+            String entity = "{\"settings\": " + Strings.toString(Settings.builder()
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", nodeName)
+                .build());
+            if (mappings != null) {
+                entity += ",\"mappings\" : {" + mappings + "}";
+            }
+            entity += "}";
+            createIndexRequest.setJsonEntity(entity);
+            createIndexRequest.setOptions(allowTypesRemovalWarnings());
+            client().performRequest(createIndexRequest);
             for (int i = 0; i < 5; i++) {
                 Request request = new Request("PUT", indexName + "/_doc/" + i);
                 request.setJsonEntity(

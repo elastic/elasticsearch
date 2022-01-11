@@ -137,6 +137,13 @@ public final class CompressedXContent {
         this(new BytesArray(data));
     }
 
+    /**
+     * Parses the given JSON string and then serializes it back in compressed form without any whitespaces. This is used to normalize
+     * mapping json strings for deduplication.
+     *
+     * @param json string containing valid JSON
+     * @return compressed x-content normalized to not contain any whitespaces
+     */
     public static CompressedXContent fromJSON(String json) throws IOException {
         return new CompressedXContent(new ToXContent() {
             @Override

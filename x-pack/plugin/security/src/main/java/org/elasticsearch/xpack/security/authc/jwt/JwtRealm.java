@@ -469,7 +469,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 return;
             }
             LOGGER.debug(
-                "Realm [%s] allows signature algorithm [%s]. Allowed signature algorithms are %s.",
+                "Realm [{}] allows signature algorithm [{}]. Allowed signature algorithms are {}.",
                 super.name(),
                 jwsSignatureAlgorithm,
                 this.allowedSignatureAlgorithms
@@ -489,7 +489,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                 return;
             }
-            LOGGER.debug("Realm [%s] allows issuer [%s]. Allowed issuer is [%s].", super.name(), jwtIssuer, this.allowedIssuer);
+            LOGGER.debug("Realm [{}] allows issuer [{}]. Allowed issuer is [{}].", super.name(), jwtIssuer, this.allowedIssuer);
 
             // 3. Skip JWT if audience does not match any of the audiences allowed by this realm.
             final List<String> jwtAudiences = jwtClaimsSet.getAudience();
@@ -505,7 +505,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                 return;
             }
-            LOGGER.debug("Realm [%s] allows audiences %s. Allowed audiences are %s.", super.name(), jwtAudiences, this.allowedAudiences);
+            LOGGER.debug("Realm [{}] allows audiences {}. Allowed audiences are {}.", super.name(), jwtAudiences, this.allowedAudiences);
 
             // TODO The implementation of JWT authentication will be completed in a later PR
             // At this point, this is the right realm to do validation. Trigger AuthenticationResult.unsuccessful() if any problems found.
@@ -537,11 +537,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                         return;
                     }
-                    LOGGER.debug("Realm [%s] client authentication succeeded for [%s].", super.name(), this.clientAuthorizationType);
+                    LOGGER.debug("Realm [{}] client authentication succeeded for [{}].", super.name(), this.clientAuthorizationType);
                     break;
                 case JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE:
                 default:
-                    LOGGER.debug("Realm [%s] client authentication skipped for [%s].", super.name(), this.clientAuthorizationType);
+                    LOGGER.debug("Realm [{}] client authentication skipped for [{}].", super.name(), this.clientAuthorizationType);
                     break;
             }
 
@@ -564,7 +564,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             final String msg2 = String.format(
                 Locale.ROOT,
                 "Realm [%s] principal [%s] got groups [%s] from claim [%s] and parser [%s]. JWTClaimsSet is [%s].",
-                Locale.ROOT,
                 super.name(),
                 jwtPrincipal,
                 jwtGroups,
@@ -607,7 +606,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     jwtPrincipal,
                     "",
                     this.delegatedAuthorizationSupport.toString()
-                ); // TODO
+                ); // TODO Print authz realm name
                 LOGGER.debug(msg4);
                 return;
             }
@@ -648,7 +647,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public void expire(final String username) {
         this.ensureExpectedValueForInitialized(true);
         if (this.cachedAuthenticationSuccesses != null) {
-            LOGGER.trace("invalidating cache for user [%s] in realm [%s]", username, name());
+            LOGGER.trace("invalidating cache for user [{}] in realm [{}]", username, name());
             this.cachedAuthenticationSuccesses.invalidate(username);
         }
     }
@@ -657,7 +656,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public void expireAll() {
         this.ensureExpectedValueForInitialized(true);
         if (this.cachedAuthenticationSuccesses != null) {
-            LOGGER.trace("invalidating cache for all users in realm [%s]", name());
+            LOGGER.trace("invalidating cache for all users in realm [{}]", name());
             this.cachedAuthenticationSuccesses.invalidateAll();
         }
     }

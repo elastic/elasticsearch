@@ -118,7 +118,7 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
             String remoteNoSourceIndex = "remote_index_source_disabled";
             String mappings = "{\"_source\":{\"enabled\":false}}";
             if (UPGRADE_FROM_VERSION.before(Version.V_7_0_0)) {
-                mappings = "{\"_doc\":"+mappings+ "}";
+                mappings = "{\"_doc\":" + mappings + "}";
             }
             remoteClient.indices()
                 .create(

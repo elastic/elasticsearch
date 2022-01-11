@@ -37,6 +37,7 @@ import java.io.Closeable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Objects;
 
 import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_ARN_ENV_VAR;
 import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_SESSION_NAME_ENV_VAR;
@@ -332,7 +333,8 @@ class S3Service implements Closeable {
 
         @Override
         public AWSCredentials getCredentials() {
-            return credentialsProvider != null ? credentialsProvider.getCredentials() : new AnonymousAWSCredentials();
+            Objects.requireNonNull(credentialsProvider, "credentialsProvider is not set");
+            return credentialsProvider.getCredentials();
         }
 
         @Override

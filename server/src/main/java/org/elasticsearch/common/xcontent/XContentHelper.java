@@ -518,6 +518,14 @@ public class XContentHelper {
         }
     }
 
+    /**
+     * Guesses the content type based on the provided bytes which may be compressed.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
+     */
+    @Deprecated
     public static XContentType xContentTypeMayCompressed(BytesReference bytes) {
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {

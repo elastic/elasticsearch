@@ -199,7 +199,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             dataStreamName,
             systemDataStreamDescriptor(),
             TimeValue.MAX_VALUE,
-            TimeValue.ZERO
+            TimeValue.ZERO,
+            true
         );
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));

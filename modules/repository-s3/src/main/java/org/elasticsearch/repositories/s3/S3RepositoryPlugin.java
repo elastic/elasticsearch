@@ -63,7 +63,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         });
     }
 
-    protected S3Service service;
+    private final SetOnce<S3Service> service;
     private final Map<String, S3ClientSettings> clientsSettings;
 
     public S3RepositoryPlugin(Settings settings) {

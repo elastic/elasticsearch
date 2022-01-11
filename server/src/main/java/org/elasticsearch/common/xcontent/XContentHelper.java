@@ -532,10 +532,17 @@ public class XContentHelper {
      */
     @Deprecated
     public static XContentType xContentType(BytesReference bytes) {
-        if (bytes.hasArray()) {
-            return XContentFactory.xContentType(bytes.array(), bytes.arrayOffset(), bytes.length());
-        }
         try {
+            Compressor compressor = CompressorFactory.compressor(bytes);
+            if (compressor != null) {
+                InputStream compressedStreamInput = compressor.threadLocalInputStream(bytes.streamInput());
+                if (compressedStreamInput.markSupported() == false) {
+                    compressedStreamInput = new BufferedInputStream(compressedStreamInput);
+                }
+                return XContentFactory.xContentType(compressedStreamInput);
+            } else if (bytes.hasArray()) {
+                return XContentFactory.xContentType(bytes.array(), bytes.arrayOffset(), bytes.length());
+            }
             final InputStream inputStream = bytes.streamInput();
             assert inputStream.markSupported();
             return XContentFactory.xContentType(inputStream);

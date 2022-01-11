@@ -168,22 +168,20 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             for (int i = 0; i < 3; i++) {
                 IndexTemplateMetadata templateMetadata = templates.get(i);
                 switch (templateMetadata.getName()) {
-                    case "test_added_template":
+                    case "test_added_template" -> {
                         assertFalse(addedFound);
                         addedFound = true;
-                        break;
-                    case "test_changed_template":
+                    }
+                    case "test_changed_template" -> {
                         assertFalse(changedFound);
                         changedFound = true;
                         assertThat(templateMetadata.getOrder(), equalTo(10));
-                        break;
-                    case "test_dummy_template":
+                    }
+                    case "test_dummy_template" -> {
                         assertFalse(dummyFound);
                         dummyFound = true;
-                        break;
-                    default:
-                        fail("unexpected template " + templateMetadata.getName());
-                        break;
+                    }
+                    default -> fail("unexpected template " + templateMetadata.getName());
                 }
             }
             assertTrue(addedFound);
@@ -221,18 +219,16 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             for (int i = 0; i < 2; i++) {
                 IndexTemplateMetadata templateMetadata = templates.get(i);
                 switch (templateMetadata.getName()) {
-                    case "test_added_template":
+                    case "test_added_template" -> {
                         assertFalse(addedFound);
                         addedFound = true;
-                        break;
-                    case "test_changed_template":
+                    }
+                    case "test_changed_template" -> {
                         assertFalse(changedFound);
                         changedFound = true;
                         assertThat(templateMetadata.getOrder(), equalTo(10));
-                        break;
-                    default:
-                        fail("unexpected template " + templateMetadata.getName());
-                        break;
+                    }
+                    default -> fail("unexpected template " + templateMetadata.getName());
                 }
             }
 

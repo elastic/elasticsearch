@@ -471,8 +471,10 @@ public class SearchResponseMergerTests extends ESTestCase {
             totalCount += count;
             InternalDateRange.Bucket bucket = factory.createBucket(
                 "bucket",
-                0,
-                10000,
+                0D,
+                0D,
+                10000D,
+                10000D,
                 count,
                 InternalAggregations.EMPTY,
                 false,
@@ -834,16 +836,12 @@ public class SearchResponseMergerTests extends ESTestCase {
     }
 
     private static Tuple<Integer, TotalHits.Relation> randomTrackTotalHits() {
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return Tuple.tuple(SearchContext.TRACK_TOTAL_HITS_DISABLED, null);
-            case 1:
-                return Tuple.tuple(randomIntBetween(10, 1000), TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
-            case 2:
-                return Tuple.tuple(SearchContext.TRACK_TOTAL_HITS_ACCURATE, TotalHits.Relation.EQUAL_TO);
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> Tuple.tuple(SearchContext.TRACK_TOTAL_HITS_DISABLED, null);
+            case 1 -> Tuple.tuple(randomIntBetween(10, 1000), TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+            case 2 -> Tuple.tuple(SearchContext.TRACK_TOTAL_HITS_ACCURATE, TotalHits.Relation.EQUAL_TO);
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     private static SearchHit[] randomSearchHitArray(

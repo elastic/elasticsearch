@@ -433,6 +433,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             new TestIpDataHolder("10.19.0.44", "10.19.0.0", prefixLength, defaultTime()),
             new TestIpDataHolder("10.122.2.67", "10.122.0.0", prefixLength, defaultTime())
         );
+        final String ipv6Value = "2001:db8:a4f8:112a:6001:0:12:7f2a";
 
         // WHEN
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -440,10 +441,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(
                     List.of(
                         new SortedDocValuesField(ipv4FieldName, new BytesRef(InetAddressPoint.encode(ipDataHolder.getIpAddress()))),
-                        new SortedDocValuesField(
-                            ipv6FieldName,
-                            new BytesRef(InetAddressPoint.encode(InetAddresses.forString("2001:db8:a4f8:112a:6001:0:12:7f2a")))
-                        )
+                        new SortedDocValuesField(ipv6FieldName, new BytesRef(InetAddressPoint.encode(InetAddresses.forString(ipv6Value))))
                     )
                 );
             }

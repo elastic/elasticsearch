@@ -22,6 +22,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * An {@link AuthenticationToken} to hold JWT authentication related content.
  */
 public class JwtAuthenticationToken implements AuthenticationToken {
+    public static final String PRINCIPAL_CONSTANT = "";
+    public static final SecureString CREDENTIAL_CONSTANT = new SecureString("".toCharArray());
+
     // Stored members
     protected final SecureString endUserSecret; // required
     protected final SecureString clientAuthorizationSharedSecret; // optional, nullable
@@ -30,7 +33,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
     protected final AtomicReference<SignedJWT> signedJwt = new AtomicReference<>(null);
     protected final AtomicReference<JWSHeader> jwsHeader = new AtomicReference<>(null);
     protected final AtomicReference<JWTClaimsSet> jwtClaimsSet = new AtomicReference<>(null);
-    protected final AtomicReference<Base64URL> jwtSignature = new AtomicReference<>(null);
+    protected final AtomicReference<byte[]> jwtSignature = new AtomicReference<>(null);
 
     /**
      * Store a mandatory JWT and optional Shared Secret. Parse the JWT, and extract the header, claims set, and signature.
@@ -51,10 +54,14 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         // Parse JWT
         try {
             final SignedJWT parsed = SignedJWT.parse(this.endUserSecret.toString());
+            final JWSHeader jwsHeader = parsed.getHeader();
+            final JWTClaimsSet jwtClaimsSet = parsed.getJWTClaimsSet();
+            final Base64URL base64Url = parsed.getSignature();
+            final byte[] signatureBytes = base64Url.decode();
             this.signedJwt.set(parsed);
-            this.jwsHeader.set(parsed.getHeader());
-            this.jwtClaimsSet.set(parsed.getJWTClaimsSet());
-            this.jwtSignature.set(parsed.getSignature());
+            this.jwsHeader.set(jwsHeader);
+            this.jwtClaimsSet.set(jwtClaimsSet);
+            this.jwtSignature.set(signatureBytes);
         } catch (ParseException e) {
             this.signedJwt.set(null);
             this.jwsHeader.set(null);
@@ -66,12 +73,12 @@ public class JwtAuthenticationToken implements AuthenticationToken {
 
     @Override
     public String principal() {
-        return this.endUserSecret.toString();
+        return JwtAuthenticationToken.PRINCIPAL_CONSTANT;
     }
 
     @Override
     public SecureString credentials() {
-        return this.endUserSecret;
+        return JwtAuthenticationToken.CREDENTIAL_CONSTANT;
     }
 
     public SecureString getSerializedJwt() {
@@ -94,7 +101,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         return this.jwtClaimsSet.get();
     }
 
-    public Base64URL getSignature() {
+    public byte[] getSignatureBytes() {
         return this.jwtSignature.get();
     }
 

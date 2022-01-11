@@ -96,7 +96,7 @@ public class ScriptConditionTests extends ESTestCase {
     public void testExecute() throws Exception {
         ScriptCondition condition = new ScriptCondition(mockScript("ctx.payload.hits.total.value > 1"), scriptService);
         SearchResponse response = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             3,
             3,
@@ -118,7 +118,7 @@ public class ScriptConditionTests extends ESTestCase {
         );
         ScriptCondition executable = new ScriptCondition(script, scriptService);
         SearchResponse response = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             3,
             3,
@@ -140,7 +140,7 @@ public class ScriptConditionTests extends ESTestCase {
         ExecutableCondition executable = ScriptCondition.parse(scriptService, "_watch", parser);
 
         SearchResponse response = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             3,
             3,
@@ -211,7 +211,7 @@ public class ScriptConditionTests extends ESTestCase {
     public void testScriptConditionThrowException() throws Exception {
         ScriptCondition condition = new ScriptCondition(mockScript("null.foo"), scriptService);
         SearchResponse response = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             3,
             3,
@@ -231,7 +231,7 @@ public class ScriptConditionTests extends ESTestCase {
             scriptService
         );
         SearchResponse response = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             3,
             3,

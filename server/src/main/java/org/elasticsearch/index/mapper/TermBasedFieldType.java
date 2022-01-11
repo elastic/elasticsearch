@@ -49,7 +49,7 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     }
 
     @Override
-    public boolean includeInFieldExpansion(SearchExecutionContext context) {
+    public boolean mayExistInIndex(SearchExecutionContext context) {
         return context.fieldExistsInIndex(name());
     }
 

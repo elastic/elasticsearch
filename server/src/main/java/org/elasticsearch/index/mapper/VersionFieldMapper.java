@@ -46,7 +46,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public boolean includeInFieldExpansion(SearchExecutionContext context) {
+        public boolean mayExistInIndex(SearchExecutionContext context) {
             return false;
         }
 

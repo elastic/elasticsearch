@@ -293,7 +293,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
         }
 
         @Override
-        public boolean includeInFieldExpansion(SearchExecutionContext context) {
+        public boolean mayExistInIndex(SearchExecutionContext context) {
             return false;
         }
 

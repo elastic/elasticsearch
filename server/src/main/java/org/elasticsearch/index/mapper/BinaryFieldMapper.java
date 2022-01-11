@@ -92,7 +92,7 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean includeInFieldExpansion(SearchExecutionContext context) {
+        public boolean mayExistInIndex(SearchExecutionContext context) {
             return false;
         }
 

@@ -86,7 +86,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         }
 
         @Override
-        public final boolean includeInFieldExpansion(SearchExecutionContext context) {
+        public final boolean mayExistInIndex(SearchExecutionContext context) {
             return false;
         }
 

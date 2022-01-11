@@ -461,7 +461,7 @@ public abstract class MappedFieldType {
      *
      * @see org.elasticsearch.index.search.QueryParserHelper
      */
-    public abstract boolean includeInFieldExpansion(SearchExecutionContext context);
+    public abstract boolean mayExistInIndex(SearchExecutionContext context);
 
     /**
      * Pick a {@link DocValueFormat} that can be used to display and parse

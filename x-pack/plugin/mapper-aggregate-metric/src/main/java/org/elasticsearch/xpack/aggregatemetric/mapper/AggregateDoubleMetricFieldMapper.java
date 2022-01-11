@@ -324,8 +324,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean includeInFieldExpansion(SearchExecutionContext context) {
-            return delegateFieldType().includeInFieldExpansion(context);    // TODO how does searching actually work here?
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return delegateFieldType().mayExistInIndex(context);    // TODO how does searching actually work here?
         }
 
         @Override

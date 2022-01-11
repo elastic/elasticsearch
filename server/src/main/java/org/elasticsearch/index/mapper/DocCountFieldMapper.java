@@ -47,7 +47,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public boolean includeInFieldExpansion(SearchExecutionContext context) {
+        public boolean mayExistInIndex(SearchExecutionContext context) {
             return false;
         }
 

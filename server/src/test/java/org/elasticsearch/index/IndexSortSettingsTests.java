@@ -132,7 +132,7 @@ public class IndexSortSettingsTests extends ESTestCase {
             }
 
             @Override
-            public boolean includeInFieldExpansion(SearchExecutionContext context) {
+            public boolean mayExistInIndex(SearchExecutionContext context) {
                 return false;
             }
 

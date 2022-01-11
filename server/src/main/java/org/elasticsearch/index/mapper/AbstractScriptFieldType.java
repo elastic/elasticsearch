@@ -67,7 +67,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     }
 
     @Override
-    public boolean includeInFieldExpansion(SearchExecutionContext context) {
+    public boolean mayExistInIndex(SearchExecutionContext context) {
         return true;
     }
 

@@ -96,19 +96,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-truncate]
 =======
-
-`mpnet`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
-+
-.Properties of mpnet
-[%collapsible%open]
-=======
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-truncate]
-=======
 =====
 
 [discrete]
@@ -131,19 +118,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
 +
 .Properties of bert
-[%collapsible%open]
-=======
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-truncate]
-=======
-
-`mpnet`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
-+
-.Properties of mpnet
 [%collapsible%open]
 =======
 
@@ -201,19 +175,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-truncate]
 =======
-
-`mpnet`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
-+
-.Properties of mpnet
-[%collapsible%open]
-=======
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-truncate]
-=======
 =====
 
 [discrete]
@@ -236,19 +197,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
 +
 .Properties of bert
-[%collapsible%open]
-=======
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-truncate]
-=======
-
-`mpnet`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
-+
-.Properties of mpnet
 [%collapsible%open]
 =======
 
@@ -286,19 +234,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
 +
 .Properties of bert
-[%collapsible%open]
-=======
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-truncate]
-=======
-
-`mpnet`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
-+
-.Properties of mpnet
 [%collapsible%open]
 =======
 

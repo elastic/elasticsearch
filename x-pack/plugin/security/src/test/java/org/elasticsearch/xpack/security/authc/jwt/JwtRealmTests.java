@@ -136,12 +136,21 @@ public class JwtRealmTests extends JwtTestCase {
         final RealmConfig authcConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, "realmName", Settings.EMPTY, 0);
         final SecretKey secretKey = JwtUtil.generateSecretKey(randomFrom(JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS));
         final SecureString validSecretKey = new SecureString(Base64.getUrlEncoder().encodeToString(secretKey.getEncoded()).toCharArray());
-        final String validJwkSetPath = randomBoolean()
-            ? "https://op.example.com/jwkset.json"
-            : Files.createTempFile(PathUtils.get(this.pathHome), "jwkset.", ".json").toString();
+        final String validJwtSetPathHttps = "https://op.example.com/jwkset.json";
+        final String invalidJwkSetPathHttp = "http://invalid.example.com/jwkset.json";
+        final String validJwkSetPathFile = Files.createTempFile(PathUtils.get(this.pathHome), "jwkset.", ".json").toString();
+        final String validJwkSetPath = randomBoolean() ? validJwtSetPathHttps : validJwkSetPathFile;
         if (validJwkSetPath.startsWith("https://") == false) {
             Files.writeString(PathUtils.get(validJwkSetPath), "Non-empty JWK Set Path contents");
         }
+
+        // If HTTPS URL or local file, verify it is accepted
+        // If HTTP URL, verify it is rejected
+        JwtRealm.validateJwkSetPathSetting(authcConfig, validJwtSetPathHttps);
+        JwtRealm.validateJwkSetPathSetting(authcConfig, validJwkSetPathFile);
+        final Exception exception0 = expectThrows(SettingsException.class, () -> {
+            JwtRealm.validateJwkSetPathSetting(authcConfig, invalidJwkSetPathHttp);
+        });
 
         // If only valid HMAC Secret Key present and only HMAC algorithms, verify it is accepted
         JwtRealm.validateIssuerCredentialSettings(

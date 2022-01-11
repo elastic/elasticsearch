@@ -312,20 +312,12 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     }
 
     public static Tuple<URL, Path> validateJwkSetPathSetting(final RealmConfig realmConfig, final String jwkSetPath) {
-        if (Strings.hasText(jwkSetPath)) {
+        if (Strings.hasText(jwkSetPath) == false) {
             return null;
         }
-        // Suppress any URL parsing exception. If needed, it will be added to a SettingsException at the end.
-        Exception urlException = null;
-        if (jwkSetPath.startsWith("http://")) {
-            urlException = new Exception(
-                "HTTP URL ["
-                    + jwkSetPath
-                    + "] is not allowed for setting ["
-                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.JWKSET_PATH)
-                    + "]. Must use HTTPS or local file."
-            );
-        } else if (jwkSetPath.startsWith("https://")) {
+        // If HTTPS URL parsing succeeds then return right away, otherwise save the exception and fall through to next step.
+        final Exception urlException;
+        if (jwkSetPath.startsWith("https://")) {
             try {
                 return new Tuple<>(new URL(jwkSetPath), null); // RETURN URL AS NON-NULL AND PATH AS NULL
             } catch (Exception e) {
@@ -334,24 +326,24 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         + jwkSetPath
                         + "] parsing failed for setting ["
                         + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.JWKSET_PATH)
-                        + "]",
+                        + "].",
                     e
                 );
                 urlException = e;
             }
         } else {
             urlException = new Exception(
-                "URL ["
+                "Parse URL not attempted for ["
                     + jwkSetPath
-                    + "] is not valid for setting ["
+                    + "] for setting ["
                     + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.JWKSET_PATH)
-                    + "]. Must use HTTPS or local file."
+                    + "]. Only HTTPS URL or local file are supported."
             );
         }
-        // Suppress any Path parsing exception. If needed, it will be added to a SettingsException at the end.
-        Exception pathException = null;
+        // If local file parsing succeeds then return right away, otherwise save the exception and fall through to next step.
+        final Exception pathException;
         try {
-            // Use separate lines, in case any are null. That allows NPE stack trace line number to show exactly which one is null.
+            // Use separate lines of code, in case any are null. That allows NPE stack trace line number to show exactly which one is null.
             final Environment environment = realmConfig.env();
             final Path directoryPath = environment.configFile();
             final Path filePath = directoryPath.resolve(jwkSetPath);
@@ -363,17 +355,17 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         + jwkSetPath
                         + "] for setting ["
                         + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.JWKSET_PATH)
-                        + "]"
+                        + "]."
                 );
             }
             return new Tuple<>(null, filePath); // RETURN URL AS NULL AND PATH AS NON-NULL (i.e. URL Exception is discarded)
         } catch (Exception e) {
             pathException = new Exception(
-                "Error loading file ["
+                "Error loading local file ["
                     + jwkSetPath
                     + "] for setting ["
                     + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.JWKSET_PATH)
-                    + "]",
+                    + "].",
                 e
             );
         }

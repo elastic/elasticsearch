@@ -115,13 +115,9 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
         List<InternalBinaryRange.Bucket> buckets = instance.getBuckets();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                keyed = keyed == false;
-                break;
-            case 2:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> keyed = keyed == false;
+            case 2 -> {
                 buckets = new ArrayList<>(buckets);
                 buckets.add(
                     new InternalBinaryRange.Bucket(
@@ -134,17 +130,16 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
                         InternalAggregations.EMPTY
                     )
                 );
-                break;
-            case 3:
+            }
+            case 3 -> {
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalBinaryRange(name, format, keyed, buckets, metadata);
     }

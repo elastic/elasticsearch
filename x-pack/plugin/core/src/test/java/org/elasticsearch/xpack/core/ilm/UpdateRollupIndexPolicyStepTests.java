@@ -43,17 +43,10 @@ public class UpdateRollupIndexPolicyStepTests extends AbstractStepTestCase<Updat
         String rollupPolicy = instance.getRollupPolicy();
 
         switch (between(0, 2)) {
-            case 0:
-                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                rollupPolicy = randomAlphaOfLength(5);
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 2 -> rollupPolicy = randomAlphaOfLength(5);
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new UpdateRollupIndexPolicyStep(key, nextKey, client, rollupPolicy);

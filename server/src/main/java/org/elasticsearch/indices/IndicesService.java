@@ -441,30 +441,14 @@ public class IndicesService extends AbstractLifecycleComponent
         // the cumulative statistics also account for shards that are no longer on this node, which is tracked by oldShardsStats
         for (Flag flag : flags.getFlags()) {
             switch (flag) {
-                case Get:
-                    commonStats.get.add(oldShardsStats.getStats);
-                    break;
-                case Indexing:
-                    commonStats.indexing.add(oldShardsStats.indexingStats);
-                    break;
-                case Search:
-                    commonStats.search.add(oldShardsStats.searchStats);
-                    break;
-                case Merge:
-                    commonStats.merge.add(oldShardsStats.mergeStats);
-                    break;
-                case Refresh:
-                    commonStats.refresh.add(oldShardsStats.refreshStats);
-                    break;
-                case Recovery:
-                    commonStats.recoveryStats.add(oldShardsStats.recoveryStats);
-                    break;
-                case Flush:
-                    commonStats.flush.add(oldShardsStats.flushStats);
-                    break;
-                case Bulk:
-                    commonStats.bulk.add(oldShardsStats.bulkStats);
-                    break;
+                case Get -> commonStats.get.add(oldShardsStats.getStats);
+                case Indexing -> commonStats.indexing.add(oldShardsStats.indexingStats);
+                case Search -> commonStats.search.add(oldShardsStats.searchStats);
+                case Merge -> commonStats.merge.add(oldShardsStats.mergeStats);
+                case Refresh -> commonStats.refresh.add(oldShardsStats.refreshStats);
+                case Recovery -> commonStats.recoveryStats.add(oldShardsStats.recoveryStats);
+                case Flush -> commonStats.flush.add(oldShardsStats.flushStats);
+                case Bulk -> commonStats.bulk.add(oldShardsStats.bulkStats);
             }
         }
 

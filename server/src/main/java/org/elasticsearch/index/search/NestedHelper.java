@@ -66,8 +66,7 @@ public final class NestedHelper {
             return mightMatchNestedDocs(((PointRangeQuery) query).getField());
         } else if (query instanceof IndexOrDocValuesQuery) {
             return mightMatchNestedDocs(((IndexOrDocValuesQuery) query).getIndexQuery());
-        } else if (query instanceof BooleanQuery) {
-            final BooleanQuery bq = (BooleanQuery) query;
+        } else if (query instanceof final BooleanQuery bq) {
             final boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
             if (hasRequiredClauses) {
                 return bq.clauses()
@@ -138,8 +137,7 @@ public final class NestedHelper {
             return mightMatchNonNestedDocs(((PointRangeQuery) query).getField(), nestedPath);
         } else if (query instanceof IndexOrDocValuesQuery) {
             return mightMatchNonNestedDocs(((IndexOrDocValuesQuery) query).getIndexQuery(), nestedPath);
-        } else if (query instanceof BooleanQuery) {
-            final BooleanQuery bq = (BooleanQuery) query;
+        } else if (query instanceof final BooleanQuery bq) {
             final boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
             if (hasRequiredClauses) {
                 return bq.clauses()

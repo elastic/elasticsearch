@@ -80,18 +80,13 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         TimeValue after = instance.getMinimumAge();
         Map<String, LifecycleAction> actions = instance.getActions();
         switch (between(0, 2)) {
-            case 0:
-                name = name + randomAlphaOfLengthBetween(1, 5);
-                break;
-            case 1:
-                after = TimeValue.timeValueSeconds(after.getSeconds() + randomIntBetween(1, 1000));
-                break;
-            case 2:
+            case 0 -> name = name + randomAlphaOfLengthBetween(1, 5);
+            case 1 -> after = TimeValue.timeValueSeconds(after.getSeconds() + randomIntBetween(1, 1000));
+            case 2 -> {
                 actions = new HashMap<>(actions);
                 actions.put(MockAction.NAME + "another", new MockAction(Collections.emptyList()));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new Phase(name, after, actions);
     }

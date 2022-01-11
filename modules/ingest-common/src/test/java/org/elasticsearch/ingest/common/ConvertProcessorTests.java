@@ -383,23 +383,22 @@ public class ConvertProcessorTests extends ESTestCase {
         Object fieldValue;
         String expectedFieldValue;
         switch (randomIntBetween(0, 2)) {
-            case 0:
+            case 0 -> {
                 float randomFloat = randomFloat();
                 fieldValue = randomFloat;
                 expectedFieldValue = Float.toString(randomFloat);
-                break;
-            case 1:
+            }
+            case 1 -> {
                 int randomInt = randomInt();
                 fieldValue = randomInt;
                 expectedFieldValue = Integer.toString(randomInt);
-                break;
-            case 2:
+            }
+            case 2 -> {
                 boolean randomBoolean = randomBoolean();
                 fieldValue = randomBoolean;
                 expectedFieldValue = Boolean.toString(randomBoolean);
-                break;
-            default:
-                throw new UnsupportedOperationException();
+            }
+            default -> throw new UnsupportedOperationException();
         }
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
 
@@ -417,33 +416,32 @@ public class ConvertProcessorTests extends ESTestCase {
             Object randomValue;
             String randomValueString;
             switch (randomIntBetween(0, 2)) {
-                case 0:
+                case 0 -> {
                     float randomFloat = randomFloat();
                     randomValue = randomFloat;
                     randomValueString = Float.toString(randomFloat);
-                    break;
-                case 1:
+                }
+                case 1 -> {
                     int randomInt = randomInt();
                     randomValue = randomInt;
                     randomValueString = Integer.toString(randomInt);
-                    break;
-                case 2:
+                }
+                case 2 -> {
                     boolean randomBoolean = randomBoolean();
                     randomValue = randomBoolean;
                     randomValueString = Boolean.toString(randomBoolean);
-                    break;
-                case 3:
+                }
+                case 3 -> {
                     long randomLong = randomLong();
                     randomValue = randomLong;
                     randomValueString = Long.toString(randomLong);
-                    break;
-                case 4:
+                }
+                case 4 -> {
                     double randomDouble = randomDouble();
                     randomValue = randomDouble;
                     randomValueString = Double.toString(randomDouble);
-                    break;
-                default:
-                    throw new UnsupportedOperationException();
+                }
+                default -> throw new UnsupportedOperationException();
             }
             fieldValue.add(randomValue);
             expectedList.add(randomValueString);
@@ -501,20 +499,19 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertNotString() throws Exception {
         Object randomValue;
         switch (randomIntBetween(0, 2)) {
-            case 0:
+            case 0 -> {
                 float randomFloat = randomFloat();
                 randomValue = randomFloat;
-                break;
-            case 1:
+            }
+            case 1 -> {
                 int randomInt = randomInt();
                 randomValue = randomInt;
-                break;
-            case 2:
+            }
+            case 2 -> {
                 boolean randomBoolean = randomBoolean();
                 randomValue = randomBoolean;
-                break;
-            default:
-                throw new UnsupportedOperationException();
+            }
+            default -> throw new UnsupportedOperationException();
         }
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomValue));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);

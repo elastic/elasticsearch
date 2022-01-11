@@ -19,6 +19,7 @@ import org.apache.http.client.fluent.Request;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Tuple;
@@ -88,7 +89,6 @@ import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeFalse;
@@ -631,14 +631,14 @@ public abstract class PackagingTestCase extends Assert {
     public void verifySecurityAutoConfigured(Installation es) throws Exception {
         Optional<String> autoConfigDirName = getAutoConfigDirName(es);
         assertThat(autoConfigDirName.isPresent(), Matchers.is(true));
-        final List<String> configLines;
+        final Settings settings;
         if (es.distribution.isArchive()) {
             // We chown the installation on Windows to Administrators so that we can auto-configure it.
             String owner = Platforms.WINDOWS ? "BUILTIN\\Administrators" : "elasticsearch";
             assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, owner, owner, p750));
             Stream.of("http.p12", "http_ca.crt", "transport.p12")
                 .forEach(file -> assertThat(es.config(autoConfigDirName.get()).resolve(file), FileMatcher.file(File, owner, owner, p660)));
-            configLines = Files.readAllLines(es.config("elasticsearch.yml"));
+            settings = Settings.builder().loadFromPath(es.config("elasticsearch.yml")).build();
         } else if (es.distribution.isDocker()) {
             assertThat(es.config(autoConfigDirName.get()), DockerFileMatcher.file(Directory, "elasticsearch", "root", p750));
             Stream.of("http.p12", "http_ca.crt", "transport.p12")
@@ -650,7 +650,7 @@ public abstract class PackagingTestCase extends Assert {
                 );
             Path localTempDir = createTempDir("docker-config");
             copyFromContainer(es.config("elasticsearch.yml"), localTempDir.resolve("docker_elasticsearch.yml"));
-            configLines = Files.readAllLines(localTempDir.resolve("docker_elasticsearch.yml"));
+            settings = Settings.builder().loadFromPath(localTempDir.resolve("docker_elasticsearch.yml")).build();
             rm(localTempDir.resolve("docker_elasticsearch.yml"));
             rm(localTempDir);
         } else {
@@ -664,19 +664,17 @@ public abstract class PackagingTestCase extends Assert {
                     )
                 );
             assertThat(sh.run(es.executables().keystoreTool + " list").stdout, Matchers.containsString("autoconfiguration.password_hash"));
-            configLines = Files.readAllLines(es.config("elasticsearch.yml"));
+            settings = Settings.builder().loadFromPath(es.config("elasticsearch.yml")).build();
         }
-        assertThat(configLines, hasItem("xpack.security.enabled: true"));
-        assertThat(configLines, hasItem("xpack.security.http.ssl.enabled: true"));
-        assertThat(configLines, hasItem("xpack.security.transport.ssl.enabled: true"));
+        assertThat(settings.get("xpack.security.enabled"), equalTo("true"));
+        assertThat(settings.get("xpack.security.enrollment.enabled"), equalTo("true"));
+        assertThat(settings.get("xpack.security.transport.ssl.enabled"), equalTo("true"));
+        assertThat(settings.get("xpack.security.transport.ssl.verification_mode"), equalTo("certificate"));
+        assertThat(settings.get("xpack.security.http.ssl.enabled"), equalTo("true"));
+        assertThat(settings.get("xpack.security.enabled"), equalTo("true"));
 
-        assertThat(configLines, hasItem("xpack.security.enrollment.enabled: true"));
-        assertThat(configLines, hasItem("xpack.security.transport.ssl.verification_mode: certificate"));
-        assertThat(configLines, hasItem("xpack.security.transport.ssl.keystore.path: certs/transport.p12"));
-        assertThat(configLines, hasItem("xpack.security.transport.ssl.truststore.path: certs/transport.p12"));
-        assertThat(configLines, hasItem("xpack.security.http.ssl.keystore.path: certs/http.p12"));
         if (es.distribution.isDocker() == false) {
-            assertThat(configLines, hasItem("http.host: [_local_, _site_]"));
+            assertThat(settings.get("http.host"), equalTo("[_local_, _site_]"));
         }
     }
 
@@ -696,7 +694,10 @@ public abstract class PackagingTestCase extends Assert {
             }
         }
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
-        assertThat(configLines, not(contains(containsString("automatically generated in order to configure Security"))));
+        assertThat(
+            configLines,
+            not(contains(containsString("#----------------------- BEGIN SECURITY AUTO CONFIGURATION -----------------------")))
+        );
         Path caCert = ServerUtils.getCaCert(installation);
         if (caCert != null) {
             assertThat(caCert.toString(), Matchers.not(Matchers.containsString("certs")));

@@ -307,17 +307,15 @@ public class HotThreads {
             ThreadTimeAccumulator topThread = topThreads.get(t);
 
             switch (type) {
-                case MEM:
-                    sb.append(
-                        String.format(
-                            Locale.ROOT,
-                            "%n%s memory allocated by thread '%s'%n",
-                            new ByteSizeValue(topThread.getAllocatedBytes()),
-                            threadName
-                        )
-                    );
-                    break;
-                case CPU:
+                case MEM -> sb.append(
+                    String.format(
+                        Locale.ROOT,
+                        "%n%s memory allocated by thread '%s'%n",
+                        new ByteSizeValue(topThread.getAllocatedBytes()),
+                        threadName
+                    )
+                );
+                case CPU -> {
                     double percentCpu = getTimeSharePercentage(topThread.getCpuTime());
                     double percentOther = getTimeSharePercentage(topThread.getOtherTime());
                     sb.append(
@@ -333,8 +331,8 @@ public class HotThreads {
                             threadName
                         )
                     );
-                    break;
-                default:
+                }
+                default -> {
                     long time = ThreadTimeAccumulator.valueGetterForReportType(type).applyAsLong(topThread);
                     double percent = getTimeSharePercentage(time);
                     sb.append(
@@ -348,7 +346,7 @@ public class HotThreads {
                             threadName
                         )
                     );
-                    break;
+                }
             }
 
             // for each snapshot (2nd array index) find later snapshot for same thread with max number of
@@ -495,17 +493,12 @@ public class HotThreads {
         }
 
         static ToLongFunction<ThreadTimeAccumulator> valueGetterForReportType(ReportType type) {
-            switch (type) {
-                case CPU:
-                    return ThreadTimeAccumulator::getCpuTime;
-                case WAIT:
-                    return ThreadTimeAccumulator::getWaitedTime;
-                case BLOCK:
-                    return ThreadTimeAccumulator::getBlockedTime;
-                case MEM:
-                    return ThreadTimeAccumulator::getAllocatedBytes;
-            }
-            throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', 'mem', or 'block', but was " + type);
+            return switch (type) {
+                case CPU -> ThreadTimeAccumulator::getCpuTime;
+                case WAIT -> ThreadTimeAccumulator::getWaitedTime;
+                case BLOCK -> ThreadTimeAccumulator::getBlockedTime;
+                case MEM -> ThreadTimeAccumulator::getAllocatedBytes;
+            };
         }
     }
 

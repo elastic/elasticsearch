@@ -51,35 +51,26 @@ public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCas
         boolean onlyErrors = instance.onlyErrors();
         boolean onlyManaged = instance.onlyManaged();
         switch (between(0, 3)) {
-            case 0:
-                indices = randomValueOtherThanMany(
-                    i -> Arrays.equals(i, instance.indices()),
-                    () -> generateRandomStringArray(20, 10, false, false)
-                );
-                break;
-            case 1:
-                indicesOptions = randomValueOtherThan(
-                    indicesOptions,
-                    () -> IndicesOptions.fromOptions(
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean()
-                    )
-                );
-                break;
-            case 2:
-                onlyErrors = onlyErrors == false;
-                break;
-            case 3:
-                onlyManaged = onlyManaged == false;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> indices = randomValueOtherThanMany(
+                i -> Arrays.equals(i, instance.indices()),
+                () -> generateRandomStringArray(20, 10, false, false)
+            );
+            case 1 -> indicesOptions = randomValueOtherThan(
+                indicesOptions,
+                () -> IndicesOptions.fromOptions(
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean()
+                )
+            );
+            case 2 -> onlyErrors = onlyErrors == false;
+            case 3 -> onlyManaged = onlyManaged == false;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         ExplainLifecycleRequest newRequest = new ExplainLifecycleRequest();
         newRequest.indices(indices);

@@ -314,11 +314,16 @@ class S3Service implements Closeable {
             }
             stsClientBuilder.withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()));
             stsClient = SocketAccess.doPrivileged(stsClientBuilder::build);
-            credentialsProvider = new STSAssumeRoleWithWebIdentitySessionCredentialsProvider.Builder(
-                roleArn,
-                roleSessionName,
-                webIdentityTokenFileSymlink.toString()
-            ).withStsClient(stsClient).build();
+            try {
+                credentialsProvider = new STSAssumeRoleWithWebIdentitySessionCredentialsProvider.Builder(
+                    roleArn,
+                    roleSessionName,
+                    webIdentityTokenFileSymlink.toString()
+                ).withStsClient(stsClient).build();
+            } catch (Exception e) {
+                stsClient.shutdown();
+                throw e;
+            }
         }
 
         boolean isActive() {

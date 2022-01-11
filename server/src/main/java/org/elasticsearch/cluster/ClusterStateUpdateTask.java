@@ -16,7 +16,11 @@ import java.util.List;
 
 /**
  * A task that can update the cluster state.
+ * @deprecated unbatched cluster state updates are deprecated.
+ *             See {@link org.elasticsearch.cluster.service.ClusterService#submitStateUpdateTask(String, ClusterStateTaskConfig)}
+ *             for details.
  */
+@Deprecated
 public abstract class ClusterStateUpdateTask
     implements
         ClusterStateTaskConfig,

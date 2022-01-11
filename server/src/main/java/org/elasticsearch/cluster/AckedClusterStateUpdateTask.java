@@ -18,7 +18,11 @@ import org.elasticsearch.core.TimeValue;
 /**
  * An extension interface to {@link ClusterStateUpdateTask} that allows to be notified when
  * all the nodes have acknowledged a cluster state update request
+ * @deprecated unbatched cluster state updates are deprecated.
+ *             See {@link org.elasticsearch.cluster.service.ClusterService#submitStateUpdateTask(String, ClusterStateTaskConfig)}
+ *             for details.
  */
+@Deprecated
 public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask implements AckedClusterStateTaskListener {
 
     private final ActionListener<AcknowledgedResponse> listener;

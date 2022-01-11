@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
@@ -62,9 +63,9 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         // searching doubles that are rounded to the closest half float
         ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType(
             "scaled_float",
+            randomBoolean(),
+            false,
             true,
-            false,
-            false,
             Collections.emptyMap(),
             0.1 + randomDouble() * 100,
             null,
@@ -79,7 +80,9 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             long scaledValue = Math.round(value * ft.getScalingFactor());
             double rounded = scaledValue / ft.getScalingFactor();
             doc.add(new LongPoint("scaled_float", scaledValue));
+            doc.add(new SortedNumericDocValuesField("scaled_float", scaledValue));
             doc.add(new DoublePoint("double", rounded));
+            doc.add(new SortedNumericDocValuesField("double", NumericUtils.doubleToSortableLong(rounded)));
             w.addDocument(doc);
         }
         final DirectoryReader reader = DirectoryReader.open(w);

@@ -497,15 +497,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             // Cache lookup
             // 1. If present in cache, AuthenticationResult.successful().
 
-            // JWT Authentication
-            // 1. Verify signature (HMAC or RSA)
-            // 2. If present verify nfb <= iat.
-            // 3. If present verify nfb <= exp.
-            // 4. If present verify iat <= exp.
-            // 5. If present, verify nfb + allowedClockSkew < now.
-            // 6. If present, verify iat + allowedClockSkew >= now.
-            // 7. If present, verify exp + allowedClockSkew >= now.
-
             // Client Authorization
             switch (this.clientAuthorizationType) {
                 case JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET:
@@ -528,6 +519,15 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     LOGGER.debug("Realm [{}] client authentication skipped for [{}].", super.name(), this.clientAuthorizationType);
                     break;
             }
+
+            // JWT Authentication
+            // 1. Verify signature (HMAC or RSA)
+            // 2. If present verify nfb <= iat.
+            // 3. If present verify nfb <= exp.
+            // 4. If present verify iat <= exp.
+            // 5. If present, verify nfb + allowedClockSkew < now.
+            // 6. If present, verify iat + allowedClockSkew >= now.
+            // 7. If present, verify exp + allowedClockSkew >= now.
 
             final String jwtPrincipal = this.principalAttribute.getClaimValue(jwtClaimsSet);
             final String msg1 = String.format(

@@ -10,6 +10,7 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.util.json.Jackson;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -63,12 +64,16 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         });
     }
 
-    private final SetOnce<S3Service> service;
+    private final SetOnce<S3Service> service = new SetOnce<>();
     private final Map<String, S3ClientSettings> clientsSettings;
 
     public S3RepositoryPlugin(Settings settings) {
         // eagerly load client settings so that secure settings are read
         clientsSettings = S3ClientSettings.load(settings);
+    }
+
+    S3Service getService() {
+        return service.get();
     }
 
     // proxy method for testing
@@ -79,7 +84,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings
     ) {
-        return new S3Repository(metadata, registry, service, clusterService, bigArrays, recoverySettings);
+        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings);
     }
 
     @Override
@@ -96,8 +101,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        service = s3Service(environment);
-        this.service.refreshAndClearCache(clientsSettings);
+        service.set(s3Service(environment));
+        this.service.get().refreshAndClearCache(clientsSettings);
         return List.of(service);
     }
 
@@ -145,11 +150,11 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     public void reload(Settings settings) {
         // secure settings should be readable
         final Map<String, S3ClientSettings> clientsSettings = S3ClientSettings.load(settings);
-        service.refreshAndClearCache(clientsSettings);
+        getService().refreshAndClearCache(clientsSettings);
     }
 
     @Override
     public void close() throws IOException {
-        service.close();
+        getService().close();
     }
 }

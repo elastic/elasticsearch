@@ -93,22 +93,17 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
         DocValueFormat formatter = instance.format();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                state = randomState(Long.MAX_VALUE, randomFrom(TTestType.values()), randomIntBetween(1, 2));
-                break;
-            case 2:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> state = randomState(Long.MAX_VALUE, randomFrom(TTestType.values()), randomIntBetween(1, 2));
+            case 2 -> {
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalTTest(name, state, formatter, metadata);
     }

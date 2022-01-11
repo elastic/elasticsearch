@@ -86,47 +86,28 @@ public class AsyncSearchResponseTests extends ESTestCase {
 
     static AsyncSearchResponse randomAsyncSearchResponse(String searchId, SearchResponse searchResponse) {
         int rand = randomIntBetween(0, 2);
-        switch (rand) {
-            case 0:
-                return new AsyncSearchResponse(
-                    searchId,
-                    randomBoolean(),
-                    randomBoolean(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong()
-                );
-
-            case 1:
-                return new AsyncSearchResponse(
-                    searchId,
-                    searchResponse,
-                    null,
-                    randomBoolean(),
-                    randomBoolean(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong()
-                );
-
-            case 2:
-                return new AsyncSearchResponse(
-                    searchId,
-                    searchResponse,
-                    new ScriptException(
-                        "messageData",
-                        new Exception("causeData"),
-                        Arrays.asList("stack1", "stack2"),
-                        "sourceData",
-                        "langData"
-                    ),
-                    randomBoolean(),
-                    randomBoolean(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong()
-                );
-
-            default:
-                throw new AssertionError();
-        }
+        return switch (rand) {
+            case 0 -> new AsyncSearchResponse(searchId, randomBoolean(), randomBoolean(), randomNonNegativeLong(), randomNonNegativeLong());
+            case 1 -> new AsyncSearchResponse(
+                searchId,
+                searchResponse,
+                null,
+                randomBoolean(),
+                randomBoolean(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
+            case 2 -> new AsyncSearchResponse(
+                searchId,
+                searchResponse,
+                new ScriptException("messageData", new Exception("causeData"), Arrays.asList("stack1", "stack2"), "sourceData", "langData"),
+                randomBoolean(),
+                randomBoolean(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
+            default -> throw new AssertionError();
+        };
     }
 
     static SearchResponse randomSearchResponse() {

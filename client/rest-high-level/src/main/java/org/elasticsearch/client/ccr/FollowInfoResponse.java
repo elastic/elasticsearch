@@ -163,14 +163,11 @@ public final class FollowInfoResponse {
         }
 
         public static Status fromString(String value) {
-            switch (value) {
-                case "active":
-                    return Status.ACTIVE;
-                case "paused":
-                    return Status.PAUSED;
-                default:
-                    throw new IllegalArgumentException("unexpected status value [" + value + "]");
-            }
+            return switch (value) {
+                case "active" -> Status.ACTIVE;
+                case "paused" -> Status.PAUSED;
+                default -> throw new IllegalArgumentException("unexpected status value [" + value + "]");
+            };
         }
     }
 }

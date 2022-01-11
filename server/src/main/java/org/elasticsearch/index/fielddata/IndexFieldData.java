@@ -165,21 +165,14 @@ public interface IndexFieldData<FD extends LeafFieldData> {
         public Object missingObject(Object missingValue, boolean reversed) {
             if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
                 final boolean min = sortMissingFirst(missingValue) ^ reversed;
-                switch (reducedType()) {
-                    case INT:
-                        return min ? Integer.MIN_VALUE : Integer.MAX_VALUE;
-                    case LONG:
-                        return min ? Long.MIN_VALUE : Long.MAX_VALUE;
-                    case FLOAT:
-                        return min ? Float.NEGATIVE_INFINITY : Float.POSITIVE_INFINITY;
-                    case DOUBLE:
-                        return min ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
-                    case STRING:
-                    case STRING_VAL:
-                        return null;
-                    default:
-                        throw new UnsupportedOperationException("Unsupported reduced type: " + reducedType());
-                }
+                return switch (reducedType()) {
+                    case INT -> min ? Integer.MIN_VALUE : Integer.MAX_VALUE;
+                    case LONG -> min ? Long.MIN_VALUE : Long.MAX_VALUE;
+                    case FLOAT -> min ? Float.NEGATIVE_INFINITY : Float.POSITIVE_INFINITY;
+                    case DOUBLE -> min ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+                    case STRING, STRING_VAL -> null;
+                    default -> throw new UnsupportedOperationException("Unsupported reduced type: " + reducedType());
+                };
             } else {
                 switch (reducedType()) {
                     case INT:

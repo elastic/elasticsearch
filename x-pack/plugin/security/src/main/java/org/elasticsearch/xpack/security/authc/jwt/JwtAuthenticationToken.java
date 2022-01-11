@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 import java.text.ParseException;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -113,6 +114,6 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         this.signedJwt.set(null);
         this.jwsHeader.set(null);
         this.jwtClaimsSet.set(null);
-        this.jwtSignature.set(null);
+        Arrays.fill(this.jwtSignature.getAndSet(null), (byte) 0);
     }
 }

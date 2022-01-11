@@ -20,11 +20,9 @@ import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 import org.elasticsearch.xpack.watcher.Watcher;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
@@ -88,7 +86,11 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     }
 
     public static boolean validate(ClusterState state) {
-        return state.getMetadata().templatesV2().keySet().stream().filter(s -> s.startsWith(".watch-history-"))
+        return state.getMetadata()
+            .templatesV2()
+            .keySet()
+            .stream()
+            .filter(s -> s.startsWith(".watch-history-"))
             .map(s -> Integer.valueOf(s.substring(s.lastIndexOf('-') + 1)))
             .anyMatch(version -> version >= 12);
     }

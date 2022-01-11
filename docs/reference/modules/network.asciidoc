@@ -101,7 +101,7 @@ special character in YAML.
 
 These special values yield both IPv4 and IPv6 addresses by default, but you can
 also add an `:ipv4` or `:ipv6` suffix to limit them to just IPv4 or IPv6
-addresses respectively. For example, `network.host: _en0:ipv4_` would set this
+addresses respectively. For example, `network.host: "_en0:ipv4_"` would set this
 node's addresses to the IPv4 addresses of interface `en0`.
 
 [TIP]

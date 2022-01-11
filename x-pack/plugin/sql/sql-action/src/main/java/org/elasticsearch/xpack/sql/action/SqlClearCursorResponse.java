@@ -18,7 +18,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.xpack.sql.proto.SqlClearCursorResponse.SUCCEEDED;
 
 /**
  * Response to the request to clean all SQL resources associated with the cursor
@@ -56,7 +55,7 @@ public class SqlClearCursorResponse extends ActionResponse implements StatusToXC
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(SUCCEEDED.getPreferredName(), succeeded);
+        builder.field("succeeded", succeeded);
         builder.endObject();
         return builder;
     }
@@ -78,5 +77,4 @@ public class SqlClearCursorResponse extends ActionResponse implements StatusToXC
     public int hashCode() {
         return Objects.hash(succeeded);
     }
-
 }

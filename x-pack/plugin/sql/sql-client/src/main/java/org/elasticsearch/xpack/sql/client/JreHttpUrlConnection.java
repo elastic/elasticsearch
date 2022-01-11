@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.client;
 
+import org.elasticsearch.xpack.sql.proto.core.CheckedBiFunction;
+import org.elasticsearch.xpack.sql.proto.core.CheckedConsumer;
+
 import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;

@@ -11,11 +11,9 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:gcs-fixture')
-final Project repositoryPlugin = project(':plugins:repository-gcs')
 
 dependencies {
   testImplementation(testArtifact(project(xpackModule('snapshot-based-recoveries'))))
-  testImplementation repositoryPlugin
 }
 
 restResources {
@@ -101,7 +99,6 @@ tasks.named("integTest").configure {
 testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 3
-  plugin repositoryPlugin.path
 
   setting 'xpack.license.self_generated.type', 'trial'
 

@@ -56,25 +56,20 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
 
         int id = randomIntBetween(0, 2);
         switch (id) {
-            case 0:
+            case 0 -> {
                 int count = randomIntBetween(1, 10);
                 String[] geohashes = new String[count];
                 for (int i = 0; i < count; i++) {
                     geohashes[i] = RandomGeoGenerator.randomPoint(random()).geohash();
                 }
-
                 result = new GeoDistanceSortBuilder(fieldName, geohashes);
-                break;
-            case 1:
+            }
+            case 1 -> {
                 GeoPoint pt = RandomGeoGenerator.randomPoint(random());
                 result = new GeoDistanceSortBuilder(fieldName, pt.getLat(), pt.getLon());
-                break;
-            case 2:
-                result = new GeoDistanceSortBuilder(fieldName, points(new GeoPoint[0]));
-                break;
-            default:
-                throw new IllegalStateException("one of three geo initialisation strategies must be used");
-
+            }
+            case 2 -> result = new GeoDistanceSortBuilder(fieldName, points(new GeoPoint[0]));
+            default -> throw new IllegalStateException("one of three geo initialisation strategies must be used");
         }
         if (randomBoolean()) {
             result.geoDistance(geoDistance(result.geoDistance()));

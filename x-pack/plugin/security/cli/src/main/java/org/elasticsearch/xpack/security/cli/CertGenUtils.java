@@ -246,24 +246,16 @@ public class CertGenUtils {
      * @return algorithm
      */
     private static String getDefaultSignatureAlgorithm(PrivateKey key) {
-        String signatureAlgorithm = null;
-        switch (key.getAlgorithm()) {
-            case "RSA":
-                signatureAlgorithm = "SHA256withRSA";
-                break;
-            case "DSA":
-                signatureAlgorithm = "SHA256withDSA";
-                break;
-            case "EC":
-                signatureAlgorithm = "SHA256withECDSA";
-                break;
-            default:
-                throw new IllegalArgumentException(
-                    "Unsupported algorithm : "
-                        + key.getAlgorithm()
-                        + " for signature, allowed values for private key algorithm are [RSA, DSA, EC]"
-                );
-        }
+        String signatureAlgorithm = switch (key.getAlgorithm()) {
+            case "RSA" -> "SHA256withRSA";
+            case "DSA" -> "SHA256withDSA";
+            case "EC" -> "SHA256withECDSA";
+            default -> throw new IllegalArgumentException(
+                "Unsupported algorithm : "
+                    + key.getAlgorithm()
+                    + " for signature, allowed values for private key algorithm are [RSA, DSA, EC]"
+            );
+        };
         return signatureAlgorithm;
     }
 

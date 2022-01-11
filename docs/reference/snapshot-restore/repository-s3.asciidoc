@@ -513,5 +513,3 @@ ln -s $AWS_WEB_IDENTITY_TOKEN_FILE "${ES_PATH_CONF}/repository-s3/aws-web-identi
 
 IMPORTANT: The symlink must be readable by the `elasticsearch` user. By default, {es} runs
 as user `elasticsearch` using uid:gid `1000:0`.
-
-See the https://github.com/elastic/elasticsearch/pull/81255[Github PR] for implementation details.

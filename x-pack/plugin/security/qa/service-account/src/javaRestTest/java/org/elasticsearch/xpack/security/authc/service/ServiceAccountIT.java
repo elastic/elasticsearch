@@ -110,7 +110,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "            \"monitor\",\n"
         + "            \"create_index\",\n"
         + "            \"auto_configure\",\n"
-        + "            \"maintenance\"\n"        
+        + "            \"maintenance\"\n"
         + "          ],\n"
         + "          \"allow_restricted_indices\": false\n"
         + "        }\n"

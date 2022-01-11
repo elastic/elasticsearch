@@ -120,13 +120,13 @@ public final class RandomSamplingQuery extends Query {
     /**
      * A DocIDSetIter that skips a geometrically random number of documents
      */
-    static class RandomSamplingIterator extends DocIdSetIterator {
+    public static class RandomSamplingIterator extends DocIdSetIterator {
         private final int maxDoc;
         private final double p;
         private final FastGeometric distribution;
         private int doc = -1;
 
-        RandomSamplingIterator(int maxDoc, double p, IntSupplier rng) {
+        public RandomSamplingIterator(int maxDoc, double p, IntSupplier rng) {
             this.maxDoc = maxDoc;
             this.p = p;
             this.distribution = new FastGeometric(rng, p);

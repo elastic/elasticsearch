@@ -244,9 +244,9 @@ Valdiodio      |VALDIODIO
 ;
 
 ambiguousReferenceInWhereClause
-SELECT gender emp_no, emp_no e FROM test_emp WHERE e > 10099;
+SELECT gender, gender emp_no, emp_no e FROM test_emp WHERE e > 10099;
 
-    emp_no     |       e
----------------+---------------
-F              |10100
+    gender     |    emp_no     |       e
+---------------+---------------+---------------
+F              |F              |10100
 ;

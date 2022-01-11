@@ -90,7 +90,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
                 builder.startObject();
                 builder.field(CommonFields.KEY.getPreferredName(), key);
             }
-            if (!isIpv6) {
+            if (isIpv6 == false) {
                 builder.field("netmask", DocValueFormat.IP.format(netmask(prefixLength)));
             }
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
@@ -249,7 +249,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
 
             do {
                 final IteratorAndCurrent<Bucket> top = pq.top();
-                if (!top.current().key.equals(value)) {
+                if (top.current().key.equals(value) == false) {
                     final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
                     if (reduced.getDocCount() >= minDocCount) {
                         reducedBuckets.add(reduced);
@@ -338,7 +338,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         InternalIpPrefix that = (InternalIpPrefix) o;
         return minDocCount == that.minDocCount && Objects.equals(format, that.format) && Objects.equals(buckets, that.buckets);
     }

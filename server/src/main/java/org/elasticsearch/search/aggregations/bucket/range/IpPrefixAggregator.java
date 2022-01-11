@@ -128,7 +128,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
         private final LeafBucketCollector sub;
         private final SortedBinaryDocValues values;
 
-        public IpPrefixLeafCollector(LeafBucketCollector sub, SortedBinaryDocValues values, IpPrefix ipPrefix) {
+        IpPrefixLeafCollector(LeafBucketCollector sub, SortedBinaryDocValues values, IpPrefix ipPrefix) {
             super(sub, values);
             this.sub = sub;
             this.values = values;

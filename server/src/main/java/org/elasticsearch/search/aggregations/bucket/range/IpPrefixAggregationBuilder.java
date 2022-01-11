@@ -197,7 +197,7 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
             );
         }
 
-        if (!isIpv6 && prefixLength > IPV4_MAX_PREFIX_LENGTH) {
+        if (isIpv6 == false && prefixLength > IPV4_MAX_PREFIX_LENGTH) {
             throw new IllegalArgumentException(
                 "["
                     + PREFIX_LENGTH_FIELD.getPreferredName()
@@ -243,9 +243,10 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
      *         network, or is not in range [0, 32] for an IPv4 network.
      */
     public static BytesRef extractNetmask(int prefixLength, boolean isIpv6) {
-        if (prefixLength < 0 || (!isIpv6 && prefixLength > 32) || (isIpv6 && prefixLength > 128)) {
+        if (prefixLength < 0 || (isIpv6 == false && prefixLength > 32) || (isIpv6 && prefixLength > 128)) {
             throw new IllegalArgumentException(
-                "[" + PREFIX_LENGTH_FIELD.getPreferredName()
+                "["
+                    + PREFIX_LENGTH_FIELD.getPreferredName()
                     + "] must be in range ["
                     + MIN_PREFIX_LENGTH
                     + ", "
@@ -292,7 +293,7 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         IpPrefixAggregationBuilder that = (IpPrefixAggregationBuilder) o;
         return minDocCount == that.minDocCount && prefixLength == that.prefixLength && isIpv6 == that.isIpv6;
     }

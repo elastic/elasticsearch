@@ -54,7 +54,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
         private final int prefixLength;
         private final long time;
 
-        public TestIpDataHolder(final String ipAddressAsString, final String subnetAsString, final int prefixLength, final long time) {
+        TestIpDataHolder(final String ipAddressAsString, final String subnetAsString, final int prefixLength, final long time) {
             this.ipAddressAsString = ipAddressAsString;
             this.ipAddress = InetAddresses.forString(ipAddressAsString);
             this.subnetAsString = subnetAsString;
@@ -107,8 +107,22 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
 
         @Override
         public String toString() {
-            return "TestIpDataHolder{ipAddressAsString='%s', ipAddress=%s, subnetAsString='%s', subnet=%s, prefixLength=%d, time=%d}"
-                .formatted(ipAddressAsString, ipAddress, subnetAsString, subnet, prefixLength, time);
+            return "TestIpDataHolder{"
+                + "ipAddressAsString='"
+                + ipAddressAsString
+                + '\''
+                + ", ipAddress="
+                + ipAddress
+                + ", subnetAsString='"
+                + subnetAsString
+                + '\''
+                + ", subnet="
+                + subnet
+                + ", prefixLength="
+                + prefixLength
+                + ", time="
+                + time
+                + '}';
         }
     }
 
@@ -126,8 +140,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
         final List<TestIpDataHolder> ipAddresses = Collections.emptyList();
 
         // WHEN
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-        }, ipPrefix -> {
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {}, ipPrefix -> {
             final Set<String> expectedSubnets = ipAddresses.stream()
                 .map(TestIpDataHolder::getSubnetAsString)
                 .collect(Collectors.toUnmodifiableSet());

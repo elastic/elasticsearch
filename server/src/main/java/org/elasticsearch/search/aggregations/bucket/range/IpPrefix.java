@@ -6,15 +6,15 @@
  * Side Public License, v 1.
  */
 
-/**
- * A {@code ip prefix} aggregation. Defines multiple buckets, each representing a subnet.
- */
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.List;
 
+/**
+ * A {@code ip prefix} aggregation. Defines multiple buckets, each representing a subnet.
+ */
 public interface IpPrefix extends MultiBucketsAggregation {
 
     /**

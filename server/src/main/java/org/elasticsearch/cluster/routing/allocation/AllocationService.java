@@ -117,9 +117,11 @@ public class AllocationService {
             this.batchFetchShardEnable = CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING.get(clusterService.getSettings());
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING, this::setBatchFetchShardEnable);
-            this.batchFetchShardStepSize = CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_STEP_SIZE_SETTING.get(clusterService.getSettings());
+            this.batchFetchShardStepSize =
+                CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_STEP_SIZE_SETTING.get(clusterService.getSettings());
             clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_STEP_SIZE_SETTING, this::setBatchFetchShardStepSize);
+                .addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_STEP_SIZE_SETTING,
+                    this::setBatchFetchShardStepSize);
         }
     }
 

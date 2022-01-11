@@ -523,6 +523,24 @@ public class XContentHelper {
         }
     }
 
+    public static XContentType xContentTypeMayCompressed(BytesReference bytes) {
+        Compressor compressor = CompressorFactory.compressor(bytes);
+        if (compressor != null) {
+            try {
+                InputStream compressedStreamInput = compressor.threadLocalInputStream(bytes.streamInput());
+                if (compressedStreamInput.markSupported() == false) {
+                    compressedStreamInput = new BufferedInputStream(compressedStreamInput);
+                }
+                return XContentFactory.xContentType(compressedStreamInput);
+            } catch (IOException e) {
+                assert false : "Should not happen, we're just reading bytes from memory";
+                throw new UncheckedIOException(e);
+            }
+        } else {
+            return XContentHelper.xContentType(bytes);
+        }
+    }
+
     /**
      * Guesses the content type based on the provided bytes.
      *
@@ -532,17 +550,10 @@ public class XContentHelper {
      */
     @Deprecated
     public static XContentType xContentType(BytesReference bytes) {
+        if (bytes.hasArray()) {
+            return XContentFactory.xContentType(bytes.array(), bytes.arrayOffset(), bytes.length());
+        }
         try {
-            Compressor compressor = CompressorFactory.compressor(bytes);
-            if (compressor != null) {
-                InputStream compressedStreamInput = compressor.threadLocalInputStream(bytes.streamInput());
-                if (compressedStreamInput.markSupported() == false) {
-                    compressedStreamInput = new BufferedInputStream(compressedStreamInput);
-                }
-                return XContentFactory.xContentType(compressedStreamInput);
-            } else if (bytes.hasArray()) {
-                return XContentFactory.xContentType(bytes.array(), bytes.arrayOffset(), bytes.length());
-            }
             final InputStream inputStream = bytes.streamInput();
             assert inputStream.markSupported();
             return XContentFactory.xContentType(inputStream);
@@ -613,8 +624,8 @@ public class XContentHelper {
             );
             return (originalSource, contentType) -> {
                 BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, originalSource.length()));
-                XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput);
-                XContentParser parser = XContentType.JSON.xContent().createParser(parserConfig, originalSource.streamInput());
+                XContentBuilder builder = new XContentBuilder(contentType.xContent(), streamOutput);
+                XContentParser parser = contentType.xContent().createParser(parserConfig, originalSource.streamInput());
                 builder.copyCurrentStructure(parser);
                 return BytesReference.bytes(builder);
             };

@@ -252,7 +252,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             } else if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
                 // TODO: The source might be parsed and available in the sourceLookup but that one uses unordered maps so different.
                 // Do we care?
-                XContentType sourceContentType = XContentHelper.xContentType(source);
+                XContentType sourceContentType = XContentHelper.xContentTypeMayCompressed(source);
                 try {
                     source = XContentHelper.newFieldFilter(fetchSourceContext.includes(), fetchSourceContext.excludes())
                         .apply(source, sourceContentType);

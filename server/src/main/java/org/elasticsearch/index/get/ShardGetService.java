@@ -16,6 +16,7 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVers
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentFieldFilter;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
@@ -254,7 +255,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 // Do we care?
                 XContentType sourceContentType = XContentHelper.xContentTypeMayCompressed(source);
                 try {
-                    source = XContentHelper.newFieldFilter(fetchSourceContext.includes(), fetchSourceContext.excludes())
+                    source = XContentFieldFilter.newFieldFilter(fetchSourceContext.includes(), fetchSourceContext.excludes())
                         .apply(source, sourceContentType);
                 } catch (IOException e) {
                     throw new ElasticsearchException("Failed to get id [" + id + "] with includes/excludes set", e);

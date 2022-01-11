@@ -17,6 +17,10 @@ or collection of documents.
 This query finds queries that are stored as documents that match with
 the specified document.
 
+<<query-dsl-random-sample-query,`random_sample` query>>::
+A query that randomly samples documents with `probability` and an optionally provided `filter`. It is useful for
+executing expensive aggregations on large datasets.
+
 <<query-dsl-rank-feature-query,`rank_feature` query>>::
 A query that computes scores based on the values of numeric features and is
 able to efficiently skip non-competitive hits.

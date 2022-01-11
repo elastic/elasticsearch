@@ -46,6 +46,8 @@ include::percolate-query.asciidoc[]
 
 include::rank-feature-query.asciidoc[]
 
+include::random-sample-query.asciidoc[]
+
 include::script-query.asciidoc[]
 
 include::script-score-query.asciidoc[]

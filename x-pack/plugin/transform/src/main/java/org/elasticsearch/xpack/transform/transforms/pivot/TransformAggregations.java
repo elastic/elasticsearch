@@ -65,6 +65,7 @@ public final class TransformAggregations {
         "geotile_grid",
         "global",
         "histogram",
+        "ip_prefix",
         "ip_range",
         "matrix_stats",
         "nested",

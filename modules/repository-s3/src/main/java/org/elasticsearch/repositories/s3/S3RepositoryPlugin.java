@@ -65,11 +65,10 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     private final SetOnce<S3Service> service = new SetOnce<>();
-    private final Map<String, S3ClientSettings> clientsSettings;
+    private final Settings settings;
 
     public S3RepositoryPlugin(Settings settings) {
-        // eagerly load client settings so that secure settings are read
-        clientsSettings = S3ClientSettings.load(settings);
+        this.settings = settings;
     }
 
     S3Service getService() {
@@ -102,7 +101,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         service.set(s3Service(environment));
-        this.service.get().refreshAndClearCache(clientsSettings);
+        this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
         return List.of(service);
     }
 

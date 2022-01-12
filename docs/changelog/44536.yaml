@@ -1,0 +1,5 @@
+pr: 44536
+summary: Log summarised description of `StartupExceptions`
+area: Infra/Logging
+type: enhancement
+issues: []

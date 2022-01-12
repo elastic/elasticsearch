@@ -67,6 +67,9 @@ public class PolicyStepsRegistry {
     // keeps track of a mapping from policy/step-name to respective Step, the key is policy name
     private final Map<String, Map<Step.StepKey, Step>> stepMap;
 
+    // tracks an index->step cache, where the indexmetadata is also tracked for cache invalidation/eviction purposes.
+    // for a given index, the step can be cached as long as the indexmetadata (and the policy!) hasn't changed. since
+    // policies change infrequently, the entire cache is cleared on policy change.
     private final Map<Index, Tuple<IndexMetadata, Step>> cachedSteps = new ConcurrentHashMap<>();
 
     public PolicyStepsRegistry(NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {

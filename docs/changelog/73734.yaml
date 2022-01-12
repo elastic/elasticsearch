@@ -1,0 +1,5 @@
+pr: 73734
+summary: Don't access system indices directly in `EsRestTestCase`
+area: Infra/Core
+type: enhancement
+issues: []

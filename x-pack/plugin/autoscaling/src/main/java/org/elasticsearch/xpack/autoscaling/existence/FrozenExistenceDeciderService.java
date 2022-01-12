@@ -23,12 +23,9 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-
-import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * This decider looks at all indices and ensures a minimum capacity is available if any indices are in the frozen ILM phase, since that
@@ -130,9 +127,7 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
         }
     }
 
-    // these are only here to support isFrozenPhase, LifecycleExecutionState.PHASE and TimeseriesLifecycleType.FROZEN_PHASE are the
-    // canonical sources for these constants
-    private static String PHASE = "phase";
+    // this is only here to support isFrozenPhase, TimeseriesLifecycleType.FROZEN_PHASE is the canonical source for this
     static String FROZEN_PHASE = "frozen"; // visible for testing
 
     /**
@@ -142,9 +137,6 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
      */
     // visible for testing
     static boolean isFrozenPhase(IndexMetadata indexMetadata) {
-        Map<String, String> customData = indexMetadata.getCustomData(ILM_CUSTOM_METADATA_KEY);
-        // deliberately do not parse out the entire `LifeCycleExecutionState` to avoid the extra work involved since this method is
-        // used heavily by autoscaling.
-        return customData != null && FROZEN_PHASE.equals(customData.get(PHASE));
+        return FROZEN_PHASE.equals(indexMetadata.getLifecycleExecutionState().getPhase());
     }
 }

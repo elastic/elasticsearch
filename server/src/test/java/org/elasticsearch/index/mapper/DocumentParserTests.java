@@ -1793,7 +1793,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testDynamicFieldsEmptyName() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
 
-        IllegalArgumentException emptyFieldNameException = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source(b -> {
+        Exception emptyFieldNameException = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("top");
             {
                 b.startObject();
@@ -1805,7 +1805,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endArray();
         })));
 
-        assertThat(emptyFieldNameException.getMessage(), containsString("object field cannot contain only whitespace: ['top.aoeu. ']"));
+        assertThat(emptyFieldNameException.getMessage(), containsString("Field name cannot contain only whitespace: [top.aoeu. ]"));
     }
 
     public void testBlankFieldNames() throws Exception {

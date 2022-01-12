@@ -281,6 +281,11 @@ public final class DocumentParser {
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = context.parser().currentName();
+                if (currentFieldName.isBlank()) {
+                    throw new MapperParsingException(
+                        "Field name cannot contain only whitespace: [" + context.path().pathAsText(currentFieldName) + "]"
+                    );
+                }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, mapper, currentFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {

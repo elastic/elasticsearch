@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
@@ -524,7 +525,7 @@ public class ApiKeyService {
     public List<RoleDescriptor> parseRoleDescriptors(
         final String apiKeyId,
         final Map<String, Object> roleDescriptorsMap,
-        boolean limitedBy
+        RoleReference.ApiKeyRoleType roleType
     ) {
         if (roleDescriptorsMap == null) {
             return null;
@@ -549,10 +550,16 @@ public class ApiKeyService {
                 throw new UncheckedIOException(e);
             }
         }).collect(Collectors.toList());
-        return limitedBy ? maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors) : roleDescriptors;
+        return roleType == RoleReference.ApiKeyRoleType.LIMITED_BY
+            ? maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors)
+            : roleDescriptors;
     }
 
-    public List<RoleDescriptor> parseRoleDescriptorsBytes(final String apiKeyId, BytesReference bytesReference, boolean limitedBy) {
+    public List<RoleDescriptor> parseRoleDescriptorsBytes(
+        final String apiKeyId,
+        BytesReference bytesReference,
+        RoleReference.ApiKeyRoleType roleType
+    ) {
         if (bytesReference == null) {
             return Collections.emptyList();
         }
@@ -575,7 +582,9 @@ public class ApiKeyService {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return limitedBy ? maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors) : roleDescriptors;
+        return roleType == RoleReference.ApiKeyRoleType.LIMITED_BY
+            ? maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors)
+            : roleDescriptors;
     }
 
     // package private for tests

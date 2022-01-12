@@ -133,12 +133,15 @@ public class Subject {
         final RoleReference.ApiKeyRoleReference limitedByRoleReference = new RoleReference.ApiKeyRoleReference(
             apiKeyId,
             limitedByRoleDescriptorsBytes,
-            true
+            RoleReference.ApiKeyRoleType.LIMITED_BY
         );
         if (isEmptyRoleDescriptorsBytes(roleDescriptorsBytes)) {
             return List.of(limitedByRoleReference);
         }
-        return List.of(new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, false), limitedByRoleReference);
+        return List.of(
+            new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED),
+            limitedByRoleReference
+        );
     }
 
     private boolean isEmptyRoleDescriptorsBytes(BytesReference roleDescriptorsBytes) {
@@ -155,12 +158,15 @@ public class Subject {
             final RoleReference.BwcApiKeyRoleReference limitedByRoleReference = new RoleReference.BwcApiKeyRoleReference(
                 apiKeyId,
                 limitedByRoleDescriptorsMap,
-                true
+                RoleReference.ApiKeyRoleType.LIMITED_BY
             );
             if (roleDescriptorsMap == null || roleDescriptorsMap.isEmpty()) {
                 return List.of(limitedByRoleReference);
             } else {
-                return List.of(new RoleReference.BwcApiKeyRoleReference(apiKeyId, roleDescriptorsMap, false), limitedByRoleReference);
+                return List.of(
+                    new RoleReference.BwcApiKeyRoleReference(apiKeyId, roleDescriptorsMap, RoleReference.ApiKeyRoleType.ASSIGNED),
+                    limitedByRoleReference
+                );
             }
         }
     }

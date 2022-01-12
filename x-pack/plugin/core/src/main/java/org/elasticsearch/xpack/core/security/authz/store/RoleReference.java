@@ -75,13 +75,13 @@ public interface RoleReference {
 
         private final String apiKeyId;
         private final BytesReference roleDescriptorsBytes;
-        private final boolean limitedBy;
+        private final ApiKeyRoleType roleType;
         private RoleKey id = null;
 
-        public ApiKeyRoleReference(String apiKeyId, BytesReference roleDescriptorsBytes, boolean limitedBy) {
+        public ApiKeyRoleReference(String apiKeyId, BytesReference roleDescriptorsBytes, ApiKeyRoleType roleType) {
             this.apiKeyId = apiKeyId;
             this.roleDescriptorsBytes = roleDescriptorsBytes;
-            this.limitedBy = limitedBy;
+            this.roleType = roleType;
         }
 
         @Override
@@ -91,7 +91,7 @@ public interface RoleReference {
                 final String roleDescriptorsHash = MessageDigests.toHexString(
                     MessageDigests.digest(roleDescriptorsBytes, MessageDigests.sha256())
                 );
-                id = new RoleKey(Set.of("apikey:" + roleDescriptorsHash), limitedBy ? "apikey_limited_role" : "apikey_role");
+                id = new RoleKey(Set.of("apikey:" + roleDescriptorsHash), "apikey_" + roleType);
             }
             return id;
         }
@@ -109,8 +109,8 @@ public interface RoleReference {
             return roleDescriptorsBytes;
         }
 
-        public boolean isLimitedBy() {
-            return limitedBy;
+        public ApiKeyRoleType getRoleType() {
+            return roleType;
         }
     }
 
@@ -120,18 +120,18 @@ public interface RoleReference {
     final class BwcApiKeyRoleReference implements RoleReference {
         private final String apiKeyId;
         private final Map<String, Object> roleDescriptorsMap;
-        private final boolean limitedBy;
+        private final ApiKeyRoleType roleType;
 
-        public BwcApiKeyRoleReference(String apiKeyId, Map<String, Object> roleDescriptorsMap, boolean limitedBy) {
+        public BwcApiKeyRoleReference(String apiKeyId, Map<String, Object> roleDescriptorsMap, ApiKeyRoleType roleType) {
             this.apiKeyId = apiKeyId;
             this.roleDescriptorsMap = roleDescriptorsMap;
-            this.limitedBy = limitedBy;
+            this.roleType = roleType;
         }
 
         @Override
         public RoleKey id() {
             // Since api key id is unique, it is sufficient and more correct to use it as the names
-            return new RoleKey(Set.of(apiKeyId), "bwc_api_key" + (limitedBy ? "_limited_role_desc" : "_role_desc"));
+            return new RoleKey(Set.of(apiKeyId), "bwc_api_key_" + roleType);
         }
 
         @Override
@@ -147,8 +147,8 @@ public interface RoleReference {
             return roleDescriptorsMap;
         }
 
-        public boolean isLimitedBy() {
-            return limitedBy;
+        public ApiKeyRoleType getRoleType() {
+            return roleType;
         }
     }
 
@@ -175,5 +175,19 @@ public interface RoleReference {
         public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
             resolver.resolveServiceAccountRoleReference(this, listener);
         }
+    }
+
+    /**
+     * The type of one set of API key roles.
+     */
+    enum ApiKeyRoleType {
+        /**
+         * Roles directly specified by the creator user on API key creation
+         */
+        ASSIGNED,
+        /**
+         * Roles captured for the owner user as the upper bound of the assigned roles
+         */
+        LIMITED_BY;
     }
 }

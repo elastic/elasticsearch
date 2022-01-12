@@ -42,11 +42,11 @@ public class RoleReferenceTests extends ESTestCase {
     public void testApiKeyRoleReference() {
         final String apiKeyId = randomAlphaOfLength(20);
         final BytesArray roleDescriptorsBytes = new BytesArray(randomAlphaOfLength(50));
-        final boolean limitedBy = randomBoolean();
+        final RoleReference.ApiKeyRoleType apiKeyRoleType = randomFrom(RoleReference.ApiKeyRoleType.values());
         final RoleReference.ApiKeyRoleReference apiKeyRoleReference = new RoleReference.ApiKeyRoleReference(
             apiKeyId,
             roleDescriptorsBytes,
-            limitedBy
+            apiKeyRoleType
         );
 
         final RoleKey roleKey = apiKeyRoleReference.id();
@@ -54,7 +54,7 @@ public class RoleReferenceTests extends ESTestCase {
             roleKey.getNames(),
             hasItem("apikey:" + MessageDigests.toHexString(MessageDigests.digest(roleDescriptorsBytes, MessageDigests.sha256())))
         );
-        assertThat(roleKey.getSource(), equalTo(limitedBy ? "apikey_limited_role" : "apikey_role"));
+        assertThat(roleKey.getSource(), equalTo("apikey_" + apiKeyRoleType));
     }
 
     public void testServiceAccountRoleReference() {

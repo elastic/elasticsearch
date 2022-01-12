@@ -1559,12 +1559,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.repositories.RepositoryConflictException::new,
             163,
             Version.V_8_0_0
-        ),
-        REPOSITORY_PLUGIN_EXCEPTION(
-            org.elasticsearch.repositories.RepositoryPluginException.class,
-            org.elasticsearch.repositories.RepositoryPluginException::new,
-            164,
-            Version.V_8_1_0
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

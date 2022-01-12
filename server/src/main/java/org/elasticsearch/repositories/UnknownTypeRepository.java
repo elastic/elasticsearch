@@ -29,20 +29,21 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * This class represents a repository that still exists in the global cluster state but could not be loaded as its plugin was uninstalled.
+ * This class represents a repository that could not be initialized due to unknown type.
+ * This could happen whe a user creates a snapshot repository using a type from a plugin and then removes the plugin.
  */
-public class MissingPluginRepository extends AbstractLifecycleComponent implements Repository {
+public class UnknownTypeRepository extends AbstractLifecycleComponent implements Repository {
 
     private final RepositoryMetadata repositoryMetadata;
 
-    public MissingPluginRepository(RepositoryMetadata repositoryMetadata) {
+    public UnknownTypeRepository(RepositoryMetadata repositoryMetadata) {
         this.repositoryMetadata = repositoryMetadata;
     }
 
-    private RepositoryPluginException createMissingPluginException() {
-        return new RepositoryPluginException(
+    private RepositoryException createUnknownTypeException() {
+        return new RepositoryException(
             repositoryMetadata.name(),
-            "the plugin is not installed for repository type [" + repositoryMetadata.type() + "]"
+            "repository type [" + repositoryMetadata.type() + "] is unknown; ensure that all required plugins are installed on this node"
         );
     }
 
@@ -53,27 +54,27 @@ public class MissingPluginRepository extends AbstractLifecycleComponent implemen
 
     @Override
     public void getSnapshotInfo(GetSnapshotInfoContext context) {
-        throw createMissingPluginException();
+        throw createUnknownTypeException();
     }
 
     @Override
     public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
-        throw createMissingPluginException();
+        throw createUnknownTypeException();
     }
 
     @Override
     public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) throws IOException {
-        throw createMissingPluginException();
+        throw createUnknownTypeException();
     }
 
     @Override
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
-        listener.onFailure(createMissingPluginException());
+        listener.onFailure(createUnknownTypeException());
     }
 
     @Override
     public void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext) {
-        finalizeSnapshotContext.onFailure(createMissingPluginException());
+        finalizeSnapshotContext.onFailure(createUnknownTypeException());
     }
 
     @Override
@@ -83,42 +84,43 @@ public class MissingPluginRepository extends AbstractLifecycleComponent implemen
         Version repositoryMetaVersion,
         ActionListener<RepositoryData> listener
     ) {
-        listener.onFailure(createMissingPluginException());
+        listener.onFailure(createUnknownTypeException());
     }
 
     @Override
     public long getSnapshotThrottleTimeInNanos() {
-        throw createMissingPluginException();
+        throw createUnknownTypeException();
     }
 
     @Override
     public long getRestoreThrottleTimeInNanos() {
-        throw createMissingPluginException();
+        throw createUnknownTypeException();
     }
 
     @Override
     public String startVerification() {
-        throw createMissingPluginException();
+        throw createUnknownTypeException();
     }
 
     @Override
     public void endVerification(String verificationToken) {
-        throw createMissingPluginException();
+        throw createUnknownTypeException();
     }
 
     @Override
     public void verify(String verificationToken, DiscoveryNode localNode) {
-        throw createMissingPluginException();
+        throw createUnknownTypeException();
     }
 
     @Override
     public boolean isReadOnly() {
+        // this repository is assumed writable to bypass read-only check and fail with exception produced by this class
         return false;
     }
 
     @Override
     public void snapshotShard(SnapshotShardContext snapshotShardContext) {
-        snapshotShardContext.onFailure(createMissingPluginException());
+        snapshotShardContext.onFailure(createUnknownTypeException());
     }
 
     @Override
@@ -130,12 +132,12 @@ public class MissingPluginRepository extends AbstractLifecycleComponent implemen
         RecoveryState recoveryState,
         ActionListener<Void> listener
     ) {
-        listener.onFailure(createMissingPluginException());
+        listener.onFailure(createUnknownTypeException());
     }
 
     @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-        throw createMissingPluginException();
+        throw createUnknownTypeException();
     }
 
     @Override
@@ -149,7 +151,7 @@ public class MissingPluginRepository extends AbstractLifecycleComponent implemen
         String source,
         Consumer<Exception> onFailure
     ) {
-        onFailure.accept(createMissingPluginException());
+        onFailure.accept(createUnknownTypeException());
     }
 
     @Override
@@ -160,7 +162,7 @@ public class MissingPluginRepository extends AbstractLifecycleComponent implemen
         ShardGeneration shardGeneration,
         ActionListener<ShardSnapshotResult> listener
     ) {
-        listener.onFailure(createMissingPluginException());
+        listener.onFailure(createUnknownTypeException());
     }
 
     @Override

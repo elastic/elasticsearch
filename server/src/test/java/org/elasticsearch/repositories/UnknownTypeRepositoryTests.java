@@ -13,12 +13,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 
-public class MissingPluginRepositoryTests extends ESTestCase {
+public class UnknownTypeRepositoryTests extends ESTestCase {
 
-    private MissingPluginRepository repository = new MissingPluginRepository(new RepositoryMetadata("name", "type", Settings.EMPTY));
+    private UnknownTypeRepository repository = new UnknownTypeRepository(new RepositoryMetadata("name", "type", Settings.EMPTY));
 
     public void testShouldThrowWhenGettingMetadata() {
-        expectThrows(RepositoryPluginException.class, () -> repository.getSnapshotGlobalMetadata(new SnapshotId("name", "uuid")));
+        expectThrows(RepositoryException.class, () -> repository.getSnapshotGlobalMetadata(new SnapshotId("name", "uuid")));
     }
 
     public void testShouldNotThrowWhenApplyingLifecycleChanges() {

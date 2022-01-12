@@ -43,6 +43,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.hamcrest.Matcher;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -172,7 +173,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         repositoriesService.applyClusterState(new ClusterChangedEvent("starting", clusterState, emptyState()));
 
         var repo = repositoriesService.repository(repoName);
-        assertThat(repo, isA(MissingPluginRepository.class));
+        assertThat(repo, isA(UnknownTypeRepository.class));
     }
 
     public void testRemoveUnknownRepositoryTypeWhenApplyingClusterState() {
@@ -182,7 +183,11 @@ public class RepositoriesServiceTests extends ESTestCase {
         repositoriesService.applyClusterState(new ClusterChangedEvent("starting", clusterState, emptyState()));
         repositoriesService.applyClusterState(new ClusterChangedEvent("removing repo", emptyState(), clusterState));
 
-        expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName));
+        assertThatThrows(
+            () -> repositoriesService.repository(repoName),
+            RepositoryMissingException.class,
+            equalTo("[" + repoName + "] missing")
+        );
     }
 
     public void testRegisterRepositoryFailsForUnknownType() {
@@ -197,9 +202,22 @@ public class RepositoriesServiceTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                assertThat(e, isA(RepositoryPluginException.class));
+                assertThat(e, RepositoryException.class, equalTo("[" + repoName + "] repository type [unknown] does not exist"));
             }
         });
+    }
+
+    private static void assertThatThrows(ThrowingRunnable code, Class<? extends Exception> exceptionType, Matcher<String> messageMatcher) {
+        try {
+            code.run();
+        } catch (Throwable e) {
+            assertThat(e, exceptionType, messageMatcher);
+        }
+    }
+
+    private static void assertThat(Throwable exception, Class<? extends Exception> exceptionType, Matcher<String> messageMatcher) {
+        assertThat(exception, isA(exceptionType));
+        assertThat(exception.getMessage(), messageMatcher);
     }
 
     private ClusterState createClusterStateWithRepo(String repoName, String repoType) {
@@ -219,8 +237,7 @@ public class RepositoriesServiceTests extends ESTestCase {
     }
 
     private void assertThrowsOnRegister(String repoName) {
-        PutRepositoryRequest request = new PutRepositoryRequest(repoName);
-        expectThrows(RepositoryException.class, () -> repositoriesService.registerRepository(request, null));
+        expectThrows(RepositoryException.class, () -> repositoriesService.registerRepository(new PutRepositoryRequest(repoName), null));
     }
 
     private static class TestRepository implements Repository {

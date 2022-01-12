@@ -87,8 +87,8 @@ class S3RetryingInputStream extends InputStream {
             this.currentStreamLastOffset = Math.addExact(Math.addExact(start, currentOffset), getStreamLength(s3Object));
             this.currentStream = s3Object.getObjectContent();
         } catch (final AmazonClientException e) {
-            if (e instanceof AmazonS3Exception) {
-                if (404 == ((AmazonS3Exception) e).getStatusCode()) {
+            if (e instanceof AmazonS3Exception amazonS3Exception) {
+                if (404 == amazonS3Exception.getStatusCode()) {
                     throw addSuppressedExceptions(new NoSuchFileException("Blob object [" + blobKey + "] not found: " + e.getMessage()));
                 }
             }

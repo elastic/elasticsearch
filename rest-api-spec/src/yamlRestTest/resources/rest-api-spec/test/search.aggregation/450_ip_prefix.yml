@@ -72,6 +72,34 @@ setup:
   - match: { aggregations.ip_prefix.buckets.1.netmask: "255.255.255.0" }
 
 ---
+# NOTE: here prefix_len = 24 which means the netmask 255.255.0.0 will be applied to the
+# high 16 bits of a field which is an IPv4 address encoded on 16 bytes. As a result the
+# network part will just 0s.
+"IPv4 prefix with incorrect is_ipv6":
+  - skip:
+      version: " - 8.0.99"
+      reason: "added in 8.1.0"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            ip_prefix:
+              ip_prefix:
+                field: "ipv4"
+                is_ipv6: true
+                prefix_len: 24
+
+
+  - match: { hits.total.value: 10 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.ip_prefix.buckets: 1 }
+  - match: { aggregations.ip_prefix.buckets.0.key: "::" }
+  - match: { aggregations.ip_prefix.buckets.0.doc_count: 10 }
+  - is_true: aggregations.ip_prefix.buckets.0.is_ipv6
+  - match: { aggregations.ip_prefix.buckets.0.prefix_len: 24 }
+
+---
 "IPv4 short prefix":
   - skip:
       version: " - 8.0.99"
@@ -124,7 +152,6 @@ setup:
                 is_ipv6: true
                 prefix_len: 64
 
-
   - match: { hits.total.value: 10 }
   - match: { hits.total.relation: "eq" }
   - length: { aggregations.ip_prefix.buckets: 2 }
@@ -138,6 +165,36 @@ setup:
   - is_true: aggregations.ip_prefix.buckets.1.is_ipv6
   - match: { aggregations.ip_prefix.buckets.1.prefix_len: 64 }
   - match: { aggregations.ip_prefix.buckets.1.netmask: null }
+
+---
+# NOTE: here prefix_len = 16 which means the netmask will be applied to the second
+# group of 2 bytes starting from the right (i.e. for "2001:db8:a4f8:112a:6001:0:12:7f10"
+# it will be the 2 bytes whose value is set to 12 hexadecimal) which results to 18 decimal,
+# with everything else being 0s.
+"IPv6 prefix with incorrect is_ipv6":
+  - skip:
+      version: " - 8.0.99"
+      reason: "added in 8.1.0"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            ip_prefix:
+              ip_prefix:
+                field: "ipv6"
+                is_ipv6: false
+                prefix_len: 16
+
+
+  - match: { hits.total.value: 10 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.ip_prefix.buckets: 1 }
+  - match: { aggregations.ip_prefix.buckets.0.key: "0.18.0.0" }
+  - match: { aggregations.ip_prefix.buckets.0.doc_count: 10 }
+  - is_false: aggregations.ip_prefix.buckets.0.is_ipv6
+  - match: { aggregations.ip_prefix.buckets.0.prefix_len: 16 }
+  - match: { aggregations.ip_prefix.buckets.0.netmask: "255.255.0.0" }
 
 ---
 "Invalid IPv4 prefix":

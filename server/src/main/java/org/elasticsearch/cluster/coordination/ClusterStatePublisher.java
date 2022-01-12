@@ -30,14 +30,21 @@ public interface ClusterStatePublisher {
      *     <li>Finally, apply the state on the master.</li>
      * </ul>
      *
-     * @param publishListener notified when the publication completes, whether successful or not. If successful then the new state has been
-     *                        applied on this node and usually all other nodes (although some of them might have failed or timed out
-     *                        instead). May fail with a {@link FailedToCommitClusterStateException} if this node didn't hear that enough
-     *                        other master-eligible nodes accepted this state, which causes this node to stand down as master. On failure
-     *                        the new state might or might not take effect in some future update: if it was accepted by the new master then
-     *                        it will be applied eventually despite the exception.
+     * @param publishListener Notified when the publication completes, whether successful or not. In particular, publication may fail with a
+     *                        {@link FailedToCommitClusterStateException} if this node didn't receive responses to indicate that enough
+     *                        other master-eligible nodes accepted this state. In that case this node stops being the elected master and the
+     *                        master election process starts again.
+     *                        <p>
+     *                        If the publication completes successfully then every future state will be a descendant of the published state.
+     *                        If the publication completes exceptionally then the new state may or may not be lost. More precisely, if the
+     *                        published state was accepted by the node that wins the master election triggered by the publication failure
+     *                        then the new master will publish the state which the old master failed to publish.
+     *                        <p>
+     *                        If the publication completes successfully then the new state has definitely been applied on this node, and it
+     *                        has usually been applied on all other nodes too. However some nodes might have timed out or otherwise failed
+     *                        to apply the state, so it is possible that the last-applied state on some nodes is somewhat stale.
      *
-     * @param ackListener notified when individual nodes acknowledge that they've applied the cluster state (or failed to do so).
+     * @param ackListener Notified when individual nodes acknowledge that they've applied the cluster state (or failed to do so).
      */
     void publish(ClusterStatePublicationEvent clusterStatePublicationEvent, ActionListener<Void> publishListener, AckListener ackListener);
 

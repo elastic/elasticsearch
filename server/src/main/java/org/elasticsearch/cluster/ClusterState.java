@@ -67,17 +67,18 @@ import java.util.Set;
  * <p>
  * Updates are triggered by submitting tasks to the {@link MasterService} on the elected master, typically using a {@link
  * TransportMasterNodeAction} to route a request to the master on which the task is submitted with {@link
- * ClusterService#submitStateUpdateTask}. Submitted tasks have an associated {@link ClusterStateTaskConfig} which defines its priority and a
+ * ClusterService#submitStateUpdateTask}. Submitted tasks have an associated {@link ClusterStateTaskConfig} which defines a priority and a
  * timeout. Tasks are processed in priority order, so a flood of higher-priority tasks can starve lower-priority ones of access to the
- * master. Use priorities other than {@link Priority#NORMAL} with care. Tasks associated with client actions should typically have a
- * timeout, or otherwise be sensitive to client cancellations, to avoid surprises caused by the execution of stale tasks long after they are
- * submitted (since clients tend to time out). In contrast internal tasks should generally prefer an infinite timeout, especially if a
+ * master. Therefore, use priorities other than {@link Priority#NORMAL} with care. Tasks associated with client actions should typically
+ * have a timeout, or otherwise be sensitive to client cancellations, to avoid surprises caused by the execution of stale tasks long after
+ * they are submitted (since clients tend to time out). In contrast internal tasks can reasonably have an infinite timeout, especially if a
  * timeout would simply trigger a retry.
  * <p>
- * Each batch of tasks yields a new {@link ClusterState} which is published to the cluster by {@link ClusterStatePublisher#publish}.
- * Publication usually works by sending a diff, computed via the {@link Diffable} interface, rather than the full state, although it will
- * fall back to sending the full state if the node is new or it has missed out on an intermediate state for some reason. States and diffs
- * are published using the transport protocol, i.e. the {@link Writeable} interface and friends.
+ * Tasks that share the same {@link ClusterStateTaskExecutor} instance are processed as a batch. Each batch of tasks yields a new {@link
+ * ClusterState} which is published to the cluster by {@link ClusterStatePublisher#publish}. Publication usually works by sending a diff,
+ * computed via the {@link Diffable} interface, rather than the full state, although it will fall back to sending the full state if the
+ * receiving node is new or it has missed out on an intermediate state for some reason. States and diffs are published using the transport
+ * protocol, i.e. the {@link Writeable} interface and friends.
  * <p>
  * When committed, the new state is <i>applied</i> which exposes it to the node via {@link ClusterStateApplier} and {@link
  * ClusterStateListener} callbacks registered with the {@link ClusterApplierService}. The new state is also made available via {@link

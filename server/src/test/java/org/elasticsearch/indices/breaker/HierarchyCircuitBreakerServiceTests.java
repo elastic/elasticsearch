@@ -207,6 +207,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
      * Test that a breaker correctly redistributes to a different breaker, in
      * this case, the request breaker borrows space from the fielddata breaker
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82503")
     public void testBorrowingSiblingBreakerMemory() {
         Settings clusterSettings = Settings.builder()
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
@@ -248,6 +249,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82503")
     public void testParentBreaksOnRealMemoryUsage() {
         Settings clusterSettings = Settings.builder()
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.TRUE)

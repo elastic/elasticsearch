@@ -125,19 +125,13 @@ public class NodeMetadataTests extends ESTestCase {
         );
     }
 
-    public void testUpgradePreviousVersionButNotLatest() {
+    public void testUpgradeMarksPreviousVersion() {
         final String nodeId = randomAlphaOfLength(10);
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_3_0, Version.V_7_16_0);
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0);
 
-        final IllegalStateException illegalStateException = expectThrows(
-            IllegalStateException.class,
-            () -> new NodeMetadata(nodeId, version).upgradeToCurrentVersion()
-        );
-
-        assertThat(
-            illegalStateException.getMessage(),
-            startsWith("cannot upgrade a node from version [" + version + "] directly to version [" + Version.CURRENT + "]")
-        );
+        final NodeMetadata nodeMetadata = new NodeMetadata(nodeId, version).upgradeToCurrentVersion();
+        assertThat(nodeMetadata.nodeVersion(), equalTo(Version.CURRENT));
+        assertThat(nodeMetadata.previousNodeVersion(), equalTo(version));
     }
 
     public static Version tooNewVersion() {
@@ -145,6 +139,6 @@ public class NodeMetadataTests extends ESTestCase {
     }
 
     public static Version tooOldVersion() {
-        return Version.fromId(between(1, Version.CURRENT.minimumIndexCompatibilityVersion().id - 1));
+        return Version.fromId(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
     }
 }

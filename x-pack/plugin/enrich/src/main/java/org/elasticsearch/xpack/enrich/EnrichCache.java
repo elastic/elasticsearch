@@ -18,6 +18,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -162,6 +163,8 @@ public class EnrichCache {
                 copy.add(innerDeepCopy(itemValue, unmodifiable));
             }
             return unmodifiable ? Collections.unmodifiableList(copy) : copy;
+        } else if (value instanceof byte[] bytes) {
+            return Arrays.copyOf(bytes, bytes.length);
         } else if (value == null
             || value instanceof String
             || value instanceof Integer

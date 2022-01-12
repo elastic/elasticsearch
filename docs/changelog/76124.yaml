@@ -1,0 +1,5 @@
+pr: 76124
+summary: Fix add string key command for passsword protected keystore
+area: Infra/CLI
+type: bug
+issues: []

@@ -6,6 +6,9 @@
  * Side Public License, v 1.
  */
 
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.conventions.info.GitInfo
+
 plugins {
   id 'java-gradle-plugin'
   id 'groovy-gradle-plugin'
@@ -281,3 +284,10 @@ tasks.register("integTest", Test) {
 }
 
 tasks.named("check").configure { dependsOn("integTest") }
+
+tasks.register("bootstrapPerformanceTests", Copy) {
+  from('performance')
+  into('build/performanceTests')
+  def root = file('..')
+  filter(ReplaceTokens, tokens: [testGitCommit:GitInfo.gitInfo(root).revision])
+}

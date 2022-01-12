@@ -75,9 +75,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                     if (extra_source != null) {
                         assertEquals(DocIdSetIterator.NO_MORE_DOCS, extra_source.nextDoc());
                     }
-                    if (leafReader instanceof CodecReader && reader instanceof StandardDirectoryReader) {
-                        CodecReader codecReader = (CodecReader) leafReader;
-                        StandardDirectoryReader sdr = (StandardDirectoryReader) reader;
+                    if (leafReader instanceof CodecReader codecReader && reader instanceof StandardDirectoryReader sdr) {
                         SegmentInfos segmentInfos = sdr.getSegmentInfos();
                         MergePolicy.MergeSpecification forcedMerges = mp.findForcedDeletesMerges(
                             segmentInfos,

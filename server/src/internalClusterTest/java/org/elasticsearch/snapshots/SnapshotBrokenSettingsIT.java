@@ -9,7 +9,7 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;

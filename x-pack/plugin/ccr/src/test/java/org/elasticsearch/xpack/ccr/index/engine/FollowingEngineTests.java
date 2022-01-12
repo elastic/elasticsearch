@@ -340,8 +340,7 @@ public class FollowingEngineTests extends ESTestCase {
         throws IOException {
         final VersionType versionType = origin == Engine.Operation.Origin.PRIMARY ? VersionType.EXTERNAL : null;
         final Engine.Result result;
-        if (op instanceof Engine.Index) {
-            Engine.Index engineIndex = (Engine.Index) op;
+        if (op instanceof Engine.Index engineIndex) {
             result = engine.index(
                 new Engine.Index(
                     engineIndex.uid(),
@@ -358,8 +357,7 @@ public class FollowingEngineTests extends ESTestCase {
                     engineIndex.getIfPrimaryTerm()
                 )
             );
-        } else if (op instanceof Engine.Delete) {
-            Engine.Delete delete = (Engine.Delete) op;
+        } else if (op instanceof Engine.Delete delete) {
             result = engine.delete(
                 new Engine.Delete(
                     delete.id(),

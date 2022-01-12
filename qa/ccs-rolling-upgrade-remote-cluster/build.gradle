@@ -18,7 +18,7 @@ dependencies {
   testImplementation project(':client:rest-high-level')
 }
 
-BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
+BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   /**
    * We execute tests 3 times.

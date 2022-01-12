@@ -84,7 +84,9 @@ public class ForecastRequestStatsTests extends AbstractSerializingTestCase<Forec
     }
 
     public void testStrictParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"forecast_id\":\"forecast_1\", \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "forecast_id":"forecast_1", "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
@@ -96,7 +98,9 @@ public class ForecastRequestStatsTests extends AbstractSerializingTestCase<Forec
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"forecast_id\":\"forecast_1\", \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "forecast_id":"forecast_1", "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             ForecastRequestStats.LENIENT_PARSER.apply(parser, null);
         }

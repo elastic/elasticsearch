@@ -646,8 +646,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             ElasticsearchException[] rootCauses = e.guessRootCauses();
             if (rootCauses.length == 1) {
                 ElasticsearchException rootCause = rootCauses[0];
-                if (rootCause instanceof AggregationExecutionException) {
-                    AggregationExecutionException aggException = (AggregationExecutionException) rootCause;
+                if (rootCause instanceof AggregationExecutionException aggException) {
                     assertThat(aggException.getMessage(), startsWith("Invalid aggregation order path"));
                 } else {
                     throw e;

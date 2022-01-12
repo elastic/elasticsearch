@@ -291,8 +291,10 @@ Closure commonDebConfig(String architecture) {
   return {
     configure(commonPackageConfig('deb', architecture))
 
-    // jdeb does not provide a way to set the License control attribute, and ospackage
-    // silently ignores setting it. Instead, we set the license as "custom field"
+    // jdeb does not provide a way to set the License control attribute, and
+    // ospackage silently ignores setting it. This is probably because `License`
+    // is not actually a field in the Debian control file. So instead, we set
+    // the license as "custom field".
     customFields['License'] = 'Elastic-License'
 
     archiveVersion = project.version.replace('-', '~')

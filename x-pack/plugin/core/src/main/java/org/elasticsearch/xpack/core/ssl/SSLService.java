@@ -516,18 +516,11 @@ public class SSLService {
                     .limit(2) // we only need to distinguishing between 0/1/many
                     .map(Entry::getKey)
                     .collect(Collectors.toUnmodifiableList());
-                final String name;
-                switch (names.size()) {
-                    case 0:
-                        name = "(unknown)";
-                        break;
-                    case 1:
-                        name = names.get(0);
-                        break;
-                    default:
-                        name = "(shared)";
-                        break;
-                }
+                final String name = switch (names.size()) {
+                    case 0 -> "(unknown)";
+                    case 1 -> names.get(0);
+                    default -> "(shared)";
+                };
                 return name + " (with trust configuration: " + configuration.getTrustConfig() + ")";
             };
             trustManager = new DiagnosticTrustManager(trustManager, contextName, diagnosticLogger::warn);

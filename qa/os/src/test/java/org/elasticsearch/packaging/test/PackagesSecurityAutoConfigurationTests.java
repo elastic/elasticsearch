@@ -154,10 +154,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         verifyPackageInstallation(installation, distribution(), sh);
         verifySecurityAutoConfigured(installation);
         assertNotNull(installation.getElasticPassword());
-        Shell.Result changePassword = installation.executables().keystoreTool.run(
-            "passwd",
-            "some-password" + "\n" + "some-password" + "\n"
-        );
+        Shell.Result changePassword = installation.executables().keystoreTool.run("passwd", "some-password\nsome-password\n");
         assertThat(changePassword.exitCode, equalTo(0));
         Shell.Result result = installation.executables().nodeReconfigureTool.run(
             "--enrollment-token a-token",
@@ -220,7 +217,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         List<String> allLines = Files.readAllLines(yml);
         // Replace a comment we know exists in the auto-configuration stanza, with a user defined setting
         allLines.set(
-            allLines.indexOf("# All the nodes use the same key and certificate on the inter-node connection"),
+            allLines.indexOf("# Enable encryption for HTTP API client connections, such as Kibana, Logstash, and Agents"),
             "cluster.name: testclustername"
         );
         allLines.add("node.name: testnodename");

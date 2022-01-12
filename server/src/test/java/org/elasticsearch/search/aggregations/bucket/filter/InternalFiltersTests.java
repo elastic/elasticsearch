@@ -87,22 +87,19 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
         List<InternalBucket> buckets = instance.getBuckets();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
                 buckets = new ArrayList<>(buckets);
-                buckets.add(new InternalFilters.InternalBucket("test", randomIntBetween(0, 1000), InternalAggregations.EMPTY, keyed));
-                break;
-            case 2:
-            default:
+                buckets.add(new InternalBucket("test", randomIntBetween(0, 1000), InternalAggregations.EMPTY, keyed));
+            }
+            default -> {
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
+            }
         }
         return new InternalFilters(name, buckets, keyed, metadata);
     }

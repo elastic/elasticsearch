@@ -126,12 +126,11 @@ sudo bin/elasticsearch-plugin install [plugin_id] [plugin_id] ... [plugin_id]
 Each `plugin_id` can be any valid form for installing a single plugin (e.g., the
 name of a core plugin, or a custom URL).
 
-For instance, to install the core <<analysis-icu,ICU plugin>>, and
-<<repository-s3,S3 repository plugin>> run the following command:
+For instance, to install the core <<analysis-icu,ICU plugin>>, run the following command:
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install analysis-icu repository-s3
+sudo bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
 
 This command will install the versions of the plugins that matches your

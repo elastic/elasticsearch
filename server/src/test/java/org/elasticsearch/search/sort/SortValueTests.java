@@ -48,16 +48,12 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
 
     @Override
     protected SortValue createTestInstance() {
-        switch (between(0, 2)) {
-            case 0:
-                return SortValue.from(randomDouble());
-            case 1:
-                return SortValue.from(randomLong());
-            case 2:
-                return SortValue.from(new BytesRef(randomAlphaOfLength(5)));
-            default:
-                throw new AssertionError();
-        }
+        return switch (between(0, 2)) {
+            case 0 -> SortValue.from(randomDouble());
+            case 1 -> SortValue.from(randomLong());
+            case 2 -> SortValue.from(new BytesRef(randomAlphaOfLength(5)));
+            default -> throw new AssertionError();
+        };
     }
 
     @Override

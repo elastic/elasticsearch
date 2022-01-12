@@ -59,10 +59,8 @@ public class PostDataRequestTests extends AbstractXContentTestCase<PostDataReque
 
         PostDataRequest request = new PostDataRequest(jobId, builder);
 
-        assertEquals(
-            "{\"entry1\":\"value1\",\"entry2\":\"value2\"}{\"entry3\":\"value3\"}{\"entry4\":\"value4\"}",
-            request.getContent().utf8ToString()
-        );
+        assertEquals("""
+            {"entry1":"value1","entry2":"value2"}{"entry3":"value3"}{"entry4":"value4"}""", request.getContent().utf8ToString());
         assertEquals(XContentType.JSON, request.getXContentType());
         assertEquals(jobId, request.getJobId());
     }

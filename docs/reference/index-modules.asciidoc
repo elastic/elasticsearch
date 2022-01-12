@@ -272,7 +272,7 @@ are ignored for this index.
     The maximum length of regex that can be used in Regexp Query.
     Defaults to `1000`.
 
-
+[[index-query-default-field]]
 `index.query.default_field`::
 +
 --

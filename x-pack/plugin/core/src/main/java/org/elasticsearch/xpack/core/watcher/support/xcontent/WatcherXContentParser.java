@@ -42,8 +42,7 @@ public class WatcherXContentParser extends FilterXContentParser {
             return new Secret(chars);
         }
 
-        if (parser instanceof WatcherXContentParser) {
-            WatcherXContentParser watcherParser = (WatcherXContentParser) parser;
+        if (parser instanceof WatcherXContentParser watcherParser) {
             if (REDACTED_PASSWORD.equals(text)) {
                 if (watcherParser.allowRedactedPasswords) {
                     return null;

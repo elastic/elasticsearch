@@ -9,8 +9,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;

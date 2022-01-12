@@ -180,16 +180,16 @@ public class SnapshotDeletionsPending extends AbstractNamedDiffable<Custom> impl
         private Entry(StreamInput in) throws IOException {
             this.repositoryName = in.readString();
             this.repositoryUuid = in.readString();
-            this.indexDeletionTime = in.readVLong();
             this.snapshotId = new SnapshotId(in);
+            this.indexDeletionTime = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(repositoryName);
             out.writeString(repositoryUuid);
-            out.writeVLong(indexDeletionTime);
             snapshotId.writeTo(out);
+            out.writeVLong(indexDeletionTime);
         }
 
         public String getRepositoryName() {

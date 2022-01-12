@@ -834,6 +834,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             terms = new TranslatingTermsToFullPath(terms);
 
             List<Automaton> automata = new ArrayList<>();
+            //TODO remove line below if infix matching is something we want to disallow (due to speed overhead)
             automata.add(Automata.makeAnyString());
             if (caseInsensitive) {
                 automata.add(AutomatonQueries.toCaseInsensitiveString(string, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));

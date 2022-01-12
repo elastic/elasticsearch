@@ -245,29 +245,6 @@ public abstract class JwtTestCase extends ESTestCase {
         return roleMapper;
     }
 
-    public static class CapturingActionListener<T> implements ActionListener<T> {
-        private T result = null;
-        private Exception exception = null;
-
-        @Override
-        public void onResponse(final T result) {
-            this.result = result;
-        }
-
-        @Override
-        public void onFailure(final Exception exception) {
-            this.exception = exception;
-        }
-
-        public T getResult() {
-            return this.result;
-        }
-
-        public Exception getException() {
-            return this.exception;
-        }
-    };
-
     public static Collection<String> random(final int min, final Collection<String> original) {
         if ((original == null) || (min < 0) || (min > original.size())) {
             throw new IllegalArgumentException("Invalid min=" + min + ", original=" + original);

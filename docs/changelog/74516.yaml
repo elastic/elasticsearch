@@ -1,0 +1,5 @@
+pr: 74516
+summary: Persistent banner to ./bin/elasticsearch on the terminal
+area: Infra/CLI
+type: feature
+issues: []

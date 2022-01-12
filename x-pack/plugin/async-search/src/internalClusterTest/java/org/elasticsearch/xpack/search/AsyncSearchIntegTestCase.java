@@ -27,7 +27,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -153,7 +152,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
         // Temporarily stop garbage collection, making sure to wait for any in-flight tasks to complete
         stopMaintenanceService();
-        assertBusy(MockSearchService::assertNoInFlightContext);
+        ensureAllSearchContextsReleased();
 
         internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {
         });

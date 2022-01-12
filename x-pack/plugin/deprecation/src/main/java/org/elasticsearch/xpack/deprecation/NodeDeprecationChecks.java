@@ -65,6 +65,8 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -322,20 +324,25 @@ class NodeDeprecationChecks {
         }
     }
 
-    static DeprecationIssue checkThreadPoolListenerQueueSize(final Settings settings) {
-        return checkThreadPoolListenerSetting("thread_pool.listener.queue_size", settings);
+    static DeprecationIssue checkThreadPoolListenerQueueSize(final Settings settings, final ClusterState clusterState) {
+        return checkThreadPoolListenerSetting("thread_pool.listener.queue_size", settings, clusterState);
     }
 
-    static DeprecationIssue checkThreadPoolListenerSize(final Settings settings) {
-        return checkThreadPoolListenerSetting("thread_pool.listener.size", settings);
+    static DeprecationIssue checkThreadPoolListenerSize(final Settings settings, final ClusterState clusterState) {
+        return checkThreadPoolListenerSetting("thread_pool.listener.size", settings, clusterState);
     }
 
-    private static DeprecationIssue checkThreadPoolListenerSetting(final String name, final Settings settings) {
+    private static DeprecationIssue checkThreadPoolListenerSetting(
+        final String name,
+        final Settings settings,
+        final ClusterState clusterState
+    ) {
         final FixedExecutorBuilder builder = new FixedExecutorBuilder(settings, "listener", 1, -1, "thread_pool.listener", true);
         final List<Setting<?>> listenerSettings = builder.getRegisteredSettings();
         final Optional<Setting<?>> setting = listenerSettings.stream().filter(s -> s.getKey().equals(name)).findFirst();
         assert setting.isPresent();
         return checkRemovedSetting(
+            clusterState.metadata().settings(),
             settings,
             setting.get(),
             "https://ela.st/es-deprecation-7-thread-pool-listener-settings",
@@ -377,6 +384,7 @@ class NodeDeprecationChecks {
         final XPackLicenseState licenseState
     ) {
         return checkRemovedSetting(
+            clusterState.metadata().settings(),
             settings,
             Node.NODE_LOCAL_STORAGE_SETTING,
             "https://ela.st/es-deprecation-7-node-local-storage-setting",
@@ -384,8 +392,13 @@ class NodeDeprecationChecks {
         );
     }
 
-    public static DeprecationIssue checkNodeBasicLicenseFeatureEnabledSetting(final Settings settings, Setting<?> setting) {
+    public static DeprecationIssue checkNodeBasicLicenseFeatureEnabledSetting(
+        final Settings settings,
+        Setting<?> setting,
+        final ClusterState clusterState
+    ) {
         return checkRemovedSetting(
+            clusterState.metadata().settings(),
             settings,
             setting,
             "https://ela.st/es-deprecation-7-xpack-basic-feature-settings",
@@ -436,6 +449,7 @@ class NodeDeprecationChecks {
         final XPackLicenseState licenseState
     ) {
         return checkRemovedSetting(
+            clusterState.metadata().settings(),
             settings,
             BootstrapSettings.SYSTEM_CALL_FILTER_SETTING,
             "https://ela.st/es-deprecation-7-system-call-filter-setting",
@@ -519,37 +533,56 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkRemovedSetting(
-        final Settings settings,
+        final Settings clusterSettings,
+        final Settings nodeSettings,
         final Setting<?> removedSetting,
         final String url,
         String additionalDetailMessage
     ) {
-        return checkRemovedSetting(settings, removedSetting, url, additionalDetailMessage, DeprecationIssue.Level.CRITICAL);
+        return checkRemovedSetting(
+            clusterSettings,
+            nodeSettings,
+            removedSetting,
+            url,
+            additionalDetailMessage,
+            DeprecationIssue.Level.CRITICAL
+        );
     }
 
-    static DeprecationIssue checkDeprecatedSetting(final Settings settings, final Setting<?> deprecatedSetting, final String url) {
-        if (deprecatedSetting.exists(settings) == false) {
+    static DeprecationIssue checkDeprecatedSetting(
+        final Settings clusterSettings,
+        final Settings nodeSettings,
+        final Setting<?> deprecatedSetting,
+        final String url
+    ) {
+        if (deprecatedSetting.exists(clusterSettings) == false && deprecatedSetting.exists(nodeSettings) == false) {
             return null;
         }
         final String deprecatedSettingKey = deprecatedSetting.getKey();
-        final String value = deprecatedSetting.get(settings).toString();
+        final String value = deprecatedSetting.exists(clusterSettings)
+            ? deprecatedSetting.get(clusterSettings).toString()
+            : deprecatedSetting.get(nodeSettings).toString();
         final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", deprecatedSettingKey);
         final String details = String.format(Locale.ROOT, "Remove the [%s] setting.", deprecatedSettingKey, value);
         return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
     }
 
     static DeprecationIssue checkRemovedSetting(
-        final Settings settings,
+        final Settings clusterSettings,
+        final Settings nodeSettings,
         final Setting<?> removedSetting,
         final String url,
         String additionalDetailMessage,
         DeprecationIssue.Level deprecationLevel
     ) {
-        if (removedSetting.exists(settings) == false) {
+        if ((clusterSettings == null || removedSetting.exists(clusterSettings) == false)
+            && (nodeSettings == null || removedSetting.exists(nodeSettings) == false)) {
             return null;
         }
         final String removedSettingKey = removedSetting.getKey();
-        Object removedSettingValue = removedSetting.get(settings);
+        Object removedSettingValue = removedSetting.exists(clusterSettings)
+            ? removedSetting.get(clusterSettings).toString()
+            : removedSetting.get(nodeSettings).toString();
         String value;
         if (removedSettingValue instanceof TimeValue) {
             value = ((TimeValue) removedSettingValue).getStringRep();
@@ -734,6 +767,7 @@ class NodeDeprecationChecks {
         final XPackLicenseState licenseState
     ) {
         return checkRemovedSetting(
+            clusterState.metadata().settings(),
             settings,
             JoinHelper.JOIN_TIMEOUT_SETTING,
             "https://ela.st/es-deprecation-7-cluster-join-timeout-setting",
@@ -797,6 +831,7 @@ class NodeDeprecationChecks {
         final XPackLicenseState licenseState
     ) {
         return checkRemovedSetting(
+            clusterState.metadata().settings(),
             settings,
             CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
             "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
@@ -1103,6 +1138,7 @@ class NodeDeprecationChecks {
         final XPackLicenseState licenseState
     ) {
         return checkRemovedSetting(
+            clusterState.metadata().settings(),
             settings,
             CLUSTER_ROUTING_REQUIRE_SETTING,
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
@@ -1118,6 +1154,7 @@ class NodeDeprecationChecks {
         final XPackLicenseState licenseState
     ) {
         return checkRemovedSetting(
+            clusterState.metadata().settings(),
             settings,
             CLUSTER_ROUTING_INCLUDE_SETTING,
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
@@ -1133,6 +1170,7 @@ class NodeDeprecationChecks {
         final XPackLicenseState licenseState
     ) {
         return checkRemovedSetting(
+            clusterState.metadata().settings(),
             settings,
             CLUSTER_ROUTING_EXCLUDE_SETTING,
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
@@ -1148,6 +1186,7 @@ class NodeDeprecationChecks {
         final XPackLicenseState licenseState
     ) {
         return checkRemovedSetting(
+            clusterState.metadata().settings(),
             settings,
             Setting.boolSetting(SecurityField.setting("authc.accept_default_password"), true, Setting.Property.Deprecated),
             "https://ela.st/es-deprecation-7-accept-default-password-setting",
@@ -1163,6 +1202,7 @@ class NodeDeprecationChecks {
         final XPackLicenseState licenseState
     ) {
         return checkRemovedSetting(
+            clusterState.metadata().settings(),
             settings,
             Setting.intSetting(SecurityField.setting("authz.store.roles.index.cache.max_size"), 10000, Setting.Property.Deprecated),
             "https://ela.st/es-deprecation-7-roles-index-cache-settings",
@@ -1178,6 +1218,7 @@ class NodeDeprecationChecks {
         final XPackLicenseState licenseState
     ) {
         return checkRemovedSetting(
+            clusterState.metadata().settings(),
             settings,
             Setting.timeSetting(
                 SecurityField.setting("authz.store.roles.index.cache.ttl"),
@@ -1197,6 +1238,7 @@ class NodeDeprecationChecks {
         final XPackLicenseState licenseState
     ) {
         return checkRemovedSetting(
+            clusterState.metadata().settings(),
             settings,
             NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
             "https://ela.st/es-deprecation-7-max-local-storage-nodes",
@@ -1437,8 +1479,12 @@ class NodeDeprecationChecks {
 
     private static final String MONITORING_SETTING_DEPRECATION_LINK = "https://ela.st/es-deprecation-7-monitoring-settings";
 
-    static DeprecationIssue genericMonitoringSetting(final Settings settings, final Setting<?> deprecated) {
-        return checkDeprecatedSetting(settings, deprecated, MONITORING_SETTING_DEPRECATION_LINK);
+    static DeprecationIssue genericMonitoringSetting(
+        final ClusterState clusterState,
+        final Settings nodeSettings,
+        final Setting<?> deprecated
+    ) {
+        return checkDeprecatedSetting(clusterState.metadata().settings(), nodeSettings, deprecated, MONITORING_SETTING_DEPRECATION_LINK);
     }
 
     static DeprecationIssue genericMonitoringAffixSetting(final Settings settings, final String deprecatedSuffix) {
@@ -1481,7 +1527,7 @@ class NodeDeprecationChecks {
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
-        return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.history.duration"));
+        return genericMonitoringSetting(clusterState, settings, Setting.simpleString("xpack.monitoring.history.duration"));
     }
 
     static DeprecationIssue checkMonitoringSettingCollectIndexRecovery(
@@ -1490,7 +1536,11 @@ class NodeDeprecationChecks {
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
-        return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.index.recovery.active_only"));
+        return genericMonitoringSetting(
+            clusterState,
+            settings,
+            Setting.simpleString("xpack.monitoring.collection.index.recovery.active_only")
+        );
     }
 
     static DeprecationIssue checkMonitoringSettingCollectIndices(
@@ -1499,7 +1549,7 @@ class NodeDeprecationChecks {
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
-        return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.indices"));
+        return genericMonitoringSetting(clusterState, settings, Setting.simpleString("xpack.monitoring.collection.indices"));
     }
 
     static DeprecationIssue checkMonitoringSettingCollectCcrTimeout(
@@ -1508,7 +1558,7 @@ class NodeDeprecationChecks {
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
-        return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.ccr.stats.timeout"));
+        return genericMonitoringSetting(clusterState, settings, Setting.simpleString("xpack.monitoring.collection.ccr.stats.timeout"));
     }
 
     static DeprecationIssue checkMonitoringSettingCollectEnrichStatsTimeout(
@@ -1517,7 +1567,7 @@ class NodeDeprecationChecks {
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
-        return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.enrich.stats.timeout"));
+        return genericMonitoringSetting(clusterState, settings, Setting.simpleString("xpack.monitoring.collection.enrich.stats.timeout"));
     }
 
     static DeprecationIssue checkMonitoringSettingCollectIndexRecoveryStatsTimeout(
@@ -1526,7 +1576,7 @@ class NodeDeprecationChecks {
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
-        return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.index.recovery.timeout"));
+        return genericMonitoringSetting(clusterState, settings, Setting.simpleString("xpack.monitoring.collection.index.recovery.timeout"));
     }
 
     static DeprecationIssue checkMonitoringSettingCollectIndexStatsTimeout(
@@ -1535,7 +1585,7 @@ class NodeDeprecationChecks {
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
-        return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.index.stats.timeout"));
+        return genericMonitoringSetting(clusterState, settings, Setting.simpleString("xpack.monitoring.collection.index.stats.timeout"));
     }
 
     static DeprecationIssue checkMonitoringSettingCollectMlJobStatsTimeout(
@@ -1544,7 +1594,7 @@ class NodeDeprecationChecks {
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
-        return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.ml.job.stats.timeout"));
+        return genericMonitoringSetting(clusterState, settings, Setting.simpleString("xpack.monitoring.collection.ml.job.stats.timeout"));
     }
 
     static DeprecationIssue checkMonitoringSettingCollectNodeStatsTimeout(
@@ -1553,7 +1603,7 @@ class NodeDeprecationChecks {
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
-        return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.node.stats.timeout"));
+        return genericMonitoringSetting(clusterState, settings, Setting.simpleString("xpack.monitoring.collection.node.stats.timeout"));
     }
 
     static DeprecationIssue checkMonitoringSettingCollectClusterStatsTimeout(
@@ -1562,7 +1612,7 @@ class NodeDeprecationChecks {
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
-        return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.cluster.stats.timeout"));
+        return genericMonitoringSetting(clusterState, settings, Setting.simpleString("xpack.monitoring.collection.cluster.stats.timeout"));
     }
 
     static DeprecationIssue checkMonitoringSettingExportersHost(
@@ -1724,7 +1774,7 @@ class NodeDeprecationChecks {
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
-        return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.migration.decommission_alerts"));
+        return genericMonitoringSetting(clusterState, settings, Setting.simpleString("xpack.monitoring.migration.decommission_alerts"));
     }
 
     static DeprecationIssue checkMonitoringSettingEsCollectionEnabled(
@@ -1733,7 +1783,7 @@ class NodeDeprecationChecks {
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
-        return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.elasticsearch.collection.enabled"));
+        return genericMonitoringSetting(clusterState, settings, Setting.simpleString("xpack.monitoring.elasticsearch.collection.enabled"));
     }
 
     static DeprecationIssue checkMonitoringSettingCollectionEnabled(
@@ -1742,7 +1792,7 @@ class NodeDeprecationChecks {
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
-        return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.enabled"));
+        return genericMonitoringSetting(clusterState, settings, Setting.simpleString("xpack.monitoring.collection.enabled"));
     }
 
     static DeprecationIssue checkMonitoringSettingCollectionInterval(
@@ -1751,7 +1801,7 @@ class NodeDeprecationChecks {
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
-        return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.interval"));
+        return genericMonitoringSetting(clusterState, settings, Setting.simpleString("xpack.monitoring.collection.interval"));
     }
 
     static DeprecationIssue checkExporterUseIngestPipelineSettings(
@@ -1808,8 +1858,27 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkSettingNoReplacement(Settings settings, Setting<?> deprecatedSetting, String url) {
+        return checkSettingNoReplacement(Arrays.asList(settings), deprecatedSetting, url);
+
+    }
+
+    private static DeprecationIssue checkSettingNoReplacement(
+        Settings clusterSettings,
+        Settings nodeSettings,
+        Setting<?> deprecatedSetting,
+        String url
+    ) {
+        return checkSettingNoReplacement(Arrays.asList(clusterSettings, nodeSettings), deprecatedSetting, url);
+
+    }
+
+    private static DeprecationIssue checkSettingNoReplacement(
+        Collection<Settings> settingsCollection,
+        Setting<?> deprecatedSetting,
+        String url
+    ) {
         assert deprecatedSetting.isDeprecated() : deprecatedSetting;
-        if (deprecatedSetting.exists(settings) == false) {
+        if (settingsCollection.stream().noneMatch(settings -> deprecatedSetting.exists(settings))) {
             return null;
         }
         final String deprecatedSettingKey = deprecatedSetting.getKey();
@@ -1827,6 +1896,7 @@ class NodeDeprecationChecks {
         Setting<Priority> deprecatedSetting = ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING;
         String url = "https://ela.st/es-deprecation-7-reroute-priority-setting";
         return checkRemovedSetting(
+            clusterState.metadata().settings(),
             settings,
             deprecatedSetting,
             url,
@@ -1842,7 +1912,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<TimeValue> deprecatedSetting = DiscoveryUpgradeService.BWC_PING_TIMEOUT_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenUnsafeBootstrappingOnUpgradeSetting(
@@ -1853,7 +1923,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<Boolean> deprecatedSetting = DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenCommitTimeoutSetting(
@@ -1864,7 +1934,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<TimeValue> deprecatedSetting = DiscoverySettings.COMMIT_TIMEOUT_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenPublishDiffEnableSetting(
@@ -1875,7 +1945,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<Boolean> deprecatedSetting = DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenConnectOnNetworkDisconnectSetting(
@@ -1886,7 +1956,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<Boolean> deprecatedSetting = FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenPingIntervalSetting(
@@ -1897,7 +1967,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<TimeValue> deprecatedSetting = FaultDetection.PING_INTERVAL_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenFDPingTimeoutSetting(
@@ -1908,7 +1978,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<TimeValue> deprecatedSetting = FaultDetection.PING_TIMEOUT_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenPingRetriesSetting(
@@ -1919,7 +1989,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<Integer> deprecatedSetting = FaultDetection.PING_RETRIES_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenRegisterConnectionListenerSetting(
@@ -1930,7 +2000,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<Boolean> deprecatedSetting = FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenMinimumMasterNodesSetting(
@@ -1941,7 +2011,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<Integer> deprecatedSetting = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenHostsProviderSetting(
@@ -1952,7 +2022,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<List<String>> deprecatedSetting = DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenJoinRetryAttemptsSetting(
@@ -1963,7 +2033,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<Integer> deprecatedSetting = ZenDiscovery.JOIN_RETRY_ATTEMPTS_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenJoinRetryDelaySetting(
@@ -1974,7 +2044,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<TimeValue> deprecatedSetting = ZenDiscovery.JOIN_RETRY_DELAY_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenJoinTimeoutSetting(
@@ -1985,7 +2055,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<TimeValue> deprecatedSetting = ZenDiscovery.JOIN_TIMEOUT_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenMasterElectionIgnoreNonMasterPingsSetting(
@@ -1996,7 +2066,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<Boolean> deprecatedSetting = ZenDiscovery.MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenMasterElectionWaitForJoinsTimeoutSetting(
@@ -2007,7 +2077,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<TimeValue> deprecatedSetting = ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenMaxPingsFromAnotherMasterSetting(
@@ -2018,7 +2088,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<Integer> deprecatedSetting = ZenDiscovery.MAX_PINGS_FROM_ANOTHER_MASTER_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenNoMasterBlockSetting(
@@ -2029,7 +2099,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<ClusterBlock> deprecatedSetting = NoMasterBlockService.LEGACY_NO_MASTER_BLOCK_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenPintUnicastConcurrentConnectssSetting(
@@ -2040,7 +2110,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<Integer> deprecatedSetting = SeedHostsResolver.LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenPingUnicastHostsSetting(
@@ -2051,7 +2121,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<List<String>> deprecatedSetting = SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenPingUnicastHostsResolveTimeoutSetting(
@@ -2062,7 +2132,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<TimeValue> deprecatedSetting = SeedHostsResolver.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenPingTimeoutSetting(
@@ -2073,7 +2143,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<TimeValue> deprecatedSetting = ZenDiscovery.PING_TIMEOUT_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenPublishMaxPendingClusterStatesSetting(
@@ -2084,7 +2154,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<Integer> deprecatedSetting = ZenDiscovery.MAX_PENDING_CLUSTER_STATES_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenPublishTimeoutSetting(
@@ -2095,7 +2165,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<TimeValue> deprecatedSetting = DiscoverySettings.PUBLISH_TIMEOUT_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkZenPingSendLeaveRequestSetting(
@@ -2106,7 +2176,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<Boolean> deprecatedSetting = ZenDiscovery.SEND_LEAVE_REQUEST_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkSettingNoReplacement(clusterState.metadata().settings(), settings, deprecatedSetting, url);
     }
 
     static DeprecationIssue checkAutoImportDanglingIndicesSetting(
@@ -2117,7 +2187,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<Boolean> deprecatedSetting = DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
         String url = "https://ela.st/es-deprecation-7-auto-import-dangling-indices-setting";
-        return checkRemovedSetting(settings, deprecatedSetting, url, "Use of this setting is unsafe.");
+        return checkRemovedSetting(clusterState.metadata().settings(), settings, deprecatedSetting, url, "Use of this setting is unsafe.");
     }
 
     static DeprecationIssue checkHttpContentTypeRequiredSetting(
@@ -2128,7 +2198,13 @@ class NodeDeprecationChecks {
     ) {
         Setting<Boolean> deprecatedSetting = HttpTransportSettings.SETTING_HTTP_CONTENT_TYPE_REQUIRED;
         String url = "https://ela.st/es-deprecation-7-http-content-type-required-setting";
-        return checkRemovedSetting(settings, deprecatedSetting, url, "This setting no longer has any effect.");
+        return checkRemovedSetting(
+            clusterState.metadata().settings(),
+            settings,
+            deprecatedSetting,
+            url,
+            "This setting no longer has any effect."
+        );
     }
 
     static DeprecationIssue checkFsRepositoryCompressionSetting(
@@ -2228,7 +2304,13 @@ class NodeDeprecationChecks {
             Setting.Property.Deprecated
         );
         String url = "https://ela.st/es-deprecation-7-xpack-dataframe-setting";
-        return checkRemovedSetting(settings, deprecatedSetting, url, "As of 7.9.2 basic license level features are always enabled.");
+        return checkRemovedSetting(
+            clusterState.metadata().settings(),
+            settings,
+            deprecatedSetting,
+            url,
+            "As of 7.9.2 basic license level features are always enabled."
+        );
     }
 
     static DeprecationIssue checkWatcherHistoryCleanerServiceSetting(
@@ -2240,6 +2322,7 @@ class NodeDeprecationChecks {
         Setting<Boolean> deprecatedSetting = Monitoring.CLEAN_WATCHER_HISTORY;
         String url = "https://ela.st/es-deprecation-7-watcher-history-cleaner-setting";
         return checkRemovedSetting(
+            clusterState.metadata().settings(),
             settings,
             deprecatedSetting,
             url,
@@ -2256,6 +2339,7 @@ class NodeDeprecationChecks {
         Setting<TimeValue> deprecatedSetting = LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING;
         String url = "https://ela.st/es-deprecation-7-lifecycle-master-timeout-setting";
         return checkRemovedSetting(
+            clusterState.metadata().settings(),
             settings,
             deprecatedSetting,
             url,
@@ -2278,6 +2362,7 @@ class NodeDeprecationChecks {
         );
         String url = "https://ela.st/es-deprecation-7-eql-enabled-setting";
         return checkRemovedSetting(
+            clusterState.metadata().settings(),
             settings,
             deprecatedSetting,
             url,

@@ -11,6 +11,7 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -51,6 +52,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -160,6 +162,44 @@ public class RepositoriesServiceTests extends ESTestCase {
         RepositoryStatsSnapshot repositoryStatsTypeB = repositoriesStats.get(1);
         assertThat(repositoryStatsTypeB.getRepositoryInfo().type, equalTo(MeteredRepositoryTypeB.TYPE));
         assertThat(repositoryStatsTypeB.getRepositoryStats(), equalTo(MeteredRepositoryTypeB.STATS));
+    }
+
+    // this can happen when the repository plugin is removed, but repository is still exist
+    public void testHandlesUnknownRepositoryTypeWhenApplyingClusterState() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+
+        var clusterState = createClusterStateWithRepo(repoName, "unknown");
+        repositoriesService.applyClusterState(new ClusterChangedEvent("starting", clusterState, emptyState()));
+
+        var repo = repositoriesService.repository(repoName);
+        assertThat(repo, isA(MissingPluginRepository.class));
+    }
+
+    public void testRemoveUnknownRepositoryTypeWhenApplyingClusterState() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+
+        var clusterState = createClusterStateWithRepo(repoName, "unknown");
+        repositoriesService.applyClusterState(new ClusterChangedEvent("starting", clusterState, emptyState()));
+        repositoriesService.applyClusterState(new ClusterChangedEvent("removing repo", emptyState(), clusterState));
+
+        expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName));
+    }
+
+    public void testRegisterRepositoryFailsForUnknownType() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+        var request = new PutRepositoryRequest().name(repoName).type("unknown");
+
+        repositoriesService.registerRepository(request, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                fail("Should not register unknown repository type");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e, isA(RepositoryPluginException.class));
+            }
+        });
     }
 
     private ClusterState createClusterStateWithRepo(String repoName, String repoType) {

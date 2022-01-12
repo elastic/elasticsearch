@@ -491,6 +491,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         repository = null;
                         try {
                             repository = createRepository(repositoryMetadata, typesRegistry);
+                        } catch (RepositoryPluginException ex) {
+                            logger.warn(() -> new ParameterizedMessage("failed to change repository [{}]", repositoryMetadata.name()), ex);
+                            repository = new MissingPluginRepository(repositoryMetadata);
                         } catch (RepositoryException ex) {
                             // TODO: this catch is bogus, it means the old repo is already closed,
                             // but we have nothing to replace it
@@ -500,6 +503,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 } else {
                     try {
                         repository = createRepository(repositoryMetadata, typesRegistry);
+                    } catch (RepositoryPluginException ex) {
+                        logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", repositoryMetadata.name()), ex);
+                        repository = new MissingPluginRepository(repositoryMetadata);
                     } catch (RepositoryException ex) {
                         logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", repositoryMetadata.name()), ex);
                     }
@@ -651,7 +657,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         logger.debug("creating repository [{}][{}]", repositoryMetadata.type(), repositoryMetadata.name());
         Repository.Factory factory = factories.get(repositoryMetadata.type());
         if (factory == null) {
-            throw new RepositoryException(repositoryMetadata.name(), "repository type [" + repositoryMetadata.type() + "] does not exist");
+            throw new RepositoryPluginException(
+                repositoryMetadata.name(),
+                "repository type [" + repositoryMetadata.type() + "] does not exist"
+            );
         }
         Repository repository = null;
         try {

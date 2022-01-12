@@ -182,6 +182,12 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             headers.put(request.getName(), filteredHeaders);
         }
 
+        //
+        // log-1
+        // log-2
+        // log-3
+        //
+        // log-*
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
             request.getRemoteCluster(),
             request.getLeaderIndexPatterns(),

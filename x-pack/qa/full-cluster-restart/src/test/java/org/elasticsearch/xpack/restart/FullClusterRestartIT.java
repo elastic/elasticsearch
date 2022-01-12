@@ -329,6 +329,65 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    public void testApiKeySuperuser() throws IOException {
+        if (isRunningAgainstOldCluster()) {
+            final Request createUserRequest = new Request("PUT", "/_security/user/api_key_super_creator");
+            createUserRequest.setJsonEntity("""
+                {
+                   "password" : "l0ng-r4nd0m-p@ssw0rd",
+                   "roles" : [ "superuser", "monitoring_user" ]
+                }""");
+            client().performRequest(createUserRequest);
+
+            // Create API key
+            final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
+            createApiKeyRequest.setJsonEntity("""
+                {
+                   "name": "super_legacy_key"
+                }""");
+            final Map<String, Object> createApiKeyResponse = entityAsMap(client().performRequest(createApiKeyRequest));
+            final byte[] keyBytes = (createApiKeyResponse.get("id") + ":" + createApiKeyResponse.get("api_key")).getBytes(
+                StandardCharsets.UTF_8
+            );
+            final String apiKeyAuthHeader = "ApiKey " + Base64.getEncoder().encodeToString(keyBytes);
+            // Save the API key info across restart
+            final Request saveApiKeyRequest = new Request("PUT", "/api_keys/_doc/super_legacy_key");
+            saveApiKeyRequest.setJsonEntity("{\"auth_header\":\"" + apiKeyAuthHeader + "\"}");
+            assertOK(client().performRequest(saveApiKeyRequest));
+
+            if (getOldClusterVersion().before(Version.V_8_0_0)) {
+                final Request indexRequest = new Request("POST", ".security/_doc");
+                indexRequest.setJsonEntity("""
+                    {
+                      "doc_type": "foo"
+                    }""");
+                indexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", apiKeyAuthHeader));
+                assertOK(client().performRequest(indexRequest));
+            }
+        } else {
+            final Request getRequest = new Request("GET", "/api_keys/_doc/super_legacy_key");
+            final Map<String, Object> getResponseMap = responseAsMap(client().performRequest(getRequest));
+            @SuppressWarnings("unchecked")
+            final String apiKeyAuthHeader = ((Map<String, String>) getResponseMap.get("_source")).get("auth_header");
+
+            // read is ok
+            final Request searchRequest = new Request("GET", ".security/_search");
+            searchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", apiKeyAuthHeader));
+            assertOK(client().performRequest(searchRequest));
+
+            // write must not be allowed
+            final Request indexRequest = new Request("POST", ".security/_doc");
+            indexRequest.setJsonEntity("""
+                {
+                  "doc_type": "foo"
+                }""");
+            indexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", apiKeyAuthHeader));
+            final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(indexRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(e.getMessage(), containsString("is unauthorized"));
+        }
+    }
+
     /**
      * Tests that a RollUp job created on a old cluster is correctly restarted after the upgrade.
      */

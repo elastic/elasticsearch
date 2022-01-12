@@ -75,13 +75,13 @@ public interface RoleReference {
 
         private final String apiKeyId;
         private final BytesReference roleDescriptorsBytes;
-        private final String roleKeySource;
+        private final boolean limitedBy;
         private RoleKey id = null;
 
-        public ApiKeyRoleReference(String apiKeyId, BytesReference roleDescriptorsBytes, String roleKeySource) {
+        public ApiKeyRoleReference(String apiKeyId, BytesReference roleDescriptorsBytes, boolean limitedBy) {
             this.apiKeyId = apiKeyId;
             this.roleDescriptorsBytes = roleDescriptorsBytes;
-            this.roleKeySource = roleKeySource;
+            this.limitedBy = limitedBy;
         }
 
         @Override
@@ -91,7 +91,7 @@ public interface RoleReference {
                 final String roleDescriptorsHash = MessageDigests.toHexString(
                     MessageDigests.digest(roleDescriptorsBytes, MessageDigests.sha256())
                 );
-                id = new RoleKey(Set.of("apikey:" + roleDescriptorsHash), roleKeySource);
+                id = new RoleKey(Set.of("apikey:" + roleDescriptorsHash), limitedBy ? "apikey_limited_role" : "apikey_role");
             }
             return id;
         }
@@ -108,6 +108,10 @@ public interface RoleReference {
         public BytesReference getRoleDescriptorsBytes() {
             return roleDescriptorsBytes;
         }
+
+        public boolean isLimitedBy() {
+            return limitedBy;
+        }
     }
 
     /**
@@ -116,18 +120,18 @@ public interface RoleReference {
     final class BwcApiKeyRoleReference implements RoleReference {
         private final String apiKeyId;
         private final Map<String, Object> roleDescriptorsMap;
-        private final String roleKeySourceSuffix;
+        private final boolean limitedBy;
 
-        public BwcApiKeyRoleReference(String apiKeyId, Map<String, Object> roleDescriptorsMap, String roleKeySourceSuffix) {
+        public BwcApiKeyRoleReference(String apiKeyId, Map<String, Object> roleDescriptorsMap, boolean limitedBy) {
             this.apiKeyId = apiKeyId;
             this.roleDescriptorsMap = roleDescriptorsMap;
-            this.roleKeySourceSuffix = roleKeySourceSuffix;
+            this.limitedBy = limitedBy;
         }
 
         @Override
         public RoleKey id() {
             // Since api key id is unique, it is sufficient and more correct to use it as the names
-            return new RoleKey(Set.of(apiKeyId), "bwc_api_key" + roleKeySourceSuffix);
+            return new RoleKey(Set.of(apiKeyId), "bwc_api_key" + (limitedBy ? "_limited_role_desc" : "_role_desc"));
         }
 
         @Override
@@ -141,6 +145,10 @@ public interface RoleReference {
 
         public Map<String, Object> getRoleDescriptorsMap() {
             return roleDescriptorsMap;
+        }
+
+        public boolean isLimitedBy() {
+            return limitedBy;
         }
     }
 

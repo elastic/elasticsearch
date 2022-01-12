@@ -31,6 +31,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -92,36 +93,36 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testIntegerTermsQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
-        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), null));
-        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), null));
-        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), null) instanceof MatchNoDocsQuery);
+        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
+        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
+        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
     public void testLongTermsQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
-        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), null));
-        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), null));
-        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), null) instanceof MatchNoDocsQuery);
+        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
+        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
+        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
     public void testByteTermQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.BYTE, randomBoolean());
-        assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
     public void testShortTermQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.SHORT, randomBoolean());
-        assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
     public void testIntegerTermQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER, randomBoolean());
-        assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
     public void testLongTermQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, randomBoolean());
-        assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
     private static MappedFieldType unsearchable() {
@@ -130,14 +131,21 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
-        assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery("42", null));
+        assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery("42", MOCK_CONTEXT));
 
         ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false);
-        assertEquals(SortedNumericDocValuesField.newSlowExactQuery("field", 42), ft.termQuery("42", null));
+        assertEquals(SortedNumericDocValuesField.newSlowExactQuery("field", 42), ft.termQuery("42", MOCK_CONTEXT));
 
         MappedFieldType unsearchable = unsearchable();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("42", null));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("42", MOCK_CONTEXT));
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
+
+        MappedFieldType ft2 = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false);
+        ElasticsearchException e2 = expectThrows(ElasticsearchException.class, () -> ft2.termQuery("42", MOCK_CONTEXT_DISALLOW_EXPENSIVE));
+        assertEquals(
+            "Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.",
+            e2.getMessage()
+        );
     }
 
     public void testRangeQueryWithNegativeBounds() {
@@ -342,6 +350,16 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             () -> unsearchable.rangeQuery("1", "3", true, true, null, null, null, MOCK_CONTEXT)
         );
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
+
+        MappedFieldType ft2 = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false);
+        ElasticsearchException e2 = expectThrows(
+            ElasticsearchException.class,
+            () -> ft2.rangeQuery("1", "3", true, true, null, null, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+        );
+        assertEquals(
+            "Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.",
+            e2.getMessage()
+        );
     }
 
     public void testConversions() {

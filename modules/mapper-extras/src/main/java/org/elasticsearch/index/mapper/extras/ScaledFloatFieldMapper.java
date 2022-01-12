@@ -212,14 +212,14 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            failIfNotIndexedNorDocValues();
+            failIfNotIndexedNorDocValuesFallback(context);
             long scaledValue = Math.round(scale(value));
             return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, isIndexed() == false);
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            failIfNotIndexedNorDocValues();
+            failIfNotIndexedNorDocValuesFallback(context);
             if (isIndexed()) {
                 List<Long> scaledValues = new ArrayList<>(values.size());
                 for (Object value : values) {
@@ -240,7 +240,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            failIfNotIndexedNorDocValues();
+            failIfNotIndexedNorDocValuesFallback(context);
             Long lo = null;
             if (lowerTerm != null) {
                 double dValue = scale(lowerTerm);

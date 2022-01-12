@@ -1252,13 +1252,13 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            failIfNotIndexedNorDocValues();
+            failIfNotIndexedNorDocValuesFallback(context);
             return type.termQuery(name(), value, isIndexed() == false);
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            failIfNotIndexedNorDocValues();
+            failIfNotIndexedNorDocValuesFallback(context);
             if (isIndexed()) {
                 return type.termsQuery(name(), values);
             } else {
@@ -1274,7 +1274,7 @@ public class NumberFieldMapper extends FieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            failIfNotIndexedNorDocValues();
+            failIfNotIndexedNorDocValuesFallback(context);
             return type.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues(), context, isIndexed() == false);
         }
 

@@ -217,7 +217,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         List<String> allLines = Files.readAllLines(yml);
         // Replace a comment we know exists in the auto-configuration stanza, with a user defined setting
         allLines.set(
-            allLines.indexOf("# All the nodes use the same key and certificate on the inter-node connection"),
+            allLines.indexOf("# Enable encryption for HTTP API client connections, such as Kibana, Logstash, and Agents"),
             "cluster.name: testclustername"
         );
         allLines.add("node.name: testnodename");

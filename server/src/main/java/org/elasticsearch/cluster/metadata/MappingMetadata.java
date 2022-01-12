@@ -22,7 +22,6 @@ import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -33,7 +32,10 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  */
 public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
 
-    public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata("_doc", Collections.emptyMap());
+    public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(
+        MapperService.SINGLE_MAPPING_NAME,
+        Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of())
+    );
 
     private final String type;
 

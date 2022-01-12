@@ -83,14 +83,30 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
             "data_stream": {}
         }""";
 
+    private static final String DOC = """
+        {
+            "@timestamp": "$time",
+            "metricset": "pod",
+            "k8s": {
+                "pod": {
+                    "name": "dog",
+                    "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9",
+                    "ip": "10.10.55.3",
+                    "network": {
+                        "tx": 1434595272,
+                        "rx": 530605511
+                    }
+                }
+            }
+        }
+        """;
+
     public void testTsdbDataStreams() throws Exception {
         // Create a template
         var putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
         putComposableIndexTemplateRequest.setJsonEntity(TEMPLATE);
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
-        Instant now = Instant.now();
-        String nowAsString = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(now);
         var bulkRequest = new Request("POST", "/k8s/_bulk");
         bulkRequest.setJsonEntity(
             """
@@ -111,7 +127,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
                 {"create": {}}
                 {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}
                 """
-                .replace("$now", nowAsString)
+                .replace("$now", formatInstant(Instant.now()))
         );
         bulkRequest.addParameter("refresh", "true");
         assertOK(client().performRequest(bulkRequest));
@@ -132,9 +148,10 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         var escapedBackingIndex = firstBackingIndex.replace(".", "\\.");
         assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo("k8s"));
         assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.mode"), equalTo("time_series"));
-        assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time"), notNullValue());
-        String endTime = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time");
-        assertThat(endTime, notNullValue());
+        String startTimeFirstBackingIndex = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time");
+        assertThat(startTimeFirstBackingIndex, notNullValue());
+        String endTimeFirstBackingIndex = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time");
+        assertThat(endTimeFirstBackingIndex, notNullValue());
 
         var rolloverRequest = new Request("POST", "/k8s/_rollover");
         assertOK(client().performRequest(rolloverRequest));
@@ -150,8 +167,24 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         indices = getIndex(secondBackingIndex);
         escapedBackingIndex = secondBackingIndex.replace(".", "\\.");
         assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo("k8s"));
-        assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time"), equalTo(endTime));
-        assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time"), notNullValue());
+        String startTimeSecondBackingIndex = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time");
+        assertThat(startTimeSecondBackingIndex, equalTo(endTimeFirstBackingIndex));
+        String endTimeSecondBackingIndex = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time");
+        assertThat(endTimeSecondBackingIndex, notNullValue());
+
+        var indexRequest = new Request("POST", "/k8s/_doc");
+        Instant time = parseInstant(startTimeFirstBackingIndex);
+        indexRequest.setJsonEntity(DOC.replace("$time", formatInstant(time)));
+        response = client().performRequest(indexRequest);
+        assertOK(response);
+        assertThat(entityAsMap(response).get("_index"), equalTo(firstBackingIndex));
+
+        indexRequest = new Request("POST", "/k8s/_doc");
+        time = parseInstant(endTimeSecondBackingIndex).minusMillis(1);
+        indexRequest.setJsonEntity(DOC.replace("$time", formatInstant(time)));
+        response = client().performRequest(indexRequest);
+        assertOK(response);
+        assertThat(entityAsMap(response).get("_index"), equalTo(secondBackingIndex));
     }
 
     public void testSimulateTsdbDataStreamTemplate() throws Exception {
@@ -218,6 +251,14 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         String topLevelKey = (String) getIndexResponse.keySet().iterator().next();
         String val = ObjectPath.evaluate(getIndexResponse.get(topLevelKey), "settings.index.time_series.end_time");
         return Instant.from(DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).parse(val));
+    }
+
+    static String formatInstant(Instant instant) {
+        return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
+    }
+
+    static Instant parseInstant(String input) {
+        return Instant.from(DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).parse(input));
     }
 
 }

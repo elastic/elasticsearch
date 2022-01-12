@@ -93,5 +93,23 @@ Security::
 [float]
 === Bug fixes
 
+Autoscaling::
+* Autoscaling use adjusted total memory {es-pull}80528[#80528] (issue: {es-issue}78750[#78750])
+
+Data streams::
+* Prohibit restoring a data stream alias with a conflicting write data stream {es-pull}81217[#81217] (issue: {es-issue}80976[#80976])
+
+ILM+SLM::
+* Less verbose serialization of snapshot failure in SLM metadata {es-pull}80942[#80942] (issue: {es-issue}77466[#77466])
+
+Indices APIs::
+* Fix `ComposableIndexTemplate` equals when `composed_of` is null {es-pull}80864[#80864]
+
+Infra/REST API::
+* Handle exceptions thrown from `RestCompatibleVersionHelper` {es-pull}80253[#80253] (issues: {es-issue}78214[#78214], {es-issue}79060[#79060])
+
+Ingest::
+* Adjust default geoip logging to be less verbose {es-pull}81404[#81404] (issue: {es-issue}81356[#81356])
+
 Machine Learning::
 * Set model state compatibility version to 8.0.0 {ml-pull}2139[#2139]

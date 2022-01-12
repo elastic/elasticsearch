@@ -76,6 +76,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -326,7 +327,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                     String field = randomFrom(fields);
                     builder.add(new TermQuery(new Term(field, randomFrom(content.get(field)))), occur);
                 } else {
-                    builder.add(intFieldType.termQuery(randomFrom(intValues), null), occur);
+                    builder.add(intFieldType.termQuery(randomFrom(intValues), FieldTypeTestCase.MOCK_CONTEXT), occur);
                 }
             } else if (rarely() && depth <= 3) {
                 occur = randomFrom(Arrays.asList(Occur.FILTER, Occur.MUST, Occur.SHOULD));

@@ -198,7 +198,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor) {
-            this(name, true, false, true, Collections.emptyMap(), scalingFactor, null, null);
+            this(name, scalingFactor, true);
+        }
+
+        public ScaledFloatFieldType(String name, double scalingFactor, boolean indexed) {
+            this(name, indexed, false, true, Collections.emptyMap(), scalingFactor, null, null);
         }
 
         public double getScalingFactor() {

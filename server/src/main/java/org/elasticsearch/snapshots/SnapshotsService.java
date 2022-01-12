@@ -1464,15 +1464,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private static boolean pendingDeletionsChanged(ClusterChangedEvent event) {
         SnapshotDeletionsPending previous = event.previousState().custom(SnapshotDeletionsPending.TYPE, SnapshotDeletionsPending.EMPTY);
-        SnapshotDeletionsPending currents = event.state().custom(SnapshotDeletionsPending.TYPE, SnapshotDeletionsPending.EMPTY);
-        return Objects.equals(previous, currents) == false;
+        SnapshotDeletionsPending current = event.state().custom(SnapshotDeletionsPending.TYPE, SnapshotDeletionsPending.EMPTY);
+        return Objects.equals(previous, current) == false;
     }
 
     private boolean pendingDeletionsWithConflictsChanged(ClusterChangedEvent event) {
         if (pendingDeletionsWithConflictingRestores.isEmpty() == false) {
             RestoreInProgress previous = event.previousState().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
-            RestoreInProgress currents = event.state().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
-            if (Objects.equals(previous, currents) == false) {
+            RestoreInProgress current = event.state().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
+            if (Objects.equals(previous, current) == false) {
                 return true;
             }
         }
@@ -1482,12 +1482,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 .asStream()
                 .filter(SnapshotsInProgress.Entry::isClone)
                 .collect(Collectors.toSet());
-            Set<SnapshotsInProgress.Entry> currents = event.state()
+            Set<SnapshotsInProgress.Entry> current = event.state()
                 .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
                 .asStream()
                 .filter(SnapshotsInProgress.Entry::isClone)
                 .collect(Collectors.toSet());
-            if (Objects.equals(previous, currents) == false) {
+            if (Objects.equals(previous, current) == false) {
                 return true;
             }
         }

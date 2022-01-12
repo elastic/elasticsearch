@@ -196,10 +196,16 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     }
 
     public int getPrimaryPendingFetchShardCount() {
+        if (primaryShardAllocator == null) {
+            return 0;
+        }
         return primaryShardAllocator.getPendingFetchShardCount();
     }
 
     public int getReplicaPendingFetchShardCount() {
+        if (replicaShardAllocator == null) {
+            return 0;
+        }
         return replicaShardAllocator.getPendingFetchShardCount();
     }
 

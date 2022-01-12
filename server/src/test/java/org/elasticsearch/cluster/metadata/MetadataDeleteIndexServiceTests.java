@@ -22,6 +22,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -46,6 +47,8 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -223,13 +226,14 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
     public void testDeleteIndexWithSnapshotDeletion() {
         final boolean deleteSnapshot = randomBoolean();
+        final boolean knownRepositoryUuid = randomBoolean();
         final IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(
                 Settings.builder()
                     .put("index.version.created", VersionUtils.randomVersion(random()))
                     .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
                     .put(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY, "repo_name")
-                    .put(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY, randomBoolean() ? null : "repo_uuid")
+                    .put(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY, knownRepositoryUuid ? "repo_uuid" : null)
                     .put(SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY, "snap_name")
                     .put(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY, "snap_uuid")
                     .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, deleteSnapshot)
@@ -260,6 +264,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         if (deleteSnapshot) {
             assertThat(updatedPendingDeletions, notNullValue());
             assertThat(updatedPendingDeletions.isEmpty(), equalTo(false));
+            assertThat(updatedPendingDeletions.entries(), hasSize(1));
+            SnapshotDeletionsPending.Entry entry = updatedPendingDeletions.entries().get(0);
+            assertThat(entry.getRepositoryName(), equalTo("repo_name"));
+            assertThat(entry.getRepositoryUuid(), knownRepositoryUuid ? equalTo("repo_uuid") : equalTo(RepositoryData.MISSING_UUID));
             assertThat(updatedPendingDeletions.contains(new SnapshotId("snap_name", "snap_uuid")), equalTo(true));
         } else {
             assertThat(updatedPendingDeletions, nullValue());
@@ -323,7 +331,12 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         }
 
         assertThat(pendingDeletions.isEmpty(), equalTo(false));
+        assertThat(pendingDeletions.entries(), hasSize(1));
         assertThat(pendingDeletions.contains(snapshotId), equalTo(true));
+        SnapshotDeletionsPending.Entry entry = pendingDeletions.entries().get(0);
+        assertThat(entry.getRepositoryName(), equalTo(repositoryMetadata.name()));
+        assertThat(entry.getRepositoryUuid(), anyOf(equalTo(repositoryMetadata.uuid()), equalTo(RepositoryData.MISSING_UUID)));
+        assertThat(entry.getSnapshotId(), equalTo(snapshotId));
     }
 
     private ClusterState clusterState(String index) {

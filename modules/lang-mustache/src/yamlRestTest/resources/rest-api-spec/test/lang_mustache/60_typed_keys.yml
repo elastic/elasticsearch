@@ -40,7 +40,7 @@ setup:
 "Search template with typed_keys parameter":
   - skip:
       version: all
-      reasons: https://github.com/elastic/elasticsearch/issues/82502
+      reason: 'AwaitsFix: https://github.com/elastic/elasticsearch/issues/82502'
 
   - do:
       put_script:

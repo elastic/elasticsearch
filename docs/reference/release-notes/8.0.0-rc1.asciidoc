@@ -4,9 +4,23 @@
 [[release-notes-8.0.0-rc1]]
 == {es} version 8.0.0-rc1
 
-coming::[8.0.0-rc1]
-
 Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
+
+[[known-issues-8.0.0-rc1]]
+[float]
+=== Known issues
+
+* **Do not upgrade production clusters to {es} 8.0.0-rc1**. {es} 8.0.0-rc1 is
+a pre-release of {es} 8.0 and is intended for testing purposes only.
++
+Upgrades from pre-release builds are not supported and could result in errors or
+data loss. If you upgrade from a released version, such as 7.16, to a
+pre-release verion for testing, discard the contents of the cluster when you are
+done. Do not attempt to upgrade to the final 8.0 release.
+
+* For {es} 8.0.0-rc1, the {ref}/sql-jdbc.html[{es} SQL JDBC driver] requires
+Java 17 or newer. In {es} 8.0.0-rc2, the JDBC driver will only require Java 1.8
+or newer. {es-pull}82325
 
 [[breaking-8.0.0-rc1]]
 [float]

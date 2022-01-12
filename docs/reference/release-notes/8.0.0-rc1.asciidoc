@@ -10,7 +10,7 @@ Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
 [float]
 === Known issues
 
-* **Do not upgrade production clusters to {es} 8.0.0-rc1**. {es} 8.0.0-rc1 is
+* **Do not upgrade production clusters to {es} 8.0.0-rc1.** {es} 8.0.0-rc1 is
 a pre-release of {es} 8.0 and is intended for testing purposes only.
 +
 Upgrades from pre-release builds are not supported and could result in errors or
@@ -19,7 +19,7 @@ pre-release verion for testing, discard the contents of the cluster when you are
 done. Do not attempt to upgrade to the final 8.0 release.
 
 * For {es} 8.0.0-rc1, the {ref}/sql-jdbc.html[{es} SQL JDBC driver] requires
-Java 17 or newer. In {es} 8.0.0-rc2, the JDBC driver will only require Java 1.8
+Java 17 or newer. In {es} 8.0.0-rc2, the JDBC driver will only require Java 8
 or newer. {es-pull}82325
 
 [[breaking-8.0.0-rc1]]
@@ -92,6 +92,24 @@ Security::
 [[bug-8.0.0-rc1]]
 [float]
 === Bug fixes
+
+Autoscaling::
+* Autoscaling use adjusted total memory {es-pull}80528[#80528] (issue: {es-issue}78750[#78750])
+
+Data streams::
+* Prohibit restoring a data stream alias with a conflicting write data stream {es-pull}81217[#81217] (issue: {es-issue}80976[#80976])
+
+ILM+SLM::
+* Less verbose serialization of snapshot failure in SLM metadata {es-pull}80942[#80942] (issue: {es-issue}77466[#77466])
+
+Indices APIs::
+* Fix `ComposableIndexTemplate` equals when `composed_of` is null {es-pull}80864[#80864]
+
+Infra/REST API::
+* Handle exceptions thrown from `RestCompatibleVersionHelper` {es-pull}80253[#80253] (issues: {es-issue}78214[#78214], {es-issue}79060[#79060])
+
+Ingest::
+* Adjust default geoip logging to be less verbose {es-pull}81404[#81404] (issue: {es-issue}81356[#81356])
 
 Machine Learning::
 * Set model state compatibility version to 8.0.0 {ml-pull}2139[#2139]

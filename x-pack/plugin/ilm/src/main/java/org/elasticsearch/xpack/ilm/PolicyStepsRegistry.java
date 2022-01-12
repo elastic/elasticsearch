@@ -56,6 +56,7 @@ import java.util.stream.Collectors;
 public class PolicyStepsRegistry {
     private static final Logger logger = LogManager.getLogger(PolicyStepsRegistry.class);
 
+    private final NamedXContentRegistry xContentRegistry;
     private final Client client;
     private final XPackLicenseState licenseState;
 
@@ -65,7 +66,6 @@ public class PolicyStepsRegistry {
     private final Map<String, Step> firstStepMap;
     // keeps track of a mapping from policy/step-name to respective Step, the key is policy name
     private final Map<String, Map<Step.StepKey, Step>> stepMap;
-    private final NamedXContentRegistry xContentRegistry;
 
     private final Map<Index, Tuple<IndexMetadata, Step>> cachedSteps = new ConcurrentHashMap<>();
 

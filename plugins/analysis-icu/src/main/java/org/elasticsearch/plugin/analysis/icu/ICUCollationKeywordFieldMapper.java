@@ -115,8 +115,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             if (value == null) {
                 return null;
             }
-            if (value instanceof BytesRef) {
-                value = ((BytesRef) value).utf8ToString();
+            if (value instanceof BytesRef bytesRef) {
+                value = bytesRef.utf8ToString();
             }
 
             if (collator != null) {

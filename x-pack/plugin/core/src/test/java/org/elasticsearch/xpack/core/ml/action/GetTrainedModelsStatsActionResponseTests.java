@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Respon
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatsTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStatsTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStatsTests;
 
 import java.util.List;
 import java.util.function.Function;
@@ -33,6 +34,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
             .map(
                 id -> new Response.TrainedModelStats(
                     id,
+                    randomBoolean() ? TrainedModelSizeStatsTests.createRandom() : null,
                     randomBoolean() ? randomIngestStats() : null,
                     randomIntBetween(0, 10),
                     randomBoolean() ? InferenceStatsTests.createTestInstance(id, null) : null,
@@ -81,6 +83,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                         .map(
                             stats -> new Response.TrainedModelStats(
                                 stats.getModelId(),
+                                null,
                                 stats.getIngestStats(),
                                 stats.getPipelineCount(),
                                 stats.getInferenceStats(),
@@ -101,6 +104,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                         .map(
                             stats -> new Response.TrainedModelStats(
                                 stats.getModelId(),
+                                stats.getModelSizeStats(),
                                 stats.getIngestStats(),
                                 stats.getPipelineCount(),
                                 stats.getInferenceStats(),
@@ -108,7 +112,6 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                     ? null
                                     : new AllocationStats(
                                         stats.getDeploymentStats().getModelId(),
-                                        stats.getDeploymentStats().getModelSize(),
                                         stats.getDeploymentStats().getInferenceThreads(),
                                         stats.getDeploymentStats().getModelThreads(),
                                         stats.getDeploymentStats().getQueueCapacity(),

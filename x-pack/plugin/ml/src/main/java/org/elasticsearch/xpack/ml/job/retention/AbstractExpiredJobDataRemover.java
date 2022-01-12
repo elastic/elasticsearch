@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 

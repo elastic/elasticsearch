@@ -101,6 +101,7 @@ public class RollupResponseTranslator {
             responses.add(item.getResponse());
         }
 
+        assert responses.size() > 0;
         return doCombineResponse(null, responses, reduceContext);
     }
 

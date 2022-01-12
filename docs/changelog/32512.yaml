@@ -1,0 +1,5 @@
+pr: 32512
+summary: Replace custom Future implementations by `CompletableFuture`
+area: Infra/Core
+type: enhancement
+issues: []

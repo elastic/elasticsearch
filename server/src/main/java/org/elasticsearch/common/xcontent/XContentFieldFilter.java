@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -31,8 +32,9 @@ import java.util.function.Function;
 public interface XContentFieldFilter {
     /**
      * filter source in {@link BytesReference} format and in {@link XContentType} content type
+     * note that xContentType may be null in some case, we should guess xContentType from sourceBytes in such cases
      */
-    BytesReference apply(BytesReference sourceBytes, XContentType xContentType) throws IOException;
+    BytesReference apply(BytesReference sourceBytes, @Nullable XContentType xContentType) throws IOException;
 
     /**
      * Construct {@link XContentFieldFilter} using given includes and excludes
@@ -60,6 +62,9 @@ public interface XContentFieldFilter {
                 Set.of(excludes)
             );
             return (originalSource, contentType) -> {
+                if (contentType == null) {
+                    contentType = XContentHelper.xContentTypeMayCompressed(originalSource);
+                }
                 BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, originalSource.length()));
                 XContentBuilder builder = new XContentBuilder(contentType.xContent(), streamOutput);
                 XContentParser parser = contentType.xContent().createParser(parserConfig, originalSource.streamInput());

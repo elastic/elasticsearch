@@ -611,7 +611,7 @@ public class ApiKeyService {
         return roleDescriptors.stream().map(rd -> {
             // Since we are only replacing limited-by roles and all limited-by roles are looked up with role providers,
             // it is technically possible to just check the name of superuser and the _reserved metadata field.
-            // But the gain is not much since role resolving is cached and compare the whole role descriptor is still safer.
+            // But the gain is not much since role resolving is cached and comparing the whole role descriptor is still safer.
             if (rd.equals(LEGACY_SUPERUSER_ROLE_DESCRIPTOR)) {
                 logger.debug("replacing superuser role for API key [{}]", apiKeyId);
                 return ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;

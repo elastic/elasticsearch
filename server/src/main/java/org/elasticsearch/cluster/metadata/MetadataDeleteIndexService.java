@@ -264,7 +264,6 @@ public class MetadataDeleteIndexService {
             builder.add(entry.getValue().v1(), entry.getValue().v2(), entry.getKey(), timestamp);
         }
         for (Map.Entry<SnapshotId, Tuple<String, String>> entry : snapshotsWithoutRepository.entrySet()) {
-            // TODO also log that it will stay as pending for a given time/attempts and then be removed?
             logger.warn(
                 "snapshot [{}] added to the list of snapshots pending deletion but refers to an unregistered repository [{}/{}]",
                 entry.getKey(),

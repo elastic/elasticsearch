@@ -94,7 +94,7 @@ setup:
 ---
 "Float range":
   - skip:
-      version: " - 7.17.99"
+      version: " - 7.16.99"
       reason: Bug fixed in 8.1.0 and backported to 8.0.0
   - do:
       search:
@@ -132,7 +132,7 @@ setup:
 ---
 "Double range":
   - skip:
-      version: " - 7.17.99"
+      version: " - 7.16.99"
       reason: Bug fixed in 8.1.0 and backported to 8.0.0
   - do:
       search:

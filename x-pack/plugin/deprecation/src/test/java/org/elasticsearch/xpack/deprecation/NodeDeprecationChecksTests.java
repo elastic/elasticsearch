@@ -2214,8 +2214,13 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Settings nodettings = Settings.builder().build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        Metadata metadata = Metadata.builder().persistentSettings(clusterSettings).build();
-        ;
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        if (randomBoolean()) {
+            metadataBuilder.persistentSettings(clusterSettings);
+        } else {
+            metadataBuilder.transientSettings(clusterSettings);
+        }
+        Metadata metadata = metadataBuilder.build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
             .build();

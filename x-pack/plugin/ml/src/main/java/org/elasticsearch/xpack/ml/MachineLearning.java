@@ -275,6 +275,9 @@ import org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationB
 import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointNamedContentProvider;
+import org.elasticsearch.xpack.ml.aggs.confidence.ConfidenceAggregationBuilder;
+import org.elasticsearch.xpack.ml.aggs.confidence.ConfidenceNamedWriteableProvider;
+import org.elasticsearch.xpack.ml.aggs.confidence.InternalConfidenceAggregation;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
@@ -1426,7 +1429,10 @@ public class MachineLearning extends Plugin
             ).addResultReader(org.elasticsearch.xpack.ml.aggs.categorization2.InternalCategorizationAggregation::new)
                 .setAggregatorRegistrar(
                     s -> s.registerUsage(org.elasticsearch.xpack.ml.aggs.categorization2.CategorizeTextAggregationBuilder.NAME)
-                )
+                ),
+            new AggregationSpec(ConfidenceAggregationBuilder.NAME, ConfidenceAggregationBuilder::new, ConfidenceAggregationBuilder.PARSER)
+                .addResultReader(InternalConfidenceAggregation::new)
+                .setAggregatorRegistrar(s -> s.registerUsage(ConfidenceAggregationBuilder.NAME))
         );
     }
 
@@ -1558,6 +1564,7 @@ public class MachineLearning extends Plugin
         namedWriteables.addAll(MlAutoscalingNamedWritableProvider.getNamedWriteables());
         namedWriteables.addAll(new CorrelationNamedContentProvider().getNamedWriteables());
         namedWriteables.addAll(new ChangePointNamedContentProvider().getNamedWriteables());
+        namedWriteables.addAll(ConfidenceNamedWriteableProvider.getNamedWriteables());
         return namedWriteables;
     }
 

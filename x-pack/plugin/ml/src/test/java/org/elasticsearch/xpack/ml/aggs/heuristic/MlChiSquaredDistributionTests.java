@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.heuristic;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.math.MlChiSquaredDistribution;
 
 import static org.hamcrest.Matchers.closeTo;
 

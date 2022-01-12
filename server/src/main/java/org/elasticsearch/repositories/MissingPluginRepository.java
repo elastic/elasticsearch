@@ -113,7 +113,7 @@ public class MissingPluginRepository extends AbstractLifecycleComponent implemen
 
     @Override
     public boolean isReadOnly() {
-        return true;
+        return false;
     }
 
     @Override
@@ -149,7 +149,7 @@ public class MissingPluginRepository extends AbstractLifecycleComponent implemen
         String source,
         Consumer<Exception> onFailure
     ) {
-
+        onFailure.accept(createMissingPluginException());
     }
 
     @Override

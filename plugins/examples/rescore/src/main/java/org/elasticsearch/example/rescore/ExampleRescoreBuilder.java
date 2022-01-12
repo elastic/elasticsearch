@@ -173,10 +173,10 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
                             endDoc = leaf.docBase + leaf.reader().maxDoc();
                         } while (topDocs.scoreDocs[i].doc >= endDoc);
                         LeafFieldData fd = context.factorField.load(leaf);
-                        if (false == (fd instanceof LeafNumericFieldData)) {
+                        if (false == (fd instanceof LeafNumericFieldData leafNumericFieldData)) {
                             throw new IllegalArgumentException("[" + context.factorField.getFieldName() + "] is not a number");
                         }
-                        data = ((LeafNumericFieldData) fd).getDoubleValues();
+                        data = leafNumericFieldData.getDoubleValues();
                     }
                     if (false == data.advanceExact(topDocs.scoreDocs[i].doc - leaf.docBase)) {
                         throw new IllegalArgumentException("document [" + topDocs.scoreDocs[i].doc

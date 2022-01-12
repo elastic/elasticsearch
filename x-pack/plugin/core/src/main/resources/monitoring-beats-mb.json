@@ -2192,6 +2192,9 @@
           "path": "beat.elasticsearch.cluster.id"
         }
       }
+    },
+    "settings": {
+      "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
     }
   },
   "data_stream": {}

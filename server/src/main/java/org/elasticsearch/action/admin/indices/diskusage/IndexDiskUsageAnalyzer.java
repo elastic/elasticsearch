@@ -244,26 +244,20 @@ final class IndexDiskUsageAnalyzer {
             cancellationChecker.checkForCancellation();
             directory.resetBytesRead();
             switch (dvType) {
-                case NUMERIC:
-                    iterateDocValues(maxDocs, () -> docValuesReader.getNumeric(field), NumericDocValues::longValue);
-                    break;
-                case SORTED_NUMERIC:
-                    iterateDocValues(maxDocs, () -> docValuesReader.getSortedNumeric(field), dv -> {
-                        for (int i = 0; i < dv.docValueCount(); i++) {
-                            cancellationChecker.logEvent();
-                            dv.nextValue();
-                        }
-                    });
-                    break;
-                case BINARY:
-                    iterateDocValues(maxDocs, () -> docValuesReader.getBinary(field), BinaryDocValues::binaryValue);
-                    break;
-                case SORTED:
+                case NUMERIC -> iterateDocValues(maxDocs, () -> docValuesReader.getNumeric(field), NumericDocValues::longValue);
+                case SORTED_NUMERIC -> iterateDocValues(maxDocs, () -> docValuesReader.getSortedNumeric(field), dv -> {
+                    for (int i = 0; i < dv.docValueCount(); i++) {
+                        cancellationChecker.logEvent();
+                        dv.nextValue();
+                    }
+                });
+                case BINARY -> iterateDocValues(maxDocs, () -> docValuesReader.getBinary(field), BinaryDocValues::binaryValue);
+                case SORTED -> {
                     SortedDocValues sorted = iterateDocValues(maxDocs, () -> docValuesReader.getSorted(field), SortedDocValues::ordValue);
                     sorted.lookupOrd(0);
                     sorted.lookupOrd(sorted.getValueCount() - 1);
-                    break;
-                case SORTED_SET:
+                }
+                case SORTED_SET -> {
                     SortedSetDocValues sortedSet = iterateDocValues(maxDocs, () -> docValuesReader.getSortedSet(field), dv -> {
                         while (dv.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
                             cancellationChecker.logEvent();
@@ -271,10 +265,11 @@ final class IndexDiskUsageAnalyzer {
                     });
                     sortedSet.lookupOrd(0);
                     sortedSet.lookupOrd(sortedSet.getValueCount() - 1);
-                    break;
-                default:
+                }
+                default -> {
                     assert false : "Unknown docValues type [" + dvType + "]";
                     throw new IllegalStateException("Unknown docValues type [" + dvType + "]");
+                }
             }
             stats.addDocValues(field.name, directory.getBytesRead());
         }
@@ -294,16 +289,13 @@ final class IndexDiskUsageAnalyzer {
     private BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
         if (term != null && termsEnum.seekExact(term)) {
             final TermState termState = termsEnum.termState();
-            if (termState instanceof Lucene90PostingsFormat.IntBlockTermState) {
-                final Lucene90PostingsFormat.IntBlockTermState blockTermState = (Lucene90PostingsFormat.IntBlockTermState) termState;
+            if (termState instanceof final Lucene90PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
-            if (termState instanceof Lucene84PostingsFormat.IntBlockTermState) {
-                final Lucene84PostingsFormat.IntBlockTermState blockTermState = (Lucene84PostingsFormat.IntBlockTermState) termState;
+            if (termState instanceof final Lucene84PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
-            if (termState instanceof Lucene50PostingsFormat.IntBlockTermState) {
-                final Lucene50PostingsFormat.IntBlockTermState blockTermState = (Lucene50PostingsFormat.IntBlockTermState) termState;
+            if (termState instanceof final Lucene50PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
         }

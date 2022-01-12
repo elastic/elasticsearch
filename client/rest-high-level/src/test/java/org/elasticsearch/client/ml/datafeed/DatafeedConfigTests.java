@@ -140,14 +140,15 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
         return false;
     }
 
-    private static final String FUTURE_DATAFEED = "{\n"
-        + "    \"datafeed_id\": \"farequote-datafeed\",\n"
-        + "    \"job_id\": \"farequote\",\n"
-        + "    \"frequency\": \"1h\",\n"
-        + "    \"indices\": [\"farequote1\", \"farequote2\"],\n"
-        + "    \"tomorrows_technology_today\": \"amazing\",\n"
-        + "    \"scroll_size\": 1234\n"
-        + "}";
+    private static final String FUTURE_DATAFEED = """
+        {
+            "datafeed_id": "farequote-datafeed",
+            "job_id": "farequote",
+            "frequency": "1h",
+            "indices": ["farequote1", "farequote2"],
+            "tomorrows_technology_today": "amazing",
+            "scroll_size": 1234
+        }""";
 
     public void testFutureMetadataParse() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)

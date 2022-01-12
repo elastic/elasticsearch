@@ -54,7 +54,7 @@ public class SortBuilderTests extends ESTestCase {
      */
     public void testSingleFieldSort() throws IOException {
         SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
-        String json = "{ \"sort\" : { \"field1\" : \"" + order + "\" }}";
+        String json = "{ \"sort\" : { \"field1\" : \"%s\" }}".formatted(order);
         List<SortBuilder<?>> result = parseSort(json);
         assertEquals(1, result.size());
         SortBuilder<?> sortBuilder = result.get(0);
@@ -98,13 +98,15 @@ public class SortBuilderTests extends ESTestCase {
         assertEquals(new ScoreSortBuilder(), sortBuilder);
 
         // test two spellings for _geo_disctance
-        json = "{ \"sort\" : [" + "{\"_geoDistance\" : {" + "\"pin.location\" : \"40,-70\" } }" + "] }";
+        json = """
+            { "sort" : [{"_geoDistance" : {"pin.location" : "40,-70" } }] }""";
         result = parseSort(json);
         assertEquals(1, result.size());
         sortBuilder = result.get(0);
         assertEquals(new GeoDistanceSortBuilder("pin.location", 40, -70), sortBuilder);
 
-        json = "{ \"sort\" : [" + "{\"_geo_distance\" : {" + "\"pin.location\" : \"40,-70\" } }" + "] }";
+        json = """
+            { "sort" : [{"_geo_distance" : {"pin.location" : "40,-70" } }] }""";
         result = parseSort(json);
         assertEquals(1, result.size());
         sortBuilder = result.get(0);
@@ -173,28 +175,15 @@ public class SortBuilderTests extends ESTestCase {
         int size = randomIntBetween(1, 5);
         List<SortBuilder<?>> list = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            switch (randomIntBetween(0, 5)) {
-                case 0:
-                    list.add(new ScoreSortBuilder());
-                    break;
-                case 1:
-                    list.add(new FieldSortBuilder(randomAlphaOfLengthBetween(1, 10)));
-                    break;
-                case 2:
-                    list.add(SortBuilders.fieldSort(FieldSortBuilder.DOC_FIELD_NAME));
-                    break;
-                case 3:
-                    list.add(GeoDistanceSortBuilderTests.randomGeoDistanceSortBuilder());
-                    break;
-                case 4:
-                    list.add(ScriptSortBuilderTests.randomScriptSortBuilder());
-                    break;
-                case 5:
-                    list.add(SortBuilders.pitTiebreaker());
-                    break;
-                default:
-                    throw new IllegalStateException("unexpected randomization in tests");
-            }
+            list.add(switch (randomIntBetween(0, 5)) {
+                case 0 -> new ScoreSortBuilder();
+                case 1 -> new FieldSortBuilder(randomAlphaOfLengthBetween(1, 10));
+                case 2 -> SortBuilders.fieldSort(FieldSortBuilder.DOC_FIELD_NAME);
+                case 3 -> GeoDistanceSortBuilderTests.randomGeoDistanceSortBuilder();
+                case 4 -> ScriptSortBuilderTests.randomScriptSortBuilder();
+                case 5 -> SortBuilders.pitTiebreaker();
+                default -> throw new IllegalStateException("unexpected randomization in tests");
+            });
         }
         return list;
     }
@@ -204,16 +193,29 @@ public class SortBuilderTests extends ESTestCase {
      * - "sort" : [ "fieldname", { "fieldname2" : "asc" }, ...]
      */
     public void testMultiFieldSort() throws IOException {
-        String json = "{ \"sort\" : ["
-            + "{ \"post_date\" : {\"order\" : \"asc\"}},"
-            + "\"user\","
-            + "{ \"name\" : \"desc\" },"
-            + "{ \"age\" : \"desc\" },"
-            + "{"
-            + "\"_geo_distance\" : {"
-            + "\"pin.location\" : \"40,-70\" } },"
-            + "\"_score\""
-            + "] }";
+        String json = """
+            {
+              "sort": [
+                {
+                  "post_date": {
+                    "order": "asc"
+                  }
+                },
+                "user",
+                {
+                  "name": "desc"
+                },
+                {
+                  "age": "desc"
+                },
+                {
+                  "_geo_distance": {
+                    "pin.location": "40,-70"
+                  }
+                },
+                "_score"
+              ]
+            }""";
         List<SortBuilder<?>> result = parseSort(json);
         assertEquals(6, result.size());
         assertEquals(new FieldSortBuilder("post_date").order(SortOrder.ASC), result.get(0));

@@ -31,23 +31,28 @@ public class GraphIT extends ESRestHighLevelClientTestCase {
     public void indexDocuments() throws IOException {
         // Create chain of doc IDs across indices 1->2->3
         Request doc1 = new Request(HttpPut.METHOD_NAME, "/index1/_doc/1");
-        doc1.setJsonEntity("{ \"num\":[1], \"const\":\"start\"}");
+        doc1.setJsonEntity("""
+            { "num":[1], "const":"start"}""");
         client().performRequest(doc1);
 
         Request doc2 = new Request(HttpPut.METHOD_NAME, "/index2/_doc/1");
-        doc2.setJsonEntity("{\"num\":[1,2], \"const\":\"foo\"}");
+        doc2.setJsonEntity("""
+            {"num":[1,2], "const":"foo"}""");
         client().performRequest(doc2);
 
         Request doc3 = new Request(HttpPut.METHOD_NAME, "/index2/_doc/2");
-        doc3.setJsonEntity("{\"num\":[2,3], \"const\":\"foo\"}");
+        doc3.setJsonEntity("""
+            {"num":[2,3], "const":"foo"}""");
         client().performRequest(doc3);
 
         Request doc4 = new Request(HttpPut.METHOD_NAME, "/index_no_field_data/_doc/2");
-        doc4.setJsonEntity("{\"num\":\"string\", \"const\":\"foo\"}");
+        doc4.setJsonEntity("""
+            {"num":"string", "const":"foo"}""");
         client().performRequest(doc4);
 
         Request doc5 = new Request(HttpPut.METHOD_NAME, "/index_no_field_data/_doc/2");
-        doc5.setJsonEntity("{\"num\":[2,4], \"const\":\"foo\"}");
+        doc5.setJsonEntity("""
+            {"num":[2,4], "const":"foo"}""");
         client().performRequest(doc5);
 
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));

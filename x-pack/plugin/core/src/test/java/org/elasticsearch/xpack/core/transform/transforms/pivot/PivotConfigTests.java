@@ -77,17 +77,23 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
     }
 
     public void testAggsAbbreviations() throws IOException {
-        String pivotAggs = "{"
-            + " \"group_by\": {"
-            + "   \"id\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } } }";
+        String pivotAggs = """
+            {
+              "group_by": {
+                "id": {
+                  "terms": {
+                    "field": "id"
+                  }
+                }
+              },
+              "aggs": {
+                "avg": {
+                  "avg": {
+                    "field": "points"
+                  }
+                }
+              }
+            }""";
 
         PivotConfig p1 = createPivotConfigFromString(pivotAggs, false);
         String pivotAggregations = pivotAggs.replace("aggs", "aggregations");
@@ -97,20 +103,32 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
     }
 
     public void testMissingAggs() throws IOException {
-        String pivot = "{" + " \"group_by\": {" + "   \"id\": {" + "     \"terms\": {" + "       \"field\": \"id\"" + "} } } }";
+        String pivot = """
+            {
+              "group_by": {
+                "id": {
+                  "terms": {
+                    "field": "id"
+                  }
+                }
+              }
+            }""";
 
         expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
     }
 
     public void testEmptyAggs() throws IOException {
-        String pivot = "{"
-            + " \"group_by\": {"
-            + "   \"id\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + "\"aggs\": {}"
-            + " }";
+        String pivot = """
+            {
+              "group_by": {
+                "id": {
+                  "terms": {
+                    "field": "id"
+                  }
+                }
+              },
+              "aggs": {}
+            }""";
 
         expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
 
@@ -122,13 +140,17 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
     }
 
     public void testEmptyGroupBy() throws IOException {
-        String pivot = "{"
-            + " \"group_by\": {},"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } } }";
+        String pivot = """
+            {
+              "group_by": {},
+              "aggs": {
+                "avg": {
+                  "avg": {
+                    "field": "points"
+                  }
+                }
+              }
+            }""";
 
         expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
 
@@ -140,235 +162,271 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
     }
 
     public void testMissingGroupBy() {
-        String pivot = "{" + " \"aggs\": {" + "   \"avg\": {" + "     \"avg\": {" + "       \"field\": \"points\"" + "} } } }";
+        String pivot = """
+            {
+              "aggs": {
+                "avg": {
+                  "avg": {
+                    "field": "points"
+                  }
+                }
+              }
+            }""";
 
         expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
     }
 
     public void testDoubleAggs() {
-        String pivot = "{"
-            + " \"group_by\": {"
-            + "   \"id\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } },"
-            + " \"aggregations\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } }"
-            + "}";
+        String pivot = """
+            {
+              "group_by": {
+                "id": {
+                  "terms": {
+                    "field": "id"
+                  }
+                }
+              },
+              "aggs": {
+                "avg": {
+                  "avg": {
+                    "field": "points"
+                  }
+                }
+              },
+              "aggregations": {
+                "avg": {
+                  "avg": {
+                    "field": "points"
+                  }
+                }
+              }
+            }""";
 
         expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
     }
 
     public void testAggDuplicates() throws IOException {
-        String pivot = "{"
-            + " \"group_by\": {"
-            + "   \"id\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"points\": {"
-            + "     \"max\": {"
-            + "       \"field\": \"points\""
-            + "} },"
-            + "   \"points\": {"
-            + "     \"min\": {"
-            + "       \"field\": \"points\""
-            + "} } }"
-            + "}";
+        String pivot = """
+            {
+                "group_by": {
+                    "id": {
+                        "terms": {
+                            "field": "id"
+                        }
+                    }
+                },
+                "aggs": {
+                    "points": {
+                        "max": {
+                            "field": "points"
+                        }
+                    },
+                    "points": {
+                        "min": {
+                            "field": "points"
+                        }
+                    }
+                }
+            }""";
 
         // this throws early in the agg framework
         expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
     }
 
     public void testValidAggNames() throws IOException {
-        String pivotAggs = "{"
-            + " \"group_by\": {"
-            + "   \"user.id.field\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg.field.value\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } } }";
+        String pivotAggs = """
+            {
+              "group_by": {
+                "user.id.field": {
+                  "terms": {
+                    "field": "id"
+                  }
+                }
+              },
+              "aggs": {
+                "avg.field.value": {
+                  "avg": {
+                    "field": "points"
+                  }
+                }
+              }
+            }""";
         PivotConfig pivotConfig = createPivotConfigFromString(pivotAggs, true);
         assertNull(pivotConfig.validate(null));
     }
 
     public void testValidAggNamesNested() throws IOException {
-        String pivotAggs = "{"
-            + "\"group_by\": {"
-            + "  \"timestamp\": {"
-            + "    \"date_histogram\": {"
-            + "      \"field\": \"timestamp\","
-            + "      \"fixed_interval\": \"1d\""
-            + "    }"
-            + "  }"
-            + "},"
-            + "\"aggregations\": {"
-            + "  \"jp\": {"
-            + "    \"filter\": {"
-            + "      \"term\": {"
-            + "        \"geo.src\": \"JP\""
-            + "      }"
-            + "    },"
-            + "    \"aggs\": {"
-            + "      \"os.dc\": {"
-            + "        \"cardinality\": {"
-            + "          \"field\": \"machine.os.keyword\""
-            + "        }"
-            + "      }"
-            + "    }"
-            + "  },"
-            + "  \"us\": {"
-            + "    \"filter\": {"
-            + "      \"term\": {"
-            + "        \"geo.src\": \"US\""
-            + "      }"
-            + "    },"
-            + "    \"aggs\": {"
-            + "      \"os.dc\": {"
-            + "        \"cardinality\": {"
-            + "          \"field\": \"machine.os.keyword\""
-            + "} } } } } }";
+        String pivotAggs = """
+            {
+              "group_by": {
+                "timestamp": {
+                  "date_histogram": {
+                    "field": "timestamp",
+                    "fixed_interval": "1d"
+                  }
+                }
+              },
+              "aggregations": {
+                "jp": {
+                  "filter": {
+                    "term": {
+                      "geo.src": "JP"
+                    }
+                  },
+                  "aggs": {
+                    "os.dc": {
+                      "cardinality": {
+                        "field": "machine.os.keyword"
+                      }
+                    }
+                  }
+                },
+                "us": {
+                  "filter": {
+                    "term": {
+                      "geo.src": "US"
+                    }
+                  },
+                  "aggs": {
+                    "os.dc": {
+                      "cardinality": {
+                        "field": "machine.os.keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
 
         PivotConfig pivotConfig = createPivotConfigFromString(pivotAggs, true);
         assertNull(pivotConfig.validate(null));
     }
 
     public void testValidAggNamesNestedTwice() throws IOException {
-        String pivotAggs = "{"
-            + "    \"group_by\": {"
-            + "      \"timestamp\": {"
-            + "        \"date_histogram\": {"
-            + "          \"field\": \"timestamp\","
-            + "          \"fixed_interval\": \"1d\""
-            + "        }"
-            + "      }"
-            + "    },"
-            + "    \"aggregations\": {"
-            + "      \"jp\": {"
-            + "        \"filter\": {"
-            + "          \"term\": {"
-            + "            \"geo.src\": \"JP\""
-            + "          }"
-            + "        },"
-            + "        \"aggs\": {"
-            + "          \"us\": {"
-            + "            \"filter\": {"
-            + "              \"term\": {"
-            + "                \"geo.dest\": \"US\""
-            + "              }"
-            + "            },"
-            + "            \"aggs\": {"
-            + "              \"os.dc\": {"
-            + "                \"cardinality\": {"
-            + "                  \"field\": \"machine.os.keyword\""
-            + "                }"
-            + "              }"
-            + "            }"
-            + "          }"
-            + "        }"
-            + "      },"
-            + "      \"us\": {"
-            + "        \"filter\": {"
-            + "          \"term\": {"
-            + "            \"geo.src\": \"US\""
-            + "          }"
-            + "        },"
-            + "        \"aggs\": {"
-            + "          \"jp\": {"
-            + "            \"filter\": {"
-            + "              \"term\": {"
-            + "                \"geo.dest\": \"JP\""
-            + "              }"
-            + "            },"
-            + "            \"aggs\": {"
-            + "              \"os.dc\": {"
-            + "                \"cardinality\": {"
-            + "                  \"field\": \"machine.os.keyword\""
-            + "                }"
-            + "              }"
-            + "            }"
-            + "          }"
-            + "        }"
-            + "      }"
-            + "    }"
-            + "  }";
+        String pivotAggs = """
+            {
+              "group_by": {
+                "timestamp": {
+                  "date_histogram": {
+                    "field": "timestamp",
+                    "fixed_interval": "1d"
+                  }
+                }
+              },
+              "aggregations": {
+                "jp": {
+                  "filter": {
+                    "term": {
+                      "geo.src": "JP"
+                    }
+                  },
+                  "aggs": {
+                    "us": {
+                      "filter": {
+                        "term": {
+                          "geo.dest": "US"
+                        }
+                      },
+                      "aggs": {
+                        "os.dc": {
+                          "cardinality": {
+                            "field": "machine.os.keyword"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "us": {
+                  "filter": {
+                    "term": {
+                      "geo.src": "US"
+                    }
+                  },
+                  "aggs": {
+                    "jp": {
+                      "filter": {
+                        "term": {
+                          "geo.dest": "JP"
+                        }
+                      },
+                      "aggs": {
+                        "os.dc": {
+                          "cardinality": {
+                            "field": "machine.os.keyword"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
 
         PivotConfig pivotConfig = createPivotConfigFromString(pivotAggs, true);
         assertNull(pivotConfig.validate(null));
     }
 
     public void testInValidAggNamesNestedTwice() throws IOException {
-        String pivotAggs = "{"
-            + "    \"group_by\": {"
-            + "      \"jp.us.os.dc\": {"
-            + "        \"date_histogram\": {"
-            + "          \"field\": \"timestamp\","
-            + "          \"fixed_interval\": \"1d\""
-            + "        }"
-            + "      }"
-            + "    },"
-            + "    \"aggregations\": {"
-            + "      \"jp\": {"
-            + "        \"filter\": {"
-            + "          \"term\": {"
-            + "            \"geo.src\": \"JP\""
-            + "          }"
-            + "        },"
-            + "        \"aggs\": {"
-            + "          \"us\": {"
-            + "            \"filter\": {"
-            + "              \"term\": {"
-            + "                \"geo.dest\": \"US\""
-            + "              }"
-            + "            },"
-            + "            \"aggs\": {"
-            + "              \"os.dc\": {"
-            + "                \"cardinality\": {"
-            + "                  \"field\": \"machine.os.keyword\""
-            + "                }"
-            + "              }"
-            + "            }"
-            + "          }"
-            + "        }"
-            + "      },"
-            + "      \"us\": {"
-            + "        \"filter\": {"
-            + "          \"term\": {"
-            + "            \"geo.src\": \"US\""
-            + "          }"
-            + "        },"
-            + "        \"aggs\": {"
-            + "          \"jp\": {"
-            + "            \"filter\": {"
-            + "              \"term\": {"
-            + "                \"geo.dest\": \"JP\""
-            + "              }"
-            + "            },"
-            + "            \"aggs\": {"
-            + "              \"os.dc\": {"
-            + "                \"cardinality\": {"
-            + "                  \"field\": \"machine.os.keyword\""
-            + "                }"
-            + "              }"
-            + "            }"
-            + "          }"
-            + "        }"
-            + "      }"
-            + "    }"
-            + "  }";
+        String pivotAggs = """
+            {
+              "group_by": {
+                "jp.us.os.dc": {
+                  "date_histogram": {
+                    "field": "timestamp",
+                    "fixed_interval": "1d"
+                  }
+                }
+              },
+              "aggregations": {
+                "jp": {
+                  "filter": {
+                    "term": {
+                      "geo.src": "JP"
+                    }
+                  },
+                  "aggs": {
+                    "us": {
+                      "filter": {
+                        "term": {
+                          "geo.dest": "US"
+                        }
+                      },
+                      "aggs": {
+                        "os.dc": {
+                          "cardinality": {
+                            "field": "machine.os.keyword"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "us": {
+                  "filter": {
+                    "term": {
+                      "geo.src": "US"
+                    }
+                  },
+                  "aggs": {
+                    "jp": {
+                      "filter": {
+                        "term": {
+                          "geo.dest": "JP"
+                        }
+                      },
+                      "aggs": {
+                        "os.dc": {
+                          "cardinality": {
+                            "field": "machine.os.keyword"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
 
         PivotConfig pivotConfig = createPivotConfigFromString(pivotAggs, true);
         ValidationException validationException = pivotConfig.validate(null);

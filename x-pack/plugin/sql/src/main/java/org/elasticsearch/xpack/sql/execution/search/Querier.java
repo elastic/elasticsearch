@@ -16,10 +16,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -91,24 +89,19 @@ import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.INTROD
 public class Querier {
     private static final Logger log = LogManager.getLogger(Querier.class);
 
-    private final PlanExecutor planExecutor;
     private final SqlConfiguration cfg;
-    private final int size;
     private final Client client;
-    @Nullable
-    private final QueryBuilder filter;
+    private final PlanExecutor planExecutor;
 
-    public Querier(SqlSession sqlSession) {
-        this.planExecutor = sqlSession.planExecutor();
-        this.client = sqlSession.client();
-        this.cfg = sqlSession.configuration();
-        this.filter = cfg.filter();
-        this.size = cfg.pageSize();
+    public Querier(SqlSession session) {
+        this.client = session.client();
+        this.planExecutor = session.planExecutor();
+        this.cfg = session.configuration();
     }
 
     public void query(List<Attribute> output, QueryContainer query, String index, ActionListener<Page> listener) {
         // prepare the request
-        SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, filter, size);
+        SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, cfg.filter(), cfg.pageSize());
 
         if (this.cfg.runtimeMappings() != null) {
             sourceBuilder.runtimeMappings(this.cfg.runtimeMappings());
@@ -228,8 +221,8 @@ public class Querier {
             // schema is set on the first page (as the rest don't hold the schema anymore)
             if (schema == null) {
                 RowSet rowSet = page.rowSet();
-                if (rowSet instanceof SchemaRowSet) {
-                    schema = ((SchemaRowSet) rowSet).schema();
+                if (rowSet instanceof SchemaRowSet schemaRowSet) {
+                    schema = schemaRowSet.schema();
                 } else {
                     onFailure(new SqlIllegalArgumentException("No schema found inside {}", rowSet.getClass()));
                     return;
@@ -245,7 +238,7 @@ public class Querier {
             // 1a. trigger a next call if there's still data
             if (cursor != Cursor.EMPTY) {
                 // trigger a next call
-                planExecutor.nextPage(cfg, cursor, this);
+                planExecutor.nextPageInternal(cfg, cursor, this);
                 // make sure to bail out afterwards as we'll get called by a different thread
                 return;
             }
@@ -332,8 +325,8 @@ public class Querier {
             Aggregations aggs = response.getAggregations();
             if (aggs != null) {
                 Aggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);
-                if (agg instanceof Filters) {
-                    handleBuckets(((Filters) agg).getBuckets(), response);
+                if (agg instanceof Filters filters) {
+                    handleBuckets(filters.getBuckets(), response);
                 } else {
                     throw new SqlIllegalArgumentException("Unrecognized root group found; {}", agg.getClass());
                 }
@@ -385,7 +378,7 @@ public class Querier {
         ) {
             super(listener, client, cfg, output, query, request);
 
-            isPivot = query.fields().stream().anyMatch(t -> t.v1() instanceof PivotColumnRef);
+            isPivot = query.fields().stream().anyMatch(t -> t.extraction() instanceof PivotColumnRef);
         }
 
         @Override
@@ -463,12 +456,12 @@ public class Querier {
 
         protected List<BucketExtractor> initBucketExtractors(SearchResponse response) {
             // create response extractors for the first time
-            List<Tuple<FieldExtraction, String>> refs = query.fields();
+            List<QueryContainer.FieldInfo> refs = query.fields();
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
             ConstantExtractor totalCount = new ConstantExtractor(response.getHits().getTotalHits().value);
-            for (Tuple<FieldExtraction, String> ref : refs) {
-                exts.add(createExtractor(ref.v1(), totalCount));
+            for (QueryContainer.FieldInfo ref : refs) {
+                exts.add(createExtractor(ref.extraction(), totalCount));
             }
             return exts;
         }
@@ -498,8 +491,8 @@ public class Querier {
                 return totalCount;
             }
 
-            if (ref instanceof ComputedRef) {
-                Pipe proc = ((ComputedRef) ref).processor();
+            if (ref instanceof ComputedRef computedRef) {
+                Pipe proc = computedRef.processor();
 
                 // wrap only agg inputs
                 proc = proc.transformDown(AggPathInput.class, l -> {
@@ -538,11 +531,11 @@ public class Querier {
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
             // create response extractors for the first time
-            List<Tuple<FieldExtraction, String>> refs = query.fields();
+            List<QueryContainer.FieldInfo> refs = query.fields();
 
             List<HitExtractor> exts = new ArrayList<>(refs.size());
-            for (Tuple<FieldExtraction, String> ref : refs) {
-                exts.add(createExtractor(ref.v1()));
+            for (QueryContainer.FieldInfo ref : refs) {
+                exts.add(createExtractor(ref.extraction()));
             }
 
             ScrollCursor.handle(
@@ -565,8 +558,8 @@ public class Querier {
                 return new FieldHitExtractor(f.name(), null, cfg.zoneId(), multiValueFieldLeniency);
             }
 
-            if (ref instanceof ComputedRef) {
-                Pipe proc = ((ComputedRef) ref).processor();
+            if (ref instanceof ComputedRef computedRef) {
+                Pipe proc = computedRef.processor();
                 // collect hitNames
                 Set<String> hitNames = new LinkedHashSet<>();
                 proc = proc.transformDown(ReferenceInput.class, l -> {

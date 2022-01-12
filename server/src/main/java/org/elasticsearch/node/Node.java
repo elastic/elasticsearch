@@ -10,6 +10,7 @@ package org.elasticsearch.node;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Assertions;
@@ -156,6 +157,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.shutdown.PluginShutdownService;
@@ -233,13 +235,10 @@ public class Node implements Closeable {
         }, Property.NodeScope)
     );
     public static final Setting<String> BREAKER_TYPE_KEY = new Setting<>("indices.breaker.type", "hierarchy", (s) -> {
-        switch (s) {
-            case "hierarchy":
-            case "none":
-                return s;
-            default:
-                throw new IllegalArgumentException("indices.breaker.type must be one of [hierarchy, none] but was: " + s);
-        }
+        return switch (s) {
+            case "hierarchy", "none" -> s;
+            default -> throw new IllegalArgumentException("indices.breaker.type must be one of [hierarchy, none] but was: " + s);
+        };
     }, Setting.Property.NodeScope);
 
     public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING = Setting.positiveTimeSetting(
@@ -466,6 +465,7 @@ public class Node implements Closeable {
             final UsageService usageService = new UsageService();
 
             SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
+            IndexSearcher.setMaxClauseCount(SearchUtils.calculateMaxClauseValue(threadPool));
             List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
                 NetworkModule.getNamedWriteables().stream(),
                 IndicesModule.getNamedWriteables().stream(),
@@ -722,7 +722,7 @@ public class Node implements Closeable {
             final Transport transport = networkModule.getTransportSupplier().get();
             Set<String> taskHeaders = Stream.concat(
                 pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
-                Stream.of(Task.X_OPAQUE_ID, Task.TRACE_ID)
+                Stream.of(Task.X_OPAQUE_ID_HTTP_HEADER, Task.TRACE_ID, Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER)
             ).collect(Collectors.toSet());
             final TransportService transportService = newTransportService(
                 settings,
@@ -762,7 +762,7 @@ public class Node implements Closeable {
                 repositoryService,
                 transportService,
                 actionModule.getActionFilters(),
-                systemIndices.getFeatures()
+                systemIndices
             );
             SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
                 settings,

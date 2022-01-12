@@ -22,12 +22,12 @@ import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_ASYNC_ID;
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_ASYNC_PARTIAL;
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_ASYNC_RUNNING;
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_CURSOR;
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_TOOK_NANOS;
-import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_ASYNC_ID;
+import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_ASYNC_PARTIAL;
+import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_ASYNC_RUNNING;
+import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_CURSOR;
+import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_TOOK_NANOS;
+import static org.elasticsearch.xpack.sql.action.Protocol.URL_PARAM_DELIMITER;
 
 class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
 

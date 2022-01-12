@@ -320,8 +320,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
         }, listener::onFailure);
 
-        ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(fieldMappings -> {
-            this.fieldMappings = fieldMappings;
+        ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(mappings -> {
+            this.fieldMappings = mappings;
             configurationReadyListener.onResponse(null);
         }, listener::onFailure);
 
@@ -929,8 +929,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         // irrecoverable error without special handling
-        if (unwrappedException instanceof ElasticsearchException) {
-            ElasticsearchException elasticsearchException = (ElasticsearchException) unwrappedException;
+        if (unwrappedException instanceof ElasticsearchException elasticsearchException) {
             if (ExceptionRootCauseFinder.IRRECOVERABLE_REST_STATUSES.contains(elasticsearchException.status())) {
                 failIndexer("task encountered irrecoverable failure: " + elasticsearchException.getDetailedMessage());
                 return;
@@ -1112,8 +1111,16 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         // reduce the indexes to query to the ones that have changes
         SearchRequest request = new SearchRequest(
-            // gh#77329 optimization turned off
-            TransformCheckpoint.getChangedIndices(TransformCheckpoint.EMPTY, getNextCheckpoint()).toArray(new String[0])
+            /*
+             * gh#77329 optimization turned off, gh#81252 transform can fail if an index gets deleted during searches
+             *
+             * Until proper checkpoint searches (seq_id per shard) are possible, we have to query
+             *  - all indices
+             *  - resolve indices at search
+             *
+             * TransformCheckpoint.getChangedIndices(TransformCheckpoint.EMPTY, getNextCheckpoint()).toArray(new String[0])
+             */
+            getConfig().getSource().getIndex()
         );
 
         request.allowPartialSearchResults(false) // shard failures should fail the request
@@ -1155,7 +1162,16 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 if (filter != null) {
                     filteredQuery.filter(filter);
                 }
-                request.indices(changeCollector.getIndicesToQuery(lastCheckpoint, nextCheckpoint).toArray(new String[0]));
+                /*
+                 * gh#81252 transform can fail if an index gets deleted during searches
+                 *
+                 * Until proper checkpoint searches (seq_id per shard) are possible, we have to query
+                 *  - all indices
+                 *  - resolve indices at search time
+                 *
+                 * request.indices(changeCollector.getIndicesToQuery(lastCheckpoint, nextCheckpoint).toArray(new String[0]));
+                 */
+                request.indices(getConfig().getSource().getIndex());
             } else {
                 request.indices(getConfig().getSource().getIndex());
             }

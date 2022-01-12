@@ -69,17 +69,11 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
                     }
                 } else if (token.equals(Token.START_OBJECT)) {
                     switch (fieldName) {
-                        case WriteableIngestDocument.DOC_FIELD:
-                            result = new SimulateDocumentBaseResult(
-                                WriteableIngestDocument.INGEST_DOC_PARSER.apply(parser, null).getIngestDocument()
-                            );
-                            break;
-                        case "error":
-                            result = new SimulateDocumentBaseResult(ElasticsearchException.fromXContent(parser));
-                            break;
-                        default:
-                            parser.skipChildren();
-                            break;
+                        case WriteableIngestDocument.DOC_FIELD -> result = new SimulateDocumentBaseResult(
+                            WriteableIngestDocument.INGEST_DOC_PARSER.apply(parser, null).getIngestDocument()
+                        );
+                        case "error" -> result = new SimulateDocumentBaseResult(ElasticsearchException.fromXContent(parser));
+                        default -> parser.skipChildren();
                     }
                 } // else it is a value skip it
             }

@@ -142,17 +142,13 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
         for (Alternative alternative : alternatives) {
             double statistic = sidedStatistic(x, y, alternative);
             switch (alternative) {
-                case GREATER:
-                case LESS:
+                case GREATER, LESS -> {
                     double z = Math.sqrt(zConstant) * statistic;
                     double unBounded = Math.exp(-2 * Math.pow(z, 2) - 2 * z * continuityConstant / 3.0);
                     results.put(alternative.toString(), Math.min(1.0, Math.max(unBounded, 0.0)));
-                    break;
-                case TWO_SIDED:
-                    results.put(alternative.toString(), KOLMOGOROV_SMIRNOV_TEST.exactP(statistic, x.length, y.length, false));
-                    break;
-                default:
-                    throw new AggregationExecutionException("unexpected alternative [" + alternative + "]");
+                }
+                case TWO_SIDED -> results.put(alternative.toString(), KOLMOGOROV_SMIRNOV_TEST.exactP(statistic, x.length, y.length, false));
+                default -> throw new AggregationExecutionException("unexpected alternative [" + alternative + "]");
             }
 
         }
@@ -219,14 +215,11 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
     }
 
     private static double sidedKSStat(double a, double b, Alternative alternative) {
-        switch (alternative) {
-            case LESS:
-                return Math.max(b - a, 0);
-            case GREATER:
-                return Math.max(a - b, 0);
-            default:
-                return Math.abs(b - a);
-        }
+        return switch (alternative) {
+            case LESS -> Math.max(b - a, 0);
+            case GREATER -> Math.max(a - b, 0);
+            default -> Math.abs(b - a);
+        };
     }
 
     @Override
@@ -248,7 +241,7 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
             );
         }
         final MlAggsHelper.DoubleBucketValues bucketsValue = maybeBucketsValue.get();
-        double[] fractions = this.fractions == null
+        double[] fractionsArr = this.fractions == null
             ? DoubleStream.concat(
                 DoubleStream.of(0.0),
                 Stream.generate(() -> 1.0 / (bucketsValue.getDocCounts().length - 1))
@@ -258,6 +251,6 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
             // We prepend zero to the fractions as we prepend 0 to the doc counts and we want them to be the same length when
             // we create the monotonically increasing values for distribution comparison.
             : DoubleStream.concat(DoubleStream.of(0.0), Arrays.stream(this.fractions)).toArray();
-        return new InternalKSTestAggregation(name(), metadata(), ksTest(fractions, bucketsValue, alternatives, samplingMethod));
+        return new InternalKSTestAggregation(name(), metadata(), ksTest(fractionsArr, bucketsValue, alternatives, samplingMethod));
     }
 }

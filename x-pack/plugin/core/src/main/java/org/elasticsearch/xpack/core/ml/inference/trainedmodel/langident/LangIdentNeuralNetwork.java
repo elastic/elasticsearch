@@ -229,23 +229,22 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
             );
         }
         List<?> embeddedVector = (List<?>) vector;
-        double[] scores = new double[LANGUAGE_NAMES.size()];
+        double[] probabilities = new double[LANGUAGE_NAMES.size()];
         int totalLen = 0;
         for (Object vec : embeddedVector) {
             if (vec instanceof CustomWordEmbedding.StringLengthAndEmbedding == false) {
                 continue;
             }
             CustomWordEmbedding.StringLengthAndEmbedding stringLengthAndEmbedding = (CustomWordEmbedding.StringLengthAndEmbedding) vec;
-            int square = stringLengthAndEmbedding.getStringLen() * stringLengthAndEmbedding.getStringLen();
+            int square = stringLengthAndEmbedding.getUtf8StringLen() * stringLengthAndEmbedding.getUtf8StringLen();
             totalLen += square;
             double[] h0 = hiddenLayer.productPlusBias(false, stringLengthAndEmbedding.getEmbedding());
             double[] score = softmaxLayer.productPlusBias(true, h0);
-            sumDoubleArrays(scores, score, Math.max(square, 1));
+            sumDoubleArrays(probabilities, softMax(score), Math.max(square, 1));
         }
         if (totalLen != 0) {
-            divMut(scores, totalLen);
+            divMut(probabilities, totalLen);
         }
-        double[] probabilities = softMax(scores);
         ClassificationConfig classificationConfig = (ClassificationConfig) config;
         Tuple<InferenceHelpers.TopClassificationValue, List<TopClassEntry>> topClasses = InferenceHelpers.topClasses(
             probabilities,

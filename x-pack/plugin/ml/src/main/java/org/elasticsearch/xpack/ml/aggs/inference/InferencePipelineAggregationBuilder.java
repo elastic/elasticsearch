@@ -229,8 +229,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
                 );
             }
 
-            if (inferenceConfig instanceof ClassificationConfigUpdate) {
-                ClassificationConfigUpdate classUpdate = (ClassificationConfigUpdate) inferenceConfig;
+            if (inferenceConfig instanceof ClassificationConfigUpdate classUpdate) {
 
                 // error if the top classes result field is set and not equal to the only acceptable value
                 String topClassesField = classUpdate.getTopClassesResultsField();
@@ -263,11 +262,11 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
 
         SetOnce<LocalModel> loadedModel = new SetOnce<>();
         BiConsumer<Client, ActionListener<?>> modelLoadAction = (client, listener) -> modelLoadingService.get()
-            .getModelForSearch(modelId, listener.delegateFailure((delegate, model) -> {
-                loadedModel.set(model);
+            .getModelForSearch(modelId, listener.delegateFailure((delegate, localModel) -> {
+                loadedModel.set(localModel);
 
                 boolean isLicensed = MachineLearningField.ML_API_FEATURE.check(licenseState)
-                    || licenseState.isAllowedByLicense(model.getLicenseLevel());
+                    || licenseState.isAllowedByLicense(localModel.getLicenseLevel());
                 if (isLicensed) {
                     delegate.onResponse(null);
                 } else {

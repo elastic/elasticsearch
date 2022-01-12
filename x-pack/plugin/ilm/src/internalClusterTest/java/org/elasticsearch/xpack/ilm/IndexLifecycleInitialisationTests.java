@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -94,17 +95,17 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
-        settings.put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
+        Settings.Builder nodeSettings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        nodeSettings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
+        nodeSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
+        nodeSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
+        nodeSettings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
+        nodeSettings.put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
 
         // This is necessary to prevent ILM and SLM installing a lifecycle policy, these tests assume a blank slate
-        settings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false);
-        settings.put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
-        return settings.build();
+        nodeSettings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false);
+        nodeSettings.put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
+        return nodeSettings.build();
     }
 
     @Override
@@ -193,6 +194,49 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
             );
             assertThat(lifecycleState.getStep(), equalTo("complete"));
         });
+    }
+
+    public void testNoOpPolicyUpdates() throws Exception {
+        internalCluster().startNode();
+        Map<String, Phase> phases = new HashMap<>();
+        phases.put("hot", new Phase("hot", TimeValue.ZERO, Map.of()));
+        LifecyclePolicy policy = new LifecyclePolicy("mypolicy", phases);
+
+        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(policy);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
+
+        GetLifecycleAction.Response getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE, new GetLifecycleAction.Request())
+            .get();
+        assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
+        GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
+        assertThat(responseItem.getLifecyclePolicy(), equalTo(policy));
+        assertThat(responseItem.getVersion(), equalTo(1L));
+
+        // Put the same policy in place, which should be a no-op
+        putLifecycleRequest = new PutLifecycleAction.Request(policy);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
+
+        getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE, new GetLifecycleAction.Request()).get();
+        assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
+        responseItem = getLifecycleResponse.getPolicies().get(0);
+        assertThat(responseItem.getLifecyclePolicy(), equalTo(policy));
+        // Version should still be 1
+        assertThat(responseItem.getVersion(), equalTo(1L));
+
+        // Generate a brand new policy
+        Map<String, Phase> newPhases = new HashMap<>(phases);
+        newPhases.put("cold", new Phase("cold", TimeValue.timeValueDays(1), Map.of()));
+        policy = new LifecyclePolicy("mypolicy", newPhases);
+
+        putLifecycleRequest = new PutLifecycleAction.Request(policy);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
+
+        getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE, new GetLifecycleAction.Request()).get();
+        assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
+        responseItem = getLifecycleResponse.getPolicies().get(0);
+        assertThat(responseItem.getLifecyclePolicy(), equalTo(policy));
+        // Version should now be 2
+        assertThat(responseItem.getVersion(), equalTo(2L));
     }
 
     public void testExplainExecution() throws Exception {

@@ -1274,20 +1274,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
      */
     public void testConcreteIndicesAllPatternRandom() {
         for (int i = 0; i < 10; i++) {
-            final String[] allIndices;
-            switch (randomIntBetween(0, 2)) {
-                case 0:
-                    allIndices = null;
-                    break;
-                case 1:
-                    allIndices = new String[0];
-                    break;
-                case 2:
-                    allIndices = new String[] { Metadata.ALL };
-                    break;
-                default:
-                    throw new UnsupportedOperationException();
-            }
+            final String[] allIndices = switch (randomIntBetween(0, 2)) {
+                case 0 -> null;
+                case 1 -> new String[0];
+                case 2 -> new String[] { Metadata.ALL };
+                default -> throw new UnsupportedOperationException();
+            };
             final IndicesOptions indicesOptions = IndicesOptions.fromOptions(
                 randomBoolean(),
                 randomBoolean(),
@@ -2267,9 +2259,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
     }
 
-    public void testFullWildcardSystemIndexResolutionAllowed() {
+    public void testFullWildcardSystemIndexResolutionWithExpandHiddenAllowed() {
         ClusterState state = systemIndexTestClusterState();
         SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
+        request.indicesOptions(IndicesOptions.strictExpandHidden());
 
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
         assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta", ".watches"));
@@ -2299,10 +2292,19 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(indexNames, containsInAnyOrder(".ml-meta"));
     }
 
+    public void testFullWildcardSystemIndicesAreHidden() {
+        ClusterState state = systemIndexTestClusterState();
+        SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
+
+        List<String> indexNames = resolveConcreteIndexNameList(state, request);
+        assertThat(indexNames, containsInAnyOrder("some-other-index"));
+    }
+
     public void testFullWildcardSystemIndexResolutionDeprecated() {
         threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
         ClusterState state = systemIndexTestClusterState();
         SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
+        request.indicesOptions(IndicesOptions.strictExpandHidden());
 
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
         assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta", ".watches"));
@@ -2334,7 +2336,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         );
     }
 
-    public void testWildcardSystemIndexReslutionSingleMatchDeprecated() {
+    public void testWildcardSystemIndexResolutionSingleMatchDeprecated() {
         threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
         ClusterState state = systemIndexTestClusterState();
         SearchRequest request = new SearchRequest(".w*");
@@ -2952,11 +2954,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     private ClusterState systemIndexTestClusterState() {
-        Settings settings = Settings.builder().build();
         Metadata.Builder mdBuilder = Metadata.builder()
-            .put(indexBuilder(".ml-meta", settings).state(State.OPEN).system(true))
-            .put(indexBuilder(".watches", settings).state(State.OPEN).system(true))
-            .put(indexBuilder(".ml-stuff", settings).state(State.OPEN).system(true))
+            .put(indexBuilder(".ml-meta", SystemIndexDescriptor.DEFAULT_SETTINGS).state(State.OPEN).system(true))
+            .put(indexBuilder(".watches", SystemIndexDescriptor.DEFAULT_SETTINGS).state(State.OPEN).system(true))
+            .put(indexBuilder(".ml-stuff", SystemIndexDescriptor.DEFAULT_SETTINGS).state(State.OPEN).system(true))
             .put(indexBuilder("some-other-index").state(State.OPEN));
         SystemIndices systemIndices = new SystemIndices(
             Map.of(

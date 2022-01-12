@@ -135,26 +135,25 @@ public class IndexingIT extends AbstractRollingTestCase {
 
     public void testAutoIdWithOpTypeCreate() throws IOException {
         final String indexName = "auto_id_and_op_type_create_index";
-        StringBuilder b = new StringBuilder();
-        b.append("{\"create\": {\"_index\": \"").append(indexName).append("\"}}\n");
-        b.append("{\"f1\": \"v\"}\n");
+        String b = """
+            {"create": {"_index": "%s"}}
+            {"f1": "v"}
+            """.formatted(indexName);
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
-        bulk.setJsonEntity(b.toString());
+        bulk.setJsonEntity(b);
 
         switch (CLUSTER_TYPE) {
-            case OLD:
+            case OLD -> {
                 Request createTestIndex = new Request("PUT", "/" + indexName);
                 createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
                 client().performRequest(createTestIndex);
-                break;
-            case MIXED:
+            }
+            case MIXED -> {
                 Request waitForGreen = new Request("GET", "/_cluster/health");
                 waitForGreen.addParameter("wait_for_nodes", "3");
                 client().performRequest(waitForGreen);
-
                 Version minNodeVersion = minNodeVersion();
-
                 if (minNodeVersion.before(Version.V_7_5_0)) {
                     ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
                     assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
@@ -168,19 +167,16 @@ public class IndexingIT extends AbstractRollingTestCase {
                 } else {
                     client().performRequest(bulk);
                 }
-                break;
-            case UPGRADED:
-                client().performRequest(bulk);
-                break;
-            default:
-                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+            }
+            case UPGRADED -> client().performRequest(bulk);
+            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
     }
 
     public void testDateNanosFormatUpgrade() throws IOException {
         final String indexName = "test_date_nanos";
         switch (CLUSTER_TYPE) {
-            case OLD:
+            case OLD -> {
                 Request createIndex = new Request("PUT", "/" + indexName);
                 XContentBuilder mappings = XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
@@ -197,7 +193,6 @@ public class IndexingIT extends AbstractRollingTestCase {
                     .endObject();
                 createIndex.setJsonEntity(Strings.toString(mappings));
                 client().performRequest(createIndex);
-
                 Request index = new Request("POST", "/" + indexName + "/_doc/");
                 XContentBuilder doc = XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
@@ -207,9 +202,8 @@ public class IndexingIT extends AbstractRollingTestCase {
                 index.addParameter("refresh", "true");
                 index.setJsonEntity(Strings.toString(doc));
                 client().performRequest(index);
-                break;
-
-            case UPGRADED:
+            }
+            case UPGRADED -> {
                 Request search = new Request("POST", "/" + indexName + "/_search");
                 XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
@@ -217,19 +211,14 @@ public class IndexingIT extends AbstractRollingTestCase {
                     .endObject();
                 search.setJsonEntity(Strings.toString(query));
                 Map<String, Object> response = entityAsMap(client().performRequest(search));
-
                 Map<?, ?> bestHit = (Map<?, ?>) ((List<?>) (XContentMapValues.extractValue("hits.hits", response))).get(0);
                 List<?> date = (List<?>) XContentMapValues.extractValue("fields.date", bestHit);
                 assertThat(date.size(), equalTo(1));
                 assertThat(date.get(0), equalTo("2015-01-01T12:10:30.123Z"));
-
                 List<?> dateNanos = (List<?>) XContentMapValues.extractValue("fields.date_nanos", bestHit);
                 assertThat(dateNanos.size(), equalTo(1));
                 assertThat(dateNanos.get(0), equalTo("2015-01-01T12:10:30.123456789Z"));
-                break;
-
-            default:
-                break;
+            }
         }
     }
 
@@ -262,14 +251,15 @@ public class IndexingIT extends AbstractRollingTestCase {
 
         StringBuilder bulk = new StringBuilder();
         switch (CLUSTER_TYPE) {
-            case OLD:
+            case OLD -> {
                 createTsdbIndex();
                 tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[0], TSDB_TIMES[1], 0.1);
                 tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[0], TSDB_TIMES[1], -0.1);
                 bulk("tsdb", bulk.toString());
                 assertTsdbAgg(closeTo(215.95, 0.005), closeTo(-215.95, 0.005));
                 return;
-            case MIXED:
+            }
+            case MIXED -> {
                 if (FIRST_MIXED_ROUND) {
                     tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[1], TSDB_TIMES[2], 0.1);
                     tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[1], TSDB_TIMES[2], -0.1);
@@ -285,7 +275,8 @@ public class IndexingIT extends AbstractRollingTestCase {
                 bulk("tsdb", bulk.toString());
                 assertTsdbAgg(closeTo(218.95, 0.005), closeTo(-218.95, 0.005), closeTo(2408.45, 0.005), closeTo(21895, 0.5));
                 return;
-            case UPGRADED:
+            }
+            case UPGRADED -> {
                 tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[3], TSDB_TIMES[4], 0.1);
                 tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[3], TSDB_TIMES[4], -0.1);
                 tsdbBulk(bulk, TSDB_DIMS.get(2), TSDB_TIMES[3], TSDB_TIMES[4], 1.1);
@@ -300,6 +291,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                     closeTo(-11022.5, 0.5)
                 );
                 return;
+            }
         }
     }
 
@@ -331,10 +323,10 @@ public class IndexingIT extends AbstractRollingTestCase {
         long delta = TimeUnit.SECONDS.toMillis(20);
         double value = (timeStart - TSDB_TIMES[0]) / TimeUnit.SECONDS.toMillis(20) * rate;
         for (long t = timeStart; t < timeEnd; t += delta) {
-            bulk.append("{\"index\": {\"_index\": \"tsdb\"}}\n");
-            bulk.append("{\"@timestamp\": ").append(t);
-            bulk.append(", \"dim\": \"").append(dim).append("\"");
-            bulk.append(", \"value\": ").append(value).append("}\n");
+            bulk.append("""
+                {"index": {"_index": "tsdb"}}
+                {"@timestamp": %s, "dim": "%s", "value": %s}
+                """.formatted(t, dim, value));
             value += rate;
         }
     }

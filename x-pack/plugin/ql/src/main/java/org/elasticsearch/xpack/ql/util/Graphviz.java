@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.ql.tree.Node;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -25,15 +26,12 @@ public abstract class Graphviz {
     public static String dot(String name, Node<?> root) {
         StringBuilder sb = new StringBuilder();
         // name
-        sb.append(
-            "digraph G { "
-                + "rankdir=BT; \n"
-                + "label=\""
-                + name
-                + "\"; \n"
-                + "node[shape=plaintext, color=azure1];\n "
-                + "edge[color=black,arrowsize=0.5];\n"
-        );
+        sb.append(String.format(Locale.ROOT, """
+            digraph G { rankdir=BT;
+              label="%s";
+              node[shape=plaintext, color=azure1];
+              edge[color=black,arrowsize=0.5];
+            """, name));
         handleNode(sb, root, new AtomicInteger(0), INDENT, true);
         sb.append("}");
         return sb.toString();
@@ -44,13 +42,13 @@ public abstract class Graphviz {
 
         StringBuilder sb = new StringBuilder();
         // name
-        sb.append(
-            "digraph G { "
-                + "rankdir=BT;\n "
-                + "node[shape=plaintext, color=azure1];\n "
-                + "edge[color=black];\n "
-                + "graph[compound=true];\n\n"
-        );
+        sb.append("""
+            digraph G { rankdir=BT;
+             node[shape=plaintext, color=azure1];
+             edge[color=black];
+             graph[compound=true];
+
+            """);
 
         int clusterNodeStart = 1;
         int clusterId = 0;
@@ -130,9 +128,13 @@ public abstract class Graphviz {
         StringBuilder nodeInfo = new StringBuilder();
         nodeInfo.append("\n");
         indent(nodeInfo, currentIndent + NODE_LABEL_INDENT);
-        nodeInfo.append("<table border=\"0\" cellborder=\"1\" cellspacing=\"0\">\n");
+        nodeInfo.append("""
+            <table border="0" cellborder="1" cellspacing="0">
+            """);
         indent(nodeInfo, currentIndent + NODE_LABEL_INDENT);
-        nodeInfo.append("<th><td border=\"0\" colspan=\"2\" align=\"center\"><b>" + n.nodeName() + "</b></td></th>\n");
+        nodeInfo.append(String.format(Locale.ROOT, """
+            <th><td border="0" colspan="2" align="center"><b>%s</b></td></th>
+            """, n.nodeName()));
         indent(nodeInfo, currentIndent + NODE_LABEL_INDENT);
 
         List<Object> props = n.nodeProperties();
@@ -178,8 +180,10 @@ public abstract class Graphviz {
         // check any subtrees
         if (subTrees.isEmpty() == false) {
             // write nested trees
-            output.append("subgraph cluster_" + thisId + " {");
-            output.append("style=filled; color=white; fillcolor=azure2; label=\"\";\n");
+            output.append(String.format(Locale.ROOT, """
+                subgraph cluster_%s{
+                style=filled; color=white; fillcolor=azure2; label="";
+                """, thisId));
         }
 
         // write node info

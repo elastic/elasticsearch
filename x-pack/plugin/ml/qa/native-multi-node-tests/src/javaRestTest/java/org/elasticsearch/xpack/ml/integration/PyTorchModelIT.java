@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
@@ -40,6 +41,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.putPipeline;
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateRequest;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -117,16 +119,12 @@ public class PyTorchModelIT extends ESRestTestCase {
     @Before
     public void setLogging() throws IOException {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity(
-            ""
-                + "{"
-                + "\"persistent\" : {\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" : \"TRACE\",\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : \"TRACE\",\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : \"TRACE\"\n"
-                + "    }"
-                + "}"
-        );
+        loggingSettings.setJsonEntity("""
+            {"persistent" : {
+                    "logger.org.elasticsearch.xpack.ml.inference.allocation" : "TRACE",
+                    "logger.org.elasticsearch.xpack.ml.inference.deployment" : "TRACE",
+                    "logger.org.elasticsearch.xpack.ml.process.logging" : "TRACE"
+                }}""");
         client().performRequest(loggingSettings);
     }
 
@@ -135,16 +133,12 @@ public class PyTorchModelIT extends ESRestTestCase {
         terminate(executorService);
 
         Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity(
-            ""
-                + "{"
-                + "\"persistent\" : {\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\": null,\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null,\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : null\n"
-                + "    }"
-                + "}"
-        );
+        loggingSettings.setJsonEntity("""
+            {"persistent" : {
+                    "logger.org.elasticsearch.xpack.ml.inference.allocation": null,
+                    "logger.org.elasticsearch.xpack.ml.inference.deployment" : null,
+                    "logger.org.elasticsearch.xpack.ml.process.logging" : null
+                }}""");
         client().performRequest(loggingSettings);
 
         new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
@@ -200,8 +194,15 @@ public class PyTorchModelIT extends ESRestTestCase {
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
-        ResponseException ex = expectThrows(ResponseException.class, () -> infer("my words", modelId, TimeValue.ZERO));
-        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
+        // There is a race between inference and timeout so that
+        // even with a zero timeout a valid inference response may
+        // be returned.
+        // The test asserts that if an error occurs it is a timeout error
+        try {
+            infer("my words", modelId, TimeValue.ZERO);
+        } catch (ResponseException ex) {
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(408));
+        }
         stopDeployment(modelId);
     }
 
@@ -234,22 +235,46 @@ public class PyTorchModelIT extends ESRestTestCase {
         CheckedBiConsumer<String, AllocationStatus.State, IOException> assertAtLeast = (modelId, state) -> {
             startDeployment(modelId, state.toString());
             Response response = getTrainedModelStats(modelId);
-            List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(response).get("trained_model_stats");
+            var responseMap = entityAsMap(response);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
             assertThat(stats, hasSize(1));
             String statusState = (String) XContentMapValues.extractValue("deployment_stats.allocation_status.state", stats.get(0));
             assertThat(stats.toString(), statusState, is(not(nullValue())));
             assertThat(AllocationStatus.State.fromString(statusState), greaterThanOrEqualTo(state));
-            Integer byteSize = (Integer) XContentMapValues.extractValue("deployment_stats.model_size_bytes", stats.get(0));
-            assertThat(byteSize, is(not(nullValue())));
+
+            Integer byteSize = (Integer) XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0));
+            assertThat(responseMap.toString(), byteSize, is(not(nullValue())));
             assertThat(byteSize, equalTo((int) RAW_MODEL_SIZE));
 
+            Integer requiredNativeMemory = (Integer) XContentMapValues.extractValue(
+                "model_size_stats.required_native_memory_bytes",
+                stats.get(0)
+            );
+            assertThat(responseMap.toString(), requiredNativeMemory, is(not(nullValue())));
+            assertThat(requiredNativeMemory, equalTo((int) (ByteSizeValue.ofMb(270).getBytes() + 2 * RAW_MODEL_SIZE)));
+
             Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
-            stats = (List<Map<String, Object>>) entityAsMap(humanResponse).get("trained_model_stats");
+            var humanResponseMap = entityAsMap(humanResponse);
+            stats = (List<Map<String, Object>>) humanResponseMap.get("trained_model_stats");
             assertThat(stats, hasSize(1));
-            String stringBytes = (String) XContentMapValues.extractValue("deployment_stats.model_size", stats.get(0));
-            assertThat(stringBytes, is(not(nullValue())));
-            assertThat(stringBytes, equalTo("1.5kb"));
-            stopDeployment(model);
+            String stringModelSizeBytes = (String) XContentMapValues.extractValue("model_size_stats.model_size", stats.get(0));
+            assertThat(
+                "stats response: " + responseMap + " human stats response" + humanResponseMap,
+                stringModelSizeBytes,
+                is(not(nullValue()))
+            );
+            assertThat(stringModelSizeBytes, equalTo("1.5kb"));
+            String stringRequiredNativeMemory = (String) XContentMapValues.extractValue(
+                "model_size_stats.required_native_memory",
+                stats.get(0)
+            );
+            assertThat(
+                "stats response: " + responseMap + " human stats response" + humanResponseMap,
+                stringRequiredNativeMemory,
+                is(not(nullValue()))
+            );
+            assertThat(stringRequiredNativeMemory, equalTo("270mb"));
+            stopDeployment(modelId);
         };
 
         assertAtLeast.accept(model, AllocationStatus.State.STARTING);
@@ -271,7 +296,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(response).get("trained_model_stats");
         assertThat(stats, hasSize(1));
         assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelA));
-        assertThat(XContentMapValues.extractValue("deployment_stats.model_size_bytes", stats.get(0)), equalTo((int) RAW_MODEL_SIZE));
+        assertThat(XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0)), equalTo((int) RAW_MODEL_SIZE));
         List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
             "deployment_stats.nodes",
             stats.get(0)
@@ -400,18 +425,8 @@ public class PyTorchModelIT extends ESRestTestCase {
         createTrainedModel(model);
         putVocabulary(List.of("once", "twice"), model);
         Request request = new Request("PUT", "_ml/trained_models/" + model + "/definition/0");
-        request.setJsonEntity(
-            "{  "
-                + "\"total_definition_length\":"
-                + RAW_MODEL_SIZE
-                + 2L
-                + ","
-                + "\"definition\": \""
-                + BASE_64_ENCODED_MODEL
-                + "\","
-                + "\"total_parts\": 1"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {"total_definition_length":%s2,"definition": "%s","total_parts": 1}""".formatted(RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
         client().performRequest(request);
         Exception ex = expectThrows(Exception.class, () -> startDeployment(model));
         assertThat(
@@ -426,53 +441,54 @@ public class PyTorchModelIT extends ESRestTestCase {
         putVocabulary(List.of("once", "twice"), model);
         putModelDefinition(model);
 
-        String source = "{\n"
-            + "  \"pipeline\": {\n"
-            + "    \"processors\": [\n"
-            + "      {\n"
-            + "        \"inference\": {\n"
-            + "          \"model_id\": \"not-deployed\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    ]\n"
-            + "  },\n"
-            + "  \"docs\": [\n"
-            + "    {\n"
-            + "      \"_source\": {\n"
-            + "        \"input\": \"my words\"\n"
-            + "      }\n"
-            + "    }\n"
-            + "  ]\n"
-            + "}";
+        String source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "not-deployed"
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {
+                  "_source": {
+                    "input": "my words"
+                  }
+                }
+              ]
+            }""";
 
         String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
         assertThat(
             response,
-            containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API.")
-        );
-
-        client().performRequest(
-            putPipeline(
-                "my_pipeline",
-                "{"
-                    + "\"processors\": [\n"
-                    + "      {\n"
-                    + "        \"inference\": {\n"
-                    + "          \"model_id\": \"not-deployed\"\n"
-                    + "        }\n"
-                    + "      }\n"
-                    + "    ]\n"
-                    + "}"
+            allOf(
+                containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API."),
+                containsString("error"),
+                not(containsString("warning"))
             )
         );
 
+        client().performRequest(putPipeline("my_pipeline", """
+            {"processors": [
+                  {
+                    "inference": {
+                      "model_id": "not-deployed"
+                    }
+                  }
+                ]
+            }"""));
+
         Request request = new Request("PUT", "undeployed_model_index/_doc/1?pipeline=my_pipeline&refresh=true");
-        request.setJsonEntity("{\n" + "        \"input\": \"my words\"\n" + "      }\n");
+        request.setJsonEntity("""
+            {
+                    "input": "my words"
+                  }
+            """);
         Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
-        assertThat(
-            ex.getMessage(),
-            containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API.")
-        );
+        assertThat(ex.getMessage(), containsString("Trained model [not-deployed] is not deployed."));
     }
 
     public void testStopUsedDeploymentByIngestProcessor() throws IOException {
@@ -482,22 +498,16 @@ public class PyTorchModelIT extends ESRestTestCase {
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
 
-        client().performRequest(
-            putPipeline(
-                "my_pipeline",
-                "{"
-                    + "\"processors\": [\n"
-                    + "      {\n"
-                    + "        \"inference\": {\n"
-                    + "          \"model_id\": \""
-                    + modelId
-                    + "\"\n"
-                    + "        }\n"
-                    + "      }\n"
-                    + "    ]\n"
-                    + "}"
-            )
-        );
+        client().performRequest(putPipeline("my_pipeline", """
+            {
+              "processors": [
+                {
+                  "inference": {
+                    "model_id": "%s"
+                  }
+                }
+              ]
+            }""".formatted(modelId)));
         ResponseException ex = expectThrows(ResponseException.class, () -> stopDeployment(modelId));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
         assertThat(
@@ -511,6 +521,82 @@ public class PyTorchModelIT extends ESRestTestCase {
         stopDeployment(modelId, true);
     }
 
+    public void testPipelineWithBadProcessor() throws IOException {
+        String model = "deployed";
+        createTrainedModel(model);
+        putVocabulary(List.of("once", "twice"), model);
+        putModelDefinition(model);
+        startDeployment(model);
+        String source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "deployed",
+                      "inference_config": {
+                        "ner": {}
+                      }
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"input": "my words"}}]
+            }
+            """;
+
+        String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(
+            response,
+            allOf(
+                containsString("Trained model [deployed] is configured for task [pass_through] but called with task [ner]"),
+                containsString("error"),
+                not(containsString("warning"))
+            )
+        );
+
+        source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "deployed"
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"input": "my words"}}]
+            }
+            """;
+
+        response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(response, allOf(containsString("error"), not(containsString("warning"))));
+
+        // Missing input field is a warning
+        source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "deployed"
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"something": "my words"}}]
+            }
+            """;
+
+        response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(response, containsString("Input field [input] does not exist in the source document"));
+        assertThat(response, containsString("status_exception"));
+    }
+
     private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
         int inferenceCount = 0;
         for (var node : nodes) {
@@ -521,17 +607,8 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     private void putModelDefinition(String modelId) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
-        request.setJsonEntity(
-            "{  "
-                + "\"total_definition_length\":"
-                + RAW_MODEL_SIZE
-                + ","
-                + "\"definition\": \""
-                + BASE_64_ENCODED_MODEL
-                + "\","
-                + "\"total_parts\": 1"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
         client().performRequest(request);
     }
 
@@ -542,25 +619,28 @@ public class PyTorchModelIT extends ESRestTestCase {
         String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary");
-        request.setJsonEntity("{  " + "\"vocabulary\": [" + quotedWords + "]\n" + "}");
+        request.setJsonEntity("""
+            { "vocabulary": [%s] }
+            """.formatted(quotedWords));
         client().performRequest(request);
     }
 
     private void createTrainedModel(String modelId) throws IOException {
         Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
-        request.setJsonEntity(
-            "{  "
-                + "    \"description\": \"simple model for testing\",\n"
-                + "    \"model_type\": \"pytorch\",\n"
-                + "    \"inference_config\": {\n"
-                + "        \"pass_through\": {\n"
-                + "            \"tokenization\": {"
-                + "              \"bert\": {\"with_special_tokens\": false}\n"
-                + "            }\n"
-                + "        }\n"
-                + "    }\n"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+               "description": "simple model for testing",
+               "model_type": "pytorch",
+               "inference_config": {
+                 "pass_through": {
+                   "tokenization": {
+                     "bert": {
+                       "with_special_tokens": false
+                     }
+                   }
+                 }
+               }
+             }""");
         client().performRequest(request);
     }
 
@@ -600,28 +680,31 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     private Response infer(String input, String modelId, TimeValue timeout) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer?timeout=" + timeout.toString());
-        request.setJsonEntity("{  " + "\"docs\": [{\"input\":\"" + input + "\"}]\n" + "}");
+        request.setJsonEntity("""
+            {  "docs": [{"input":"%s"}] }
+            """.formatted(input));
         return client().performRequest(request);
     }
 
     private Response infer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity("{  " + "\"docs\": [{\"input\":\"" + input + "\"}]\n" + "}");
+        request.setJsonEntity("""
+            {  "docs": [{"input":"%s"}] }
+            """.formatted(input));
         return client().performRequest(request);
     }
 
     private Response infer(String input, String modelId, String resultsField) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity(
-            "{  "
-                + "\"docs\": [{\"input\":\""
-                + input
-                + "\"}],\n"
-                + "\"inference_config\": {\"pass_through\":{\"results_field\": \""
-                + resultsField
-                + "\"}}\n"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "docs": [ { "input": "%s" } ],
+              "inference_config": {
+                "pass_through": {
+                  "results_field": "%s"
+                }
+              }
+            }""".formatted(input, resultsField));
         return client().performRequest(request);
     }
 

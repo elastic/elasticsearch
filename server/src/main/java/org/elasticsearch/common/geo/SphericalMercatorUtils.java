@@ -17,6 +17,8 @@ public class SphericalMercatorUtils {
 
     public static final double MERCATOR_BOUNDS = 20037508.34;
     private static final double MERCATOR_FACTOR = MERCATOR_BOUNDS / 180.0;
+    // latitude lower limit. Below this limit the transformation might result in -Infinity
+    private static final double LAT_LOWER_LIMIT = Math.nextUp(-90.0);
 
     /**
      * Transforms WGS84 longitude to a Spherical mercator longitude
@@ -29,7 +31,7 @@ public class SphericalMercatorUtils {
      * Transforms WGS84 latitude to a Spherical mercator latitude
      */
     public static double latToSphericalMercator(double lat) {
-        double y = Math.log(Math.tan((90 + lat) * Math.PI / 360)) / (Math.PI / 180);
+        double y = Math.log(Math.tan((90 + Math.max(lat, LAT_LOWER_LIMIT)) * Math.PI / 360)) / (Math.PI / 180);
         return y * MERCATOR_FACTOR;
     }
 

@@ -185,27 +185,13 @@ public class SearchAfterIT extends ESIntegTestCase {
             List<Object> values = new ArrayList<>();
             for (int type : types) {
                 switch (type) {
-                    case 0:
-                        values.add(randomBoolean());
-                        break;
-                    case 1:
-                        values.add(randomByte());
-                        break;
-                    case 2:
-                        values.add(randomShort());
-                        break;
-                    case 3:
-                        values.add(randomInt());
-                        break;
-                    case 4:
-                        values.add(randomFloat());
-                        break;
-                    case 5:
-                        values.add(randomDouble());
-                        break;
-                    case 6:
-                        values.add(randomAlphaOfLengthBetween(5, 20));
-                        break;
+                    case 0 -> values.add(randomBoolean());
+                    case 1 -> values.add(randomByte());
+                    case 2 -> values.add(randomShort());
+                    case 3 -> values.add(randomInt());
+                    case 4 -> values.add(randomFloat());
+                    case 5 -> values.add(randomDouble());
+                    case 6 -> values.add(randomAlphaOfLengthBetween(5, 20));
                 }
             }
             values.add(UUIDs.randomBase64UUID());
@@ -446,13 +432,8 @@ public class SearchAfterIT extends ESIntegTestCase {
         if (randomBoolean()) {
             indexSettings.put("sort.field", "timestamp").put("sort.order", randomFrom("desc", "asc"));
         }
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(indexSettings)
-                .setMapping("{\"properties\":{\"timestamp\":{\"type\": \"date\", \"format\": \"epoch_millis\"}}}")
-        );
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings).setMapping("""
+            {"properties":{"timestamp":{"type": "date", "format": "epoch_millis"}}}"""));
         Randomness.shuffle(timestamps);
         final BulkRequestBuilder bulk = client().prepareBulk();
         bulk.setRefreshPolicy(IMMEDIATE);

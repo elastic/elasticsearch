@@ -801,13 +801,11 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         final Path caPath = requestPath("CA Path: ", terminal, env, true);
         final FileType fileType = guessFileType(caPath, terminal);
         switch (fileType) {
-
-            case PKCS12:
-            case JKS:
+            case PKCS12, JKS -> {
                 terminal.println(Terminal.Verbosity.VERBOSE, "CA file " + caPath + " appears to be a " + fileType + " keystore");
                 return readKeystoreCA(caPath, fileType, terminal);
-
-            case PEM_KEY:
+            }
+            case PEM_KEY -> {
                 printHeader("What is the path to your CA certificate?", terminal);
                 terminal.println(caPath + " appears to be a PEM formatted private key file.");
                 terminal.println("In order to use it for signing we also need access to the certificate");
@@ -815,8 +813,8 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 terminal.println("");
                 final Path caCertPath = requestPath("CA Certificate: ", terminal, env, true);
                 return readPemCA(caCertPath, caPath, terminal);
-
-            case PEM_CERT:
+            }
+            case PEM_CERT -> {
                 printHeader("What is the path to your CA key?", terminal);
                 terminal.println(caPath + " appears to be a PEM formatted certificate file.");
                 terminal.println("In order to use it for signing we also need access to the private key");
@@ -824,18 +822,18 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 terminal.println("");
                 final Path caKeyPath = requestPath("CA Key: ", terminal, env, true);
                 return readPemCA(caPath, caKeyPath, terminal);
-
-            case PEM_CERT_CHAIN:
+            }
+            case PEM_CERT_CHAIN -> {
                 terminal.println(Terminal.Verbosity.SILENT, "The file at " + caPath + " contains multiple certificates.");
                 terminal.println("That type of file typically represents a certificate-chain");
                 terminal.println("This tool requires a single certificate for the CA");
                 throw new UserException(ExitCodes.DATA_ERROR, caPath + ": Unsupported file type (certificate chain)");
-
-            case UNRECOGNIZED:
-            default:
+            }
+            default -> {
                 terminal.println(Terminal.Verbosity.SILENT, "The file at " + caPath + " isn't a file type that this tool recognises.");
                 terminal.println("Please try again with a CA in PKCS#12, JKS or PEM format");
                 throw new UserException(ExitCodes.DATA_ERROR, caPath + ": Unrecognized file type");
+            }
         }
     }
 

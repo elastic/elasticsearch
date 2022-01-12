@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
-import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
@@ -24,7 +25,6 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 public class FillMaskProcessorTests extends ESTestCase {
@@ -76,9 +76,9 @@ public class FillMaskProcessorTests extends ESTestCase {
         tokenization.addTokenization("", false, new String[] {}, new int[] {}, new int[] {});
 
         PyTorchResult pyTorchResult = new PyTorchResult("1", new double[][][] { { {} } }, 0L, null);
-        assertThat(
-            FillMaskProcessor.processResult(tokenization, pyTorchResult, 5, randomAlphaOfLength(10)),
-            instanceOf(WarningInferenceResults.class)
+        expectThrows(
+            ElasticsearchStatusException.class,
+            () -> FillMaskProcessor.processResult(tokenization, pyTorchResult, 5, randomAlphaOfLength(10))
         );
     }
 
@@ -88,7 +88,7 @@ public class FillMaskProcessorTests extends ESTestCase {
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null, null, null);
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.validateInputs(input));
+        ValidationException e = expectThrows(ValidationException.class, () -> processor.validateInputs(input));
         assertThat(e.getMessage(), containsString("no [MASK] token could be found"));
     }
 
@@ -98,7 +98,7 @@ public class FillMaskProcessorTests extends ESTestCase {
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null, null, null);
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.validateInputs(input));
+        ValidationException e = expectThrows(ValidationException.class, () -> processor.validateInputs(input));
         assertThat(e.getMessage(), containsString("only one [MASK] token should exist in the input"));
     }
 }

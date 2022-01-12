@@ -1153,10 +1153,8 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         merge(mapperService, Strings.toString(doc.dynamicMappingsUpdate()));
         merge(mapperService, Strings.toString(doc.dynamicMappingsUpdate()));
 
-        assertThat(
-            Strings.toString(mapperService.documentMapper().mapping()),
-            containsString("\"properties\":{\"object\":{\"type\":\"nested\",\"include_in_parent\":true}}")
-        );
+        assertThat(Strings.toString(mapperService.documentMapper().mapping()), containsString("""
+            "properties":{"object":{"type":"nested","include_in_parent":true}}"""));
     }
 
     public void testFieldNames() throws Exception {

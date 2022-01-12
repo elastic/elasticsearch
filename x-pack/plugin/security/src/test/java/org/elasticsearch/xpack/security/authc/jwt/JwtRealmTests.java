@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
+import org.elasticsearch.xpack.security.support.CapturingActionListener;
 import org.junit.After;
 import org.junit.Before;
 
@@ -538,8 +539,8 @@ public class JwtRealmTests extends JwtTestCase {
             final CapturingActionListener<AuthenticationResult<User>> capturingActionListener = new CapturingActionListener<>();
             realm.authenticate(authenticationToken, capturingActionListener);
 
-            final Exception capturedException = capturingActionListener.getException();
-            final AuthenticationResult<User> capturedAuthenticationResult = capturingActionListener.getResult();
+            final Exception capturedException = capturingActionListener.getFailure();
+            final AuthenticationResult<User> capturedAuthenticationResult = capturingActionListener.getResponse();
             if (capturedException != null) {
                 LOGGER.info("Exception: ", capturedException);
                 assertThat(capturedAuthenticationResult, is(nullValue()));

@@ -1,0 +1,6 @@
+pr: 77791
+summary: Label thread names with tracing info
+area: Infra/Core
+type: enhancement
+issues:
+ - 74580

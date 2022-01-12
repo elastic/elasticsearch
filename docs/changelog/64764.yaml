@@ -1,0 +1,6 @@
+pr: 64764
+summary: Fix converting YML to map in XContentHelper
+area: Infra/Core
+type: bug
+issues:
+ - 63247

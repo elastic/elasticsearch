@@ -29,7 +29,7 @@ Machine Learning::
 * Deprecate `estimated_heap_memory_usage_bytes` and replace with `model_size_bytes` {es-pull}80554[#80554]
 
 Search::
-* Configure `IndexSearcher.maxClauseCount()` based on Node characteristics {es-pull}81525[#81525] (issue: {es-issue}46433[#46433])
+* Configure `IndexSearcher.maxClauseCount()` based on node characteristics {es-pull}81525[#81525] (issue: {es-issue}46433[#46433])
 
 Transform::
 * Improve transform deprecation messages {es-pull}81847[#81847] (issues: {es-issue}81521[#81521], {es-issue}81523[#81523])
@@ -39,7 +39,7 @@ Transform::
 === Enhancements
 
 Authorization::
-* Granting `kibana_system` reserved role access to "all" privileges to .internal.preview.alerts* index {es-pull}80889[#80889] (issues: {es-issue}76624[#76624], {es-issue}80746[#80746], {es-issue}116374[#116374])
+* Granting `kibana_system` reserved role access to "all" privileges to `.internal.preview.alerts*` index {es-pull}80889[#80889] (issues: {es-issue}76624[#76624], {es-issue}80746[#80746], {es-issue}116374[#116374])
 * Granting `kibana_system` reserved role access to "all" privileges to .preview.alerts* index {es-pull}80746[#80746]
 * Granting editor and viewer roles access to alerts-as-data indices {es-pull}81285[#81285]
 
@@ -51,7 +51,7 @@ Indices APIs::
 * Reuse `MappingMetadata` instances in Metadata class {es-pull}80348[#80348] (issues: {es-issue}69772[#69772], {es-issue}77466[#77466])
 
 Infra/Settings::
-* Implement Setting Deduplication via String Interning {es-pull}80493[#80493] (issues: {es-issue}77466[#77466], {es-issue}78892[#78892])
+* Implement setting deduplication via string interning {es-pull}80493[#80493] (issues: {es-issue}77466[#77466], {es-issue}78892[#78892])
 
 Ingest::
 * Extract more standard metadata from binary files {es-pull}78754[#78754] (issue: {es-issue}22339[#22339])
@@ -64,10 +64,10 @@ Monitoring::
 * Adding default templates for Metricbeat ECS data {es-pull}81744[#81744]
 
 Network::
-* Improve Slow Inbound Handling to Include Response Type {es-pull}80425[#80425]
+* Improve slow inbound handling to include response type {es-pull}80425[#80425]
 
 Recovery::
-* Fix `PendingReplicationActions` Submitting lots of NOOP Tasks to GENERIC {es-pull}82092[#82092] (issues: {es-issue}77466[#77466], {es-issue}79837[#79837])
+* Fix `PendingReplicationActions` submitting lots of `NOOP` tasks to `GENERIC` {es-pull}82092[#82092] (issues: {es-issue}77466[#77466], {es-issue}79837[#79837])
 
 Reindex::
 * Do not scroll if max docs is less than scroll size (update/delete by query) {es-pull}81654[#81654] (issue: {es-issue}54270[#54270])

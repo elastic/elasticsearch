@@ -352,12 +352,10 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         ) {
             pendingFetchShardCount.incrementAndGet();
             // group shards by node
+            ShardRequestInfo<NodeGatewayStartedShards> shardRequestInfo = new ShardRequestInfo<>(shardId, customDataPath, listener);
             for (DiscoveryNode node : nodes) {
-                Map<ShardId, ShardRequestInfo<NodeGatewayStartedShards>> nodeLevelRequests = queuedRequests.computeIfAbsent(
-                    node,
-                    n -> new HashMap<>()
-                );
-                nodeLevelRequests.put(shardId, new ShardRequestInfo<>(shardId, customDataPath, listener));
+                var nodeLevelRequests = queuedRequests.computeIfAbsent(node, n -> new HashMap<>());
+                nodeLevelRequests.put(shardId, shardRequestInfo);
             }
             if (logger.isTraceEnabled()) {
                 for (DiscoveryNode node : nodes) {
@@ -559,9 +557,10 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         ) {
             pendingFetchShardCount.incrementAndGet();
             // group shards by node
+            ShardRequestInfo<NodeStoreFilesMetadata> shardRequestInfo = new ShardRequestInfo<>(shardId, customDataPath, listener);
             for (DiscoveryNode node : nodes) {
                 var nodeLevelRequests = queuedRequests.computeIfAbsent(node, n -> new HashMap<>());
-                nodeLevelRequests.put(shardId, new ShardRequestInfo<>(shardId, customDataPath, listener));
+                nodeLevelRequests.put(shardId, shardRequestInfo);
             }
             if (logger.isTraceEnabled()) {
                 for (DiscoveryNode node : nodes) {

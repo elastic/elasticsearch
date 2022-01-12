@@ -54,26 +54,37 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
         oldNodeName = bwcNodes.get(0).getNodeName();
         newNodeName = newNodes.get(0).getNodeName();
         bwcNodeVersion = bwcNodes.get(0).getVersion();
-        createIndexOnNode(index, newNodeName, null);
-        createIndexOnNode(index_old, oldNodeName, null);
-        createIndexOnNode(index_old_no_source, oldNodeName, "\"_source\":{\"enabled\": false}");
+        createIndexOnNode(index, newNodeName, null, false);
+        createIndexOnNode(index_old, oldNodeName, null, false);
+        String sourceDisabledMapping = "\"_source\":{\"enabled\": false}";
+        boolean includeTypeName = bwcNodeVersion.before(Version.V_7_0_0);
+        if (includeTypeName) {
+            sourceDisabledMapping = "\"_doc\": {" + sourceDisabledMapping + "}";
+        }
+        createIndexOnNode(index_old_no_source, oldNodeName, sourceDisabledMapping, includeTypeName);
         refreshAllIndices();
     }
 
-    private void createIndexOnNode(String indexName, String nodeName, String mappings) throws IOException {
+    private void createIndexOnNode(String indexName, String nodeName, String mappings, boolean includeTypeName) throws IOException {
         if (indexExists(indexName) == false) {
             Request createIndexRequest = new Request("PUT", "/" + indexName);
-            String entity = "{\"settings\": " + Strings.toString(Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", nodeName)
-                .build());
+            String entity = "{\"settings\": "
+                + Strings.toString(
+                    Settings.builder()
+                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", nodeName)
+                        .build()
+                );
             if (mappings != null) {
                 entity += ",\"mappings\" : {" + mappings + "}";
             }
             entity += "}";
             createIndexRequest.setJsonEntity(entity);
             createIndexRequest.setOptions(allowTypesRemovalWarnings());
+            if (includeTypeName) {
+                createIndexRequest.addParameter("include_type_name", "true");
+            }
             client().performRequest(createIndexRequest);
             for (int i = 0; i < 5; i++) {
                 Request request = new Request("PUT", indexName + "/_doc/" + i);

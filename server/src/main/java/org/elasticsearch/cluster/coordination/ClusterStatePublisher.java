@@ -21,7 +21,7 @@ public interface ClusterStatePublisher {
      * Publishes an updated {@link ClusterState} to all the nodes in the cluster:
      *
      * <ul>
-     *     <li>Send the updated state to all nodes. Typically we only send a {@link Diff} which each node applies to its local state to
+     *     <li>Send the updated state to all nodes. Typically we only send a {@link Diff} which each node combines with its local state to
      *     yield the updated state very cheaply.</li>
      *     <li>Wait for enough master-eligible nodes to indicate that they have <i>accepted</i> the new state (i.e. written it to durable
      *     storage).</li>

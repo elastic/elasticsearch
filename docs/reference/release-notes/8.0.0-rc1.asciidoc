@@ -100,7 +100,7 @@ Data streams::
 * Prohibit restoring a data stream alias with a conflicting write data stream {es-pull}81217[#81217] (issue: {es-issue}80976[#80976])
 
 ILM+SLM::
-* Less Verbose Serialization of Snapshot Failure in SLM Metadata {es-pull}80942[#80942] (issue: {es-issue}77466[#77466])
+* Less verbose serialization of snapshot failure in SLM metadata {es-pull}80942[#80942] (issue: {es-issue}77466[#77466])
 
 Indices APIs::
 * Fix `ComposableIndexTemplate` equals when `composed_of` is null {es-pull}80864[#80864]

@@ -1664,12 +1664,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 };
 
                 try {
-                    deleteSnapshotsByUuid(
-                        repositoryName,
-                        new String[] { snapshotId.getUUID() },
-                        DeleteSnapshotRequest.DEFAULT_MASTER_NODE_TIMEOUT,
-                        listener
-                    );
+                    deleteSnapshotsByUuid(repositoryName, new String[] { snapshotId.getUUID() }, listener);
                 } catch (Exception e) {
                     logger.warn(
                         () -> new ParameterizedMessage("[{}] failed to trigger deletion of snapshot [{}]", repositoryName, snapshotId),
@@ -2510,16 +2505,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *
      * @param repositoryName the name of the repository that contains the snapshots to delete
      *                       @param snapshotUuids the uuids of the snapshots to delete
-     *                                            @param masterNodeTimeout the timeout to use for the cluster state update task
      * @param listener        listener
      */
-    private void deleteSnapshotsByUuid(
-        final String repositoryName,
-        final String[] snapshotUuids,
-        final TimeValue masterNodeTimeout,
-        final ActionListener<Void> listener
-    ) {
-        deleteSnapshots(repositoryName, null, snapshotUuids, masterNodeTimeout, SnapshotId::getUUID, listener);
+    private void deleteSnapshotsByUuid(final String repositoryName, final String[] snapshotUuids, final ActionListener<Void> listener) {
+        deleteSnapshots(repositoryName, null, snapshotUuids, null, SnapshotId::getUUID, listener);
     }
 
     /**
@@ -2530,15 +2519,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param repositoryName the name of the repository that contains the snapshots to delete
      * @param snapshotNames the names of the snapshots to delete
      * @param snapshotUuids the uuids of the snapshots to delete
-     * @param masterNodeTimeout the timeout to use for the cluster state update task
+     * @param masterNodeTimeout the timeout to use for the cluster state update task, or null if no time out is needed
      * @param mapping   the mapping function used to match the {@link SnapshotId} against the given snapshotNamesOrUuids
      * @param listener  listener
      */
     private void deleteSnapshots(
         final String repositoryName,
-        final String[] snapshotNames,
-        final String[] snapshotUuids,
-        final TimeValue masterNodeTimeout,
+        @Nullable final String[] snapshotNames,
+        @Nullable final String[] snapshotUuids,
+        @Nullable final TimeValue masterNodeTimeout,
         final Function<SnapshotId, String> mapping,
         final ActionListener<Void> listener
     ) {

@@ -460,7 +460,7 @@ public abstract class MappedFieldType {
         if (isIndexed == false && docValues == false) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed nor has doc values.");
-        } else if (docValues && context.allowExpensiveQueries() == false) {
+        } else if (isIndexed == false && docValues && context.allowExpensiveQueries() == false) {
             // if query can only run using doc values, ensure running expensive queries are allowed
             throw new ElasticsearchException(
                 "Cannot search on field ["

@@ -40,24 +40,15 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         StepKey targetNextStepKey = instance.getTargetNextStepKey();
 
         switch (between(0, 2)) {
-            case 0:
-                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                indexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index;
-                break;
-            case 3:
-                targetNextStepKey = new StepKey(
-                    targetNextStepKey.getPhase(),
-                    targetNextStepKey.getAction(),
-                    targetNextStepKey.getName() + randomAlphaOfLength(5)
-                );
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 2 -> indexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index;
+            case 3 -> targetNextStepKey = new StepKey(
+                targetNextStepKey.getPhase(),
+                targetNextStepKey.getAction(),
+                targetNextStepKey.getName() + randomAlphaOfLength(5)
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new CopyExecutionStateStep(key, nextKey, indexNameSupplier, targetNextStepKey);

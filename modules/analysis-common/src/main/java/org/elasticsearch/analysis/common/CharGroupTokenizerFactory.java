@@ -47,23 +47,12 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory {
                 tokenizeOnChars.add((int) parseEscapedChar(c));
             } else {
                 switch (c) {
-                    case "letter":
-                        tokenizeOnLetter = true;
-                        break;
-                    case "digit":
-                        tokenizeOnDigit = true;
-                        break;
-                    case "whitespace":
-                        tokenizeOnSpace = true;
-                        break;
-                    case "punctuation":
-                        tokenizeOnPunctuation = true;
-                        break;
-                    case "symbol":
-                        tokenizeOnSymbol = true;
-                        break;
-                    default:
-                        throw new RuntimeException("Invalid escaped char in [" + c + "]");
+                    case "letter" -> tokenizeOnLetter = true;
+                    case "digit" -> tokenizeOnDigit = true;
+                    case "whitespace" -> tokenizeOnSpace = true;
+                    case "punctuation" -> tokenizeOnPunctuation = true;
+                    case "symbol" -> tokenizeOnSymbol = true;
+                    default -> throw new RuntimeException("Invalid escaped char in [" + c + "]");
                 }
             }
         }

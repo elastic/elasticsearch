@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -203,6 +204,59 @@ public class IndexNameExpressionResolver {
             .filter(ia -> ia.getType() == IndexAbstraction.Type.DATA_STREAM)
             .map(IndexAbstraction::getName)
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Returns {@link IndexAbstraction} instance for the provided write request. This instance isn't fully resolved,
+     * meaning that {@link IndexAbstraction#getWriteIndex()} should be invoked in order to get concrete write index.
+     *
+     * @param state The cluster state
+     * @param request The provided write request
+     * @return {@link IndexAbstraction} instance for the provided write request
+     */
+    public IndexAbstraction resolveWriteIndexAbstraction(ClusterState state, DocWriteRequest<?> request) {
+        boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE && request.includeDataStreams();
+        Context context = new Context(
+            state,
+            request.indicesOptions(),
+            false,
+            false,
+            includeDataStreams,
+            true,
+            getSystemIndexAccessLevel(),
+            getSystemIndexAccessPredicate(),
+            getNetNewSystemIndexPredicate()
+        );
+
+        List<String> expressions = List.of(request.index());
+        for (ExpressionResolver expressionResolver : expressionResolvers) {
+            expressions = expressionResolver.resolve(context, expressions);
+        }
+
+        if (expressions.size() == 1) {
+            IndexAbstraction ia = state.metadata().getIndicesLookup().get(expressions.get(0));
+            if (ia == null) {
+                throw new IndexNotFoundException(expressions.get(0));
+            }
+            if (ia.getType() == IndexAbstraction.Type.ALIAS) {
+                Index writeIndex = ia.getWriteIndex();
+                if (writeIndex == null) {
+                    throw new IllegalArgumentException(
+                        "no write index is defined for alias ["
+                            + ia.getName()
+                            + "]."
+                            + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
+                            + " indices without one being designated as a write index"
+                    );
+                }
+            }
+            checkSystemIndexAccess(context, Set.of(ia.getWriteIndex()));
+            return ia;
+        } else {
+            throw new IllegalArgumentException(
+                "unable to return a single target as the provided expression and options got resolved to multiple targets"
+            );
+        }
     }
 
     /**
@@ -403,11 +457,11 @@ public class IndexNameExpressionResolver {
             }
             throw infe;
         }
-        checkSystemIndexAccess(context, concreteIndices, indexExpressions);
+        checkSystemIndexAccess(context, concreteIndices);
         return concreteIndices.toArray(Index.EMPTY_ARRAY);
     }
 
-    private void checkSystemIndexAccess(Context context, Set<Index> concreteIndices, String[] originalPatterns) {
+    private void checkSystemIndexAccess(Context context, Set<Index> concreteIndices) {
         final Metadata metadata = context.getState().metadata();
         final Predicate<String> systemIndexAccessPredicate = context.getSystemIndexAccessPredicate().negate();
         final List<IndexMetadata> systemIndicesThatShouldNotBeAccessed = concreteIndices.stream()

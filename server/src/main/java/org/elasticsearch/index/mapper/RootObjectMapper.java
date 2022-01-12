@@ -129,8 +129,7 @@ public class RootObjectMapper extends ObjectMapper {
 
     private static void fixRedundantIncludes(ObjectMapper objectMapper, boolean parentIncluded) {
         for (Mapper mapper : objectMapper) {
-            if (mapper instanceof NestedObjectMapper) {
-                NestedObjectMapper child = (NestedObjectMapper) mapper;
+            if (mapper instanceof NestedObjectMapper child) {
                 boolean isNested = child.isNested();
                 boolean includeInRootViaParent = parentIncluded && isNested && child.isIncludeInParent();
                 boolean includedInRoot = isNested && child.isIncludeInRoot();

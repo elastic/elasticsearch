@@ -208,30 +208,18 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
     }
 
     private static Object randomOfType(SortField.Type type) {
-        switch (type) {
-            case CUSTOM:
-                throw new UnsupportedOperationException();
-            case DOC:
-                return between(0, IndexWriter.MAX_DOCS);
-            case DOUBLE:
-                return randomDouble();
-            case FLOAT:
-                return randomFloat();
-            case INT:
-                return randomInt();
-            case LONG:
-                return randomLong();
-            case REWRITEABLE:
-                throw new UnsupportedOperationException();
-            case SCORE:
-                return randomFloat();
-            case STRING:
-                return new BytesRef(randomAlphaOfLength(5));
-            case STRING_VAL:
-                return new BytesRef(randomAlphaOfLength(5));
-            default:
-                throw new UnsupportedOperationException("Unknown SortField.Type: " + type);
-        }
+        return switch (type) {
+            case CUSTOM -> throw new UnsupportedOperationException();
+            case DOC -> between(0, IndexWriter.MAX_DOCS);
+            case DOUBLE -> randomDouble();
+            case FLOAT -> randomFloat();
+            case INT -> randomInt();
+            case LONG -> randomLong();
+            case REWRITEABLE -> throw new UnsupportedOperationException();
+            case SCORE -> randomFloat();
+            case STRING -> new BytesRef(randomAlphaOfLength(5));
+            case STRING_VAL -> new BytesRef(randomAlphaOfLength(5));
+        };
     }
 
     @Override
@@ -364,41 +352,32 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         SearchHits searchHits = instance.getHits();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 5)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                from += between(1, 100);
-                break;
-            case 2:
-                size += between(1, 100);
-                break;
-            case 3:
-                topDocs = new TopDocsAndMaxScore(
-                    new TopDocs(
-                        new TotalHits(topDocs.topDocs.totalHits.value + between(1, 100), topDocs.topDocs.totalHits.relation),
-                        topDocs.topDocs.scoreDocs
-                    ),
-                    topDocs.maxScore + randomFloat()
-                );
-                break;
-            case 4:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> from += between(1, 100);
+            case 2 -> size += between(1, 100);
+            case 3 -> topDocs = new TopDocsAndMaxScore(
+                new TopDocs(
+                    new TotalHits(topDocs.topDocs.totalHits.value + between(1, 100), topDocs.topDocs.totalHits.relation),
+                    topDocs.topDocs.scoreDocs
+                ),
+                topDocs.maxScore + randomFloat()
+            );
+            case 4 -> {
                 TotalHits totalHits = new TotalHits(
                     searchHits.getTotalHits().value + between(1, 100),
                     randomFrom(TotalHits.Relation.values())
                 );
                 searchHits = new SearchHits(searchHits.getHits(), totalHits, searchHits.getMaxScore() + randomFloat());
-                break;
-            case 5:
+            }
+            case 5 -> {
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalTopHits(name, from, size, topDocs, searchHits, metadata);
     }

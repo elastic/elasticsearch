@@ -221,38 +221,60 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
     }
 
     /**
-     * Returns a new {@link DataStreamAlias} instance containing data streams referenced in this instance
-     * and the other instance. If this instance doesn't have a write data stream then the write index of
-     * the other data stream becomes the write data stream of the returned instance.
+     * Performs alias related restore operations for this instance as part of the entire restore operation.
+     *
+     * If a previous instance is provided then it merges the data streams referenced in this instance and
+     * the previous instance. If this instance doesn't have a write data stream then the write index of
+     * the other data stream becomes the write data stream of the returned instance. If both this and
+     * previous instances have a write data stream then these write data streams need to be the same.
+     *
+     * If a renamePattern and renameReplacement is provided then data streams this instance is referring to
+     * are renamed. Assuming that those data streams match with the specified renamePattern.
+     *
+     * @param previous          Optionally, the alias instance that this alias instance is replacing.
+     * @param renamePattern     Optionally, the pattern that is required to match to rename data streams this alias is referring to.
+     * @param renameReplacement Optionally, the replacement used to rename data streams this alias is referring to.
+     * @return a new alias instance that can be applied in the cluster state
      */
-    public DataStreamAlias merge(DataStreamAlias other) {
-        Set<String> mergedDataStreams = new HashSet<>(other.getDataStreams());
-        mergedDataStreams.addAll(this.getDataStreams());
+    public DataStreamAlias restore(DataStreamAlias previous, String renamePattern, String renameReplacement) {
+        Set<String> mergedDataStreams = previous != null ? new HashSet<>(previous.getDataStreams()) : new HashSet<>();
 
         String writeDataStream = this.writeDataStream;
-        if (writeDataStream == null) {
-            if (other.getWriteDataStream() != null && mergedDataStreams.contains(other.getWriteDataStream())) {
-                writeDataStream = other.getWriteDataStream();
+        if (renamePattern != null && renameReplacement != null) {
+            this.dataStreams.stream().map(s -> s.replaceAll(renamePattern, renameReplacement)).forEach(mergedDataStreams::add);
+            if (writeDataStream != null) {
+                writeDataStream = writeDataStream.replaceAll(renamePattern, renameReplacement);
+            }
+        } else {
+            mergedDataStreams.addAll(this.dataStreams);
+        }
+
+        if (previous != null) {
+            if (writeDataStream != null && previous.getWriteDataStream() != null) {
+                String previousWriteDataStream = previous.getWriteDataStream();
+                if (renamePattern != null && renameReplacement != null) {
+                    previousWriteDataStream = previousWriteDataStream.replaceAll(renamePattern, renameReplacement);
+                }
+                if (writeDataStream.equals(previousWriteDataStream) == false) {
+                    throw new IllegalArgumentException(
+                        "cannot merge alias ["
+                            + name
+                            + "], write data stream of this ["
+                            + writeDataStream
+                            + "] and write data stream of other ["
+                            + previous.getWriteDataStream()
+                            + "] are different"
+                    );
+                }
+            } else if (writeDataStream == null && previous.getWriteDataStream() != null) {
+                // The write alias should exist in the set of merged data streams. It shouldn't be possible to construct an alias with
+                // a write data stream, that doesn't exist in the list of data streams.
+                assert mergedDataStreams.contains(previous.getWriteDataStream());
+                writeDataStream = previous.getWriteDataStream();
             }
         }
 
         return new DataStreamAlias(this.name, List.copyOf(mergedDataStreams), writeDataStream, filter);
-    }
-
-    /**
-     * Returns a new instance with potentially renamed data stream names and write data stream name.
-     * If a data stream name matches with the provided rename pattern then it is renamed according
-     * to the provided rename replacement.
-     */
-    public DataStreamAlias renameDataStreams(String renamePattern, String renameReplacement) {
-        List<String> renamedDataStreams = this.dataStreams.stream()
-            .map(s -> s.replaceAll(renamePattern, renameReplacement))
-            .collect(Collectors.toList());
-        String writeDataStream = this.writeDataStream;
-        if (writeDataStream != null) {
-            writeDataStream = writeDataStream.replaceAll(renamePattern, renameReplacement);
-        }
-        return new DataStreamAlias(this.name, renamedDataStreams, writeDataStream, filter);
     }
 
     public static Diff<DataStreamAlias> readDiffFrom(StreamInput in) throws IOException {

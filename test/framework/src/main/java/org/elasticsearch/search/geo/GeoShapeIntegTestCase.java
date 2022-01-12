@@ -212,12 +212,13 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setMapping(mapping).setSettings(settings(randomSupportedVersion()).build()));
         ensureGreen();
 
-        String source = "{\n"
-            + "    \"shape\" : {\n"
-            + "        \"type\" : \"bbox\",\n"
-            + "        \"coordinates\" : [[-45.0, 45.0], [45.0, -45.0]]\n"
-            + "    }\n"
-            + "}";
+        String source = """
+            {
+                "shape" : {
+                    "type" : "bbox",
+                    "coordinates" : [[-45.0, 45.0], [45.0, -45.0]]
+                }
+            }""";
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON).setRouting("ABC"));
 
@@ -244,7 +245,10 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         );
         ensureGreen();
 
-        String source = "{\n" + "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\"" + "}";
+        String source = """
+            {
+              "shape": "POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))"
+            }""";
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
 
@@ -277,12 +281,13 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         );
         ensureGreen();
 
-        String source = "{\n"
-            + "    \"shape\" : {\n"
-            + "        \"type\" : \"bbox\",\n"
-            + "        \"coordinates\" : [[-45.0, 45.0], [45.0, -45.0]]\n"
-            + "    }\n"
-            + "}";
+        String source = """
+            {
+                "shape" : {
+                    "type" : "bbox",
+                    "coordinates" : [[-45.0, 45.0], [45.0, -45.0]]
+                }
+            }""";
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
         refresh();

@@ -267,14 +267,9 @@ public class LeaderCheckerTests extends ESTestCase {
                     @Override
                     public void run() {
                         switch (response) {
-                            case SUCCESS:
-                                handleResponse(requestId, Empty.INSTANCE);
-                                break;
-                            case REMOTE_ERROR:
-                                handleRemoteError(requestId, new ConnectTransportException(leader, "simulated error"));
-                                break;
-                            case DIRECT_ERROR:
-                                handleError(requestId, new ConnectTransportException(leader, "simulated error"));
+                            case SUCCESS -> handleResponse(requestId, Empty.INSTANCE);
+                            case REMOTE_ERROR -> handleRemoteError(requestId, new ConnectTransportException(leader, "simulated error"));
+                            case DIRECT_ERROR -> handleError(requestId, new ConnectTransportException(leader, "simulated error"));
                         }
                     }
 
@@ -408,12 +403,8 @@ public class LeaderCheckerTests extends ESTestCase {
                     @Override
                     public void run() {
                         switch (response) {
-                            case SUCCESS:
-                                handleResponse(requestId, Empty.INSTANCE);
-                                break;
-                            case REMOTE_ERROR:
-                                handleRemoteError(requestId, new NodeHealthCheckFailureException("simulated error"));
-                                break;
+                            case SUCCESS -> handleResponse(requestId, Empty.INSTANCE);
+                            case REMOTE_ERROR -> handleRemoteError(requestId, new NodeHealthCheckFailureException("simulated error"));
                         }
                     }
 

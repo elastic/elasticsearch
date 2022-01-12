@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
@@ -163,9 +163,14 @@ public class ServiceAccountService {
         findIndexTokens(accountId, listener);
     }
 
+    // TODO: remove since authentication is dealt centrally by AuthenticationContext and freinds
     public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
         assert authentication.isAuthenticatedWithServiceAccount() : "authentication is not for service account: " + authentication;
         final String principal = authentication.getUser().principal();
+        getRoleDescriptorForPrincipal(principal, listener);
+    }
+
+    public void getRoleDescriptorForPrincipal(String principal, ActionListener<RoleDescriptor> listener) {
         final ServiceAccount account = ACCOUNTS.get(principal);
         if (account == null) {
             listener.onFailure(

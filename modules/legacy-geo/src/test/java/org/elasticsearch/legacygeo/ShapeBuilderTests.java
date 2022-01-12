@@ -738,39 +738,40 @@ public class ShapeBuilderTests extends ESTestCase {
     }
 
     public void testPolygon3D() {
-        String expected = "{\n"
-            + "  \"type\" : \"polygon\",\n"
-            + "  \"orientation\" : \"right\",\n"
-            + "  \"coordinates\" : [\n"
-            + "    [\n"
-            + "      [\n"
-            + "        -45.0,\n"
-            + "        30.0,\n"
-            + "        100.0\n"
-            + "      ],\n"
-            + "      [\n"
-            + "        45.0,\n"
-            + "        30.0,\n"
-            + "        75.0\n"
-            + "      ],\n"
-            + "      [\n"
-            + "        45.0,\n"
-            + "        -30.0,\n"
-            + "        77.0\n"
-            + "      ],\n"
-            + "      [\n"
-            + "        -45.0,\n"
-            + "        -30.0,\n"
-            + "        101.0\n"
-            + "      ],\n"
-            + "      [\n"
-            + "        -45.0,\n"
-            + "        30.0,\n"
-            + "        110.0\n"
-            + "      ]\n"
-            + "    ]\n"
-            + "  ]\n"
-            + "}";
+        String expected = """
+            {
+              "type" : "polygon",
+              "orientation" : "right",
+              "coordinates" : [
+                [
+                  [
+                    -45.0,
+                    30.0,
+                    100.0
+                  ],
+                  [
+                    45.0,
+                    30.0,
+                    75.0
+                  ],
+                  [
+                    45.0,
+                    -30.0,
+                    77.0
+                  ],
+                  [
+                    -45.0,
+                    -30.0,
+                    101.0
+                  ],
+                  [
+                    -45.0,
+                    30.0,
+                    110.0
+                  ]
+                ]
+              ]
+            }""";
 
         PolygonBuilder pb = new PolygonBuilder(
             new CoordinatesBuilder().coordinate(new Coordinate(-45, 30, 100))

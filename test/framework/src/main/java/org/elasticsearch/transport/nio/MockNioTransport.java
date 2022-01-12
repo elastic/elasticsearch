@@ -73,6 +73,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 
 public class MockNioTransport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(MockNioTransport.class);
@@ -330,7 +331,9 @@ public class MockNioTransport extends TcpTransport {
                 threadPool::relativeTimeInMillis,
                 breaker,
                 requestHandlers::getHandler,
-                transport::inboundMessage
+                transport::inboundMessage,
+                (transport instanceof MockNioTransport)
+                    && IGNORE_DESERIALIZATION_ERRORS_SETTING.get(((MockNioTransport) transport).settings)
             );
         }
 
@@ -461,7 +464,7 @@ public class MockNioTransport extends TcpTransport {
                         "Slow execution on network thread [{} milliseconds]",
                         TimeUnit.NANOSECONDS.toMillis(elapsedTime)
                     ),
-                    new RuntimeException("Slow exception on network thread")
+                    new RuntimeException("Slow execution on network thread")
                 );
             }
         }

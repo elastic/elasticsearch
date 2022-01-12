@@ -12,6 +12,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -28,6 +30,8 @@ import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
@@ -352,6 +356,18 @@ public class Authentication implements ToXContentObject {
         public String toString() {
             return "{Realm[" + type + "." + name + "] on Node[" + nodeName + "]}";
         }
+    }
+
+    public static ConstructingObjectParser<RealmRef, Void> REALM_REF_PARSER = new ConstructingObjectParser<>(
+        "realm_ref",
+        false,
+        (args, v) -> new RealmRef((String) args[0], (String) args[1], (String) args[2])
+    );
+
+    static {
+        REALM_REF_PARSER.declareString(constructorArg(), new ParseField("name"));
+        REALM_REF_PARSER.declareString(constructorArg(), new ParseField("type"));
+        REALM_REF_PARSER.declareString(constructorArg(), new ParseField("node_name"));
     }
 
     public enum AuthenticationType {

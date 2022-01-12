@@ -24,7 +24,7 @@ import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
@@ -69,7 +69,7 @@ final class SearchResponseMerger {
     final int size;
     final int trackTotalHitsUpTo;
     private final SearchTimeProvider searchTimeProvider;
-    private final InternalAggregation.ReduceContextBuilder aggReduceContextBuilder;
+    private final AggregationReduceContext.Builder aggReduceContextBuilder;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
 
     SearchResponseMerger(
@@ -77,7 +77,7 @@ final class SearchResponseMerger {
         int size,
         int trackTotalHitsUpTo,
         SearchTimeProvider searchTimeProvider,
-        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder
+        AggregationReduceContext.Builder aggReduceContextBuilder
     ) {
         this.from = from;
         this.size = size;
@@ -264,8 +264,7 @@ final class SearchResponseMerger {
                 return shard.getShardId();
             }
             Throwable cause = failure.getCause();
-            if (cause instanceof ElasticsearchException) {
-                ElasticsearchException e = (ElasticsearchException) cause;
+            if (cause instanceof ElasticsearchException e) {
                 return e.getShardId();
             }
             return null;
@@ -335,8 +334,7 @@ final class SearchResponseMerger {
         assignShardIndex(shards);
         for (List<Suggest.Suggestion<?>> suggestions : groupedSuggestions.values()) {
             for (Suggest.Suggestion<?> suggestion : suggestions) {
-                if (suggestion instanceof CompletionSuggestion) {
-                    CompletionSuggestion completionSuggestion = (CompletionSuggestion) suggestion;
+                if (suggestion instanceof CompletionSuggestion completionSuggestion) {
                     for (CompletionSuggestion.Entry options : completionSuggestion) {
                         for (CompletionSuggestion.Entry.Option option : options) {
                             SearchShardTarget shard = option.getHit().getShard();
@@ -375,8 +373,7 @@ final class SearchResponseMerger {
         Object[] groupValues = null;
         if (topDocs instanceof TopFieldDocs) {
             sortFields = ((TopFieldDocs) topDocs).fields;
-            if (topDocs instanceof TopFieldGroups) {
-                TopFieldGroups topFieldGroups = (TopFieldGroups) topDocs;
+            if (topDocs instanceof TopFieldGroups topFieldGroups) {
                 groupField = topFieldGroups.field;
                 groupValues = topFieldGroups.groupValues;
             }

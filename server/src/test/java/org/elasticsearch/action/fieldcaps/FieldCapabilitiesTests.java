@@ -197,18 +197,11 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             }
         }
 
-        Map<String, Set<String>> meta;
-        switch (randomInt(2)) {
-            case 0:
-                meta = Collections.emptyMap();
-                break;
-            case 1:
-                meta = Map.of("foo", Set.of("bar"));
-                break;
-            default:
-                meta = Map.of("foo", Set.of("bar", "baz"));
-                break;
-        }
+        Map<String, Set<String>> meta = switch (randomInt(2)) {
+            case 0 -> Collections.emptyMap();
+            case 1 -> Map.of("foo", Set.of("bar"));
+            default -> Map.of("foo", Set.of("bar", "baz"));
+        };
 
         return new FieldCapabilities(
             fieldName,

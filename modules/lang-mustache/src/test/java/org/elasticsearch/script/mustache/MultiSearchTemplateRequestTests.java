@@ -66,8 +66,10 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
     }
 
     public void testParseWithCarriageReturn() throws Exception {
-        final String content = "{\"index\":[\"test0\", \"test1\"], \"request_cache\": true}\r\n"
-            + "{\"source\": {\"query\" : {\"match_{{template}}\" :{}}}, \"params\": {\"template\": \"all\" } }\r\n";
+        final String content = """
+            {"index":["test0", "test1"], "request_cache": true}
+            {"source": {"query" : {"match_{{template}}" :{}}}, "params": {"template": "all" } }
+            """;
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
             .build();
 
@@ -104,7 +106,8 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
             searchRequest.setBatchedReduceSize(SearchRequest.DEFAULT_BATCHED_REDUCE_SIZE);
             SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest(searchRequest);
 
-            searchTemplateRequest.setScript("{\"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" }}}");
+            searchTemplateRequest.setScript("""
+                {"query": { "match" : { "{{field}}" : "{{value}}" }}}""");
             searchTemplateRequest.setScriptType(ScriptType.INLINE);
             searchTemplateRequest.setProfile(randomBoolean());
 

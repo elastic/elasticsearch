@@ -351,7 +351,7 @@ public class TasksIT extends ESIntegTestCase {
             .get();
 
         Map<String, String> headers = new HashMap<>();
-        headers.put(Task.X_OPAQUE_ID, "my_id");
+        headers.put(Task.X_OPAQUE_ID_HTTP_HEADER, "my_id");
         headers.put("Foo-Header", "bar");
         headers.put("Custom-Task-Header", "my_value");
         assertSearchResponse(client().filterWithHeader(headers).prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).get());
@@ -370,24 +370,23 @@ public class TasksIT extends ESIntegTestCase {
             assertEquals(mainTask.get(0).getTaskId(), taskInfo.getParentTaskId());
             assertTaskHeaders(taskInfo);
             switch (taskInfo.getAction()) {
-                case SearchTransportService.QUERY_ACTION_NAME:
-                case SearchTransportService.DFS_ACTION_NAME:
-                    assertTrue(taskInfo.getDescription(), Regex.simpleMatch("shardId[[test][*]]", taskInfo.getDescription()));
-                    break;
-                case SearchTransportService.QUERY_ID_ACTION_NAME:
-                    assertTrue(taskInfo.getDescription(), Regex.simpleMatch("id[*], indices[test]", taskInfo.getDescription()));
-                    break;
-                case SearchTransportService.FETCH_ID_ACTION_NAME:
-                    assertTrue(
-                        taskInfo.getDescription(),
-                        Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null]", taskInfo.getDescription())
-                    );
-                    break;
-                case SearchTransportService.QUERY_CAN_MATCH_NAME:
-                    assertTrue(taskInfo.getDescription(), Regex.simpleMatch("shardId[[test][*]]", taskInfo.getDescription()));
-                    break;
-                default:
-                    fail("Unexpected action [" + taskInfo.getAction() + "] with description [" + taskInfo.getDescription() + "]");
+                case SearchTransportService.QUERY_ACTION_NAME, SearchTransportService.DFS_ACTION_NAME -> assertTrue(
+                    taskInfo.getDescription(),
+                    Regex.simpleMatch("shardId[[test][*]]", taskInfo.getDescription())
+                );
+                case SearchTransportService.QUERY_ID_ACTION_NAME -> assertTrue(
+                    taskInfo.getDescription(),
+                    Regex.simpleMatch("id[*], indices[test]", taskInfo.getDescription())
+                );
+                case SearchTransportService.FETCH_ID_ACTION_NAME -> assertTrue(
+                    taskInfo.getDescription(),
+                    Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null]", taskInfo.getDescription())
+                );
+                case SearchTransportService.QUERY_CAN_MATCH_NAME -> assertTrue(
+                    taskInfo.getDescription(),
+                    Regex.simpleMatch("shardId[[test][*]]", taskInfo.getDescription())
+                );
+                default -> fail("Unexpected action [" + taskInfo.getAction() + "] with description [" + taskInfo.getDescription() + "]");
             }
             // assert that all task descriptions have non-zero length
             assertThat(taskInfo.getDescription().length(), greaterThan(0));
@@ -399,7 +398,7 @@ public class TasksIT extends ESIntegTestCase {
         int maxSize = Math.toIntExact(SETTING_HTTP_MAX_HEADER_SIZE.getDefault(Settings.EMPTY).getBytes() / 2 + 1);
 
         Map<String, String> headers = new HashMap<>();
-        headers.put(Task.X_OPAQUE_ID, "my_id");
+        headers.put(Task.X_OPAQUE_ID_HTTP_HEADER, "my_id");
         headers.put("Custom-Task-Header", randomAlphaOfLengthBetween(maxSize, maxSize + 100));
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -410,7 +409,7 @@ public class TasksIT extends ESIntegTestCase {
 
     private void assertTaskHeaders(TaskInfo taskInfo) {
         assertThat(taskInfo.getHeaders().keySet(), hasSize(2));
-        assertEquals("my_id", taskInfo.getHeaders().get(Task.X_OPAQUE_ID));
+        assertEquals("my_id", taskInfo.getHeaders().get(Task.X_OPAQUE_ID_HTTP_HEADER));
         assertEquals("my_value", taskInfo.getHeaders().get("Custom-Task-Header"));
     }
 

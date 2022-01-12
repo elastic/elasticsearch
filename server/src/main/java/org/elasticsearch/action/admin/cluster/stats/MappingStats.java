@@ -76,8 +76,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
                             stats.indexCount++;
                         }
                         Object scriptObject = fieldMapping.get("script");
-                        if (scriptObject instanceof Map) {
-                            Map<?, ?> script = (Map<?, ?>) scriptObject;
+                        if (scriptObject instanceof Map<?, ?> script) {
                             Object sourceObject = script.get("source");
                             stats.scriptCount++;
                             updateScriptParams(sourceObject, stats.fieldScriptStats);
@@ -106,8 +105,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
                     Object scriptObject = fieldMapping.get("script");
                     if (scriptObject == null) {
                         stats.scriptLessCount++;
-                    } else if (scriptObject instanceof Map) {
-                        Map<?, ?> script = (Map<?, ?>) scriptObject;
+                    } else if (scriptObject instanceof Map<?, ?> script) {
                         Object sourceObject = script.get("source");
                         updateScriptParams(sourceObject, stats.fieldScriptStats);
                         Object langObject = script.get("lang");

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -459,18 +460,10 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
                 InternalMultiTerms agg = (InternalMultiTerms) aggregation;
                 KeyConverter keyConverter = agg.keyConverters.get(i);
                 switch (keyConverter) {
-                    case DOUBLE:
-                        hasDouble = true;
-                        break;
-                    case LONG:
-                        hasLong = true;
-                        break;
-                    case UNSIGNED_LONG:
-                        hasUnsignedLong = true;
-                        break;
-                    default:
-                        hasNonNumber = true;
-                        break;
+                    case DOUBLE -> hasDouble = true;
+                    case LONG -> hasLong = true;
+                    case UNSIGNED_LONG -> hasUnsignedLong = true;
+                    default -> hasNonNumber = true;
                 }
             }
             if (hasNonNumber && (hasDouble || hasUnsignedLong || hasLong)) {
@@ -558,7 +551,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
     public InternalAggregation reduce(
         List<InternalAggregation> aggregations,
-        ReduceContext reduceContext,
+        AggregationReduceContext reduceContext,
         boolean[] needsPromotionToDouble
     ) {
         if (needsPromotionToDouble != null) {
@@ -573,7 +566,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         return reduce(aggregations, reduceContext, needsPromotionToDouble(aggregations));
     }
 

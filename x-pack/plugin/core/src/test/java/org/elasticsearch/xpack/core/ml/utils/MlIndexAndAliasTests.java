@@ -22,10 +22,10 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -108,8 +108,9 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
         clusterAdminClient = mock(ClusterAdminClient.class);
         doAnswer(invocationOnMock -> {
-            ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(new ClusterHealthResponse());
+            ActionListener<ClusterHealthResponse> actionListener = (ActionListener<ClusterHealthResponse>) invocationOnMock
+                .getArguments()[1];
+            actionListener.onResponse(new ClusterHealthResponse());
             return null;
         }).when(clusterAdminClient).health(any(ClusterHealthRequest.class), any(ActionListener.class));
 
@@ -121,8 +122,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.admin()).thenReturn(adminClient);
         doAnswer(invocationOnMock -> {
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
-            listener.onResponse(AcknowledgedResponse.TRUE);
+            ActionListener<AcknowledgedResponse> actionListener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
+            actionListener.onResponse(AcknowledgedResponse.TRUE);
             return null;
         }).when(client)
             .execute(

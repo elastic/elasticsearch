@@ -130,6 +130,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -267,12 +268,18 @@ public class AuthorizationServiceTests extends ESTestCase {
         }).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), anyActionListener());
 
         final Map<Set<String>, Role> roleCache = new HashMap<>();
+        final AnonymousUser anonymousUser = mock(AnonymousUser.class);
+        when(anonymousUser.enabled()).thenReturn(false);
+        doAnswer(i -> {
+            i.callRealMethod();
+            return null;
+        }).when(rolesStore).getRoles(any(Authentication.class), anyActionListener());
         doAnswer((i) -> {
-            ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[2];
-            User user = (User) i.getArguments()[0];
+            ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[1];
+            User user = ((Subject) i.getArguments()[0]).getUser();
             buildRole(user, privilegesStore, fieldPermissionsCache, roleCache, callback);
             return null;
-        }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), anyActionListener());
+        }).when(rolesStore).getRole(any(Subject.class), anyActionListener());
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         operatorPrivilegesService = mock(OperatorPrivileges.OperatorPrivilegesService.class);
         authorizationService = new AuthorizationService(
@@ -894,7 +901,6 @@ public class AuthorizationServiceTests extends ESTestCase {
             Authentication.AuthenticationType.TOKEN,
             Map.of()
         );
-        Mockito.reset(rolesStore);
         final Role role;
         if (canRunAs) {
             role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "can_run_as")
@@ -905,10 +911,10 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[2];
+            ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[1];
             listener.onResponse(role);
             return null;
-        }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), anyActionListener());
+        }).when(rolesStore).getRole(any(Subject.class), anyActionListener());
 
         ElasticsearchSecurityException securityException = expectThrows(
             ElasticsearchSecurityException.class,
@@ -1099,12 +1105,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         this.setFakeOriginatingAction = false;
         authorize(authentication, SearchAction.NAME, searchRequest, true, () -> {
-            verify(rolesStore).getRoles(Mockito.same(user), Mockito.same(authentication), Mockito.any());
+            verify(rolesStore).getRoles(Mockito.same(authentication), Mockito.any());
             IndicesAccessControl iac = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             // Within the action handler, execute a child action (the query phase of search)
             authorize(authentication, SearchTransportService.QUERY_ACTION_NAME, shardRequest, false, () -> {
                 // This child action triggers a second interaction with the role store (which is cached)
-                verify(rolesStore, times(2)).getRoles(Mockito.same(user), Mockito.same(authentication), Mockito.any());
+                verify(rolesStore, times(2)).getRoles(Mockito.same(authentication), Mockito.any());
                 // But it does not create a new IndicesAccessControl
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), sameInstance(iac));
             });
@@ -2225,29 +2231,28 @@ public class AuthorizationServiceTests extends ESTestCase {
         final TransportRequest request;
         final String action;
         switch (randomIntBetween(0, 4)) {
-            case 0:
+            case 0 -> {
                 action = MultiGetAction.NAME + "[shard]";
                 request = mockRequest;
-                break;
-            case 1:
+            }
+            case 1 -> {
                 // reindex, msearch, search template, and multi search template delegate to search
                 action = SearchAction.NAME;
                 request = mockRequest;
-                break;
-            case 2:
+            }
+            case 2 -> {
                 action = MultiTermVectorsAction.NAME + "[shard]";
                 request = mockRequest;
-                break;
-            case 3:
+            }
+            case 3 -> {
                 action = BulkAction.NAME + "[s]";
                 request = createBulkShardRequest("index", (index, id) -> new IndexRequest(index).id(id));
-                break;
-            case 4:
+            }
+            case 4 -> {
                 action = "indices:data/read/mpercolate[s]";
                 request = mockRequest;
-                break;
-            default:
-                throw new UnsupportedOperationException();
+            }
+            default -> throw new UnsupportedOperationException();
         }
         logger.info("--> action: {}", action);
 
@@ -2439,26 +2444,17 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     private static Tuple<String, TransportRequest> randomCompositeRequest() {
-        switch (randomIntBetween(0, 7)) {
-            case 0:
-                return Tuple.tuple(MultiGetAction.NAME, new MultiGetRequest().add("index", "id"));
-            case 1:
-                return Tuple.tuple(MultiSearchAction.NAME, new MultiSearchRequest().add(new SearchRequest()));
-            case 2:
-                return Tuple.tuple(MultiTermVectorsAction.NAME, new MultiTermVectorsRequest().add("index", "id"));
-            case 3:
-                return Tuple.tuple(BulkAction.NAME, new BulkRequest().add(new DeleteRequest("index", "id")));
-            case 4:
-                return Tuple.tuple("indices:data/read/mpercolate", new MockCompositeIndicesRequest());
-            case 5:
-                return Tuple.tuple("indices:data/read/msearch/template", new MockCompositeIndicesRequest());
-            case 6:
-                return Tuple.tuple("indices:data/read/search/template", new MockCompositeIndicesRequest());
-            case 7:
-                return Tuple.tuple("indices:data/write/reindex", new MockCompositeIndicesRequest());
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (randomIntBetween(0, 7)) {
+            case 0 -> Tuple.tuple(MultiGetAction.NAME, new MultiGetRequest().add("index", "id"));
+            case 1 -> Tuple.tuple(MultiSearchAction.NAME, new MultiSearchRequest().add(new SearchRequest()));
+            case 2 -> Tuple.tuple(MultiTermVectorsAction.NAME, new MultiTermVectorsRequest().add("index", "id"));
+            case 3 -> Tuple.tuple(BulkAction.NAME, new BulkRequest().add(new DeleteRequest("index", "id")));
+            case 4 -> Tuple.tuple("indices:data/read/mpercolate", new MockCompositeIndicesRequest());
+            case 5 -> Tuple.tuple("indices:data/read/msearch/template", new MockCompositeIndicesRequest());
+            case 6 -> Tuple.tuple("indices:data/read/search/template", new MockCompositeIndicesRequest());
+            case 7 -> Tuple.tuple("indices:data/write/reindex", new MockCompositeIndicesRequest());
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     private static class MockCompositeIndicesRequest extends TransportRequest implements CompositeIndicesRequest {}

@@ -83,8 +83,10 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
     private static final String STACK_TEMPLATE_VERSION = "8";
     private static final String STACK_TEMPLATE_VERSION_VARIABLE = "xpack.stack.monitoring.template.version";
     private static final Map<String, String> STACK_TEMPLATE_VARIABLES = Map.of(
-        STACK_TEMPLATE_VERSION_VARIABLE, STACK_TEMPLATE_VERSION,
-        MONITORING_POLICY_NAME_VARIABLE, MONITORING_POLICY_NAME
+        STACK_TEMPLATE_VERSION_VARIABLE,
+        STACK_TEMPLATE_VERSION,
+        MONITORING_POLICY_NAME_VARIABLE,
+        MONITORING_POLICY_NAME
     );
 
     public static final Setting<Boolean> MONITORING_TEMPLATES_ENABLED = Setting.boolSetting(
@@ -244,8 +246,10 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         Map<String, String> templateVars = new HashMap<>();
         if (HISTORY_DURATION.exists(nodeSettings)) {
             templateVars.put(MONITORING_POLICY_RETENTION_VARIABLE, HISTORY_DURATION.get(nodeSettings).getStringRep());
-            templateVars.put(MONITORING_POLICY_RETENTION_REASON_VARIABLE,
-                "the value of the [" + HISTORY_DURATION.getKey() + "] setting at node startup");
+            templateVars.put(
+                MONITORING_POLICY_RETENTION_REASON_VARIABLE,
+                "the value of the [" + HISTORY_DURATION.getKey() + "] setting at node startup"
+            );
         } else {
             templateVars.put(MONITORING_POLICY_RETENTION_VARIABLE, MONITORING_POLICY_DEFAULT_RETENTION);
             templateVars.put(MONITORING_POLICY_RETENTION_REASON_VARIABLE, "the monitoring plugin default");

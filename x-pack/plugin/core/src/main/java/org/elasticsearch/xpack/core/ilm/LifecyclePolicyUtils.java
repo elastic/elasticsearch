@@ -42,8 +42,12 @@ public class LifecyclePolicyUtils {
     /**
      * Loads a built-in index lifecycle policy and returns its source.
      */
-    public static LifecyclePolicy loadPolicy(String name, String resource, Map<String, String> variables,
-                                             NamedXContentRegistry xContentRegistry) {
+    public static LifecyclePolicy loadPolicy(
+        String name,
+        String resource,
+        Map<String, String> variables,
+        NamedXContentRegistry xContentRegistry
+    ) {
         try {
             BytesReference source = load(resource);
             source = replaceVariables(source, variables);

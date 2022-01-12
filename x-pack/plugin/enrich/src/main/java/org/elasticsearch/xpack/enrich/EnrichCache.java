@@ -165,17 +165,11 @@ public class EnrichCache {
             return unmodifiable ? Collections.unmodifiableList(copy) : copy;
         } else if (value instanceof byte[] bytes) {
             return Arrays.copyOf(bytes, bytes.length);
-        } else if (value == null
-            || value instanceof String
-            || value instanceof Integer
-            || value instanceof Long
-            || value instanceof Float
-            || value instanceof Double
-            || value instanceof Boolean) {
-                return value;
-            } else {
-                throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
-            }
+        } else if (value == null || value instanceof String || value instanceof Number || value instanceof Boolean) {
+            return value;
+        } else {
+            throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
+        }
     }
 
     private static class CacheKey {

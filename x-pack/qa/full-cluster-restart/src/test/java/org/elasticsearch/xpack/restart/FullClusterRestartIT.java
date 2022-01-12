@@ -377,7 +377,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             // read is ok
             final Request searchRequest = new Request("GET", ".security/_search");
-            searchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", apiKeyAuthHeader));
+            searchRequest.setOptions(
+                expectWarnings(
+                    "this request accesses system indices: [.security-7], but in a future major "
+                        + "version, direct access to system indices will be prevented by default"
+                ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
+            );
             assertOK(client().performRequest(searchRequest));
 
             // write must not be allowed
@@ -386,10 +391,16 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 {
                   "doc_type": "foo"
                 }""");
-            indexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", apiKeyAuthHeader));
-//            final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(indexRequest));
-//            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-//            assertThat(e.getMessage(), containsString("is unauthorized"));
+            indexRequest.setOptions(
+                expectWarnings(
+                    "this request accesses system indices: [.security-7], but in a future major "
+                        + "version, direct access to system indices will be prevented by default"
+                ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
+            );
+            // TODO: uncomment when #81400 is merged
+            // final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(indexRequest));
+            // assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            // assertThat(e.getMessage(), containsString("is unauthorized"));
         }
     }
 

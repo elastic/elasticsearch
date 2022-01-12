@@ -99,7 +99,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     // initialize sets this value, not the constructor, because all realms objects need to be constructed before linking any delegates
     private DelegatedAuthorizationSupport delegatedAuthorizationSupport;
-    private boolean initialized = false;
 
     public JwtRealm(
         final RealmConfig realmConfig,
@@ -245,7 +244,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         // Validate HMAC SecretKey Base64Url-encoding is OK, and decoded value is non-empty
         if (hasHmacSecretKey) {
-            byte[] decodedHmacSecretKeyBytes = null;
+            byte[] decodedHmacSecretKeyBytes;
             try {
                 decodedHmacSecretKeyBytes = Base64.getUrlDecoder().decode(hmacSecretKey.toString());
             } catch (Exception e) {
@@ -378,33 +377,31 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         throw settingsException;
     }
 
-    private void ensureExpectedValueForInitialized(final boolean expectedValue) {
-        if (this.initialized != expectedValue) {
-            if (expectedValue) {
-                throw new IllegalStateException("Realm has not been initialized");
-            } else {
-                throw new IllegalStateException("Realm has already been initialized");
-            }
+    @Override
+    public void initialize(final Iterable<Realm> allRealms, final XPackLicenseState xpackLicenseState) {
+        if (this.delegatedAuthorizationSupport != null) {
+            throw new IllegalStateException("Realm has already been initialized");
+        }
+        // extract list of realms referenced by super.config.settings() value for DelegatedAuthorizationSettings.AUTHZ_REALMS
+        this.delegatedAuthorizationSupport = new DelegatedAuthorizationSupport(allRealms, super.config, xpackLicenseState);
+    }
+
+    private void ensureInitialized() {
+        if (this.delegatedAuthorizationSupport == null) {
+            throw new IllegalStateException("Realm has not been initialized");
         }
     }
 
-    @Override
-    public void initialize(final Iterable<Realm> allRealms, final XPackLicenseState xpackLicenseState) {
-        this.ensureExpectedValueForInitialized(false);
-        // extract list of realms referenced by super.config.settings() value for DelegatedAuthorizationSettings.AUTHZ_REALMS
-        this.delegatedAuthorizationSupport = new DelegatedAuthorizationSupport(allRealms, super.config, xpackLicenseState);
-        this.initialized = true;
-    }
 
     @Override
     public boolean supports(final AuthenticationToken jwtAuthenticationToken) {
-        this.ensureExpectedValueForInitialized(true);
+        this.ensureInitialized();
         return (jwtAuthenticationToken instanceof JwtAuthenticationToken);
     }
 
     @Override
     public AuthenticationToken token(final ThreadContext threadContext) {
-        this.ensureExpectedValueForInitialized(true);
+        this.ensureInitialized();
         final SecureString authorizationParameterValue = JwtRealm.getHeaderSchemeParameters(
             threadContext,
             JwtRealmSettings.HEADER_ENDUSER_AUTHORIZATION,
@@ -428,7 +425,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     @Override
     public void authenticate(final AuthenticationToken authenticationToken, final ActionListener<AuthenticationResult<User>> listener) {
-        this.ensureExpectedValueForInitialized(true);
+        this.ensureInitialized();
         if (authenticationToken instanceof JwtAuthenticationToken jwtAuthenticationToken) {
             LOGGER.trace("Attempting to perform authentication of JwtAuthenticationToken with realm [{}].", super.name());
             final JWSHeader jwsHeader = jwtAuthenticationToken.getJwsHeader();
@@ -464,7 +461,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     Locale.ROOT,
                     "Realm [%s] does not allow audiences [%s]. Allowed audiences are [%s].",
                     super.name(),
-                    String.join(",", jwtAudiences),
+                    (jwtAudiences==null?"null":String.join(",", jwtAudiences)),
                     String.join(",", this.allowedAudiences)
                 );
                 LOGGER.debug(msg);
@@ -518,7 +515,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         LOGGER.debug(msg);
                         listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                         return;
-                    } else if (this.clientAuthorizationSharedSecret.equals(clientAuthorizationSharedSecretString) == false) {
+                    } else if (this.clientAuthorizationSharedSecret.toString().equals(clientAuthorizationSharedSecretString) == false) {
                         final String msg = String.format(
                             Locale.ROOT,
                             "Realm [%s] client authentication [%s] failed because request header value did not match.",
@@ -593,9 +590,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     "Realm [%s] principal [%s] got groups [%s] using parser [%s]. JWTClaimsSet is %s.",
                     super.name(),
                     jwtPrincipal,
-                    String.join(",", jwtGroups),
+                    (jwtGroups==null?"null":String.join(",", jwtGroups)),
                     (this.groupsAttribute.getName() == null ? "null" : this.groupsAttribute.getName()),
-                    (this.groupsAttribute.getParser() == null ? "null" : this.groupsAttribute.getParser()),
                     jwtClaimsMap
                 )
             );
@@ -674,7 +670,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         super.name(),
                         jwtPrincipal,
                         jwtDn,
-                        String.join(",", jwtGroups),
+                        (jwtGroups==null?"null":String.join(",", jwtGroups)),
                         userMetadata,
                         Arrays.toString(roles)
                     )
@@ -689,7 +685,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         super.name(),
                         jwtPrincipal,
                         jwtDn,
-                        String.join(",", jwtGroups),
+                        (jwtGroups==null?"null":String.join(",", jwtGroups)),
                         userMetadata
                     ),
                     e
@@ -710,7 +706,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     @Override
     public void expire(final String username) {
-        this.ensureExpectedValueForInitialized(true);
+        this.ensureInitialized();
         if (this.cachedAuthenticationSuccesses != null) {
             LOGGER.trace("invalidating cache for user [{}] in realm [{}]", username, name());
             this.cachedAuthenticationSuccesses.invalidate(username);
@@ -719,7 +715,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     @Override
     public void expireAll() {
-        this.ensureExpectedValueForInitialized(true);
+        this.ensureInitialized();
         if (this.cachedAuthenticationSuccesses != null) {
             LOGGER.trace("invalidating cache for all users in realm [{}]", name());
             this.cachedAuthenticationSuccesses.invalidateAll();
@@ -728,19 +724,19 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     @Override
     public void close() {
-        this.ensureExpectedValueForInitialized(true);
+        this.ensureInitialized();
         this.expireAll();
     }
 
     @Override
     public void lookupUser(final String username, final ActionListener<User> listener) {
-        this.ensureExpectedValueForInitialized(true);
+        this.ensureInitialized();
         listener.onResponse(null); // Run-As and Delegated Authorization are not supported
     }
 
     @Override
     public void usageStats(final ActionListener<Map<String, Object>> listener) {
-        this.ensureExpectedValueForInitialized(true);
+        this.ensureInitialized();
         super.usageStats(ActionListener.wrap(stats -> {
             stats.put("cache", Collections.singletonMap("size", this.getCacheSize()));
             listener.onResponse(stats);
@@ -748,7 +744,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     }
 
     private int getCacheSize() {
-        this.ensureExpectedValueForInitialized(true);
+        this.ensureInitialized();
         return (this.cachedAuthenticationSuccesses == null) ? -1 : this.cachedAuthenticationSuccesses.count();
     }
 

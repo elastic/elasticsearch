@@ -10,8 +10,6 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
 
-  // extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
-
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 

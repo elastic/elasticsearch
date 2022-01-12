@@ -71,7 +71,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
               privileges: [ ALL ]
         """;
 
-    public static final String TEST_UNRESTRICTED_USER = "test_root_user";
+    public static final String ES_TEST_ROOT_USER = "es_test_root";
 
     public static final RequestOptions SECURITY_REQUEST_OPTIONS = RequestOptions.DEFAULT.toBuilder()
         .addHeader(
@@ -91,7 +91,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         + ":"
         + TEST_PASSWORD_HASHED
         + "\n"
-        + TEST_UNRESTRICTED_USER
+        + ES_TEST_ROOT_USER
         + ":"
         + TEST_PASSWORD_HASHED
         + "\n";
@@ -103,9 +103,9 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         + DEFAULT_TRANSPORT_CLIENT_USER_NAME
         + "\n" //
         + (DEFAULT_TRANSPORT_CLIENT_ROLE + ":" + DEFAULT_TRANSPORT_CLIENT_USER_NAME + "\n") //
-        + (SecuritySettingsSourceField.UNRESTRICTED_ROLE + ":" + TEST_UNRESTRICTED_USER + "\n");
+        + (SecuritySettingsSourceField.ES_TEST_ROOT_ROLE + ":" + ES_TEST_ROOT_USER + "\n");
 
-    public static final String CONFIG_STANDARD_ROLES_YML = TEST_ROLE_YML + SecuritySettingsSourceField.UNRESTRICTED_ROLE_YML;
+    public static final String CONFIG_STANDARD_ROLES_YML = TEST_ROLE_YML + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
 
     private final Path parentFolder;
     private final String subfolderPrefix;

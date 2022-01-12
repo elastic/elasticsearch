@@ -52,6 +52,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeSet;
 
 public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
@@ -320,7 +321,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             try {
                 return new Tuple<>(new URL(jwkSetPath), null); // RETURN URL AS NON-NULL AND PATH AS NULL
             } catch (Exception e) {
-                LOGGER.trace(
+                LOGGER.debug(
                     "HTTPS URL ["
                         + jwkSetPath
                         + "] parsing failed for setting ["
@@ -432,6 +433,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             LOGGER.trace("Attempting to perform authentication of JwtAuthenticationToken with realm [{}].", super.name());
             final JWSHeader jwsHeader = jwtAuthenticationToken.getJwsHeader();
             final JWTClaimsSet jwtClaimsSet = jwtAuthenticationToken.getJwtClaimsSet();
+            final Map<String, Object> jwtClaimsMap = jwtClaimsSet.getClaims();
             final SecureString clientAuthorizationSharedSecret = jwtAuthenticationToken.getClientAuthorizationSharedSecret();
             final String clientAuthorizationSharedSecretString = (clientAuthorizationSharedSecret == null)
                 ? null
@@ -453,14 +455,14 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                 return;
             }
-            LOGGER.debug("Realm [{}] allows issuer [{}]. Allowed issuer is [{}].", super.name(), jwtIssuer, this.allowedIssuer);
+            LOGGER.trace("Realm [{}] allows issuer [{}]. Allowed issuer is [{}].", super.name(), jwtIssuer, this.allowedIssuer);
 
             // 2. Skip JWT if audience does not match any of the audiences allowed by this realm.
             final List<String> jwtAudiences = jwtClaimsSet.getAudience();
             if ((jwtAudiences == null) || (this.allowedAudiences.stream().anyMatch(jwtAudiences::contains) == false)) {
                 final String msg = String.format(
                     Locale.ROOT,
-                    "Realm [%s] does not allow audiences [%s]. Allowed audiences are [%]s.",
+                    "Realm [%s] does not allow audiences [%s]. Allowed audiences are [%s].",
                     super.name(),
                     String.join(",", jwtAudiences),
                     String.join(",", this.allowedAudiences)
@@ -469,7 +471,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                 return;
             }
-            LOGGER.debug(
+            LOGGER.trace(
                 "Realm [{}] allows audiences [{}]. Allowed audiences are [{}].",
                 super.name(),
                 String.join(",", jwtAudiences),
@@ -484,17 +486,17 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     "Realm [%s] does not allow signature algorithm [%s]. Allowed signature algorithms are %s.",
                     super.name(),
                     jwsSignatureAlgorithm,
-                    this.allowedSignatureAlgorithms
+                    String.join(",", this.allowedSignatureAlgorithms)
                 );
                 LOGGER.debug(msg);
                 listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                 return;
             }
-            LOGGER.debug(
+            LOGGER.trace(
                 "Realm [{}] allows signature algorithm [{}]. Allowed signature algorithms are {}.",
                 super.name(),
                 jwsSignatureAlgorithm,
-                this.allowedSignatureAlgorithms
+                String.join(",", this.allowedSignatureAlgorithms)
             );
 
             // TODO The implementation of JWT authentication will be completed in a later PR
@@ -527,7 +529,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                         return;
                     }
-                    LOGGER.debug(
+                    LOGGER.trace(
                         "Realm [{}] client authentication [{}] succeeded because request header value matched.",
                         super.name(),
                         this.clientAuthorizationType
@@ -546,7 +548,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                         return;
                     }
-                    LOGGER.debug(
+                    LOGGER.trace(
                         "Realm [{}] client authentication [{}] succeeded because request header value is not present.",
                         super.name(),
                         this.clientAuthorizationType
@@ -563,72 +565,97 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             // 6. If present, verify iat + allowedClockSkew >= now.
             // 7. If present, verify exp + allowedClockSkew >= now.
 
+            // Extract claims into principal, groups, dn, fullName, email, and metadata.
+
+            // Principal is mandatory
             final String jwtPrincipal = this.principalAttribute.getClaimValue(jwtClaimsSet);
-            final String msg1 = String.format(
+            final String messageAboutPrincipalClaim = String.format(
                 Locale.ROOT,
-                "Realm [%s] got principal [%s] from claim [%s] and parser [%s]. JWTClaimsSet is [%s].",
+                "Realm [%s] got principal [%s] using parser [%s]. JWTClaimsSet is %s.",
                 super.name(),
                 jwtPrincipal,
                 this.principalAttribute.getName(),
-                this.principalAttribute.getParser().toString(),
-                jwtClaimsSet.toString()
+                jwtClaimsMap
             );
-            LOGGER.debug(msg1);
             if (jwtPrincipal == null) {
-                listener.onResponse(AuthenticationResult.unsuccessful(msg1, null));
+                LOGGER.debug(messageAboutPrincipalClaim);
+                listener.onResponse(AuthenticationResult.unsuccessful(messageAboutPrincipalClaim, null));
                 return;
-            }
-            final List<String> jwtGroups = this.groupsAttribute.getClaimValues(jwtClaimsSet);
-            final String msg2 = String.format(
-                Locale.ROOT,
-                "Realm [%s] principal [%s] got groups [%s] from claim [%s] and parser [%s]. JWTClaimsSet is [%s].",
-                super.name(),
-                jwtPrincipal,
-                jwtGroups,
-                (this.groupsAttribute.getName() == null ? "null" : this.groupsAttribute.getName().toString()),
-                (this.groupsAttribute.getParser() == null ? "null" : this.groupsAttribute.getParser().toString()),
-                jwtClaimsSet.toString()
-            );
-            LOGGER.debug(msg2);
-            final String jwtDn = null; // JWT realm settings does not support claims.dn
-            final String jwtFullName = null; // JWT realm settings does not support claims.name
-            final String jwtEmail = null; // JWT realm settings does not support claims.mail
-            final Map<String, Object> userMetadata;
-            if (this.populateUserMetadata) {
-                final String msg3 = String.format(
-                    Locale.ROOT,
-                    "Realm [%s] principal [%s] got user metadata from JWTClaimsSet [%s].",
-                    super.name(),
-                    jwtPrincipal,
-                    jwtClaimsSet.toString()
-                );
-                LOGGER.debug(msg3);
-                userMetadata = jwtClaimsSet.getClaims();
             } else {
-                final String msg3 = String.format(
-                    Locale.ROOT,
-                    "Realm [%s] principal [%s] ignored user metadata from JWTClaimsSet [%s].",
-                    super.name(),
-                    jwtPrincipal,
-                    jwtClaimsSet.toString()
-                );
-                LOGGER.debug(msg3);
-                userMetadata = Map.of();
+                LOGGER.trace(messageAboutPrincipalClaim);
             }
-            if (this.delegatedAuthorizationSupport.hasDelegation()) {
-                this.delegatedAuthorizationSupport.resolve(jwtPrincipal, listener);
-                final String msg4 = String.format(
+
+            // Groups is optional
+            final List<String> jwtGroups = this.groupsAttribute.getClaimValues(jwtClaimsSet);
+            LOGGER.trace(
+                String.format(
                     Locale.ROOT,
-                    "Realm [%s] principal [%s] got roles [%s] from authz realms %s.",
+                    "Realm [%s] principal [%s] got groups [%s] using parser [%s]. JWTClaimsSet is %s.",
                     super.name(),
                     jwtPrincipal,
-                    "",
-                    this.delegatedAuthorizationSupport.toString()
-                ); // TODO Print authz realm name
-                LOGGER.debug(msg4);
+                    String.join(",", jwtGroups),
+                    (this.groupsAttribute.getName() == null ? "null" : this.groupsAttribute.getName()),
+                    (this.groupsAttribute.getParser() == null ? "null" : this.groupsAttribute.getParser()),
+                    jwtClaimsMap
+                )
+            );
+
+            // DN, fullName, and email not supported by JWT realm. Pass nulls to UserRoleMapper.UserData and User constructors.
+            final String jwtDn = null;
+            final String jwtFullName = null;
+            final String jwtEmail = null;
+
+            // Metadata is optional
+            final Map<String, Object> userMetadata = this.populateUserMetadata ? jwtClaimsMap : Map.of();
+            LOGGER.trace(
+                String.format(
+                    Locale.ROOT,
+                    "Realm [%s] principal [%s] populateUserMetadata [%s] got metadata [%s] from JWTClaimsSet.",
+                    super.name(),
+                    jwtPrincipal,
+                    this.populateUserMetadata,
+                    userMetadata
+                )
+            );
+
+            // Delegate authorization to other realms. If enabled, do lookup here and return. Don't fall through.
+            if (this.delegatedAuthorizationSupport.hasDelegation()) {
+                final String delegatedAuthorizationSupportDetails = this.delegatedAuthorizationSupport.toString();
+                this.delegatedAuthorizationSupport.resolve(jwtPrincipal, ActionListener.wrap(authenticationResultUser -> {
+                    // Intercept the delegated authorization listener response to log the resolved roles here. Empty is OK.
+                    assert authenticationResultUser != null : "JWT delegated authz should return a non-null AuthenticationResult<User>";
+                    final User user = authenticationResultUser.getValue();
+                    assert user != null : "JWT delegated authz should return a non-null User";
+                    final String[] roles = user.roles();
+                    assert roles != null : "JWT delegated authz should return non-null Roles";
+                    LOGGER.debug(
+                        String.format(
+                            Locale.ROOT,
+                            "Realm [%s] principal [%s] got lookup roles [%s] via delegated authorization [%s]",
+                            super.name(),
+                            jwtPrincipal,
+                            Arrays.toString(roles),
+                            delegatedAuthorizationSupportDetails
+                        )
+                    );
+                    listener.onResponse(authenticationResultUser);
+                }, e -> {
+                    LOGGER.debug(
+                        String.format(
+                            Locale.ROOT,
+                            "Realm [%s] principal [%s] failed to get lookup roles via delegated authorization [%s]",
+                            super.name(),
+                            jwtPrincipal,
+                            delegatedAuthorizationSupportDetails
+                        ),
+                        e
+                    );
+                    listener.onFailure(e);
+                }));
                 return;
             }
 
+            // Handle role mapping in JWT Realm. Realm settings decided what claims to use here for principal, groups, dn, and metadata.
             final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(
                 jwtPrincipal,
                 jwtDn,
@@ -636,27 +663,47 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 userMetadata,
                 super.config
             );
-            this.userRoleMapper.resolveRoles(userData, ActionListener.wrap(rolesSet -> {
-                final String[] roles = rolesSet.toArray(new String[rolesSet.size()]);
-                final String msg4 = String.format(
-                    Locale.ROOT,
-                    "Realm [%s] principal [%s] got roles [%s] via role mapping.",
-                    super.name(),
-                    jwtPrincipal,
-                    roles
+            this.userRoleMapper.resolveRoles(userData, ActionListener.wrap(setOfRoles -> {
+                // Intercept the role mapper listener response to log the resolved roles here. Empty is OK.
+                assert setOfRoles != null : "JWT role mapping should return non-null set of roles.";
+                final String[] roles = new TreeSet<>(setOfRoles).toArray(new String[setOfRoles.size()]);
+                LOGGER.debug(
+                    String.format(
+                        Locale.ROOT,
+                        "Realm [%s] principal [%s] dn [%s] groups [%s] metadata [%s] got mapped roles [%s].",
+                        super.name(),
+                        jwtPrincipal,
+                        jwtDn,
+                        String.join(",", jwtGroups),
+                        userMetadata,
+                        Arrays.toString(roles)
+                    )
                 );
-                LOGGER.debug(msg4);
                 final User user = new User(jwtPrincipal, roles, jwtFullName, jwtEmail, userMetadata, true);
                 listener.onResponse(AuthenticationResult.success(user));
-            }, listener::onFailure));
+            }, e -> {
+                LOGGER.debug(
+                    String.format(
+                        Locale.ROOT,
+                        "Realm [%s] principal [%s] dn [%s] groups [%s] metadata [%s] failed to get mapped roles.",
+                        super.name(),
+                        jwtPrincipal,
+                        jwtDn,
+                        String.join(",", jwtGroups),
+                        userMetadata
+                    ),
+                    e
+                );
+                listener.onFailure(e);
+            }));
         } else {
             final String msg = String.format(
                 Locale.ROOT,
                 "Realm [%s] does not support AuthenticationToken [%s].",
                 super.name(),
-                (authenticationToken == null ? "null" : authenticationToken.getClass().getSimpleName())
+                (authenticationToken == null ? "null" : authenticationToken.getClass().getCanonicalName())
             );
-            LOGGER.debug(msg);
+            LOGGER.trace(msg);
             listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
         }
     }

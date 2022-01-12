@@ -1701,20 +1701,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             if (RepositoryData.MISSING_UUID.equals(repositoryUuid) == false) {
                 // the snapshot waiting to be deleted references a repository with a known uuid,
                 // let's try to find this repository among the existing ones first
-                Optional<RepositoryMetadata> optionalRepository = repositories.repositories()
+                return repositories.repositories()
                     .stream()
                     .filter(repo -> Objects.equals(repo.uuid(), repositoryUuid))
-                    .findFirst();
-                if (optionalRepository.isEmpty()) {
-                    // there is no existing repository matching the uuid,
-                    // let's try to find the repository by name among the existing ones that have no uuid
-                    optionalRepository = repositories.repositories()
-                        .stream()
-                        .filter(repo -> Objects.equals(repo.uuid(), RepositoryData.MISSING_UUID))
-                        .filter(repo -> Objects.equals(repo.name(), repositoryName))
-                        .findFirst();
-                }
-                return optionalRepository;
+                    .findFirst()
+                    .or(
+                        // there is no existing repository matching the uuid,
+                        // let's try to find the repository by name among the existing ones that have no uuid
+                        () -> repositories.repositories()
+                            .stream()
+                            .filter(repo -> Objects.equals(repo.uuid(), RepositoryData.MISSING_UUID))
+                            .filter(repo -> Objects.equals(repo.name(), repositoryName))
+                            .findFirst()
+                    );
             } else {
                 // the snapshot waiting to be deleted does not references a repository with a known uuid,
                 // let's try to find the repository by name among the existing ones, in the hope that

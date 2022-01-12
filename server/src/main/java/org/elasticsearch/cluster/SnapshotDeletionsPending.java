@@ -45,7 +45,7 @@ import static java.util.Collections.unmodifiableList;
  * delete requests to effectively delete the snapshot from the repository. It is possible that the deletion of a snapshot failed for various
  * reason (ex: conflicting snapshot operation, repository removed etc). In such cases the snapshot pending deletion is kept in the cluster
  * state and the deletion will be retried on the next cluster state update. To avoid too many snapshots pending deletion stored in cluster
- * state the number is limited to 500 and configurable through the {@link #MAX_PENDING_DELETIONS_SETTING} setting.
+ * state the number is limited to 5000 and configurable through the {@link #MAX_PENDING_DELETIONS_SETTING} setting.
  */
 public class SnapshotDeletionsPending extends AbstractNamedDiffable<Custom> implements Custom {
 

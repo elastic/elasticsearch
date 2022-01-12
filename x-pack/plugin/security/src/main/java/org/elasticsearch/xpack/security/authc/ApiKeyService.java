@@ -597,7 +597,7 @@ public class ApiKeyService {
     // Before #82049, it is possible to specify a role descriptor for API keys that is identical to the builtin superuser role
     // (including the _reserved metadata field).
     private List<RoleDescriptor> maybeReplaceSuperuserRoleDescriptor(String apiKeyId, List<RoleDescriptor> roleDescriptors) {
-        // Scan through all the roles because superuser can be one of the roles that a user has. Unlikely building the Role object,
+        // Scan through all the roles because superuser can be one of the roles that a user has. Unlike building the Role object,
         // capturing role descriptors does not preempt for superuser.
         return roleDescriptors.stream().map(rd -> {
             // Since we are only replacing limited-by roles and all limited-by roles are looked up with role providers,

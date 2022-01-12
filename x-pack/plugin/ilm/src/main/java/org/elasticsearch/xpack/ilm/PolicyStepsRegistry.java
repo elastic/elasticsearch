@@ -58,6 +58,7 @@ public class PolicyStepsRegistry {
 
     private final Client client;
     private final XPackLicenseState licenseState;
+
     // keeps track of existing policies in the cluster state
     private final SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap;
     // keeps track of what the first step in a policy is, the key is policy name
@@ -294,6 +295,7 @@ public class PolicyStepsRegistry {
         if (cachedStep != null && cachedStep.v1() == indexMetadata && cachedStep.v2().getKey().equals(stepKey)) {
             return cachedStep.v2();
         }
+
         if (ErrorStep.NAME.equals(stepKey.getName())) {
             return new ErrorStep(new Step.StepKey(stepKey.getPhase(), stepKey.getAction(), ErrorStep.NAME));
         }

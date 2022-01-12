@@ -95,7 +95,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         );
         for (int i = 0; i < numResponses; i++) {
             SearchResponse searchResponse = new SearchResponse(
-                InternalSearchResponse.empty(),
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                 null,
                 1,
                 1,
@@ -145,7 +145,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 priorityQueue.add(Tuple.tuple(searchShardTarget, failure));
             }
             SearchResponse searchResponse = new SearchResponse(
-                InternalSearchResponse.empty(),
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                 null,
                 1,
                 1,
@@ -196,7 +196,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 priorityQueue.add(Tuple.tuple(shardId, failure));
             }
             SearchResponse searchResponse = new SearchResponse(
-                InternalSearchResponse.empty(),
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                 null,
                 1,
                 1,
@@ -243,7 +243,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 expectedFailures.add(shardSearchFailure);
             }
             SearchResponse searchResponse = new SearchResponse(
-                InternalSearchResponse.empty(),
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                 null,
                 1,
                 1,

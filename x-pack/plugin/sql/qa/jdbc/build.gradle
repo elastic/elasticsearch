@@ -71,7 +71,7 @@ subprojects {
     }
 
     // Configure compatibility testing tasks
-    BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
+    BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       // Compatibility testing for JDBC driver started with version 7.9.0
       if (bwcVersion.onOrAfter(Version.fromString("7.9.0")) && (bwcVersion.equals(VersionProperties.elasticsearchVersion) == false)) {
         UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)

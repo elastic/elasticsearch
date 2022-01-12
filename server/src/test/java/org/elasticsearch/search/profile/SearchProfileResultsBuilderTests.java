@@ -83,7 +83,7 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
 
     private static FetchSearchResult fetchResult(SearchShardTarget target, ProfileResult profileResult) {
         FetchSearchResult fetchResult = new FetchSearchResult();
-        fetchResult.shardResult(SearchHits.empty(), profileResult);
+        fetchResult.shardResult(SearchHits.EMPTY_WITH_TOTAL_HITS, profileResult);
         fetchResult.setSearchShardTarget(target);
         return fetchResult;
     }

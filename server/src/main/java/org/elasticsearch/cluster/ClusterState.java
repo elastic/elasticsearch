@@ -68,11 +68,11 @@ import java.util.Set;
  * Updates are triggered by submitting tasks to the {@link MasterService} on the elected master, typically using a {@link
  * TransportMasterNodeAction} to route a request to the master on which the task is submitted with {@link
  * ClusterService#submitStateUpdateTask}. Submitted tasks have an associated {@link ClusterStateTaskConfig} which defines a priority and a
- * timeout. Tasks are processed in priority order, so a flood of higher-priority tasks can starve lower-priority ones of access to the
- * master. Therefore, use priorities other than {@link Priority#NORMAL} with care. Tasks associated with client actions should typically
- * have a timeout, or otherwise be sensitive to client cancellations, to avoid surprises caused by the execution of stale tasks long after
- * they are submitted (since clients tend to time out). In contrast internal tasks can reasonably have an infinite timeout, especially if a
- * timeout would simply trigger a retry.
+ * timeout. Tasks are processed in priority order, so a flood of higher-priority tasks can starve lower-priority ones from running.
+ * Therefore, avoid priorities other than {@link Priority#NORMAL} where possible. Tasks associated with client actions should typically have
+ * a timeout, or otherwise be sensitive to client cancellations, to avoid surprises caused by the execution of stale tasks long after they
+ * are submitted (since clients themselves tend to time out). In contrast, internal tasks can reasonably have an infinite timeout,
+ * especially if a timeout would simply trigger a retry.
  * <p>
  * Tasks that share the same {@link ClusterStateTaskExecutor} instance are processed as a batch. Each batch of tasks yields a new {@link
  * ClusterState} which is published to the cluster by {@link ClusterStatePublisher#publish}. Publication usually works by sending a diff,

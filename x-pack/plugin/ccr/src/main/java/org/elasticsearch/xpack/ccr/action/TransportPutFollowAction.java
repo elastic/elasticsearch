@@ -309,7 +309,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 remoteDataStream.getGeneration(),
                 remoteDataStream.getMetadata(),
                 remoteDataStream.isHidden(),
-                true
+                true,
+                remoteDataStream.isSystem()
             );
         } else {
             if (localDataStream.isReplicated() == false) {
@@ -338,7 +339,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 remoteDataStream.getGeneration(),
                 remoteDataStream.getMetadata(),
                 localDataStream.isHidden(),
-                localDataStream.isReplicated()
+                localDataStream.isReplicated(),
+                localDataStream.isSystem()
             );
         }
     }

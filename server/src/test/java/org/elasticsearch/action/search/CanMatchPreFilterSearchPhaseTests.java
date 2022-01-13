@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.CanMatchNodeResponse.ResponseOrFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -479,7 +480,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
         final List<Index> dataStreamIndices = org.elasticsearch.core.List.of(dataStreamIndex1, dataStreamIndex2);
-        DataStream dataStream = new DataStream("mydata", new DataStream.TimestampField("@timestamp"), dataStreamIndices);
+        DataStream dataStream = DataStreamTestHelper.newInstance("mydata", new DataStream.TimestampField("@timestamp"), dataStreamIndices);
 
         List<Index> regularIndices = randomList(0, 2, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));
 
@@ -549,7 +550,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
         final List<Index> dataStreamIndices = org.elasticsearch.core.List.of(dataStreamIndex1, dataStreamIndex2);
-        DataStream dataStream = new DataStream("mydata", new DataStream.TimestampField("@timestamp"), dataStreamIndices);
+        DataStream dataStream = DataStreamTestHelper.newInstance("mydata", new DataStream.TimestampField("@timestamp"), dataStreamIndices);
 
         List<Index> regularIndices = randomList(0, 2, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));
 
@@ -587,7 +588,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
         final List<Index> dataStreamIndices = org.elasticsearch.core.List.of(dataStreamIndex1, dataStreamIndex2);
-        DataStream dataStream = new DataStream("mydata", new DataStream.TimestampField("@timestamp"), dataStreamIndices);
+        DataStream dataStream = DataStreamTestHelper.newInstance("mydata", new DataStream.TimestampField("@timestamp"), dataStreamIndices);
 
         List<Index> regularIndices = randomList(0, 2, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));
 

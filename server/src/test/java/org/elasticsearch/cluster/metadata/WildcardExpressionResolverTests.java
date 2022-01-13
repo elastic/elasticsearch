@@ -289,7 +289,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             .put(firstBackingIndexMetadata, true)
             .put(secondBackingIndexMetadata, true)
             .put(
-                new DataStream(
+                DataStreamTestHelper.newInstance(
                     dataStreamName,
                     createTimestampField("@timestamp"),
                     org.elasticsearch.core.List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex())

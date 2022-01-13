@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.enrich.EnrichStore;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
@@ -123,6 +124,10 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
             .indicesOptions(IndicesOptions.lenientExpand());
 
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, indices);
+
+        // the wildcard expansion could be too wide (e.g. in the case of a policy named policy-1 and another named policy-10),
+        // so we need to filter down to just the concrete indices that are actually indices for this policy
+        concreteIndices = Stream.of(concreteIndices).filter(i -> EnrichPolicy.isPolicyForIndex(policyName, i)).toArray(String[]::new);
 
         deleteIndicesAndPolicy(concreteIndices, policyName, ActionListener.wrap((response) -> {
             enrichPolicyLocks.releasePolicy(policyName);

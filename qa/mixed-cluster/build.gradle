@@ -21,7 +21,7 @@ restResources {
   }
 }
 
-BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
+BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   if (bwcVersion != VersionProperties.getElasticsearchVersion()) {
     /* This project runs the core REST tests against a 4 node cluster where two of

@@ -7,65 +7,53 @@
  */
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 
 import java.util.List;
 
 /**
- * Used to apply state updates on nodes that are not necessarily master
+ * Used to execute things on the master service thread on nodes that are not necessarily master
  */
-public abstract class LocalClusterUpdateTask
-    implements
-        ClusterStateTaskConfig,
-        ClusterStateTaskExecutor<LocalClusterUpdateTask>,
-        ClusterStateTaskListener {
+public abstract class LocalClusterUpdateTask implements ClusterStateTaskListener {
 
     private final Priority priority;
-
-    public LocalClusterUpdateTask() {
-        this(Priority.NORMAL);
-    }
 
     public LocalClusterUpdateTask(Priority priority) {
         this.priority = priority;
     }
 
-    public abstract ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception;
+    public void execute(ClusterState currentState) throws Exception {}
 
-    @Override
-    public final ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState, List<LocalClusterUpdateTask> tasks)
-        throws Exception {
-        assert tasks.size() == 1 && tasks.get(0) == this : "expected one-element task list containing current object but was " + tasks;
-        ClusterTasksResult<LocalClusterUpdateTask> result = execute(currentState);
-        return ClusterTasksResult.<LocalClusterUpdateTask>builder().successes(tasks).build(result, currentState);
-    }
+    public void submit(MasterService masterService, String source) {
+        masterService.submitStateUpdateTask(
+            source,
+            this,
+            ClusterStateTaskConfig.build(priority),
+            // Uses a new executor each time so that these tasks are not batched, but they never change the cluster state anyway so they
+            // don't trigger the publication process and hence batching isn't really needed.
+            new ClusterStateTaskExecutor<>() {
 
-    /**
-     * no changes were made to the cluster state. Useful to execute a runnable on the cluster state applier thread
-     */
-    public static ClusterTasksResult<LocalClusterUpdateTask> unchanged() {
-        return new ClusterTasksResult<>(null, null);
-    }
+                @Override
+                public boolean runOnlyOnMaster() {
+                    return false;
+                }
 
-    @Override
-    public String describeTasks(List<LocalClusterUpdateTask> tasks) {
-        return ""; // one of task, source is enough
-    }
+                @Override
+                public String describeTasks(List<LocalClusterUpdateTask> tasks) {
+                    return "";
+                }
 
-    @Nullable
-    public TimeValue timeout() {
-        return null;
-    }
-
-    @Override
-    public Priority priority() {
-        return priority;
-    }
-
-    @Override
-    public final boolean runOnlyOnMaster() {
-        return false;
+                @Override
+                public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState, List<LocalClusterUpdateTask> tasks)
+                    throws Exception {
+                    assert tasks.size() == 1 && tasks.get(0) == LocalClusterUpdateTask.this
+                        : "expected one-element task list containing current object but was " + tasks;
+                    LocalClusterUpdateTask.this.execute(currentState);
+                    return ClusterTasksResult.<LocalClusterUpdateTask>builder().successes(tasks).build(currentState);
+                }
+            },
+            this
+        );
     }
 }

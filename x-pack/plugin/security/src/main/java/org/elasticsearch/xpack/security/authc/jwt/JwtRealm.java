@@ -392,7 +392,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
     }
 
-
     @Override
     public boolean supports(final AuthenticationToken jwtAuthenticationToken) {
         this.ensureInitialized();
@@ -461,7 +460,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     Locale.ROOT,
                     "Realm [%s] does not allow audiences [%s]. Allowed audiences are [%s].",
                     super.name(),
-                    (jwtAudiences==null?"null":String.join(",", jwtAudiences)),
+                    (jwtAudiences == null ? "null" : String.join(",", jwtAudiences)),
                     String.join(",", this.allowedAudiences)
                 );
                 LOGGER.debug(msg);
@@ -590,7 +589,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     "Realm [%s] principal [%s] got groups [%s] using parser [%s]. JWTClaimsSet is %s.",
                     super.name(),
                     jwtPrincipal,
-                    (jwtGroups==null?"null":String.join(",", jwtGroups)),
+                    (jwtGroups == null ? "null" : String.join(",", jwtGroups)),
                     (this.groupsAttribute.getName() == null ? "null" : this.groupsAttribute.getName()),
                     jwtClaimsMap
                 )
@@ -670,7 +669,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         super.name(),
                         jwtPrincipal,
                         jwtDn,
-                        (jwtGroups==null?"null":String.join(",", jwtGroups)),
+                        (jwtGroups == null ? "null" : String.join(",", jwtGroups)),
                         userMetadata,
                         Arrays.toString(roles)
                     )
@@ -685,7 +684,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         super.name(),
                         jwtPrincipal,
                         jwtDn,
-                        (jwtGroups==null?"null":String.join(",", jwtGroups)),
+                        (jwtGroups == null ? "null" : String.join(",", jwtGroups)),
                         userMetadata
                     ),
                     e

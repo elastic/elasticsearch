@@ -24,7 +24,9 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 == {api-description-title}
 
 Currently only `pytorch` models are supported for deployment. When deployed,
-the model attempts allocation to every machine learning node.
+the model attempts allocation to every machine learning node. Once deployed
+the model can be used by the <<inference-processor,{infer-cap} processor>>
+in an ingest pipeline or directly in the <<infer-trained-model-deployment>> API.
 
 [[start-trained-model-deployment-path-params]]
 == {api-path-parms-title}
@@ -61,9 +63,10 @@ hardware threads then the number of `inference_threads` will be reduced.
 
 `queue_capacity`::
 (Optional, integer)
-Controls how many inference requests are allowed in the queue at a time. Once the
-number of requests exceeds this value, new requests are rejected with a 429 error.
-Defaults to 1024.
+Controls how many inference requests are allowed in the queue at a time.
+Every machine learning node in the cluster where the model can be allocated
+has a queue of this size; when the number of requests exceeds the total value,
+new requests are rejected with a 429 error. Defaults to 1024.
 
 `timeout`::
 (Optional, time)

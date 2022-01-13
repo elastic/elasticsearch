@@ -7,15 +7,29 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
+import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * An index abstraction is a reference to one or more concrete indices.
@@ -50,6 +64,10 @@ public interface IndexAbstraction {
      */
     @Nullable
     Index getWriteIndex();
+
+    default Index getWriteIndex(IndexRequest request, Metadata metadata) {
+        return getWriteIndex();
+    }
 
     /**
      * @return the data stream to which this index belongs or <code>null</code> if this is not a concrete index or
@@ -384,6 +402,11 @@ public interface IndexAbstraction {
 
     class DataStream implements IndexAbstraction {
 
+        public static final XContentParserConfiguration TS_EXTRACT_CONFIG = XContentParserConfiguration.EMPTY.withFiltering(
+            Set.of("@timestamp"),
+            null
+        );
+
         private final org.elasticsearch.cluster.metadata.DataStream dataStream;
         private final List<String> referencedByDataStreamAliases;
 
@@ -409,6 +432,76 @@ public interface IndexAbstraction {
 
         public Index getWriteIndex() {
             return dataStream.getWriteIndex();
+        }
+
+        @Override
+        public Index getWriteIndex(IndexRequest request, Metadata metadata) {
+            if (request.opType() != DocWriteRequest.OpType.CREATE) {
+                return getWriteIndex();
+            }
+
+            if (getType() != IndexAbstraction.Type.DATA_STREAM) {
+                return getWriteIndex();
+            }
+
+            if (dataStream.isTimeSeries(metadata::index) == false) {
+                return getWriteIndex();
+            }
+
+            Instant timestamp;
+            XContent xContent = request.getContentType().xContent();
+            try (XContentParser parser = xContent.createParser(TS_EXTRACT_CONFIG, request.source().streamInput())) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+                switch (parser.nextToken()) {
+                    case VALUE_STRING:
+                        // TODO: deal with nanos too here.
+                        // (the index hasn't been resolved yet, keep track of timestamp field metadata at data stream level,
+                        // so we can use it here)
+                        timestamp = Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(parser.text()));
+                        break;
+                    case VALUE_NUMBER:
+                        timestamp = Instant.ofEpochMilli(parser.longValue());
+                        break;
+                    default:
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            String.format(
+                                Locale.ROOT,
+                                "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
+                                XContentParser.Token.VALUE_STRING,
+                                XContentParser.Token.VALUE_NUMBER,
+                                parser.currentToken()
+                            )
+                        );
+                }
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Error extracting timestamp: " + e.getMessage(), e);
+            }
+            Index result = dataStream.selectTimeSeriesWriteIndex(timestamp, metadata);
+            if (result == null) {
+                String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
+                String writeableIndicesString = dataStream.getIndices()
+                    .stream()
+                    .map(metadata::index)
+                    .map(IndexMetadata::getSettings)
+                    .map(
+                        settings -> "["
+                            + settings.get(IndexSettings.TIME_SERIES_START_TIME.getKey())
+                            + ","
+                            + settings.get(IndexSettings.TIME_SERIES_END_TIME.getKey())
+                            + "]"
+                    )
+                    .collect(Collectors.joining());
+                throw new IllegalArgumentException(
+                    "the document timestamp ["
+                        + timestampAsString
+                        + "] is outside of ranges of currently writable indices ["
+                        + writeableIndicesString
+                        + "]"
+                );
+            }
+            return result;
         }
 
         @Override

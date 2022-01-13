@@ -65,15 +65,15 @@ index or a data stream's backing indices. This means that snapshots can only be 
 The following table indicates snapshot compatibility between versions. The first column denotes the base version that you can restore snapshots from.
 
 // tag::snapshot-compatibility-matrix[]
-[cols="6"]
+[cols="5"]
 |===
-| 5+^h| Cluster version
-^h| Snapshot version ^| 2.x ^| 5.x ^| 6.x ^| 7.x ^| 8.x
-^| *1.x* -> ^|{yes-icon} ^|{no-icon}  ^|{no-icon}  ^|{no-icon}  ^|{no-icon}
-^| *2.x* -> ^|{yes-icon} ^|{yes-icon} ^|{no-icon}  ^|{no-icon}  ^|{no-icon}
-^| *5.x* -> ^|{no-icon}  ^|{yes-icon} ^|{yes-icon} ^|{no-icon}  ^|{no-icon}
-^| *6.x* -> ^|{no-icon}  ^|{no-icon}  ^|{yes-icon} ^|{yes-icon} ^|{no-icon}
-^| *7.x* -> ^|{no-icon}  ^|{no-icon}  ^|{no-icon}  ^|{yes-icon} ^|{yes-icon}
+| 4+^h| Cluster version
+^h| Snapshot version ^| 2.x ^| 5.x ^| 6.x ^| 7.x
+^| *1.x* -> ^|{yes-icon} ^|{no-icon}  ^|{no-icon}  ^|{no-icon}
+^| *2.x* -> ^|{yes-icon} ^|{yes-icon} ^|{no-icon}  ^|{no-icon}
+^| *5.x* -> ^|{no-icon}  ^|{yes-icon} ^|{yes-icon} ^|{no-icon}
+^| *6.x* -> ^|{no-icon}  ^|{no-icon}  ^|{yes-icon} ^|{yes-icon}
+^| *7.x* -> ^|{no-icon}  ^|{no-icon}  ^|{no-icon}  ^|{yes-icon}
 |===
 // end::snapshot-compatibility-matrix[]
 

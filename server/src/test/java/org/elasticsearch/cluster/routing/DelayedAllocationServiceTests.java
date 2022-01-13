@@ -168,8 +168,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             clusterStateUpdateTask.set((ClusterStateUpdateTask) invocationOnMock.getArguments()[1]);
             latch.countDown();
             return null;
-        }).when(clusterService)
-            .submitStateUpdateTask(eq(CLUSTER_UPDATE_TASK_SOURCE), any(ClusterStateUpdateTask.class), ClusterStateTaskExecutor.unbatched());
+        }).when(clusterService).submitStateUpdateTask(eq(CLUSTER_UPDATE_TASK_SOURCE), any(ClusterStateUpdateTask.class), any());
         assertNull(delayedAllocationService.delayedRerouteTask.get());
         long delayUntilClusterChangeEvent = TimeValue.timeValueNanos(randomInt((int) delaySetting.nanos() - 1)).nanos();
         long clusterChangeEventTimestampNanos = baseTimestampNanos + delayUntilClusterChangeEvent;
@@ -361,8 +360,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             clusterStateUpdateTask2.set((ClusterStateUpdateTask) invocationOnMock.getArguments()[1]);
             latch2.countDown();
             return null;
-        }).when(clusterService)
-            .submitStateUpdateTask(eq(CLUSTER_UPDATE_TASK_SOURCE), any(ClusterStateUpdateTask.class), ClusterStateTaskExecutor.unbatched());
+        }).when(clusterService).submitStateUpdateTask(eq(CLUSTER_UPDATE_TASK_SOURCE), any(ClusterStateUpdateTask.class), any());
         // simulate calling listener (cluster change event)
         delayUntilClusterChangeEvent = timeValueMillis(randomInt(50)).nanos();
         clusterChangeEventTimestampNanos = nanoTimeForReroute + delayUntilClusterChangeEvent;

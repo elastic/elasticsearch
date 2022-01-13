@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -26,6 +25,7 @@ import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.mockito.ArgumentMatcher;
 
 import static java.util.Collections.emptyMap;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -78,7 +78,7 @@ public class TransportStopILMActionTests extends ESTestCase {
                     return actualPriority == Priority.IMMEDIATE;
                 }
             }),
-            ClusterStateTaskExecutor.unbatched()
+            any()
         );
     }
 

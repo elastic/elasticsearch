@@ -14,7 +14,6 @@ import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -223,12 +222,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             changedOperationMode.set(true);
             return null;
-        }).when(clusterService)
-            .submitStateUpdateTask(
-                eq("ilm_operation_mode_update"),
-                any(OperationModeUpdateTask.class),
-                ClusterStateTaskExecutor.unbatched()
-            );
+        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update"), any(OperationModeUpdateTask.class), any());
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, true);
         assertNull(changedOperationMode.get());
@@ -292,7 +286,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .submitStateUpdateTask(
                 eq("ilm_operation_mode_update[stopped]"),
                 eq(OperationModeUpdateTask.ilmMode(OperationMode.STOPPED)),
-                ClusterStateTaskExecutor.unbatched()
+                any()
             );
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, true);
@@ -351,12 +345,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             assertThat(task.getILMOperationMode(), equalTo(OperationMode.STOPPED));
             moveToMaintenance.set(true);
             return null;
-        }).when(clusterService)
-            .submitStateUpdateTask(
-                eq("ilm_operation_mode_update[stopped]"),
-                any(OperationModeUpdateTask.class),
-                ClusterStateTaskExecutor.unbatched()
-            );
+        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update[stopped]"), any(OperationModeUpdateTask.class), any());
 
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, randomBoolean());

@@ -40,7 +40,6 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -234,8 +233,8 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
         final Settings.Builder repositorySettings = randomRepositorySettings();
         createRepository(repository, FsRepository.TYPE, repositorySettings);
 
-        final List<String> indices = new ArrayList<>();
-        for (int i = 0; i < randomIntBetween(1, 10); i++) {
+        final String[] indices = new String[randomIntBetween(1, 10)];
+        for (int i = 0; i < indices.length; i++) {
             final String index = "index-" + i;
             assertAcked(
                 prepareCreate(
@@ -246,7 +245,7 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
                         .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
                 )
             );
-            indices.add(index);
+            indices[i] = index;
         }
 
         final int nbSnapshots = randomIntBetween(1, 10);

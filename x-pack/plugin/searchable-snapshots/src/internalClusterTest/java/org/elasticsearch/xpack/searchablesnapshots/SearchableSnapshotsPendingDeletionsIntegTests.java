@@ -321,7 +321,9 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
         mountLatch.await();
 
         if (randomBoolean()) {
-            // we can't delete a repository that is used by searchable snapshot indices but we can update it
+            // Force the re-registration of the repository with randomized value for the "verify" flag;
+            // it helps to test the case where the repository UUID is unknown at the time the snapshot
+            // is marked to be deleted.
             assertAcked(
                 clusterAdmin().preparePutRepository(repository)
                     .setType(FsRepository.TYPE)

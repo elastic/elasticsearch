@@ -240,7 +240,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref) {
-            this(rootName, ref.isSearchable(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
+            this(rootName, ref.isIndexed(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
         }
 
         @Override
@@ -710,7 +710,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return;
         }
 
-        if (mappedFieldType.isSearchable() == false && mappedFieldType.hasDocValues() == false) {
+        if (mappedFieldType.isIndexed() == false && mappedFieldType.hasDocValues() == false) {
             context.parser().skipChildren();
             return;
         }

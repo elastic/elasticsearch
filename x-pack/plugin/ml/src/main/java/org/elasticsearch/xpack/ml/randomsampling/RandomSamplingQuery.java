@@ -45,7 +45,7 @@ public final class RandomSamplingQuery extends Query {
      *                  can be generated
      * @param cacheable True if the seed is static (provided by the user) so that we can cache the query, false otherwise
      */
-    RandomSamplingQuery(double p, int seed, long hash, boolean cacheable, Query query) {
+    public RandomSamplingQuery(double p, int seed, long hash, boolean cacheable, Query query) {
         if (p <= 0.0 || p >= 1.0) {
             throw new IllegalArgumentException("RandomSampling probability must be between 0.0 and 1.0");
         }

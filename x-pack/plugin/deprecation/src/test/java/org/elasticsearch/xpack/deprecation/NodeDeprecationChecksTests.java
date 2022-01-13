@@ -12,11 +12,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.bootstrap.BootstrapSettings;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.DiscoveryUpgradeService;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -635,10 +637,12 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     public void testRemovedSettingNotSet() {
-        final Settings settings = Settings.EMPTY;
+        final Settings clusterSettings = Settings.EMPTY;
+        final Settings nodeSettings = Settings.EMPTY;
         final Setting<?> removedSetting = Setting.simpleString("node.removed_setting");
         final DeprecationIssue issue = NodeDeprecationChecks.checkRemovedSetting(
-            settings,
+            clusterSettings,
+            nodeSettings,
             removedSetting,
             "http://removed-setting.example.com",
             "Some detail."
@@ -647,10 +651,30 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     public void testRemovedSetting() {
-        final Settings settings = Settings.builder().put("node.removed_setting", "value").build();
+        final Settings clusterSettings = Settings.EMPTY;
+        final Settings nodeSettings = Settings.builder().put("node.removed_setting", "value").build();
         final Setting<?> removedSetting = Setting.simpleString("node.removed_setting");
         final DeprecationIssue issue = NodeDeprecationChecks.checkRemovedSetting(
-            settings,
+            clusterSettings,
+            nodeSettings,
+            removedSetting,
+            "https://removed-setting.example.com",
+            "Some detail."
+        );
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(issue.getMessage(), equalTo("Setting [node.removed_setting] is deprecated"));
+        assertThat(issue.getDetails(), equalTo("Remove the [node.removed_setting] setting. Some detail."));
+        assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
+    }
+
+    public void testRemovedDynamicSetting() {
+        final Settings clusterSettings = Settings.builder().put("node.removed_setting", "value").build();
+        final Settings nodeSettings = Settings.EMPTY;
+        final Setting<?> removedSetting = Setting.simpleString("node.removed_setting");
+        final DeprecationIssue issue = NodeDeprecationChecks.checkRemovedSetting(
+            clusterSettings,
+            nodeSettings,
             removedSetting,
             "https://removed-setting.example.com",
             "Some detail."
@@ -2170,6 +2194,42 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             ZenDiscovery.MAX_PENDING_CLUSTER_STATES_SETTING,
             DiscoverySettings.PUBLISH_TIMEOUT_SETTING
         );
+        for (Setting<?> deprecatedSetting : deprecatedSettings) {
+            final DeprecationIssue expected = new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Setting [" + deprecatedSetting.getKey() + "] is deprecated",
+                "https://ela.st/es-deprecation-7-unused_zen_settings",
+                "Remove the [" + deprecatedSetting.getKey() + "] setting.",
+                false,
+                null
+            );
+            assertThat(issues, hasItem(expected));
+        }
+    }
+
+    public void testDynamicSettings() {
+        Settings clusterSettings = Settings.builder()
+            .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), randomInt())
+            .build();
+        Settings nodettings = Settings.builder().build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        if (randomBoolean()) {
+            metadataBuilder.persistentSettings(clusterSettings);
+        } else {
+            metadataBuilder.transientSettings(clusterSettings);
+        }
+        Metadata metadata = metadataBuilder.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
+        final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            DeprecationChecks.NODE_SETTINGS_CHECKS,
+            c -> c.apply(nodettings, pluginsAndModules, clusterState, licenseState)
+        );
+
+        Collection<Setting<?>> deprecatedSettings = Set.of(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING);
         for (Setting<?> deprecatedSetting : deprecatedSettings) {
             final DeprecationIssue expected = new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,

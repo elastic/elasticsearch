@@ -42,6 +42,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -2434,12 +2435,14 @@ public final class TokenService {
                     TokenMetadata metadata = rotateToSpareKey();
                     clusterService.submitStateUpdateTask(
                         "publish next key to prepare key rotation",
-                        new TokenMetadataPublishAction(metadata, listener)
+                        new TokenMetadataPublishAction(metadata, listener),
+                        ClusterStateTaskExecutor.unbatched()
                     );
                 } else {
                     listener.onFailure(new IllegalStateException("not acked"));
                 }
-            }, listener::onFailure))
+            }, listener::onFailure)),
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -2532,7 +2535,7 @@ public final class TokenService {
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         installTokenMetadataInProgress.set(false);
                     }
-                });
+                }, ClusterStateTaskExecutor.unbatched());
             }
         }
     }

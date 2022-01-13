@@ -14,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -252,6 +253,10 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     }
 
     private void runRecovery() {
-        clusterService.submitStateUpdateTask("local-gateway-elected-state", new RecoverStateUpdateTask());
+        clusterService.submitStateUpdateTask(
+            "local-gateway-elected-state",
+            new RecoverStateUpdateTask(),
+            ClusterStateTaskExecutor.unbatched()
+        );
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -250,7 +251,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
-        Mockito.verify(clusterService, times(1)).submitStateUpdateTask(any(), any());
+        Mockito.verify(clusterService, times(1)).submitStateUpdateTask(any(), any(), ClusterStateTaskExecutor.unbatched());
     }
 
     public void testRunStateChangePolicyWithNoNextStep() throws Exception {

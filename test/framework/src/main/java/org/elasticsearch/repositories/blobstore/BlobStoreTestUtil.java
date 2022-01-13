@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -446,7 +447,7 @@ public final class BlobStoreTestUtil {
             );
             task.clusterStateProcessed((String) invocation.getArguments()[0], current, next);
             return null;
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), ClusterStateTaskExecutor.unbatched());
         doAnswer(invocation -> {
             appliers.add((ClusterStateApplier) invocation.getArguments()[0]);
             return null;

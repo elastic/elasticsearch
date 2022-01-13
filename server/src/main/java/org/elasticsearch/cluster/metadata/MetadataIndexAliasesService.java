@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUp
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -76,7 +77,7 @@ public class MetadataIndexAliasesService {
             public ClusterState execute(ClusterState currentState) {
                 return applyAliasActions(currentState, request.actions());
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     /**

@@ -9,6 +9,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -174,7 +175,7 @@ public class LicenseServiceTests extends ESTestCase {
             assertion.accept(future);
         } else {
             ArgumentCaptor<ClusterStateUpdateTask> taskCaptor = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
-            verify(clusterService, times(1)).submitStateUpdateTask(any(), taskCaptor.capture());
+            verify(clusterService, times(1)).submitStateUpdateTask(any(), taskCaptor.capture(), ClusterStateTaskExecutor.unbatched());
 
             final ClusterStateUpdateTask task = taskCaptor.getValue();
             assertThat(task, instanceOf(AckedClusterStateUpdateTask.class));

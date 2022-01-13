@@ -7,6 +7,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -33,13 +34,21 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
         // ensure acknowledgement message was part of the response
         licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(false, LicensesStatus.VALID, true));
         assertThat(licenseService.getLicense(), not(signedLicense));
-        verify(clusterService, times(0)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
+        verify(clusterService, times(0)).submitStateUpdateTask(
+            any(String.class),
+            any(ClusterStateUpdateTask.class),
+            ClusterStateTaskExecutor.unbatched()
+        );
 
         // try installing a signed license with acknowledgement
         putLicenseRequest = new PutLicenseRequest().license(signedLicense).acknowledge(true);
         // ensure license was installed and no acknowledgment message was returned
         licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(true, LicensesStatus.VALID, false));
-        verify(clusterService, times(1)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
+        verify(clusterService, times(1)).submitStateUpdateTask(
+            any(String.class),
+            any(ClusterStateUpdateTask.class),
+            ClusterStateTaskExecutor.unbatched()
+        );
     }
 
     private static class AssertingLicensesUpdateResponse implements ActionListener<PutLicenseResponse> {

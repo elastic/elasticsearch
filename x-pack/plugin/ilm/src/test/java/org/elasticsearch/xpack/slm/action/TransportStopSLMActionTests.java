@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -76,7 +77,8 @@ public class TransportStopSLMActionTests extends ESTestCase {
                     actualPriority = other.priority();
                     return actualPriority == Priority.IMMEDIATE;
                 }
-            })
+            }),
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

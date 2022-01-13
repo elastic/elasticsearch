@@ -192,7 +192,7 @@ class RollupShardIndexer {
             throw new IllegalArgumentException("Wrong type for the timestamp field, " + "expected [date], got [" + fieldType.name() + "]");
         }
         if (fieldType.isIndexed() == false) {
-            throw new IllegalArgumentException("The timestamp field [" + fieldType.name() + "]  is not searchable");
+            throw new IllegalArgumentException("The timestamp field [" + fieldType.name() + "]  is not indexed");
         }
     }
 

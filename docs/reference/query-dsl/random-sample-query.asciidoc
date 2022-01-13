@@ -36,6 +36,7 @@ GET kibana_sample_data_ecommerce/_search?size=0&track_total_hits=false
 
 [[random-sample-top-level-params]]
 ==== Top-level parameters for `random_sample`
+
 `filter`::
 +
 --
@@ -49,13 +50,13 @@ speed up performance, {es} automatically caches frequently used filter queries.
 `probability`::
 (Required, float) Floating point number indicating the sampling rate for the documents.
 Must be between (0, 1) exclusive. The `probability` isn't exactly the percentage of documents sampled,
-but for the majority of cases they can be considered equivalent concepts. Example, a `"probability": 0.01` over
-`1000000` documents will generally sample `100000` (or `1%`) documents. But it may not be exactly `100000` and is
+but for the majority of cases, they can be considered equivalent concepts. For example, a `"probability": 0.01` over
+`1000000` documents generally samples ` 100000` (or `1%`) documents. But it may not be exactly `100000` and is
 usually within the window of `[9900, 101000]`.
 
 `seed`::
-(Optional, int) Seed to generate the random sampling of documents. When the seed is provided, the random subset of
-documents matched is the same between calls. The query may be cached internally when the `seed` is provided.
+(Optional, integer) Seed to generate the random sampling of documents. When the seed is provided, the random subset 
+of documents matched is the same between calls. The query may be cached internally when the `seed` is provided.
 
 [[random-sample-inner-workings]]
 ==== How does the sampling work?

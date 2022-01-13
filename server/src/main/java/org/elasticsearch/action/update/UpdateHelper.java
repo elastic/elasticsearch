@@ -154,11 +154,6 @@ public class UpdateHelper {
             // it has to be a "create!"
             .create(true);
 
-        if (request.versionType() != VersionType.INTERNAL) {
-            // in all but the internal versioning mode, we want to create the new document using the given version.
-            indexRequest.version(request.version()).versionType(request.versionType());
-        }
-
         return new Result(indexRequest, DocWriteResponse.Result.CREATED, null, null);
     }
 

@@ -72,7 +72,7 @@ Ingest::
 
 Machine Learning::
 * Add `deployment_stats` to trained model stats {es-pull}80531[#80531]
-* Use_auto_machine_memory_percent now defaults `max_model_memory_limit` {es-pull}80532[#80532] (issue: {es-issue}80415[#80415])
+* The setting `use_auto_machine_memory_percent` now defaults `max_model_memory_limit` {es-pull}80532[#80532] (issue: {es-issue}80415[#80415])
 
 Monitoring::
 * Adding default templates for Metricbeat ECS data {es-pull}81744[#81744]

@@ -105,7 +105,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         + (DEFAULT_TRANSPORT_CLIENT_ROLE + ":" + DEFAULT_TRANSPORT_CLIENT_USER_NAME + "\n") //
         + (SecuritySettingsSourceField.ES_TEST_ROOT_ROLE + ":" + ES_TEST_ROOT_USER + "\n");
 
-    public static final String CONFIG_STANDARD_ROLES_YML = TEST_ROLE_YML + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
+    public static final String CONFIG_STANDARD_ROLES_YML = TEST_ROLE_YML + "\n" + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
 
     private final Path parentFolder;
     private final String subfolderPrefix;

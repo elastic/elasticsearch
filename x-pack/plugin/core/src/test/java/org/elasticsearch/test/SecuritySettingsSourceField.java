@@ -15,17 +15,17 @@ public final class SecuritySettingsSourceField {
 
     public static final String ES_TEST_ROOT_ROLE = "_es_test_root";
     public static final String ES_TEST_ROOT_ROLE_YML = """
-          _es_test_root:
-            cluster: [ "ALL" ]
-            indices:
-              - names: [ "*" ]
-                allow_restricted_indices: true
-                privileges: [ "ALL" ]
-            run_as: [ "*" ]
-            applications:
-              - application: "*"
-                privileges: [ "*" ]
-                resources: [ "*" ]
+        _es_test_root:
+          cluster: [ "ALL" ]
+          indices:
+            - names: [ "*" ]
+              allow_restricted_indices: true
+              privileges: [ "ALL" ]
+          run_as: [ "*" ]
+          applications:
+            - application: "*"
+              privileges: [ "*" ]
+              resources: [ "*" ]
         """;
 
     private SecuritySettingsSourceField() {}

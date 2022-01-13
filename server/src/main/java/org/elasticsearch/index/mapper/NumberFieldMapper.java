@@ -266,12 +266,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean forceDocValues) {
+            public Query termQuery(String field, Object value, boolean isIndexed) {
                 float v = parseToFloat(value);
-                if (forceDocValues) {
-                    return SortedNumericDocValuesField.newSlowExactQuery(field, HalfFloatPoint.halfFloatToSortableShort(v));
-                } else {
+                if (isIndexed) {
                     return HalfFloatPoint.newExactQuery(field, v);
+                } else {
+                    return SortedNumericDocValuesField.newSlowExactQuery(field, HalfFloatPoint.halfFloatToSortableShort(v));
                 }
             }
 
@@ -294,7 +294,7 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean includeUpper,
                 boolean hasDocValues,
                 SearchExecutionContext context,
-                boolean forceDocValues
+                boolean isIndexed
             ) {
                 float l = Float.NEGATIVE_INFINITY;
                 float u = Float.POSITIVE_INFINITY;
@@ -313,13 +313,7 @@ public class NumberFieldMapper extends FieldMapper {
                     u = HalfFloatPoint.nextDown(u);
                 }
                 Query query;
-                if (forceDocValues) {
-                    query = SortedNumericDocValuesField.newSlowRangeQuery(
-                        field,
-                        HalfFloatPoint.halfFloatToSortableShort(l),
-                        HalfFloatPoint.halfFloatToSortableShort(u)
-                    );
-                } else {
+                if (isIndexed) {
                     query = HalfFloatPoint.newRangeQuery(field, l, u);
                     if (hasDocValues) {
                         Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(
@@ -329,6 +323,12 @@ public class NumberFieldMapper extends FieldMapper {
                         );
                         query = new IndexOrDocValuesQuery(query, dvQuery);
                     }
+                } else {
+                    query = SortedNumericDocValuesField.newSlowRangeQuery(
+                        field,
+                        HalfFloatPoint.halfFloatToSortableShort(l),
+                        HalfFloatPoint.halfFloatToSortableShort(u)
+                    );
                 }
                 return query;
             }
@@ -389,12 +389,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean forceDocValues) {
+            public Query termQuery(String field, Object value, boolean isIndexed) {
                 float v = parse(value, false);
-                if (forceDocValues) {
-                    return SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.floatToSortableInt(v));
-                } else {
+                if (isIndexed) {
                     return FloatPoint.newExactQuery(field, v);
+                } else {
+                    return SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.floatToSortableInt(v));
                 }
             }
 
@@ -417,7 +417,7 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean includeUpper,
                 boolean hasDocValues,
                 SearchExecutionContext context,
-                boolean forceDocValues
+                boolean isIndexed
             ) {
                 float l = Float.NEGATIVE_INFINITY;
                 float u = Float.POSITIVE_INFINITY;
@@ -434,13 +434,7 @@ public class NumberFieldMapper extends FieldMapper {
                     }
                 }
                 Query query;
-                if (forceDocValues) {
-                    query = SortedNumericDocValuesField.newSlowRangeQuery(
-                        field,
-                        NumericUtils.floatToSortableInt(l),
-                        NumericUtils.floatToSortableInt(u)
-                    );
-                } else {
+                if (isIndexed) {
                     query = FloatPoint.newRangeQuery(field, l, u);
                     if (hasDocValues) {
                         Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(
@@ -450,6 +444,12 @@ public class NumberFieldMapper extends FieldMapper {
                         );
                         query = new IndexOrDocValuesQuery(query, dvQuery);
                     }
+                } else {
+                    query = SortedNumericDocValuesField.newSlowRangeQuery(
+                        field,
+                        NumericUtils.floatToSortableInt(l),
+                        NumericUtils.floatToSortableInt(u)
+                    );
                 }
                 return query;
             }
@@ -509,12 +509,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean forceDocValues) {
+            public Query termQuery(String field, Object value, boolean isIndexed) {
                 double v = parse(value, false);
-                if (forceDocValues) {
-                    return SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.doubleToSortableLong(v));
-                } else {
+                if (isIndexed) {
                     return DoublePoint.newExactQuery(field, v);
+                } else {
+                    return SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.doubleToSortableLong(v));
                 }
             }
 
@@ -533,17 +533,11 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean includeUpper,
                 boolean hasDocValues,
                 SearchExecutionContext context,
-                boolean forceDocValues
+                boolean isIndexed
             ) {
                 return doubleRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
                     Query query;
-                    if (forceDocValues) {
-                        query = SortedNumericDocValuesField.newSlowRangeQuery(
-                            field,
-                            NumericUtils.doubleToSortableLong(l),
-                            NumericUtils.doubleToSortableLong(u)
-                        );
-                    } else {
+                    if (isIndexed) {
                         query = DoublePoint.newRangeQuery(field, l, u);
                         if (hasDocValues) {
                             Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(
@@ -553,6 +547,12 @@ public class NumberFieldMapper extends FieldMapper {
                             );
                             query = new IndexOrDocValuesQuery(query, dvQuery);
                         }
+                    } else {
+                        query = SortedNumericDocValuesField.newSlowRangeQuery(
+                            field,
+                            NumericUtils.doubleToSortableLong(l),
+                            NumericUtils.doubleToSortableLong(u)
+                        );
                     }
                     return query;
                 });
@@ -618,8 +618,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean forceDocValues) {
-                return INTEGER.termQuery(field, value, forceDocValues);
+            public Query termQuery(String field, Object value, boolean isIndexed) {
+                return INTEGER.termQuery(field, value, isIndexed);
             }
 
             @Override
@@ -636,9 +636,9 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean includeUpper,
                 boolean hasDocValues,
                 SearchExecutionContext context,
-                boolean forceDocValues
+                boolean isIndexed
             ) {
-                return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues, context, forceDocValues);
+                return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues, context, isIndexed);
             }
 
             @Override
@@ -686,8 +686,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean forceDocValues) {
-                return INTEGER.termQuery(field, value, forceDocValues);
+            public Query termQuery(String field, Object value, boolean isIndexed) {
+                return INTEGER.termQuery(field, value, isIndexed);
             }
 
             @Override
@@ -704,9 +704,9 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean includeUpper,
                 boolean hasDocValues,
                 SearchExecutionContext context,
-                boolean forceDocValues
+                boolean isIndexed
             ) {
-                return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues, context, forceDocValues);
+                return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues, context, isIndexed);
             }
 
             @Override
@@ -754,15 +754,15 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean forceDocValues) {
+            public Query termQuery(String field, Object value, boolean isIndexed) {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
                 int v = parse(value, true);
-                if (forceDocValues) {
-                    return SortedNumericDocValuesField.newSlowExactQuery(field, v);
-                } else {
+                if (isIndexed) {
                     return IntPoint.newExactQuery(field, v);
+                } else {
+                    return SortedNumericDocValuesField.newSlowExactQuery(field, v);
                 }
             }
 
@@ -795,7 +795,7 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean includeUpper,
                 boolean hasDocValues,
                 SearchExecutionContext context,
-                boolean forceDocValues
+                boolean isIndexed
             ) {
                 int l = Integer.MIN_VALUE;
                 int u = Integer.MAX_VALUE;
@@ -825,14 +825,14 @@ public class NumberFieldMapper extends FieldMapper {
                     }
                 }
                 Query query;
-                if (forceDocValues) {
-                    query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
-                } else {
+                if (isIndexed) {
                     query = IntPoint.newRangeQuery(field, l, u);
                     if (hasDocValues) {
                         Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                         query = new IndexOrDocValuesQuery(query, dvQuery);
                     }
+                } else {
+                    query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                 }
                 if (hasDocValues && context.indexSortedOnField(field)) {
                     query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
@@ -885,15 +885,15 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean forceDocValues) {
+            public Query termQuery(String field, Object value, boolean isIndexed) {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
                 long v = parse(value, true);
-                if (forceDocValues) {
-                    return SortedNumericDocValuesField.newSlowExactQuery(field, v);
-                } else {
+                if (isIndexed) {
                     return LongPoint.newExactQuery(field, v);
+                } else {
+                    return SortedNumericDocValuesField.newSlowExactQuery(field, v);
                 }
             }
 
@@ -926,18 +926,18 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean includeUpper,
                 boolean hasDocValues,
                 SearchExecutionContext context,
-                boolean forceDocValues
+                boolean isIndexed
             ) {
                 return longRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
                     Query query;
-                    if (forceDocValues) {
-                        query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
-                    } else {
+                    if (isIndexed) {
                         query = LongPoint.newRangeQuery(field, l, u);
                         if (hasDocValues) {
                             Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                             query = new IndexOrDocValuesQuery(query, dvQuery);
                         }
+                    } else {
+                        query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                     }
                     if (hasDocValues && context.indexSortedOnField(field)) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
@@ -991,7 +991,7 @@ public class NumberFieldMapper extends FieldMapper {
             return parser;
         }
 
-        public abstract Query termQuery(String field, Object value, boolean forceDocValues);
+        public abstract Query termQuery(String field, Object value, boolean isIndexed);
 
         public abstract Query termsQuery(String field, Collection<?> values);
 
@@ -1003,7 +1003,7 @@ public class NumberFieldMapper extends FieldMapper {
             boolean includeUpper,
             boolean hasDocValues,
             SearchExecutionContext context,
-            boolean forceDocValues
+            boolean isIndexed
         );
 
         public abstract Number parse(XContentParser parser, boolean coerce) throws IOException;
@@ -1253,7 +1253,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            return type.termQuery(name(), value, isIndexed() == false);
+            return type.termQuery(name(), value, isIndexed());
         }
 
         @Override
@@ -1275,7 +1275,7 @@ public class NumberFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
-            return type.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues(), context, isIndexed() == false);
+            return type.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues(), context, isIndexed());
         }
 
         @Override

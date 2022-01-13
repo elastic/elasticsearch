@@ -478,29 +478,23 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testNegativeZero() {
-        final boolean forceDocValues = randomBoolean();
+        final boolean isIndexed = randomBoolean();
         assertEquals(
-            NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false, MOCK_CONTEXT, forceDocValues),
-            NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false, MOCK_CONTEXT, forceDocValues)
+            NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false, MOCK_CONTEXT, isIndexed),
+            NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false, MOCK_CONTEXT, isIndexed)
         );
         assertEquals(
-            NumberType.FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, forceDocValues),
-            NumberType.FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, forceDocValues)
+            NumberType.FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, isIndexed),
+            NumberType.FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed)
         );
         assertEquals(
-            NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, forceDocValues),
-            NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, forceDocValues)
+            NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, isIndexed),
+            NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed)
         );
 
-        assertNotEquals(
-            NumberType.DOUBLE.termQuery("field", -0d, forceDocValues),
-            NumberType.DOUBLE.termQuery("field", +0d, forceDocValues)
-        );
-        assertNotEquals(NumberType.FLOAT.termQuery("field", -0f, forceDocValues), NumberType.FLOAT.termQuery("field", +0f, forceDocValues));
-        assertNotEquals(
-            NumberType.HALF_FLOAT.termQuery("field", -0f, forceDocValues),
-            NumberType.HALF_FLOAT.termQuery("field", +0f, forceDocValues)
-        );
+        assertNotEquals(NumberType.DOUBLE.termQuery("field", -0d, isIndexed), NumberType.DOUBLE.termQuery("field", +0d, isIndexed));
+        assertNotEquals(NumberType.FLOAT.termQuery("field", -0f, isIndexed), NumberType.FLOAT.termQuery("field", +0f, isIndexed));
+        assertNotEquals(NumberType.HALF_FLOAT.termQuery("field", -0f, isIndexed), NumberType.HALF_FLOAT.termQuery("field", +0f, isIndexed));
     }
 
     // Make sure we construct the IndexOrDocValuesQuery objects with queries that match
@@ -553,7 +547,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(),
                 true,
                 MOCK_CONTEXT,
-                false
+                true
             );
             assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
             IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
@@ -630,7 +624,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         final int iters = 10;
         for (int iter = 0; iter < iters; ++iter) {
-            boolean forceDocValues = randomBoolean();
+            boolean isIndexed = randomBoolean();
             Query query = type.rangeQuery(
                 "field",
                 random().nextBoolean() ? null : valueSupplier.get(),
@@ -639,17 +633,17 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(),
                 true,
                 context,
-                forceDocValues
+                isIndexed
             );
             assertThat(query, instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class));
             Query fallbackQuery = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
 
-            if (forceDocValues) {
-                assertEquals(searcher.count(query), searcher.count(fallbackQuery));
-            } else {
+            if (isIndexed) {
                 assertThat(fallbackQuery, instanceOf(IndexOrDocValuesQuery.class));
                 IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) fallbackQuery;
                 assertEquals(searcher.count(query), searcher.count(indexOrDvQuery.getIndexQuery()));
+            } else {
+                assertEquals(searcher.count(query), searcher.count(fallbackQuery));
             }
         }
 

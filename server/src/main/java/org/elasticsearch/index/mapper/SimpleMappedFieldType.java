@@ -23,13 +23,13 @@ public abstract class SimpleMappedFieldType extends MappedFieldType {
 
     protected SimpleMappedFieldType(
         String name,
-        boolean isSearchable,
+        boolean isIndexed,
         boolean isStored,
         boolean hasDocValues,
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
+        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     @Override

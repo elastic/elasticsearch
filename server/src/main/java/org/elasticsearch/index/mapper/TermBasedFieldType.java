@@ -26,13 +26,13 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
 
     public TermBasedFieldType(
         String name,
-        boolean isSearchable,
+        boolean isIndexed,
         boolean isStored,
         boolean hasDocValues,
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
+        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     /** Returns the indexed value used to construct search "values".

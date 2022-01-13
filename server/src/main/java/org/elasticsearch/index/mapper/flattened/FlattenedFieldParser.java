@@ -151,7 +151,7 @@ class FlattenedFieldParser {
             throw new IllegalArgumentException(msg);
         }
         BytesRef bytesValue = new BytesRef(value);
-        if (fieldType.isSearchable()) {
+        if (fieldType.isIndexed()) {
             fields.add(new StringField(rootFieldName, bytesValue, Field.Store.NO));
             fields.add(new StringField(keyedFieldName, bytesKeyedValue, Field.Store.NO));
         }

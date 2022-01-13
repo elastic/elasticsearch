@@ -8,6 +8,9 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsPending;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -108,4 +111,32 @@ public class SnapshotUtils {
         return List.copyOf(result);
     }
 
+    static void ensureSnapshotNotDeletedOrPendingDeletion(
+        final ClusterState currentState,
+        final String repositoryName,
+        final SnapshotId snapshotId,
+        final String reason
+    ) {
+        final SnapshotDeletionsPending pendingDeletions = currentState.custom(SnapshotDeletionsPending.TYPE);
+        if (pendingDeletions != null && pendingDeletions.contains(snapshotId)) {
+            throw new ConcurrentSnapshotExecutionException(
+                repositoryName,
+                snapshotId.getName(),
+                "cannot " + reason + " a snapshot already marked as deleted [" + repositoryName + ":" + snapshotId + "]"
+            );
+        }
+        final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
+        if (deletionsInProgress != null
+            && deletionsInProgress.getEntries().stream().anyMatch(entry -> entry.getSnapshots().contains(snapshotId))) {
+            throw new ConcurrentSnapshotExecutionException(
+                repositoryName,
+                snapshotId.getName(),
+                "cannot "
+                    + reason
+                    + " a snapshot while a snapshot deletion is in-progress ["
+                    + deletionsInProgress.getEntries().get(0)
+                    + "]"
+            );
+        }
+    }
 }

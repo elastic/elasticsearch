@@ -121,6 +121,7 @@ import java.util.stream.StreamSupport;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
+import static org.elasticsearch.snapshots.SnapshotUtils.ensureSnapshotNotDeletedOrPendingDeletion;
 
 /**
  * Service responsible for creating snapshots. This service runs all the steps executed on the master node during snapshot creation and
@@ -502,21 +503,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     SnapshotDeletionsInProgress.TYPE,
                     SnapshotDeletionsInProgress.EMPTY
                 );
-                if (deletionsInProgress.getEntries().stream().anyMatch(entry -> entry.getSnapshots().contains(sourceSnapshotId))) {
-                    throw new ConcurrentSnapshotExecutionException(
-                        repositoryName,
-                        sourceSnapshotId.getName(),
-                        "cannot clone from snapshot that is being deleted"
-                    );
-                }
-                if (currentState.custom(SnapshotDeletionsPending.TYPE, SnapshotDeletionsPending.EMPTY).contains(sourceSnapshotId)) {
-                    throw new ConcurrentSnapshotExecutionException(
-                        repositoryName,
-                        sourceSnapshotId.getName(),
-                        "cannot clone a snapshot already marked as deleted [" + snapshot.getSnapshotId() + "]"
-                    );
-                }
-
+                ensureSnapshotNotDeletedOrPendingDeletion(currentState, repositoryName, sourceSnapshotId, "clone");
                 ensureBelowConcurrencyLimit(repositoryName, snapshotName, snapshots, deletionsInProgress);
                 final List<String> indicesForSnapshot = new ArrayList<>();
                 for (IndexId indexId : repositoryData.getIndices().values()) {

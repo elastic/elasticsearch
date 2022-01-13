@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     public void testSnapshotPendingDeletionCannotBeMounted() throws Exception {
-        blockPendingDeletionThenExecute((repository, snapshot, index) -> {
+        blockSnapshotDeletionThenExecute((repository, snapshot, index) -> {
             ConcurrentSnapshotExecutionException exception = expectThrows(
                 ConcurrentSnapshotExecutionException.class,
                 () -> mountSnapshot(repository, snapshot.getName(), index, Settings.EMPTY)
@@ -74,12 +74,22 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
     }
 
     public void testSnapshotPendingDeletionCannotBeRestored() throws Exception {
-        blockPendingDeletionThenExecute((repository, snapshot, index) -> {
+        blockSnapshotDeletionThenExecute((repository, snapshot, index) -> {
             ConcurrentSnapshotExecutionException exception = expectThrows(
                 ConcurrentSnapshotExecutionException.class,
                 () -> client().admin().cluster().prepareRestoreSnapshot(repository, snapshot.getName()).setWaitForCompletion(true).get()
             );
             assertThat(exception.getMessage(), containsString("cannot restore a snapshot already marked as deleted"));
+        });
+    }
+
+    public void testSnapshotPendingDeletionCannotBeCloned() throws Exception {
+        blockSnapshotDeletionThenExecute((repository, snapshot, index) -> {
+            ConcurrentSnapshotExecutionException exception = expectThrows(
+                ConcurrentSnapshotExecutionException.class,
+                () -> client().admin().cluster().prepareCloneSnapshot(repository, snapshot.getName(), "target").setIndices("*").get()
+            );
+            assertThat(exception.getMessage(), containsString("cannot clone a snapshot already marked as deleted"));
         });
     }
 
@@ -525,16 +535,16 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
         test.apply(repository, snapshotId, index);
     }
 
-    private void blockPendingDeletionThenExecute(final TriConsumer<String, SnapshotId, String> test) throws Exception {
+    private void blockSnapshotDeletionThenExecute(final TriConsumer<String, SnapshotId, String> test) throws Exception {
         mountIndexThenExecute((repository, snapshot, index) -> {
             try {
-                updateRepositoryReadOnly(repository, true);
+                blockMasterOnWriteIndexFile(repository);
 
                 assertAcked(client().admin().indices().prepareDelete(mountedIndex(index)));
                 awaitSnapshotPendingDeletion(snapshot);
                 test.apply(repository, snapshot, index);
 
-                updateRepositoryReadOnly(repository, false);
+                unblockNode(repository, internalCluster().getMasterName());
                 awaitNoMoreSnapshotsDeletions();
 
                 expectThrows(

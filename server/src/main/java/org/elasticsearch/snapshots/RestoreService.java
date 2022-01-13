@@ -104,6 +104,7 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SnapshotUtils.ensureSnapshotNotDeletedOrPendingDeletion;
 import static org.elasticsearch.snapshots.SnapshotUtils.filterIndices;
 import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
 
@@ -1259,7 +1260,7 @@ public class RestoreService implements ClusterStateApplier {
         @Override
         public ClusterState execute(ClusterState currentState) {
             // Check if the snapshot to restore is currently being deleted
-            ensureSnapshotNotDeletedOrPendingDeletion(currentState);
+            ensureSnapshotNotDeletedOrPendingDeletion(currentState, snapshot.getRepository(), snapshot.getSnapshotId(), "restore");
 
             // Clear out all existing indices which fall within a system index pattern being restored
             currentState = metadataDeleteIndexService.deleteIndices(
@@ -1425,26 +1426,6 @@ public class RestoreService implements ClusterStateApplier {
                 );
             }
             mdBuilder.dataStreams(updatedDataStreams, updatedDataStreamAliases);
-        }
-
-        private void ensureSnapshotNotDeletedOrPendingDeletion(ClusterState currentState) {
-            SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(
-                SnapshotDeletionsInProgress.TYPE,
-                SnapshotDeletionsInProgress.EMPTY
-            );
-            if (deletionsInProgress.getEntries().stream().anyMatch(entry -> entry.getSnapshots().contains(snapshot.getSnapshotId()))) {
-                throw new ConcurrentSnapshotExecutionException(
-                    snapshot,
-                    "cannot restore a snapshot while a snapshot deletion is in-progress [" + deletionsInProgress.getEntries().get(0) + "]"
-                );
-            }
-            SnapshotDeletionsPending pendingDeletions = currentState.custom(SnapshotDeletionsPending.TYPE);
-            if (pendingDeletions != null && pendingDeletions.contains(snapshot.getSnapshotId())) {
-                throw new ConcurrentSnapshotExecutionException(
-                    snapshot,
-                    "cannot restore a snapshot already marked as deleted [" + snapshot.getSnapshotId() + "]"
-                );
-            }
         }
 
         private void applyGlobalStateRestore(ClusterState currentState, Metadata.Builder mdBuilder) {

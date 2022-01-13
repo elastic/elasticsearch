@@ -1,3 +1,18 @@
+[[release-notes-6.8.23]]
+== {es} version 6.8.23
+
+Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
+
+coming::[6.8.23]
+
+[[upgrade-6.8.23]]
+[float]
+=== Upgrades
+
+Infra/Logging::
+* Upgrade to log4j 2.17.1 {es-pull}82111[#82111]
+
+
 [[release-notes-6.8.22]]
 == {es} version 6.8.22
 

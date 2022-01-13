@@ -50,7 +50,7 @@ setup:
 ---
 fetch the _tsid:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -74,7 +74,7 @@ fetch the _tsid:
 # TODO: Sort order is wrong here. Probably this is caused by the encoding of unsigned_long
 aggregate the _tsid:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -104,7 +104,7 @@ aggregate the _tsid:
 # TODO: Sort order is wrong here. Probably this is caused by the encoding of unsigned_long
 default sort:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:

@@ -149,7 +149,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         AsyncExecutionId searchId = AsyncExecutionId.decode(id);
         final ClusterStateResponse clusterState = client().admin().cluster().prepareState().clear().setNodes(true).get();
         DiscoveryNode node = clusterState.getState().nodes().get(searchId.getTaskId().getNodeId());
+
+        // Temporarily stop garbage collection, making sure to wait for any in-flight tasks to complete
         stopMaintenanceService();
+        ensureAllSearchContextsReleased();
+
         internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {
         });
         startMaintenanceService();

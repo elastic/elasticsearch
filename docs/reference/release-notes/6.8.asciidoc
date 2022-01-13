@@ -3,8 +3,6 @@
 
 Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
-coming::[6.8.23]
-
 [[upgrade-6.8.23]]
 [float]
 === Upgrades

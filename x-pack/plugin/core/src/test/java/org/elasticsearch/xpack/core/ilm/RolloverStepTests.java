@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.Locale;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
@@ -114,7 +115,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(indexMetadata.getIndex())))
+                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(indexMetadata.getIndex())))
                     .put(indexMetadata, true)
             )
             .build();
@@ -146,7 +147,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
                     .put(firstGenerationIndex, true)
                     .put(writeIndex, true)
                     .put(
-                        new DataStream(
+                        newInstance(
                             dataStreamName,
                             createTimestampField("@timestamp"),
                             List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())

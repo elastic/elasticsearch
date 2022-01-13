@@ -274,6 +274,8 @@ import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvid
 import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
 import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.kstest.BucketCountKSTestAggregationBuilder;
+import org.elasticsearch.xpack.ml.aggs.randomsample.InternalRandomSampler;
+import org.elasticsearch.xpack.ml.aggs.randomsample.RandomSamplerAggregationBuilder;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
@@ -340,7 +342,6 @@ import org.elasticsearch.xpack.ml.process.MlControllerHolder;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
-import org.elasticsearch.xpack.ml.randomsample.RandomSamplingQueryBuilder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.RestSetUpgradeModeAction;
@@ -1395,18 +1396,13 @@ public class MachineLearning extends Plugin
                 CategorizeTextAggregationBuilder::new,
                 CategorizeTextAggregationBuilder.PARSER
             ).addResultReader(InternalCategorizationAggregation::new)
-                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME))
-        );
-    }
-
-    @Override
-    public List<QuerySpec<?>> getQueries() {
-        return List.of(
-            new QuerySpec<>(
-                RandomSamplingQueryBuilder.NAME,
-                RandomSamplingQueryBuilder::new,
-                p -> RandomSamplingQueryBuilder.PARSER.parse(p, null)
-            )
+                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME)),
+            new AggregationSpec(
+                RandomSamplerAggregationBuilder.NAME,
+                RandomSamplerAggregationBuilder::new,
+                RandomSamplerAggregationBuilder.PARSER
+            ).addResultReader(InternalRandomSampler.NAME, InternalRandomSampler::new)
+                .setAggregatorRegistrar(s -> s.registerUsage(RandomSamplerAggregationBuilder.NAME))
         );
     }
 

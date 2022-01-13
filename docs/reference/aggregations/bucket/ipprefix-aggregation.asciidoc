@@ -337,4 +337,4 @@ Response:
 
 ==== IPv6 vs IPv4 addresses and sub-networks
 
-Just specifying the `prefix_len` parameter is not enough to know if sub-network aggregation is done on IPv4 or IPv6 addresses. As a result, the `is_ipv6` flag is needed and defaults to `false`. Failing to set it appropriately will result in unpredictable results due to the way the netmask is applied.
+Just specifying the `prefix_len` parameter is not enough to know if an IP prefix aggregation is done on IPv4 or IPv6 addresses. As a result, the `is_ipv6` flag is needed and defaults to `false`. Failing to set it appropriately will result in unpredictable results due to the way the netmask is applied.

@@ -66,7 +66,7 @@ the sampling is over the background documents. If a query is provided, a documen
 query and if the document is in the random sampling. The sampling is not done over the matched documents.
 
 Consider the set of documents `[1, 2, 3, 4, 5]`. Your query matches `[1, 3, 5]` and the randomly sampled
-set is `[2, 4, 5]. So, the document returned would be `[2]`.
+set is `[2, 4, 5]`. So, the document returned would be `[5]`.
 
 This type of sampling provides almost linear performance in relation to sampling probability.
 

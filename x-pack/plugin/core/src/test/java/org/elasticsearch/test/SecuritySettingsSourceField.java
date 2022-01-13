@@ -22,10 +22,8 @@ public final class SecuritySettingsSourceField {
               allow_restricted_indices: true
               privileges: [ "ALL" ]
           run_as: [ "*" ]
-          applications:
-            - application: "*"
-              privileges: [ "*" ]
-              resources: [ "*" ]
+          # The _es_test_root role doesn't have any application privileges because that would require loading data (Application Privileges)
+          # from the security index, which can causes problems if the index is not available
         """;
 
     private SecuritySettingsSourceField() {}

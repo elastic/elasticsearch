@@ -223,8 +223,8 @@ public class EnrichCacheTests extends ESTestCase {
         List<?> innerList = (List<?>) result.get("list");
         expectThrows(UnsupportedOperationException.class, () -> innerList.remove(0));
 
-        original.put("embedded_object", new byte[] {1, 2, 3});
+        original.put("embedded_object", new byte[] { 1, 2, 3 });
         result = EnrichCache.deepCopy(original, false);
-        assertArrayEquals(new byte[] {1, 2, 3}, (byte[]) result.get("embedded_object"));
+        assertArrayEquals(new byte[] { 1, 2, 3 }, (byte[]) result.get("embedded_object"));
     }
 }

@@ -438,7 +438,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                         assert Transports.assertNotTransportThread("resolving filter terms");
                         final Terms fieldNameTerms = super.terms(FieldNamesFieldMapper.NAME);
                         this.fieldNamesFilterTerms = Optional.ofNullable(
-                            fieldNameTerms == null ? null : new FieldNamesTerms(fieldNameTerms));
+                            fieldNameTerms == null ? null : new FieldNamesTerms(fieldNameTerms)
+                        );
                     }
                 }
             }

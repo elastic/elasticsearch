@@ -54,26 +54,20 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         TimeValue maxAge = instance.getMaxAge();
         Long maxDocs = instance.getMaxDocs();
         switch (between(0, 3)) {
-            case 0:
-                maxSize = randomValueOtherThan(maxSize, () -> {
-                    ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
-                    return new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
-                });
-                break;
-            case 1:
-                maxPrimaryShardSize = randomValueOtherThan(maxPrimaryShardSize, () -> {
-                    ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
-                    return new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
-                });
-                break;
-            case 2:
-                maxAge = randomValueOtherThan(maxAge, () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test"));
-                break;
-            case 3:
-                maxDocs = maxDocs == null ? randomNonNegativeLong() : maxDocs + 1;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> maxSize = randomValueOtherThan(maxSize, () -> {
+                ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
+                return new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+            });
+            case 1 -> maxPrimaryShardSize = randomValueOtherThan(maxPrimaryShardSize, () -> {
+                ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
+                return new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
+            });
+            case 2 -> maxAge = randomValueOtherThan(
+                maxAge,
+                () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
+            );
+            case 3 -> maxDocs = maxDocs == null ? randomNonNegativeLong() : maxDocs + 1;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs);
     }

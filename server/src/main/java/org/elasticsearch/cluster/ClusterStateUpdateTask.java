@@ -58,14 +58,15 @@ public abstract class ClusterStateUpdateTask
     }
 
     /**
-     * Update the cluster state based on the current state. Return the *same instance* if no state
-     * should be changed.
+     * Computes the cluster state that results from executing this task on the given state. Returns the *same instance* if no change is
+     * required, which is an important and valuable optimisation since it short-circuits the whole publication process and saves a bunch of
+     * time and effort.
      */
     public abstract ClusterState execute(ClusterState currentState) throws Exception;
 
     /**
      * A callback for when task execution fails.
-     *
+     * <p>
      * Implementations of this callback should not throw exceptions: an exception thrown here is logged by the master service at {@code
      * ERROR} level and otherwise ignored. If log-and-ignore is the right behaviour then implementations should do so themselves, typically
      * using a more specific logger and at a less dramatic log level.

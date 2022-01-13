@@ -136,20 +136,19 @@ public class FrozenIndexIT extends ESIntegTestCase {
         final String date;
 
         switch (between(1, 3)) {
-            case 1:
+            case 1 -> {
                 locale = "";
                 date = "04 Feb 2020 12:01:23Z";
-                break;
-            case 2:
+            }
+            case 2 -> {
                 locale = "en_GB";
                 date = "04 Feb 2020 12:01:23Z";
-                break;
-            case 3:
+            }
+            case 3 -> {
                 locale = "fr_FR";
                 date = "04 févr. 2020 12:01:23Z";
-                break;
-            default:
-                throw new AssertionError("impossible");
+            }
+            default -> throw new AssertionError("impossible");
         }
 
         assertAcked(

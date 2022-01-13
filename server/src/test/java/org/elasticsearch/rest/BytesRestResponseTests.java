@@ -225,7 +225,7 @@ public class BytesRestResponseTests extends ESTestCase {
         boolean addHeadersOrMetadata = false;
 
         switch (randomIntBetween(0, 5)) {
-            case 0:
+            case 0 -> {
                 original = new ElasticsearchException("ElasticsearchException without cause");
                 if (detailed) {
                     addHeadersOrMetadata = randomBoolean();
@@ -233,8 +233,8 @@ public class BytesRestResponseTests extends ESTestCase {
                 } else {
                     reason = "ElasticsearchException[ElasticsearchException without cause]";
                 }
-                break;
-            case 1:
+            }
+            case 1 -> {
                 original = new ElasticsearchException("ElasticsearchException with a cause", new FileNotFoundException("missing"));
                 if (detailed) {
                     addHeadersOrMetadata = randomBoolean();
@@ -244,8 +244,8 @@ public class BytesRestResponseTests extends ESTestCase {
                 } else {
                     reason = "ElasticsearchException[ElasticsearchException with a cause]";
                 }
-                break;
-            case 2:
+            }
+            case 2 -> {
                 original = new ResourceNotFoundException("ElasticsearchException with custom status");
                 status = RestStatus.NOT_FOUND;
                 if (detailed) {
@@ -255,14 +255,14 @@ public class BytesRestResponseTests extends ESTestCase {
                 } else {
                     reason = "ResourceNotFoundException[ElasticsearchException with custom status]";
                 }
-                break;
-            case 3:
+            }
+            case 3 -> {
                 TransportAddress address = buildNewFakeTransportAddress();
                 original = new RemoteTransportException(
-                    "remote",
-                    address,
-                    "action",
-                    new ResourceAlreadyExistsException("ElasticsearchWrapperException with a cause that has a custom status")
+                        "remote",
+                        address,
+                        "action",
+                        new ResourceAlreadyExistsException("ElasticsearchWrapperException with a cause that has a custom status")
                 );
                 status = RestStatus.BAD_REQUEST;
                 if (detailed) {
@@ -271,11 +271,11 @@ public class BytesRestResponseTests extends ESTestCase {
                 } else {
                     reason = "RemoteTransportException[[remote][" + address.toString() + "][action]]";
                 }
-                break;
-            case 4:
+            }
+            case 4 -> {
                 original = new RemoteTransportException(
-                    "ElasticsearchWrapperException with a cause that has a special treatment",
-                    new IllegalArgumentException("wrong")
+                        "ElasticsearchWrapperException with a cause that has a special treatment",
+                        new IllegalArgumentException("wrong")
                 );
                 status = RestStatus.BAD_REQUEST;
                 if (detailed) {
@@ -284,8 +284,8 @@ public class BytesRestResponseTests extends ESTestCase {
                 } else {
                     reason = "RemoteTransportException[[ElasticsearchWrapperException with a cause that has a special treatment]]";
                 }
-                break;
-            case 5:
+            }
+            case 5 -> {
                 status = randomFrom(RestStatus.values());
                 original = new ElasticsearchStatusException("ElasticsearchStatusException with random status", status);
                 if (detailed) {
@@ -295,9 +295,8 @@ public class BytesRestResponseTests extends ESTestCase {
                 } else {
                     reason = "ElasticsearchStatusException[ElasticsearchStatusException with random status]";
                 }
-                break;
-            default:
-                throw new UnsupportedOperationException("Failed to generate random exception");
+            }
+            default -> throw new UnsupportedOperationException("Failed to generate random exception");
         }
 
         String message = "Elasticsearch exception [type=" + type + ", reason=" + reason + "]";

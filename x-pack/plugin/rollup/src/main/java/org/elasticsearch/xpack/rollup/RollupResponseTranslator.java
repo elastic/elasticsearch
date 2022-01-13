@@ -345,7 +345,7 @@ public class RollupResponseTranslator {
         }
 
         InternalSearchResponse combinedInternal = new InternalSearchResponse(
-            SearchHits.empty(),
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
             aggs,
             null,
             null,

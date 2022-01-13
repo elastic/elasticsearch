@@ -6,22 +6,19 @@
  */
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.xpack.sql.proto.xcontent.ToXContentObject;
-import org.elasticsearch.xpack.sql.proto.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.sql.proto.xcontent.XContentLocation;
+import org.elasticsearch.xpack.sql.proto.content.ContentLocation;
 
-import java.io.IOException;
 import java.util.Objects;
 
 /**
  * Represent a strongly typed parameter value
  */
-public class SqlTypedParamValue implements ToXContentObject {
+public class SqlTypedParamValue {
 
     public final Object value;
     public final String type;
     private boolean hasExplicitType;        // the type is explicitly set in the request or inferred by the parser
-    private XContentLocation tokenLocation; // location of the token failing the parsing rules
+    private ContentLocation tokenLocation; // location of the token failing the parsing rules
 
     public SqlTypedParamValue(String type, Object value) {
         this(type, value, true);
@@ -41,21 +38,12 @@ public class SqlTypedParamValue implements ToXContentObject {
         this.hasExplicitType = hasExplicitType;
     }
 
-    public XContentLocation tokenLocation() {
+    public ContentLocation tokenLocation() {
         return tokenLocation;
     }
 
-    public void tokenLocation(XContentLocation tokenLocation) {
+    public void tokenLocation(ContentLocation tokenLocation) {
         this.tokenLocation = tokenLocation;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("type", type);
-        builder.field("value", value);
-        builder.endObject();
-        return builder;
     }
 
     @Override

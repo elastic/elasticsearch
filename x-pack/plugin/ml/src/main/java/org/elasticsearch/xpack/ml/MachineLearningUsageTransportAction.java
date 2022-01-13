@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
@@ -50,6 +49,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
+import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 
 import java.util.Collections;
@@ -324,18 +324,6 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         dataframeAnalyticsUsage.put("analysis_counts", perAnalysisTypeCounterMap);
     }
 
-    private static void initializeStats(Map<String, Long> emptyStatsMap) {
-        emptyStatsMap.put("sum", 0L);
-        emptyStatsMap.put("min", 0L);
-        emptyStatsMap.put("max", 0L);
-    }
-
-    private static void updateStats(Map<String, Long> statsMap, Long value) {
-        statsMap.computeIfPresent("sum", (k, v) -> v + value);
-        statsMap.computeIfPresent("min", (k, v) -> Math.min(v, value));
-        statsMap.computeIfPresent("max", (k, v) -> Math.max(v, value));
-    }
-
     private void addInferenceUsage(ActionListener<Map<String, Object>> listener) {
         GetTrainedModelsAction.Request getModelsRequest = new GetTrainedModelsAction.Request(
             "*",
@@ -445,30 +433,35 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     // TODO separate out ours and users models possibly regression vs classification
     private void addInferenceIngestUsage(GetTrainedModelsStatsAction.Response statsResponse, Map<String, Object> inferenceUsage) {
         int pipelineCount = 0;
-        Map<String, Long> docCountStats = new HashMap<>(3);
-        Map<String, Long> timeStats = new HashMap<>(3);
-        Map<String, Long> failureStats = new HashMap<>(3);
-        initializeStats(docCountStats);
-        initializeStats(timeStats);
-        initializeStats(failureStats);
+        StatsAccumulator docCountStats = new StatsAccumulator();
+        StatsAccumulator timeStats = new StatsAccumulator();
+        StatsAccumulator failureStats = new StatsAccumulator();
 
         for (GetTrainedModelsStatsAction.Response.TrainedModelStats modelStats : statsResponse.getResources().results()) {
             pipelineCount += modelStats.getPipelineCount();
-            IngestStats ingestStats = modelStats.getIngestStats();
-            long ingestCount = ingestStats.getTotalStats().getIngestCount();
-            long ingestTime = ingestStats.getTotalStats().getIngestTimeInMillis();
-            long failureCount = ingestStats.getTotalStats().getIngestFailedCount();
-            updateStats(docCountStats, ingestCount);
-            updateStats(timeStats, ingestTime);
-            updateStats(failureStats, failureCount);
+            modelStats.getIngestStats().getProcessorStats().values().stream().flatMap(List::stream).forEach(processorStat -> {
+                if (processorStat.getName().equals(InferenceProcessor.TYPE)) {
+                    docCountStats.add(processorStat.getStats().getIngestCount());
+                    timeStats.add(processorStat.getStats().getIngestTimeInMillis());
+                    failureStats.add(processorStat.getStats().getIngestFailedCount());
+                }
+            });
         }
 
         Map<String, Object> ingestUsage = new HashMap<>(6);
         ingestUsage.put("pipelines", createCountUsageEntry(pipelineCount));
-        ingestUsage.put("num_docs_processed", docCountStats);
-        ingestUsage.put("time_ms", timeStats);
-        ingestUsage.put("num_failures", failureStats);
+        ingestUsage.put("num_docs_processed", getMinMaxSumAsLongsFromStats(docCountStats));
+        ingestUsage.put("time_ms", getMinMaxSumAsLongsFromStats(timeStats));
+        ingestUsage.put("num_failures", getMinMaxSumAsLongsFromStats(failureStats));
         inferenceUsage.put("ingest_processors", Collections.singletonMap(MachineLearningFeatureSetUsage.ALL, ingestUsage));
+    }
+
+    private Map<String, Object> getMinMaxSumAsLongsFromStats(StatsAccumulator stats) {
+        Map<String, Object> asMap = new HashMap<>(3);
+        asMap.put("sum", Double.valueOf(stats.getTotal()).longValue());
+        asMap.put("min", Double.valueOf(stats.getMin()).longValue());
+        asMap.put("max", Double.valueOf(stats.getMax()).longValue());
+        return asMap;
     }
 
     private static int mlNodeCount(final ClusterState clusterState) {

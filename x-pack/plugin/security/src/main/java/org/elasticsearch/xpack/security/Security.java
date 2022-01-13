@@ -325,6 +325,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -441,6 +442,8 @@ public class Security extends Plugin
     private final boolean enabled;
     private final SecuritySystemIndices systemIndices;
 
+    private final CountDownLatch nodeStartedSignal;
+
     /* what a PITA that we need an extra indirection to initialize this. Yet, once we got rid of guice we can thing about how
      * to fix this or make it simpler. Today we need several service that are created in createComponents but we need to register
      * an instance of TransportInterceptor way earlier before createComponents is called. */
@@ -472,6 +475,7 @@ public class Security extends Plugin
         // TODO this is wrong, we should only use the environment that is provided to createComponents
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         this.systemIndices = new SecuritySystemIndices();
+        this.nodeStartedSignal = new CountDownLatch(1);
         if (enabled) {
             runStartupChecks(settings);
             Automatons.updateConfiguration(settings);
@@ -762,7 +766,9 @@ public class Security extends Plugin
             systemIndices.getMainIndexManager(),
             getSslService(),
             client,
-            environment
+            environment,
+            nodeStartedSignal,
+            threadPool
         );
 
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
@@ -1280,6 +1286,11 @@ public class Security extends Plugin
             SetSecurityUserProcessor.TYPE,
             new SetSecurityUserProcessor.Factory(securityContext::get, settings)
         );
+    }
+
+    @Override
+    public void onNodeStarted() {
+        this.nodeStartedSignal.countDown();
     }
 
     /**

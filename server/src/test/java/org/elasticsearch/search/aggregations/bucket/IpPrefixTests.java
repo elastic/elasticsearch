@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.range.IpPrefixAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.prefix.IpPrefixAggregationBuilder;
 
 import static org.hamcrest.Matchers.startsWith;
 

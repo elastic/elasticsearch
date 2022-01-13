@@ -123,9 +123,9 @@ import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregation
 import org.elasticsearch.search.aggregations.bucket.range.InternalBinaryRange;
 import org.elasticsearch.search.aggregations.bucket.range.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.InternalGeoDistance;
-import org.elasticsearch.search.aggregations.bucket.range.InternalIpPrefix;
+import org.elasticsearch.search.aggregations.bucket.prefix.InternalIpPrefix;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
-import org.elasticsearch.search.aggregations.bucket.range.IpPrefixAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.prefix.IpPrefixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.IpRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;

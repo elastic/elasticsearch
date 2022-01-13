@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.bucket.range;
+package org.elasticsearch.search.aggregations.bucket.prefix;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.NumericDocValuesField;

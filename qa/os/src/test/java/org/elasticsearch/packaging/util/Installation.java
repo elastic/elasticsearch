@@ -49,7 +49,8 @@ public class Installation {
         Path modules,
         Path pidDir,
         Path envFile,
-        int port) {
+        int port
+    ) {
         this.sh = sh;
         this.distribution = distribution;
         this.home = home;
@@ -79,7 +80,8 @@ public class Installation {
             home.resolve("modules"),
             null,
             null,
-            9200);
+            9200
+        );
     }
 
     public static Installation ofPackage(Shell sh, Distribution distribution) {
@@ -99,7 +101,8 @@ public class Installation {
             Paths.get("/usr/share/elasticsearch/modules"),
             Paths.get("/var/run/elasticsearch"),
             envFile,
-            9200);
+            9200
+        );
     }
 
     public static Installation ofContainer(Shell sh, Distribution distribution, int port) {
@@ -115,7 +118,8 @@ public class Installation {
             Paths.get(root + "/modules"),
             null,
             null,
-            port);
+            port
+        );
     }
 
     public static Installation ofContainer(Shell sh, Distribution distribution) {

@@ -23,6 +23,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -37,7 +38,7 @@ public abstract class TaskBatcher {
     private final Logger logger;
     private final PrioritizedEsThreadPoolExecutor threadExecutor;
     // package visible for tests
-    final Map<Object, LinkedHashSet<BatchedTask>> tasksPerBatchingKey = new ConcurrentHashMap<>();
+    final Map<Object, Set<BatchedTask>> tasksPerBatchingKey = new ConcurrentHashMap<>();
 
     public TaskBatcher(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor) {
         this.logger = logger;
@@ -56,7 +57,7 @@ public abstract class TaskBatcher {
         tasksPerBatchingKey.compute(firstTask.batchingKey, (k, existingTasks) -> {
             assert assertNoDuplicateTasks(tasks, existingTasks);
             if (existingTasks == null) {
-                return new LinkedHashSet<>(tasks);
+                return Collections.synchronizedSet(new LinkedHashSet<>(tasks));
             }
             existingTasks.addAll(tasks);
             return existingTasks;
@@ -69,7 +70,7 @@ public abstract class TaskBatcher {
         }
     }
 
-    private static boolean assertNoDuplicateTasks(List<? extends BatchedTask> tasks, LinkedHashSet<BatchedTask> existingTasks) {
+    private static boolean assertNoDuplicateTasks(List<? extends BatchedTask> tasks, Set<BatchedTask> existingTasks) {
         final Map<Object, BatchedTask> tasksIdentity = tasks.stream()
             .collect(
                 Collectors.toMap(
@@ -131,7 +132,7 @@ public abstract class TaskBatcher {
         if (updateTask.processed.get() == false) {
             final List<BatchedTask> toExecute = new ArrayList<>();
             final Map<String, List<BatchedTask>> processTasksBySource = new HashMap<>();
-            final LinkedHashSet<BatchedTask> pending = tasksPerBatchingKey.remove(updateTask.batchingKey);
+            final Set<BatchedTask> pending = tasksPerBatchingKey.remove(updateTask.batchingKey);
             if (pending != null) {
                 for (BatchedTask task : pending) {
                     if (task.processed.getAndSet(true) == false) {

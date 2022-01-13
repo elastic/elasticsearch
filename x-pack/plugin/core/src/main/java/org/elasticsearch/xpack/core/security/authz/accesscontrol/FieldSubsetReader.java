@@ -429,17 +429,17 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         if (hasField(field) == false) {
             return null;
         } else if (FieldNamesFieldMapper.NAME.equals(field)) {
-            // for the _field_names field, fields for the document
-            // are encoded as postings, where term is the field.
-            // so we hide terms for fields we filter out.
+            // For the _field_names field, fields for the document are encoded as postings, where term is the field, so we hide terms for
+            // fields we filter out.
+            // Compute this lazily so that the DirectoryReader wrapper works together with RewriteCachingDirectoryReader (used by the
+            // can match phase in the frozen tier), which does not implement the terms() method.
             if (fieldNamesFilterTerms == null) {
                 synchronized (this) {
                     if (fieldNamesFilterTerms == null) {
                         assert Transports.assertNotTransportThread("resolving filter terms");
                         final Terms fieldNameTerms = super.terms(FieldNamesFieldMapper.NAME);
-                        this.fieldNamesFilterTerms = Optional.ofNullable(
-                            fieldNameTerms == null ? null : new FieldNamesTerms(fieldNameTerms)
-                        );
+                        this.fieldNamesFilterTerms =
+                            fieldNameTerms == null ? Optional.empty() : Optional.of(new FieldNamesTerms(fieldNameTerms));
                     }
                 }
             }

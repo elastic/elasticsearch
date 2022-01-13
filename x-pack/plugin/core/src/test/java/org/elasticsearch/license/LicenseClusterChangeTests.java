@@ -10,7 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -74,7 +73,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
 
         licenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
-        verify(clusterService, times(1)).submitStateUpdateTask(any(), stateUpdater.capture(), ClusterStateTaskExecutor.unbatched());
+        verify(clusterService, times(1)).submitStateUpdateTask(any(), stateUpdater.capture(), any());
         ClusterState stateWithLicense = stateUpdater.getValue().execute(newState);
         LicensesMetadata licenseMetadata = stateWithLicense.metadata().custom(LicensesMetadata.TYPE);
         assertNotNull(licenseMetadata);

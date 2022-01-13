@@ -8,7 +8,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -41,11 +40,7 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
             // In which case, this `actionGet` should throw a more useful exception than the verify below.
             responseFuture.actionGet();
         }
-        verify(clusterService).submitStateUpdateTask(
-            any(String.class),
-            any(ClusterStateUpdateTask.class),
-            ClusterStateTaskExecutor.unbatched()
-        );
+        verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class), any());
     }
 
     public void testFIPSCheckWithoutAllowedLicense() throws Exception {
@@ -85,10 +80,6 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
             // In which case, this `actionGet` should throw a more useful exception than the verify below.
             responseFuture.actionGet();
         }
-        verify(clusterService).submitStateUpdateTask(
-            any(String.class),
-            any(ClusterStateUpdateTask.class),
-            ClusterStateTaskExecutor.unbatched()
-        );
+        verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class), any());
     }
 }

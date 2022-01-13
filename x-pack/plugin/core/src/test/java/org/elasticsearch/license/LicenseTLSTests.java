@@ -8,7 +8,6 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -43,11 +42,7 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
         licenseService.start();
         PlainActionFuture<PutLicenseResponse> responseFuture = new PlainActionFuture<>();
         licenseService.registerLicense(request, responseFuture);
-        verify(clusterService).submitStateUpdateTask(
-            any(String.class),
-            any(ClusterStateUpdateTask.class),
-            ClusterStateTaskExecutor.unbatched()
-        );
+        verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class), any());
 
         inetAddress = TransportAddress.META_ADDRESS;
         settings = Settings.builder()
@@ -59,11 +54,7 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
         setInitialState(null, licenseState, settings);
         licenseService.start();
         licenseService.registerLicense(request, responseFuture);
-        verify(clusterService, times(2)).submitStateUpdateTask(
-            any(String.class),
-            any(ClusterStateUpdateTask.class),
-            ClusterStateTaskExecutor.unbatched()
-        );
+        verify(clusterService, times(2)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class), any());
     }
 
     @Override

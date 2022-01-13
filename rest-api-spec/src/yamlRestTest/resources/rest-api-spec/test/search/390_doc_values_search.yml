@@ -1,0 +1,198 @@
+---
+setup:
+  - skip:
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              byte:
+                type: byte
+                index: false
+              double:
+                type: double
+                index: false
+              float:
+                type: float
+                index: false
+              half_float:
+                type: half_float
+                index: false
+              integer:
+                type: integer
+                index: false
+              long:
+                type: long
+                index: false
+              short:
+                type: short
+                index: false
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          byte : 1
+          double : 1.0
+          float : 1.0
+          half_float: 1.0
+          integer: 1
+          long: 1
+          short: 1
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body:
+          byte : 2
+          double : 2.0
+          float : 2.0
+          half_float: 2.0
+          integer: 2
+          long: 2
+          short: 2
+
+  - do:
+      indices.refresh: {}
+
+---
+"Test match queries on number fields where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { byte: { query: 1 } } } }
+  - length:   { hits.hits: 1  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { double: { query: 1.0 } } } }
+  - length:   { hits.hits: 1  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { float: { query: 1.0 } } } }
+  - length:   { hits.hits: 1  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { half_float: { query: 1.0 } } } }
+  - length:   { hits.hits: 1  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { integer: { query: 1 } } } }
+  - length:   { hits.hits: 1  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { long: { query: 1 } } } }
+  - length:   { hits.hits: 1  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { short: { query: 1 } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test terms queries on number fields where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { byte: [ 1, 2 ] } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { double: [ 1.0, 2.0 ] } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { float: [ 1.0, 2.0 ] } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { half_float: [ 1.0, 2.0 ] } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { integer: [ 1, 2 ] } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { long: [ 1, 2 ] } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { short: [ 1, 2 ] } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test range queries on number fields where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { byte: { gte: 0 } } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { double: { gte: 0.0 } } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { float: { gte: 0.0 } } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { half_float: { gte: 0.0 } } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { integer: { gte: 0 } } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { long: { gte: 0 } } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { short: { gte: 0 } } } }
+  - length:   { hits.hits: 2  }

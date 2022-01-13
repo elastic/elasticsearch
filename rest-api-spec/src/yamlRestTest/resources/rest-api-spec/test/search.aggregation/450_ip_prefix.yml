@@ -72,8 +72,8 @@ setup:
   - match: { aggregations.ip_prefix.buckets.1.netmask: "255.255.255.0" }
 
 ---
-# NOTE: here prefix_len = 24 which means the netmask 255.255.0.0 will be applied to the
-# high 16 bits of a field which is an IPv4 address encoded on 16 bytes. As a result the
+# NOTE: here prefix_len = 24 which means the netmask 255.255.255.0 will be applied to the
+# high 24 bits of a field which is an IPv4 address encoded on 16 bytes. As a result the
 # network part will just 0s.
 "IPv4 prefix with incorrect is_ipv6":
   - skip:

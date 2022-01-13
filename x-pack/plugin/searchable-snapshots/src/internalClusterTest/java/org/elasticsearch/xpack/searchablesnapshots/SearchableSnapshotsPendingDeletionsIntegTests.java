@@ -356,7 +356,7 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
                 startThreads.await();
                 final Set<String> mountedIndices = new HashSet<>(mounts.keySet());
                 do {
-                    List<String> deletions = randomSubsetOf(Math.max(1, mountedIndices.size() - 1), mountedIndices);
+                    List<String> deletions = randomSubsetOf(randomIntBetween(1, mountedIndices.size()), mountedIndices);
                     assertAcked(client().admin().indices().prepareDelete(deletions.toArray(String[]::new)));
                     deletions.forEach(mountedIndices::remove);
                 } while (mountedIndices.isEmpty() == false);

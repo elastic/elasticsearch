@@ -94,8 +94,8 @@ setup:
 ---
 "Float range":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/82476"
+      version: " - 7.16.99"
+      reason: Bug fixed in 8.1.0 and backported to 7.17.0
   - do:
       search:
         body:
@@ -132,8 +132,8 @@ setup:
 ---
 "Double range":
   - skip:
-      version: " - 8.0.99"
-      reason: Bug fixed in 8.1.0
+      version: " - 7.16.99"
+      reason: Bug fixed in 8.1.0 and backported to 7.17.0
   - do:
       search:
         body:

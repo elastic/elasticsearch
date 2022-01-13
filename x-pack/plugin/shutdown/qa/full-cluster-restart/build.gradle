@@ -85,8 +85,8 @@ BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
             }
             baseCluster.get().goToNextVersion()
             if (bwcVersion.before(BuildParams.bwcVersions.minimumWireCompatibleVersion)) {
-              // When doing a full cluster restart of older versions we actually have to upgrade twice. First to 7.last, then to the current version.
-              baseCluster.get().goToNextVersion()
+                // When doing a full cluster restart of older versions we actually have to upgrade twice. First to 7.last, then to the current version.
+                baseCluster.get().goToNextVersion()
             }
         }
         systemProperty 'tests.is_old_cluster', 'false'

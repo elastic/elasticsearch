@@ -139,14 +139,14 @@ public class BooleanFieldMapper extends FieldMapper {
 
         public BooleanFieldType(
             String name,
-            boolean isSearchable,
+            boolean isIndexed,
             boolean isStored,
             boolean hasDocValues,
             Boolean nullValue,
             FieldValues<Boolean> scriptValues,
             Map<String, String> meta
         ) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
         }

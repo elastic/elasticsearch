@@ -146,7 +146,7 @@ public class EnrichCache {
     }
 
     @SuppressWarnings("unchecked")
-    private static <T> T deepCopy(T value, boolean unmodifiable) {
+    static <T> T deepCopy(T value, boolean unmodifiable) {
         return (T) innerDeepCopy(value, unmodifiable);
     }
 

@@ -298,7 +298,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
         }
 
         public KnnVectorQuery createKnnQuery(float[] queryVector, int numCands) {
-            if (isSearchable() == false) {
+            if (isIndexed() == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );

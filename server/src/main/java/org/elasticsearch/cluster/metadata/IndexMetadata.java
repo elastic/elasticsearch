@@ -1051,6 +1051,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     public static IndexMetadata readFrom(StreamInput in) throws IOException {
+        return readFrom(in, null);
+    }
+
+    /**
+     * @param mappingLookup optional lookup function that translates mapping metadata hashes into concrete instances. If specified we
+     *                      assume that the stream contains only mapping metadata hashes but not fully serialized instances of mapping
+     *                      metadata.
+     */
+    public static IndexMetadata readFrom(StreamInput in, @Nullable Function<String, MappingMetadata> mappingLookup) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.version(in.readLong());
         builder.mappingVersion(in.readVLong());
@@ -1063,9 +1072,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         builder.settings(readSettingsFromStream(in));
         builder.primaryTerms(in.readVLongArray());
         int mappingsSize = in.readVInt();
-        for (int i = 0; i < mappingsSize; i++) {
-            MappingMetadata mappingMd = new MappingMetadata(in);
-            builder.putMapping(mappingMd);
+        if (mappingsSize == 1) {
+            if (mappingLookup != null && in.getVersion().onOrAfter(Metadata.MAPPINGS_AS_HASH_VERSION)) {
+                final String mappingHash = in.readString();
+                final MappingMetadata metadata = mappingLookup.apply(mappingHash);
+                assert metadata != null : "failed to find mapping [" + mappingHash + "] for [" + builder.index + "]";
+                builder.putMapping(metadata);
+            } else {
+                builder.putMapping(new MappingMetadata(in));
+            }
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
@@ -1095,8 +1110,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return builder.build();
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    /**
+     * @param mappingsAsHash whether to serialize {@link MappingMetadata} in full or just its hash {@link MappingMetadata#getSha256()}
+     */
+    public void writeTo(StreamOutput out, boolean mappingsAsHash) throws IOException {
         out.writeString(index.getName()); // uuid will come as part of settings
         out.writeLong(version);
         out.writeVLong(mappingVersion);
@@ -1113,7 +1130,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeVInt(0);
         } else {
             out.writeVInt(1);
-            mapping.writeTo(out);
+            if (mappingsAsHash && out.getVersion().onOrAfter(Metadata.MAPPINGS_AS_HASH_VERSION)) {
+                out.writeString(mapping.getSha256());
+            } else {
+                mapping.writeTo(out);
+            }
         }
         out.writeVInt(aliases.size());
         for (AliasMetadata aliasMetadata : aliases.values()) {
@@ -1137,6 +1158,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeBoolean(isSystem);
         }
         timestampRange.writeTo(out);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        writeTo(out, false);
     }
 
     public boolean isSystem() {

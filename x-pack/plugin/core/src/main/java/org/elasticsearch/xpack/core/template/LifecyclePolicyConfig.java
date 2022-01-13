@@ -54,9 +54,7 @@ public class LifecyclePolicyConfig {
      *                 extension if necessary.
      */
     public LifecyclePolicyConfig(String policyName, String fileName) {
-        this.policyName = policyName;
-        this.fileName = fileName;
-        this.templateVariables = Collections.emptyMap();
+        this(policyName, fileName, Collections.emptyMap());
     }
 
     /**

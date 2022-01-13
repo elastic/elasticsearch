@@ -276,6 +276,10 @@ public class BwcVersions {
         return unmodifiableList(unreleasedWireCompatible);
     }
 
+    public Version getMinimumWireCompatibleVersion() {
+        return MINIMUM_WIRE_COMPATIBLE_VERSION;
+    }
+
     public static class UnreleasedVersionInfo {
         public final Version version;
         public final String branch;

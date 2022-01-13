@@ -477,12 +477,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         public Translog(StreamInput in) throws IOException {
             super(in);
-            synchronized (this) {
-                recovered = in.readVInt();
-                total = in.readVInt();
-                totalOnStart = in.readVInt();
-                totalLocal = in.readVInt();
-            }
+            recovered = in.readVInt();
+            total = in.readVInt();
+            totalOnStart = in.readVInt();
+            totalLocal = in.readVInt();
         }
 
         @Override

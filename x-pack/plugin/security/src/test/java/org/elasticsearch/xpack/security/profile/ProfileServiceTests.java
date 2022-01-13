@@ -58,7 +58,8 @@ public class ProfileServiceTests extends ESTestCase {
             },
             "email": "foo@example.com",
             "full_name": "User Foo",
-            "display_name": "Curious Foo"
+            "display_name": "Curious Foo",
+            "active": true
           },
           "last_synchronized": %s,
           "access": {
@@ -149,6 +150,10 @@ public class ProfileServiceTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testActivateProfileShouldFailIfSubjectTypeIsNotUser() {
+        
     }
 
     private void mockGetRequest(String uid, long lastSynchronized) {

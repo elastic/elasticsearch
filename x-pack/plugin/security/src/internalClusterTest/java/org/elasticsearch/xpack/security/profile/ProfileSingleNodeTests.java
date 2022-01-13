@@ -12,9 +12,19 @@ import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileRequest;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileResponse;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfileRequest;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesResponse;
+import org.elasticsearch.xpack.core.security.action.profile.Profile;
+import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
+import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -25,13 +35,18 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD_HASHED;
+import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.INTERNAL_SECURITY_PROFILE_INDEX_8;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -119,7 +134,60 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         );
     }
 
-    public String indexDocument() {
+    public void testActivateProfile() {
+        final Profile profile1 = doActivateProfile(RAC_USER_NAME, TEST_PASSWORD_SECURE_STRING);
+        assertThat(profile1.user().username(), equalTo(RAC_USER_NAME));
+        assertThat(profile1.user().email(), nullValue());
+        assertThat(profile1.user().fullName(), nullValue());
+
+        assertThat(getProfile(profile1.uid(), Set.of()), equalTo(profile1));
+
+        // activate again should be getting the same profile
+        final Profile profile2 = doActivateProfile(RAC_USER_NAME, TEST_PASSWORD_SECURE_STRING);
+        assertThat(profile2.uid(), equalTo(profile1.uid()));
+
+        // Create another rac user in the native realm
+        final PutUserRequest putUserRequest = new PutUserRequest();
+        putUserRequest.username(RAC_USER_NAME);
+        putUserRequest.roles("rac_role");
+        final SecureString nativeRacUserPassword = new SecureString("native_rac_user_password".toCharArray());
+        final String nativeRacUserPasswordHash =
+            new String(getFastStoredHashAlgoForTests().hash(nativeRacUserPassword));
+        putUserRequest.passwordHash(nativeRacUserPasswordHash.toCharArray());
+        putUserRequest.email(RAC_USER_NAME + "@example.com");
+        putUserRequest.fullName("Native RAC User");
+        assertThat(client().execute(PutUserAction.INSTANCE, putUserRequest).actionGet().created(), is(true));
+
+        // Since file and native realms are not in the same domain yet, the new profile should be a different one
+        final Profile profile3 = doActivateProfile(RAC_USER_NAME, nativeRacUserPassword);
+        assertThat(profile3.uid(), not(equalTo(profile1.uid())));
+        assertThat(profile3.user().email(), equalTo(RAC_USER_NAME + "@example.com"));
+        assertThat(profile3.user().fullName(), equalTo("Native RAC User"));
+    }
+
+    private Profile doActivateProfile(String username, SecureString password) {
+        final ActivateProfileRequest activateProfileRequest = new ActivateProfileRequest();
+        activateProfileRequest.getGrant().setType("password");
+        activateProfileRequest.getGrant().setUsername(username);
+        activateProfileRequest.getGrant().setPassword(password);
+
+        final ActivateProfileResponse activateProfileResponse = client().execute(ActivateProfileAction.INSTANCE, activateProfileRequest)
+            .actionGet();
+        final Profile profile = activateProfileResponse.getProfile();
+        assertThat(profile, notNullValue());
+        assertThat(profile.user().username(), equalTo(username));
+        assertThat(profile.applicationData(), anEmptyMap());
+        return profile;
+    }
+
+    private Profile getProfile(String uid, Set<String> dataKeys) {
+        final GetProfilesResponse getProfilesResponse = client().execute(GetProfileAction.INSTANCE, new GetProfileRequest(uid, dataKeys))
+            .actionGet();
+        assertThat(getProfilesResponse.getProfiles(), arrayWithSize(1));
+        return getProfilesResponse.getProfiles()[0];
+    }
+
+    private String indexDocument() {
         final String uid = randomAlphaOfLength(20);
         final String source = ProfileServiceTests.SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(uid, Instant.now().toEpochMilli());
         client().prepareIndex(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS))

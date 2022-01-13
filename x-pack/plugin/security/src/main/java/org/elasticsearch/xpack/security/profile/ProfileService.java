@@ -87,7 +87,7 @@ public class ProfileService {
         }));
     }
 
-    // TODO: with request
+    // TODO: with request when we take request body for profile activation
     public void activateProfile(Authentication authentication, ActionListener<Profile> listener) {
         final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
         if (Subject.Type.USER != subject.getType()) {
@@ -208,7 +208,7 @@ public class ProfileService {
                 bulkRequest,
                 TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(indexResponse -> {
                     assert docId.equals(indexResponse.getId());
-                    // TODO: replace realm doain with domain
+                    // TODO: replace realm name with domain
                     listener.onResponse(
                         new VersionedDocument(profileDocument, indexResponse.getPrimaryTerm(), indexResponse.getSeqNo()).toProfile(null)
                     );

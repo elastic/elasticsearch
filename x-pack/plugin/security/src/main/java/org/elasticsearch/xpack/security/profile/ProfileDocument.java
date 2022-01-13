@@ -61,7 +61,7 @@ public record ProfileDocument(
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<Access, Void> ACCESS_PARSER = new ConstructingObjectParser<>(
-        "user_profile_access",
+        "user_profile_document_access",
         false,
         (args, v) -> new Access((List<String>) args[0], (Map<String, Object>) args[1])
     );

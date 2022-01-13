@@ -79,6 +79,20 @@ public final class DataStreamTestHelper {
     private static final int NUMBER_OF_SHARDS = 1;
     private static final int NUMBER_OF_REPLICAS = 1;
 
+    public static DataStream newInstance(String name, DataStream.TimestampField timeStampField, List<Index> indices) {
+        return newInstance(name, timeStampField, indices, indices.size(), null);
+    }
+
+    public static DataStream newInstance(
+        String name,
+        DataStream.TimestampField timeStampField,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata
+    ) {
+        return new DataStream(name, timeStampField, indices, generation, metadata, false, false, false, false);
+    }
+
     public static String getLegacyDefaultBackingIndexName(
         String dataStreamName,
         long generation,
@@ -262,7 +276,7 @@ public final class DataStreamTestHelper {
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = new DataStream(
+            DataStream ds = DataStreamTestHelper.newInstance(
                 dsTuple.v1(),
                 createTimestampField("@timestamp"),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
@@ -302,7 +316,7 @@ public final class DataStreamTestHelper {
             backingIndices.add(im);
             generation++;
         }
-        DataStream ds = new DataStream(
+        DataStream ds = newInstance(
             dataStream,
             createTimestampField("@timestamp"),
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())

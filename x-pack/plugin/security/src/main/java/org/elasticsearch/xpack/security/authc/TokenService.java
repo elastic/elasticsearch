@@ -1030,12 +1030,12 @@ public final class TokenService {
                     unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
                 } catch (IOException e) {
                     logger.debug(() -> new ParameterizedMessage("Could not decode refresh token [{}].", refreshToken), e);
-                    listener.onResponse(SearchHits.empty());
+                    listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
                     return;
                 }
                 if (refreshTokenVersion.before(VERSION_TOKENS_INDEX_INTRODUCED) || unencodedRefreshToken.length() != TOKEN_LENGTH) {
                     logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken, refreshTokenVersion);
-                    listener.onResponse(SearchHits.empty());
+                    listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
                 } else {
                     // TODO Remove this conditional after backporting to 7.x
                     if (refreshTokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {

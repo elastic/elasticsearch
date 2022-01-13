@@ -6,30 +6,47 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jose.JWSVerifier;
+import com.nimbusds.jose.jwk.Curve;
+import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Tuple;
 
+import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+
 public class JwtUtilTests extends JwtTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(JwtUtilTests.class);
 
+    // ES256K disabled by default in Java 11.0.9, 11.0.10, 17
+    public void testCheckIfJavaDisabledES256K1() {
+        final Set<Curve> ecCurves = Curve.forJWSAlgorithm(JWSAlgorithm.ES256K); // EC KeyPair generation fails for secp256k1
+        final Curve ecCurve = ecCurves.iterator().next(); // first curve
+        final ECKeyGenerator ecKeyGenerator = new ECKeyGenerator(ecCurve);
+        final Exception expectedException = expectThrows(JOSEException.class, ecKeyGenerator::generate);
+        assertThat(expectedException.getMessage(), is(equalTo("Curve not supported: secp256k1 (1.3.132.0.10)")));
+    }
+
+    // All JWSAlgorithm values in Family.HMAC_SHA, Family.RSA, and Family.EC (Note: ES256K disabled in Java 11.0.9, 11.0.10, 17)
     public void testSignedJwtGenerateSignVerify() throws Exception {
-        // All JWSAlgorithm values in Family.HMAC_SHA, Family.RSA, and Family.EC (except ES256K)
         for (final JWSAlgorithm signatureAlgorithm : JwtUtil.SUPPORTED_JWS_ALGORITHMS) {
             LOGGER.info("Testing signature algorithm " + signatureAlgorithm);
-            final Object secretKeyOrKeyPair = JwtUtil.generateSecretKeyOrKeyPair(signatureAlgorithm.toString());
-            final Tuple<JWSSigner, JWSVerifier> jwsSignerAndVerifier = JwtUtil.createJwsSignerJWSVerifier(secretKeyOrKeyPair);
-            final String serializedJWTOriginal = JwtUtil.generateValidSignedJWT(jwsSignerAndVerifier.v1(), signatureAlgorithm.toString())
+            // randomSecretOrSecretKeyOrKeyPair randomizes which JwtUtil methods to call, so JwtUtil code will be covered indirectly
+            final Object secretOrSecretKeyOrKeyPair = JwtUtilTests.randomSecretOrSecretKeyOrKeyPair(signatureAlgorithm.toString());
+            final Tuple<JWSSigner, JWSVerifier> jwsSignerAndVerifier = JwtUtil.createJwsSignerJwsVerifier(secretOrSecretKeyOrKeyPair);
+            final String serializedJWTOriginal = JwtUtilTests.randomValidSignedJWT(jwsSignerAndVerifier.v1(), signatureAlgorithm.toString())
                 .serialize();
             final SignedJWT parsedSignedJWT = SignedJWT.parse(serializedJWTOriginal);
             JwtUtil.verifySignedJWT(jwsSignerAndVerifier.v2(), parsedSignedJWT);
         }
-
     }
 }

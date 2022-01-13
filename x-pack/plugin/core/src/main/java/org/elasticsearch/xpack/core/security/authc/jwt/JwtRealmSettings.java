@@ -20,7 +20,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -54,22 +53,23 @@ public class JwtRealmSettings {
     /**
      * EC curves by specific SHA-2 lengths.
      * Example: final Curve ecCurve = randomFrom(Curve.forJWSAlgorithm(jwsAlgorithm));
+     * Note: Excludes ES256K. The library supports it, but Java 11.0.9, 11.0.10, 17 disabled support for it by default.
      */
     public static final List<String> SUPPORTED_PUBLIC_KEY_EC_SIGNATURE_ALGORITHMS = List.of("ES256", "ES384", "ES512");
 
     public static final List<String> SUPPORTED_PUBLIC_KEY_SIGNATURE_ALGORITHMS = Stream.of(
         SUPPORTED_PUBLIC_KEY_RSA_SIGNATURE_ALGORITHMS,
         SUPPORTED_PUBLIC_KEY_EC_SIGNATURE_ALGORITHMS
-    ).flatMap(Collection::stream).collect(Collectors.toUnmodifiableList());
+    ).flatMap(Collection::stream).toList();
 
     public static final List<String> SUPPORTED_SIGNATURE_ALGORITHMS = Stream.of(
         SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS,
         SUPPORTED_PUBLIC_KEY_SIGNATURE_ALGORITHMS
-    ).flatMap(Collection::stream).collect(Collectors.toUnmodifiableList());
+    ).flatMap(Collection::stream).toList();
 
     // Header names
-    public static final String HEADER_ENDUSER_AUTHORIZATION = "Authorization";
-    public static final String HEADER_ENDUSER_AUTHORIZATION_SCHEME = "Bearer";
+    public static final String HEADER_END_USER_AUTHORIZATION = "Authorization";
+    public static final String HEADER_END_USER_AUTHORIZATION_SCHEME = "Bearer";
 
     public static final String HEADER_CLIENT_AUTHORIZATION = "X-Client-Authorization";
 
@@ -293,9 +293,6 @@ public class JwtRealmSettings {
 
     public static final Collection<Setting.AffixSetting<?>> DELEGATED_AUTHORIZATION_REALMS_SETTINGS = DelegatedAuthorizationSettings
         .getSettings(TYPE);
-    public static final Setting.AffixSetting<List<String>> AUTHORIZATION_REALMS = DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(
-        JwtRealmSettings.TYPE
-    );
 
     private static void verifyNonNullNotEmpty(final String key, final String value, final List<String> allowedValues) {
         assert value != null : "Invalid null value for [" + key + "].";

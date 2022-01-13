@@ -22,9 +22,9 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
 
     public void testJwtAuthenticationTokenParse() throws Exception {
         final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
-        final Object secretKeyOrKeyPair = JwtUtil.generateSecretKeyOrKeyPair(signatureAlgorithm);
-        final Tuple<JWSSigner, JWSVerifier> jwsSignerAndVerifier = JwtUtil.createJwsSignerJWSVerifier(secretKeyOrKeyPair);
-        final String serializedJWTOriginal = JwtUtil.generateValidSignedJWT(jwsSignerAndVerifier.v1(), signatureAlgorithm).serialize();
+        final Object secretOrSecretKeyOrKeyPair = JwtTestCase.randomSecretOrSecretKeyOrKeyPair(signatureAlgorithm);
+        final Tuple<JWSSigner, JWSVerifier> jwsSignerAndVerifier = JwtUtil.createJwsSignerJwsVerifier(secretOrSecretKeyOrKeyPair);
+        final String serializedJWTOriginal = JwtTestCase.randomValidSignedJWT(jwsSignerAndVerifier.v1(), signatureAlgorithm).serialize();
 
         final SecureString jwt = new SecureString(serializedJWTOriginal.toCharArray());
         final SecureString clientSharedSecret = randomBoolean() ? null : new SecureString(randomAlphaOfLengthBetween(10, 20).toCharArray());
@@ -38,7 +38,7 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
 
         final Exception exception = expectThrows(
             IllegalStateException.class,
-            () -> { jwtAuthenticationToken.getSerializedJwt().length(); }
+            jwtAuthenticationToken.getSerializedJwt()::length
         );
         assertThat(exception.getMessage(), equalTo("SecureString has already been closed"));
 
@@ -47,7 +47,7 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
         if (clientSharedSecret != null) {
             final Exception exception2 = expectThrows(
                 IllegalStateException.class,
-                () -> { jwtAuthenticationToken.getClientAuthorizationSharedSecret().length(); }
+                jwtAuthenticationToken.getClientAuthorizationSharedSecret()::length
             );
             assertThat(exception2.getMessage(), equalTo("SecureString has already been closed"));
         }

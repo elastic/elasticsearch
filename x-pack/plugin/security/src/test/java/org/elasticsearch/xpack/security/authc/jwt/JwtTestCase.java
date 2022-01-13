@@ -6,13 +6,26 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.JWSSigner;
+import com.nimbusds.jose.crypto.MACSigner;
+import com.nimbusds.jose.jwk.Curve;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
+import com.nimbusds.oauth2.sdk.auth.Secret;
+import com.nimbusds.openid.connect.sdk.Nonce;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -29,14 +42,19 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.KeyPair;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+
+import javax.crypto.SecretKey;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.mockito.ArgumentMatchers.any;
@@ -195,7 +213,7 @@ public abstract class JwtTestCase extends ESTestCase {
     }
 
     protected static void writeJwkSetToFile(Path file) throws IOException {
-        Files.write(file, Arrays.asList("""
+        Files.write(file, Collections.singletonList("""
             {
               "keys": [
                 {
@@ -275,5 +293,144 @@ public abstract class JwtTestCase extends ESTestCase {
             elements.remove(elements.size() - 1); // remove last skips System.arraycopy()
         }
         return elements;
+    }
+
+    public static Object randomSecretOrSecretKeyOrKeyPair(final String signatureAlgorithm) throws JOSEException {
+        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
+        if (JWSAlgorithm.Family.HMAC_SHA.contains(jwsAlgorithm)) {
+            return JwtTestCase.randomSecretOrSecretKey(signatureAlgorithm);
+        } else if (JWSAlgorithm.Family.RSA.contains(jwsAlgorithm)) {
+            return JwtTestCase.randomRsaKeyPair(signatureAlgorithm);
+        } else if (JWSAlgorithm.Family.EC.contains(jwsAlgorithm)) {
+            return JwtTestCase.randomEcKeyPair(signatureAlgorithm);
+        }
+        throw new JOSEException(
+            "Unsupported signature algorithm ["
+                + signatureAlgorithm
+                + "]. Supported signature algorithms are "
+                + JwtUtil.SUPPORTED_JWS_ALGORITHMS
+                + "."
+        );
+    }
+
+    public static Object randomSecretOrSecretKey(final String signatureAlgorithm) throws JOSEException {
+        return randomBoolean() ? randomSecret(signatureAlgorithm) : randomSecretKey(signatureAlgorithm);
+    }
+
+    public static KeyPair randomKeyPair(final String signatureAlgorithm) throws JOSEException {
+        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
+        if (JWSAlgorithm.Family.RSA.contains(jwsAlgorithm)) {
+            return JwtUtilTests.randomRsaKeyPair(signatureAlgorithm);
+        } else if (JWSAlgorithm.Family.EC.contains(jwsAlgorithm)) {
+            return JwtUtilTests.randomEcKeyPair(signatureAlgorithm);
+        }
+        throw new JOSEException(
+            "Unsupported signature algorithm "
+                + signatureAlgorithm
+                + "]. Supported signature algorithms are "
+                + JwtUtil.SUPPORTED_JWS_ALGORITHMS_PUBLIC_KEY
+                + "."
+        );
+    }
+
+    public static Secret randomSecret(final String signatureAlgorithm) throws JOSEException {
+        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
+        final int minHmacLengthBits = MACSigner.getMinRequiredSecretLength(jwsAlgorithm);
+        final int hmacLengthBits = randomIntBetween(minHmacLengthBits, minHmacLengthBits * 2);
+        return JwtUtil.generateSecret(hmacLengthBits);
+    }
+
+    public static SecretKey randomSecretKey(final String signatureAlgorithm) throws JOSEException {
+        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
+        final int minHmacLengthBits = MACSigner.getMinRequiredSecretLength(jwsAlgorithm);
+        final int hmacLengthBits = randomIntBetween(minHmacLengthBits, minHmacLengthBits * 2);
+        return JwtUtil.generateSecretKey(hmacLengthBits);
+    }
+
+    public static KeyPair randomRsaKeyPair(final String signatureAlgorithm) throws JOSEException {
+        return JwtUtil.generateRsaKeyPair(randomFrom(2048, 3072));
+    }
+
+    public static KeyPair randomEcKeyPair(final String signatureAlgorithm) throws JOSEException {
+        final Curve ecCurve = randomFrom(Curve.forJWSAlgorithm(JWSAlgorithm.parse(signatureAlgorithm)));
+        return JwtUtil.generateEcKeyPair(ecCurve);
+    }
+
+    public static SignedJWT randomValidSignedJWT(final JWSSigner jwsSigner, final String signatureAlgorithm) throws Exception {
+        final String issuer = randomFrom("https://www.example.com/", "") + "iss1" + randomIntBetween(0, 99);
+        final List<String> audiences = randomFrom(List.of("rp_client1"), List.of("aud1", "aud2", "aud3"));
+        final String claimPrincipal = randomFrom("sub", "uid", "custom");
+        final String principal = "principal1";
+        final String claimGroups = randomBoolean() ? null : randomFrom("groups", "roles", "other");
+        final List<String> groups = randomFrom(List.of(""), List.of("grp1"), List.of("rol1", "rol2", "rol3"), List.of("per1"));
+        final String claimDn = randomBoolean() ? null : randomFrom("dn", "distinguishedName", "subjectDn");
+        final String dn = randomFrom("cn=Something,serial=123,DC=example.com", "uid=987,DC=example.com");
+        final String claimFullName = randomBoolean() ? null : randomFrom("name", "fullName");
+        final String fullName = randomFrom("John Doe", "Jane Doe");
+        final String claimEmail = randomBoolean() ? null : randomFrom("mail", "email");
+        final String email = randomFrom("John.Doe@example.com", "Jane.Doe@example.com");
+        final Tuple<JWSHeader, JWTClaimsSet> headerAndBody = randomValidJwsHeaderAndJwtClaimsSet(
+            signatureAlgorithm,
+            issuer,
+            audiences,
+            claimPrincipal,
+            principal,
+            claimGroups,
+            groups,
+            claimDn,
+            dn,
+            claimFullName,
+            fullName,
+            claimEmail,
+            email
+        );
+        return JwtUtil.signSignedJwt(jwsSigner, headerAndBody.v1(), headerAndBody.v2());
+    }
+
+    public static Tuple<JWSHeader, JWTClaimsSet> randomValidJwsHeaderAndJwtClaimsSet(
+        final String signatureAlgorithm,
+        final String issuer,
+        final List<String> audiences,
+        final String principalClaimName,
+        final String principalClaimValue,
+        final String groupsClaimName,
+        final List<String> groupsClaimValue,
+        final String dnClaimName,
+        final String dnClaimValue,
+        final String fullNameClaimName,
+        final String fullNameClaimValue,
+        final String emailClaimName,
+        final String emailClaimValue
+    ) {
+        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
+        final JWSHeader jwtHeader = new JWSHeader.Builder(jwsAlgorithm).build();
+        final JWTClaimsSet.Builder jwtClaimsSetBuilder = new JWTClaimsSet.Builder().jwtID(
+            randomFrom((String) null, randomAlphaOfLengthBetween(1, 20))
+        )
+            .issueTime(randomFrom((Date) null, Date.from(Instant.now().minusSeconds(randomLongBetween(1, 60)))))
+            .notBeforeTime(randomFrom((Date) null, Date.from(Instant.now().minusSeconds(randomLongBetween(1, 60)))))
+            .expirationTime(randomFrom((Date) null, Date.from(Instant.now().plusSeconds(randomLongBetween(3600, 7200)))))
+            .issuer(issuer)
+            .audience(audiences)
+            // .subject(subject)
+            .claim("nonce", new Nonce());
+        // Principal claim name could be "sub" or something else
+        if ((Strings.hasText(principalClaimName)) && (principalClaimValue != null)) {
+            jwtClaimsSetBuilder.claim(principalClaimName, principalClaimValue);
+        }
+        if ((Strings.hasText(groupsClaimName)) && (groupsClaimValue != null)) {
+            jwtClaimsSetBuilder.claim(groupsClaimName, groupsClaimValue.toString());
+        }
+        if ((Strings.hasText(dnClaimName)) && (dnClaimValue != null)) {
+            jwtClaimsSetBuilder.claim(dnClaimName, dnClaimValue);
+        }
+        if ((Strings.hasText(fullNameClaimName)) && (fullNameClaimValue != null)) {
+            jwtClaimsSetBuilder.claim(fullNameClaimName, fullNameClaimValue);
+        }
+        if ((Strings.hasText(emailClaimName)) && (emailClaimValue != null)) {
+            jwtClaimsSetBuilder.claim(emailClaimName, emailClaimValue);
+        }
+        final JWTClaimsSet jwtClaimsSet = jwtClaimsSetBuilder.build();
+        return new Tuple<>(jwtHeader, jwtClaimsSet);
     }
 }

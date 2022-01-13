@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.oauth2.sdk.auth.Secret;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -47,7 +48,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -187,18 +187,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                             + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET)
                             + "]. It is required when setting ["
                             + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE)
-                            + "] is configured as ["
+                            + "] is ["
                             + JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET
-                            + "]"
-                    );
-                }
-                // If type is "SharedSecret", the shared secret value must Base64url-encoded
-                try {
-                    Base64.getUrlDecoder().decode(clientAuthorizationSharedSecret.toString());
-                } catch (Exception e) {
-                    throw new SettingsException(
-                        "Base64Url-encoding is required for the Client Authorization Shared Secret ["
-                            + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET)
                             + "]"
                     );
                 }
@@ -212,7 +202,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                             + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET)
                             + "] is not supported, because setting ["
                             + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE)
-                            + "] is configured as ["
+                            + "] is ["
                             + JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE
                             + "]"
                     );
@@ -234,7 +224,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         // Validate HMAC or JWK Set are set, or both.
         if ((hasHmacSecretKey == false) && (hasJwkSetPath == false)) {
             throw new SettingsException(
-                "At least one setting is required for settings ["
+                "At least one setting is required for ["
                     + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.ISSUER_HMAC_SECRET_KEY)
                     + "] or ["
                     + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.JWKSET_PATH)
@@ -244,25 +234,17 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         // Validate HMAC SecretKey Base64Url-encoding is OK, and decoded value is non-empty
         if (hasHmacSecretKey) {
-            byte[] decodedHmacSecretKeyBytes;
             try {
-                decodedHmacSecretKeyBytes = Base64.getUrlDecoder().decode(hmacSecretKey.toString());
+                final Secret decodedHmacSecretKeyBytes = new Secret(hmacSecretKey.toString());
+                Arrays.fill(decodedHmacSecretKeyBytes.getValueBytes(), (byte) 0); // clear decoded secret key
             } catch (Exception e) {
                 throw new SettingsException(
-                    "Base64Url decoding failed for setting ["
+                    "Validation failed for setting ["
                         + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.ISSUER_HMAC_SECRET_KEY)
                         + "]",
                     e
                 );
             }
-            if (decodedHmacSecretKeyBytes.length == 0) {
-                throw new SettingsException(
-                    "Base64Url decoded value is empty for setting ["
-                        + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.ISSUER_HMAC_SECRET_KEY)
-                        + "]"
-                );
-            }
-            Arrays.fill(decodedHmacSecretKeyBytes, (byte) 0); // clear decoded secret key
         }
 
         // If Issuer HMAC Secret Key is set, at least one HMAC Signature Algorithm is required.
@@ -403,8 +385,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.ensureInitialized();
         final SecureString authorizationParameterValue = JwtRealm.getHeaderSchemeParameters(
             threadContext,
-            JwtRealmSettings.HEADER_ENDUSER_AUTHORIZATION,
-            JwtRealmSettings.HEADER_ENDUSER_AUTHORIZATION_SCHEME,
+            JwtRealmSettings.HEADER_END_USER_AUTHORIZATION,
+            JwtRealmSettings.HEADER_END_USER_AUTHORIZATION_SCHEME,
             false
         );
         if (authorizationParameterValue == null) {
@@ -748,33 +730,20 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     }
 
     private static class CachedAuthenticationSuccess {
-        private final AuthenticationResult<User> authenticationResult; // required
-        private final char[] jwtHash; // required (hash of JWT)
-        private final char[] clientAuthorizationParameterHash; // optional (hash of SharedSecret or ClientCertificateChain)
+        private final String cacheKey;
+        private final AuthenticationResult<User> authenticationResult;
 
-        private CachedAuthenticationSuccess(
-            final AuthenticationResult<User> authenticationResult,
-            final @Nullable SecureString jwt,
-            final @Nullable SecureString clientAuthorizationParameter,
-            final Hasher hasher
-        ) {
+        private CachedAuthenticationSuccess(final @Nullable String cacheKey, final AuthenticationResult<User> authenticationResult) {
+            assert cacheKey != null : "Cache key must be non-null";
             assert authenticationResult != null : "AuthenticationResult must be non-null";
             assert authenticationResult.isAuthenticated() : "AuthenticationResult.isAuthenticated must be true";
             assert authenticationResult.getValue() != null : "AuthenticationResult.getValue=User must be non-null";
-            assert jwt != null : "JWT must be non-null";
+            this.cacheKey = cacheKey;
             this.authenticationResult = authenticationResult;
-            this.jwtHash = hasher.hash(jwt);
-            this.clientAuthorizationParameterHash = (clientAuthorizationParameter == null)
-                ? null
-                : hasher.hash(clientAuthorizationParameter);
         }
 
-        private boolean verify(final SecureString jwt, final @Nullable SecureString clientAuthorizationParameter) {
-            return (((jwt != null) && (this.jwtHash != null) && (Hasher.verifyHash(jwt, this.jwtHash))))
-                && (((clientAuthorizationParameter == null) && (this.clientAuthorizationParameterHash == null))
-                    || ((clientAuthorizationParameter != null)
-                        && (this.clientAuthorizationParameterHash != null)
-                        && (Hasher.verifyHash(clientAuthorizationParameter, this.clientAuthorizationParameterHash))));
+        private boolean verify(final SecureString lookupKey) {
+            return this.cacheKey.equals(lookupKey.toString());
         }
     }
 

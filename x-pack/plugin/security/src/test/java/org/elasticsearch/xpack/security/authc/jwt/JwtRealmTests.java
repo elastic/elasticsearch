@@ -11,6 +11,7 @@ import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.nimbusds.oauth2.sdk.auth.Secret;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -74,16 +75,15 @@ public class JwtRealmTests extends JwtTestCase {
 
     private ThreadPool threadPool;
     private ResourceWatcherService resourceWatcherService;
-    private Settings defaultGlobalSettings;
     private SSLService sslService;
     private MockLicenseState licenseState;
 
     @Before
     public void init() throws Exception {
+        final Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         this.threadPool = new TestThreadPool("JWT realm tests");
         this.resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, this.threadPool);
-        this.defaultGlobalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        this.sslService = new SSLService(TestEnvironment.newEnvironment(this.defaultGlobalSettings));
+        this.sslService = new SSLService(TestEnvironment.newEnvironment(globalSettings));
         this.licenseState = mock(MockLicenseState.class);
         when(this.licenseState.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(true);
     }
@@ -95,48 +95,81 @@ public class JwtRealmTests extends JwtTestCase {
     }
 
     public void testClientAuthorizationTypeValidation() {
-        final RealmConfig authcConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, "realmName", Settings.EMPTY, 0);
-        final SecureString validSecret = new SecureString(Base64.getUrlEncoder().encodeToString(randomByteArrayOfLength(32)).toCharArray());
-        final SecureString invalidSecret = new SecureString("=====START CERTIFICATE=====".toCharArray());
+        final String authcName = "jwt" + randomIntBetween(0, 9);
+        final RealmConfig authcConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, authcName, Settings.EMPTY, 0);
+        final SecureString validSecret = new SecureString(randomAlphaOfLength(32).toCharArray());
+        final SecureString invalidSecretForTypeSharedSecret = randomBoolean() ? new SecureString("".toCharArray()) : null;
+        final SecureString invalidSecretForTypeNone = validSecret;
 
         // If type is None, verify null is accepted
         JwtRealm.validateClientAuthorizationSettings(JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE, null, authcConfig);
-        // If type is SharedSecret, verify a valid Base64Url-encoded value is accepted
+        // If type is SharedSecret, verify non-null and non-empty are accepted
         JwtRealm.validateClientAuthorizationSettings(
             JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
             validSecret,
             authcConfig
         );
-        // If type is SharedSecret, verify an invalid value is rejected
+        // If type is SharedSecret, verify null or blank are rejected
         final Exception exception2 = expectThrows(
             SettingsException.class,
-            "Exception expected for invalidSecret=[" + invalidSecret + "]",
-            () -> {
-                JwtRealm.validateClientAuthorizationSettings(
-                    JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
-                    invalidSecret,
-                    authcConfig
-                );
-            }
+            "Exception expected for invalidSecretForTypeSharedSecret=[" + invalidSecretForTypeSharedSecret + "]",
+            () -> JwtRealm.validateClientAuthorizationSettings(
+                JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
+                invalidSecretForTypeSharedSecret,
+                authcConfig
+            )
         );
-        // If type is None, verify non-null is rejected
+        assertThat(
+            exception2.getMessage(),
+            is(
+                equalTo(
+                    "Missing setting for ["
+                        + RealmSettings.getFullSettingKey(authcName, JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET)
+                        + "]. It is required when setting ["
+                        + RealmSettings.getFullSettingKey(authcName, JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE)
+                        + "] is ["
+                        + JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET
+                        + "]"
+                )
+            )
+        );
+        // If type is None, verify blank or non-blank are rejected
         final Exception exception3 = expectThrows(
             SettingsException.class,
-            "Exception expected for invalidSecret=[" + invalidSecret + "]",
-            () -> {
-                JwtRealm.validateClientAuthorizationSettings(
-                    JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE,
-                    invalidSecret,
-                    authcConfig
-                );
-            }
+            "Exception expected for invalidSecretForTypeSharedSecret=[" + invalidSecretForTypeNone + "]",
+            () -> JwtRealm.validateClientAuthorizationSettings(
+                JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE,
+                invalidSecretForTypeNone,
+                authcConfig
+            )
+        );
+        assertThat(
+            exception3.getMessage(),
+            is(
+                equalTo(
+                    "Setting ["
+                        + RealmSettings.getFullSettingKey(authcName, JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET)
+                        + "] is not supported, because setting ["
+                        + RealmSettings.getFullSettingKey(authcName, JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE)
+                        + "] is ["
+                        + JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE
+                        + "]"
+                )
+            )
         );
     }
 
     public void testIssuerCredentialsValidation() throws Exception {
-        final RealmConfig authcConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, "realmName", Settings.EMPTY, 0);
-        final SecretKey secretKey = JwtUtil.generateSecretKey(randomFrom(JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS));
-        final SecureString validSecretKey = new SecureString(Base64.getUrlEncoder().encodeToString(secretKey.getEncoded()).toCharArray());
+        final String authcName = "jwt" + randomIntBetween(0, 9);
+        final RealmConfig authcConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, authcName, Settings.EMPTY, 0);
+        final SecureString invalidHmacKeySecureString = randomBoolean() ? null : new SecureString("".toCharArray());
+        final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS);
+        final Secret validHmacKeySecret = JwtUtilTests.randomSecret(signatureAlgorithm);
+        final SecureString validHmacKeySecureString = new SecureString(validHmacKeySecret.getValue().toCharArray());
+        // final SecretKey validHmacKeySecretKey =
+        // JwtUtil.generateSecretKey(randomFrom(JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS));
+        // final SecureString validHmacKeySecureString =
+        // new SecureString(Base64.getEncoder().encodeToString(validHmacKeySecretKey.getEncoded()).toCharArray());
         final String validJwtSetPathHttps = "https://op.example.com/jwkset.json";
         final String invalidJwkSetPathHttp = "http://invalid.example.com/jwkset.json";
         final String validJwkSetPathFile = Files.createTempFile(PathUtils.get(this.pathHome), "jwkset.", ".json").toString();
@@ -149,20 +182,30 @@ public class JwtRealmTests extends JwtTestCase {
         JwtRealm.validateJwkSetPathSetting(authcConfig, validJwkSetPathFile);
         final Exception exception0 = expectThrows(
             SettingsException.class,
-            () -> { JwtRealm.validateJwkSetPathSetting(authcConfig, invalidJwkSetPathHttp); }
+            () -> JwtRealm.validateJwkSetPathSetting(authcConfig, invalidJwkSetPathHttp)
+        );
+        assertThat(
+            exception0.getMessage(),
+            equalTo(
+                "Invalid value ["
+                    + invalidJwkSetPathHttp
+                    + "] for setting "
+                    + RealmSettings.getFullSettingKey(authcName, JwtRealmSettings.JWKSET_PATH)
+                    + ""
+            )
         );
 
-        // If only valid HMAC Secret Key present and only HMAC algorithms, verify it is accepted
+        // If only valid HMAC Key Secure String present and only HMAC algorithms, verify it is accepted
         JwtRealm.validateIssuerCredentialSettings(
             authcConfig,
-            validSecretKey,
+            validHmacKeySecureString,
             null,
             JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS
         );
         // If only valid JWT Set Path present and only Public Key algorithms, verify it is accepted
         JwtRealm.validateIssuerCredentialSettings(
             authcConfig,
-            null,
+            invalidHmacKeySecureString,
             validJwkSetPath,
             JwtRealmSettings.SUPPORTED_PUBLIC_KEY_SIGNATURE_ALGORITHMS
         );
@@ -170,34 +213,66 @@ public class JwtRealmTests extends JwtTestCase {
         // If both valid credentials present and both algorithms present, verify they are accepted
         JwtRealm.validateIssuerCredentialSettings(
             authcConfig,
-            validSecretKey,
+            validHmacKeySecureString,
             validJwkSetPath,
             JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS
         );
 
-        // If only HMAC Secret Key present but no HMAC algorithms, verify it is rejected
-        final Exception exception1 = expectThrows(SettingsException.class, () -> {
-            JwtRealm.validateIssuerCredentialSettings(
+        // If only HMAC Key Secure String present but no HMAC algorithms, verify it is rejected
+        final Exception exception1 = expectThrows(
+            SettingsException.class,
+            () -> JwtRealm.validateIssuerCredentialSettings(
                 authcConfig,
-                validSecretKey,
+                validHmacKeySecureString,
                 null,
                 JwtRealmSettings.SUPPORTED_PUBLIC_KEY_SIGNATURE_ALGORITHMS
-            );
-        });
+            )
+        );
+        assertThat(
+            exception1.getMessage(),
+            equalTo(
+                "Issuer HMAC Secret Key is configured in setting ["
+                    + RealmSettings.getFullSettingKey(authcName, JwtRealmSettings.ISSUER_HMAC_SECRET_KEY)
+                    + "], but no HMAC signature algorithms were found in setting ["
+                    + RealmSettings.getFullSettingKey(authcName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)
+                    + "]"
+            )
+        );
         // If only valid JWT Set Path present but no Public Key algorithms, verify it is rejected
-        final Exception exception2 = expectThrows(SettingsException.class, () -> {
-            JwtRealm.validateIssuerCredentialSettings(
+        final Exception exception2 = expectThrows(
+            SettingsException.class,
+            () -> JwtRealm.validateIssuerCredentialSettings(
                 authcConfig,
                 null,
                 validJwkSetPath,
                 JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS
-            );
-        });
+            )
+        );
+        assertThat(
+            exception2.getMessage(),
+            equalTo(
+                "HMAC signature algorithms were found in setting ["
+                    + RealmSettings.getFullSettingKey(authcName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)
+                    + "], but no Issuer HMAC Secret Key is configured in setting ["
+                    + RealmSettings.getFullSettingKey(authcName, JwtRealmSettings.JWKSET_PATH)
+                    + "]"
+            )
+        );
 
         // If both credentials missing, verify they are rejected
         final Exception exception3 = expectThrows(
             SettingsException.class,
-            () -> { JwtRealm.validateIssuerCredentialSettings(authcConfig, null, "", JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS); }
+            () -> JwtRealm.validateIssuerCredentialSettings(authcConfig, null, "", JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS)
+        );
+        assertThat(
+            exception3.getMessage(),
+            equalTo(
+                "At least one setting is required for ["
+                    + RealmSettings.getFullSettingKey(authcName, JwtRealmSettings.ISSUER_HMAC_SECRET_KEY)
+                    + "] or ["
+                    + RealmSettings.getFullSettingKey(authcName, JwtRealmSettings.JWKSET_PATH)
+                    + "]"
+            )
         );
     }
 
@@ -249,7 +324,11 @@ public class JwtRealmTests extends JwtTestCase {
         String selectedGroupsClaim = null;
         boolean selectedPopulateUserMetadata = false;
         String[] selectedRoleNames = null;
+        String selectedDnClaim = null;
+        String selectedDn = null;
+        String selectedFullNameClaim = null;
         String selectedFullName = null;
+        String selectedEmailClaim = null;
         String selectedEmail = null;
 
         final List<Realm> allRealms = new ArrayList<>();
@@ -271,6 +350,9 @@ public class JwtRealmTests extends JwtTestCase {
                 .collect(Collectors.toList());
             final String claimPrincipal = authcName + "_claimPrincipal";
             final String claimGroups = randomBoolean() ? null : authcName + "_claimGroups";
+            final String claimDn = randomBoolean() ? null : authcName + "_claimDn";
+            final String claimFullName = randomBoolean() ? null : authcName + "_claimFullName";
+            final String claimEmail = randomBoolean() ? null : authcName + "_claimEmail";
             final String clientAuthorizationType = randomFrom(JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPES);
             final String clientAuthorizationSharedSecret = clientAuthorizationType.equals(
                 JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET
@@ -278,6 +360,7 @@ public class JwtRealmTests extends JwtTestCase {
             final boolean populateUserMetadata = randomBoolean();
             final String[] roleNames = IntStream.range(0, rolesCount).mapToObj(i -> authcName + "_role" + i).toArray(String[]::new);
             final String principal = authcName + "_principal";
+            final String dn = authcName + "_dn";
             final String fullName = authcName + "_fullName";
             final String email = authcName + "_email@example.com";
 
@@ -285,10 +368,10 @@ public class JwtRealmTests extends JwtTestCase {
             final Collection<String> supportedSignatureAlgorithms = random(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
             // separate SecretKey vs KeyPair (one list may be empty)
             final List<String> supportedSignatureAlgorithmsSecretKey = supportedSignatureAlgorithms.stream()
-                .filter(e -> JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS.contains(e))
+                .filter(JwtRealmSettings.SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS::contains)
                 .collect(Collectors.toList());
             final List<String> supportedSignatureAlgorithmsPublicKey = supportedSignatureAlgorithms.stream()
-                .filter(e -> JwtRealmSettings.SUPPORTED_PUBLIC_KEY_SIGNATURE_ALGORITHMS.contains(e))
+                .filter(JwtRealmSettings.SUPPORTED_PUBLIC_KEY_SIGNATURE_ALGORITHMS::contains)
                 .collect(Collectors.toList());
             // pick one each for SecretKey and KeyPair (one algorithm may be null)
             final String signatureAlgorithmSecretKey = supportedSignatureAlgorithmsSecretKey.isEmpty()
@@ -299,10 +382,10 @@ public class JwtRealmTests extends JwtTestCase {
                 : randomFrom(supportedSignatureAlgorithmsPublicKey);
             // generate one each for SecretKey and KeyPair (one may be null)
             final SecretKey signatureSecretKey = Strings.hasText(signatureAlgorithmSecretKey)
-                ? JwtUtil.generateSecretKey(signatureAlgorithmSecretKey)
+                ? JwtUtilTests.randomSecretKey(signatureAlgorithmSecretKey)
                 : null;
             final KeyPair signatureKeyPair = Strings.hasText(signatureAlgorithmPublicKey)
-                ? JwtUtil.generateKeyPair(signatureAlgorithmPublicKey)
+                ? JwtUtilTests.randomKeyPair(signatureAlgorithmPublicKey)
                 : null;
 
             final String jwkSetPath = supportedSignatureAlgorithmsPublicKey.isEmpty()
@@ -446,7 +529,11 @@ public class JwtRealmTests extends JwtTestCase {
                 selectedGroupsClaim = claimGroups;
                 selectedPopulateUserMetadata = populateUserMetadata;
                 selectedRoleNames = roleNames;
+                selectedDnClaim = claimDn;
+                selectedDn = dn;
+                selectedFullNameClaim = claimFullName;
                 selectedFullName = fullName;
+                selectedEmailClaim = claimEmail;
                 selectedEmail = email;
 
                 LOGGER.info(
@@ -455,6 +542,12 @@ public class JwtRealmTests extends JwtTestCase {
                         + authcName
                         + ", principal="
                         + principal
+                        + ", fullName="
+                        + fullName
+                        + ", claimGroups="
+                        + String.join("", roleNames)
+                        + ", dn="
+                        + dn
                         + ", fullName="
                         + fullName
                         + ", email="
@@ -489,15 +582,21 @@ public class JwtRealmTests extends JwtTestCase {
         final Object signatureSecretKeyOrPublicKey = useSecretKey ? selectedSignatureSecretKey : selectedSignatureKeyPair;
 
         // use selected algorithm and key to sign a JWT
-        final Tuple<JWSSigner, JWSVerifier> jwsSignerAndVerifier = JwtUtil.createJwsSignerJWSVerifier(signatureSecretKeyOrPublicKey);
-        final Tuple<JWSHeader, JWTClaimsSet> jwsHeaderAndJwtClaimsSet = JwtUtil.createJwsHeaderAndJwtClaimsSet(
+        final Tuple<JWSSigner, JWSVerifier> jwsSignerAndVerifier = JwtUtil.createJwsSignerJwsVerifier(signatureSecretKeyOrPublicKey);
+        final Tuple<JWSHeader, JWTClaimsSet> jwsHeaderAndJwtClaimsSet = JwtUtilTests.randomValidJwsHeaderAndJwtClaimsSet(
             signatureAlgorithm,
             selectedIssuer,
             selectedAudiences,
             selectedPrincipalClaim,
             selectedPrincipal,
             selectedGroupsClaim,
-            List.of(selectedRoleNames)
+            List.of(selectedRoleNames),
+            selectedDnClaim,
+            selectedDn,
+            selectedFullNameClaim,
+            selectedFullName,
+            selectedEmailClaim,
+            selectedEmail
         );
         LOGGER.info("Using issuer [" + signatureSecretKeyOrPublicKey.getClass() + "]");
         final SignedJWT signedJWT = JwtUtil.signSignedJwt(
@@ -511,8 +610,8 @@ public class JwtRealmTests extends JwtTestCase {
         // signed JWT corresponds to a SecretKey or PrivateKey in one-and-only-one of the JWT authc realms
         LOGGER.info("Using JWT [" + signedJWT.serialize() + "] and client secret [" + selectedClientAuthorizationSharedSecret + "]");
         super.threadContext.putHeader(
-            JwtRealmSettings.HEADER_ENDUSER_AUTHORIZATION,
-            JwtRealmSettings.HEADER_ENDUSER_AUTHORIZATION_SCHEME + " " + signedJWT.serialize()
+            JwtRealmSettings.HEADER_END_USER_AUTHORIZATION,
+            JwtRealmSettings.HEADER_END_USER_AUTHORIZATION_SCHEME + " " + signedJWT.serialize()
         );
         if (selectedClientAuthorizationSharedSecret != null) {
             super.threadContext.putHeader(
@@ -583,27 +682,10 @@ public class JwtRealmTests extends JwtTestCase {
         }
         assertThat("AuthenticatedUser is null. Expected a realm to authenticate.", authenticatedUser, is(notNullValue()));
         assertThat(authenticatedUser.principal(), equalTo(selectedPrincipal));
-        assertThat(
-            new TreeSet<String>(Arrays.asList(authenticatedUser.roles())),
-            equalTo(new TreeSet<String>(Arrays.asList(selectedRoleNames)))
-        );
+        assertThat(new TreeSet<>(Arrays.asList(authenticatedUser.roles())), equalTo(new TreeSet<>(Arrays.asList(selectedRoleNames))));
         if (selectedPopulateUserMetadata) {
             assertThat(authenticatedUser.metadata(), is(not(anEmptyMap())));
         }
         LOGGER.info("Test succeeded");
     }
-
-    // private Tuple<SecretKey, KeyPair> extractKeys(Tuple<JWSSigner, JWSVerifier> jwtSignerVerifier) throws NoSuchAlgorithmException {
-    // if (jwtSignerVerifier.v1() instanceof MACSigner macSigner) {
-    // return new Tuple<SecretKey, KeyPair>(macSigner.getSecretKey(), null);
-    // } else if (jwtSignerVerifier.v1() instanceof RSASSASigner rsassaSigner) {
-    // return new Tuple<SecretKey, KeyPair>(null, new KeyPair(((RSASSAVerifier) jwtSignerVerifier.v2()).getPublicKey(),
-    // rsassaSigner.getPrivateKey()));
-    // } else if (jwtSignerVerifier.v1() instanceof ECDSASigner ecdsaSigner) {
-    // return new Tuple<SecretKey, KeyPair>(null, new KeyPair(((ECDSAVerifier) jwtSignerVerifier.v2()).getPublicKey(),
-    // ecdsaSigner.getPrivateKey()));
-    // }
-    // fail("Unsupported JWT signer:" + jwtSignerVerifier.v1());
-    // return null;
-    // }
 }

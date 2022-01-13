@@ -40,7 +40,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
      * Store a mandatory JWT and optional Shared Secret. Parse the JWT, and extract the header, claims set, and signature.
      * Throws IllegalArgumentException if bearerString is missing, or if JWT parsing fails.
      * @param endUserSecret Base64Url-encoded JWT for End-user authorization. Required by all JWT realms.
-     * @param clientAuthorizationSharedSecret Base64Url-encoded Shared Secret for Client authorization. Required by some JWT realms.
+     * @param clientAuthorizationSharedSecret URL-safe Shared Secret for Client authorization. Required by some JWT realms.
      */
     public JwtAuthenticationToken(final SecureString endUserSecret, @Nullable final SecureString clientAuthorizationSharedSecret) {
         if (endUserSecret == null) {

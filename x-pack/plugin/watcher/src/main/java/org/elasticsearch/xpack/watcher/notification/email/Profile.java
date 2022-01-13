@@ -165,19 +165,13 @@ public enum Profile {
         if (name == null) {
             return defaultProfile;
         }
-        switch (name.toLowerCase(Locale.ROOT)) {
-            case "std":
-            case "standard":
-                return STANDARD;
-            case "outlook":
-                return OUTLOOK;
-            case "gmail":
-                return GMAIL;
-            case "mac":
-                return MAC;
-            default:
-                return defaultProfile;
-        }
+        return switch (name.toLowerCase(Locale.ROOT)) {
+            case "std", "standard" -> STANDARD;
+            case "outlook" -> OUTLOOK;
+            case "gmail" -> GMAIL;
+            case "mac" -> MAC;
+            default -> defaultProfile;
+        };
     }
 
     static MimeMessage createCommon(Email email, Session session) throws MessagingException {

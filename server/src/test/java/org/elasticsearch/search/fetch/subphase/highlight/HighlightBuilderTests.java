@@ -614,19 +614,11 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.fragmenter(randomAlphaOfLengthBetween(1, 10));
         }
         if (randomBoolean()) {
-            QueryBuilder highlightQuery;
-            switch (randomInt(2)) {
-                case 0:
-                    highlightQuery = new MatchAllQueryBuilder();
-                    break;
-                case 1:
-                    highlightQuery = new IdsQueryBuilder();
-                    break;
-                default:
-                case 2:
-                    highlightQuery = new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
-                    break;
-            }
+            QueryBuilder highlightQuery = switch (randomInt(2)) {
+                case 0 -> new MatchAllQueryBuilder();
+                case 1 -> new IdsQueryBuilder();
+                default -> new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
+            };
             highlightQuery.boost((float) randomDoubleBetween(0, 10, false));
             highlightBuilder.highlightQuery(highlightQuery);
         }
@@ -674,18 +666,12 @@ public class HighlightBuilderTests extends ESTestCase {
             int items = randomIntBetween(0, 5);
             Map<String, Object> options = new HashMap<>(items);
             for (int i = 0; i < items; i++) {
-                Object value = null;
-                switch (randomInt(2)) {
-                    case 0:
-                        value = randomAlphaOfLengthBetween(1, 10);
-                        break;
-                    case 1:
-                        value = Integer.valueOf(randomInt(1000));
-                        break;
-                    case 2:
-                        value = Boolean.valueOf(randomBoolean());
-                        break;
-                }
+                Object value = switch (randomInt(2)) {
+                    case 0 -> randomAlphaOfLengthBetween(1, 10);
+                    case 1 -> Integer.valueOf(randomInt(1000));
+                    case 2 -> Boolean.valueOf(randomBoolean());
+                    default -> null;
+                };
                 options.put(randomAlphaOfLengthBetween(1, 10), value);
             }
         }

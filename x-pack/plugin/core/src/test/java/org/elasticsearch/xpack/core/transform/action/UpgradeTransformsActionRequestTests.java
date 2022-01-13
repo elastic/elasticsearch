@@ -32,14 +32,9 @@ public class UpgradeTransformsActionRequestTests extends AbstractWireSerializing
         TimeValue timeout = instance.timeout();
 
         switch (between(0, 1)) {
-            case 0:
-                dryRun ^= true;
-                break;
-            case 1:
-                timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
-                break;
-            default:
-                throw new AssertionError("Illegal randomization branch");
+            case 0 -> dryRun ^= true;
+            case 1 -> timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
+            default -> throw new AssertionError("Illegal randomization branch");
         }
 
         return new Request(dryRun, timeout);

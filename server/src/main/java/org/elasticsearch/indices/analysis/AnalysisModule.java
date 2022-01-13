@@ -72,7 +72,7 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<CharFilterFactory>> charFilters = setupCharFilters(plugins);
         NamedRegistry<org.apache.lucene.analysis.hunspell.Dictionary> hunspellDictionaries = setupHunspellDictionaries(plugins);
         hunspellService = new HunspellService(environment.settings(), environment, hunspellDictionaries.getRegistry());
-        NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = setupTokenFilters(plugins);
+        NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = setupTokenFilters(plugins, hunspellService);
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = setupTokenizers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = setupNormalizers(plugins);
@@ -116,7 +116,10 @@ public final class AnalysisModule {
         return hunspellDictionaries;
     }
 
-    private NamedRegistry<AnalysisProvider<TokenFilterFactory>> setupTokenFilters(List<AnalysisPlugin> plugins) {
+    private NamedRegistry<AnalysisProvider<TokenFilterFactory>> setupTokenFilters(
+        List<AnalysisPlugin> plugins,
+        HunspellService hunspellService
+    ) {
         NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = new NamedRegistry<>("token_filter");
         tokenFilters.register("stop", StopTokenFilterFactory::new);
         // Add "standard" for old indices (bwc)
@@ -223,14 +226,10 @@ public final class AnalysisModule {
         // Temporary shim to register old style pre-configured tokenizers
         for (PreBuiltTokenizers tokenizer : PreBuiltTokenizers.values()) {
             String name = tokenizer.name().toLowerCase(Locale.ROOT);
-            PreConfiguredTokenizer preConfigured;
-            switch (tokenizer.getCachingStrategy()) {
-                case ONE:
-                    preConfigured = PreConfiguredTokenizer.singleton(name, () -> tokenizer.create(Version.CURRENT));
-                    break;
-                default:
-                    throw new UnsupportedOperationException("Caching strategy unsupported by temporary shim [" + tokenizer + "]");
-            }
+            PreConfiguredTokenizer preConfigured = switch (tokenizer.getCachingStrategy()) {
+                case ONE -> PreConfiguredTokenizer.singleton(name, () -> tokenizer.create(Version.CURRENT));
+                default -> throw new UnsupportedOperationException("Caching strategy unsupported by temporary shim [" + tokenizer + "]");
+            };
             preConfiguredTokenizers.register(name, preConfigured);
         }
         for (AnalysisPlugin plugin : plugins) {

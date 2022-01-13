@@ -14,7 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -47,7 +47,7 @@ import java.util.function.LongSupplier;
  */
 public class UpdateHelper {
 
-    private static final Logger LOGGER = LogManager.getLogger(UpdateHelper.class);
+    private static final Logger logger = LogManager.getLogger(UpdateHelper.class);
 
     private final ScriptService scriptService;
 
@@ -95,13 +95,13 @@ public class UpdateHelper {
         ctx.put(ContextFields.NOW, nowInMillis.getAsLong());
         ctx = executeScript(script, ctx);
 
-        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), LOGGER, script.getIdOrCode());
+        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, script.getIdOrCode());
         @SuppressWarnings("unchecked")
         Map<String, Object> newSource = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
 
         if (operation != UpdateOpType.CREATE && operation != UpdateOpType.NONE) {
             // Only valid options for an upsert script are "create" (the default) or "none", meaning abort upsert
-            LOGGER.warn("Invalid upsert operation [{}] for script [{}], doing nothing...", operation, script.getIdOrCode());
+            logger.warn("Invalid upsert operation [{}] for script [{}], doing nothing...", operation, script.getIdOrCode());
             operation = UpdateOpType.NONE;
         }
 
@@ -126,10 +126,8 @@ public class UpdateHelper {
                 nowInMillis
             );
             switch (upsertResult.v1()) {
-                case CREATE:
-                    indexRequest = Requests.indexRequest(request.index()).source(upsertResult.v2());
-                    break;
-                case NONE:
+                case CREATE -> indexRequest = Requests.indexRequest(request.index()).source(upsertResult.v2());
+                case NONE -> {
                     UpdateResponse update = new UpdateResponse(
                         shardId,
                         getResult.getId(),
@@ -140,7 +138,8 @@ public class UpdateHelper {
                     );
                     update.setGetResult(getResult);
                     return new Result(update, DocWriteResponse.Result.NOOP, upsertResult.v2(), XContentType.JSON);
-                default:
+                }
+                default ->
                     // It's fine to throw an exception here, the leniency is handled/logged by `executeScriptedUpsert`
                     throw new IllegalArgumentException("unknown upsert operation, got: " + upsertResult.v1());
             }
@@ -252,13 +251,13 @@ public class UpdateHelper {
 
         ctx = executeScript(request.script, ctx);
 
-        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), LOGGER, request.script.getIdOrCode());
+        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, request.script.getIdOrCode());
 
         @SuppressWarnings("unchecked")
         final Map<String, Object> updatedSourceAsMap = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
 
         switch (operation) {
-            case INDEX:
+            case INDEX -> {
                 final IndexRequest indexRequest = Requests.indexRequest(request.index())
                     .id(request.id())
                     .routing(routing)
@@ -269,7 +268,8 @@ public class UpdateHelper {
                     .timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy());
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
-            case DELETE:
+            }
+            case DELETE -> {
                 DeleteRequest deleteRequest = Requests.deleteRequest(request.index())
                     .id(request.id())
                     .routing(routing)
@@ -279,7 +279,8 @@ public class UpdateHelper {
                     .timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy());
                 return new Result(deleteRequest, DocWriteResponse.Result.DELETED, updatedSourceAsMap, updateSourceContentType);
-            default:
+            }
+            default -> {
                 // If it was neither an INDEX or DELETE operation, treat it as a noop
                 UpdateResponse update = new UpdateResponse(
                     shardId,
@@ -302,6 +303,7 @@ public class UpdateHelper {
                     )
                 );
                 return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
+            }
         }
     }
 

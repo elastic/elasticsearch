@@ -16,10 +16,10 @@ import org.elasticsearch.core.TimeValue;
  */
 public interface ClusterStateTaskConfig {
     /**
-     * The timeout for this cluster state update task configuration. If
-     * the cluster state update task isn't processed within this
-     * timeout, the associated {@link ClusterStateTaskListener#onFailure(String, Exception)}
-     * is invoked.
+     * The timeout for this cluster state update task configuration. If the cluster state update task isn't processed within this timeout,
+     * the associated {@link ClusterStateTaskListener#onFailure(String, Exception)} is invoked. Tasks arising from client requests should
+     * have a timeout which clients can adjust via the {@code ?master_timeout} query parameter, and typically defaults to {@code 30s}. In
+     * contrast, internal tasks can reasonably have an infinite timeout, especially if a timeout would simply trigger a retry.
      *
      * @return the timeout, or null if one is not set
      */
@@ -27,18 +27,18 @@ public interface ClusterStateTaskConfig {
     TimeValue timeout();
 
     /**
-     * The {@link Priority} for this cluster state update task configuration.
+     * The {@link Priority} for this cluster state update task configuration. Avoid priorites other than {@link Priority#NORMAL} where
+     * possible. A stream of higher-priority tasks can starve lower-priority ones from running. Higher-priority tasks should definitely
+     * share a {@link ClusterStateTaskExecutor} instance so that they are executed in batches.
      *
      * @return the priority
      */
     Priority priority();
 
     /**
-     * Build a cluster state update task configuration with the
-     * specified {@link Priority} and no timeout.
+     * Build a cluster state update task configuration with the specified {@link Priority} and no timeout.
      *
-     * @param priority the priority for the associated cluster state
-     *                 update task
+     * @param priority the priority for the associated cluster state update task
      * @return the resulting cluster state update task configuration
      */
     static ClusterStateTaskConfig build(Priority priority) {
@@ -46,13 +46,10 @@ public interface ClusterStateTaskConfig {
     }
 
     /**
-     * Build a cluster state update task configuration with the
-     * specified {@link Priority} and timeout.
+     * Build a cluster state update task configuration with the specified {@link Priority} and timeout.
      *
-     * @param priority the priority for the associated cluster state
-     *                 update task
-     * @param timeout  the timeout for the associated cluster state
-     *                 update task
+     * @param priority the priority for the associated cluster state update task
+     * @param timeout  the timeout for the associated cluster state update task
      * @return the result cluster state update task configuration
      */
     static ClusterStateTaskConfig build(Priority priority, TimeValue timeout) {

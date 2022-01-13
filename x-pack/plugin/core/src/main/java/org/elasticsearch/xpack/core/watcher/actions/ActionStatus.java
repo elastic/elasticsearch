@@ -218,16 +218,12 @@ public class ActionStatus implements ToXContentObject {
             }
 
             static State resolve(byte value) {
-                switch (value) {
-                    case 1:
-                        return AWAITS_SUCCESSFUL_EXECUTION;
-                    case 2:
-                        return ACKABLE;
-                    case 3:
-                        return ACKED;
-                    default:
-                        throw illegalArgument("unknown action ack status state value [{}]", value);
-                }
+                return switch (value) {
+                    case 1 -> AWAITS_SUCCESSFUL_EXECUTION;
+                    case 2 -> ACKABLE;
+                    case 3 -> ACKED;
+                    default -> throw illegalArgument("unknown action ack status state value [{}]", value);
+                };
             }
         }
 

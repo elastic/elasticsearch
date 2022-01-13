@@ -136,6 +136,11 @@ DELETE _template/.cloud-hot-warm-allocation-0
 
 If you're using a custom index template, update it to remove the <<shard-allocation-filtering, attribute-based allocation filters>> you used to assign new indices to the hot tier.
 
+To completely avoid the issues that raise when mixing the tier preference and
+custom attribute routing setting we also recommend updating all the legacy,
+composable, and component templates to remove the <<shard-allocation-filtering, attribute-based allocation filters>>
+from the settings they configure.
+
 [discrete]
 [[set-tier-preference]]
 ==== Set a tier preference for existing indices

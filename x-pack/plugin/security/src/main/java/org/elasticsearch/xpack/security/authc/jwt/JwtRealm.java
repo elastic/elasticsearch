@@ -408,9 +408,12 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public void authenticate(final AuthenticationToken authenticationToken, final ActionListener<AuthenticationResult<User>> listener) {
         this.ensureInitialized();
         if (authenticationToken instanceof JwtAuthenticationToken jwtAuthenticationToken) {
-            LOGGER.trace("Attempting to perform authentication of JwtAuthenticationToken with realm [{}].", super.name());
+            final String tokenPrincipal = jwtAuthenticationToken.principal();
+            LOGGER.trace("Realm [{}] received JwtAuthenticationToken for tokenPrincipal [{}].", super.name(), tokenPrincipal);
             final JWSHeader jwsHeader = jwtAuthenticationToken.getJwsHeader();
             final JWTClaimsSet jwtClaimsSet = jwtAuthenticationToken.getJwtClaimsSet();
+            final String issuerClaim = jwtAuthenticationToken.getIssuerClaim();
+            final List<String> audiencesClaim = jwtAuthenticationToken.getAudiencesClaim();
             final Map<String, Object> jwtClaimsMap = jwtClaimsSet.getClaims();
             final SecureString clientAuthorizationSharedSecret = jwtAuthenticationToken.getClientAuthorizationSharedSecret();
             final String clientAuthorizationSharedSecretString = (clientAuthorizationSharedSecret == null)
@@ -420,29 +423,35 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             // Filter steps (before any validation)
 
             // 1. Skip JWT if issuer does not match the issuer allowed by this realm.
-            final String jwtIssuer = jwtClaimsSet.getIssuer();
-            if ((jwtIssuer == null) || (this.allowedIssuer.equals(jwtIssuer) == false)) {
+            if ((issuerClaim == null) || (this.allowedIssuer.equals(issuerClaim) == false)) {
                 final String msg = String.format(
                     Locale.ROOT,
-                    "Realm [%s] does not allow issuer [%s]. Allowed issuer is [%s].",
+                    "Realm [%s] did not allow issuer [%s] for tokenPrincipal [%s]. Allowed issuer is [%s].",
                     super.name(),
-                    jwtIssuer,
+                    issuerClaim,
+                    tokenPrincipal,
                     this.allowedIssuer
                 );
                 LOGGER.debug(msg);
                 listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                 return;
             }
-            LOGGER.trace("Realm [{}] allows issuer [{}]. Allowed issuer is [{}].", super.name(), jwtIssuer, this.allowedIssuer);
+            LOGGER.trace(
+                "Realm [{}] allowed issuer [{}] for tokenPrincipal [{}]. Allowed issuer is [{}].",
+                super.name(),
+                issuerClaim,
+                tokenPrincipal,
+                this.allowedIssuer
+            );
 
             // 2. Skip JWT if audience does not match any of the audiences allowed by this realm.
-            final List<String> jwtAudiences = jwtClaimsSet.getAudience();
-            if ((jwtAudiences == null) || (this.allowedAudiences.stream().anyMatch(jwtAudiences::contains) == false)) {
+            if ((audiencesClaim == null) || (this.allowedAudiences.stream().anyMatch(audiencesClaim::contains) == false)) {
                 final String msg = String.format(
                     Locale.ROOT,
-                    "Realm [%s] does not allow audiences [%s]. Allowed audiences are [%s].",
+                    "Realm [%s] did not allow audiences [%s] for tokenPrincipal [%s]. Allowed audiences are [%s].",
                     super.name(),
-                    (jwtAudiences == null ? "null" : String.join(",", jwtAudiences)),
+                    (audiencesClaim == null ? "null" : String.join(",", audiencesClaim)),
+                    tokenPrincipal,
                     String.join(",", this.allowedAudiences)
                 );
                 LOGGER.debug(msg);
@@ -450,9 +459,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 return;
             }
             LOGGER.trace(
-                "Realm [{}] allows audiences [{}]. Allowed audiences are [{}].",
+                "Realm [{}] allowed at least one audience [{}] for tokenPrincipal [{}]. Allowed audiences are [{}].",
                 super.name(),
-                String.join(",", jwtAudiences),
+                String.join(",", audiencesClaim),
+                tokenPrincipal,
                 String.join(",", this.allowedAudiences)
             );
 
@@ -461,9 +471,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             if ((jwsSignatureAlgorithm == null) || (this.allowedSignatureAlgorithms.contains(jwsSignatureAlgorithm.getName()) == false)) {
                 final String msg = String.format(
                     Locale.ROOT,
-                    "Realm [%s] does not allow signature algorithm [%s]. Allowed signature algorithms are %s.",
+                    "Realm [%s] did not allow signature algorithm [%s] for tokenPrincipal [%s]. Allowed signature algorithms are [%s].",
                     super.name(),
                     jwsSignatureAlgorithm,
+                    tokenPrincipal,
                     String.join(",", this.allowedSignatureAlgorithms)
                 );
                 LOGGER.debug(msg);
@@ -471,9 +482,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 return;
             }
             LOGGER.trace(
-                "Realm [{}] allows signature algorithm [{}]. Allowed signature algorithms are {}.",
+                "Realm [{}] allowed signature algorithm [{}] for tokenPrincipal [{}]. Allowed signature algorithms are [{}].",
                 super.name(),
                 jwsSignatureAlgorithm,
+                tokenPrincipal,
                 String.join(",", this.allowedSignatureAlgorithms)
             );
 
@@ -489,9 +501,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     if (Strings.hasText(clientAuthorizationSharedSecretString) == false) {
                         final String msg = String.format(
                             Locale.ROOT,
-                            "Realm [%s] client authentication [%s] failed because request header value is missing.",
+                            "Realm [%s] client authentication [%s] failed for tokenPrincipal [%s] because request header value is missing.",
                             super.name(),
-                            this.clientAuthorizationType
+                            this.clientAuthorizationType,
+                            tokenPrincipal
                         );
                         LOGGER.debug(msg);
                         listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
@@ -499,18 +512,20 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     } else if (this.clientAuthorizationSharedSecret.toString().equals(clientAuthorizationSharedSecretString) == false) {
                         final String msg = String.format(
                             Locale.ROOT,
-                            "Realm [%s] client authentication [%s] failed because request header value did not match.",
+                            "Realm [%s] client authentication [%s] failed for tokenPrincipal [%s] because request header value did not match.",
                             super.name(),
-                            this.clientAuthorizationType
+                            this.clientAuthorizationType,
+                            tokenPrincipal
                         );
                         LOGGER.debug(msg);
                         listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                         return;
                     }
                     LOGGER.trace(
-                        "Realm [{}] client authentication [{}] succeeded because request header value matched.",
+                        "Realm [{}] client authentication [{}] succeeded for tokenPrincipal [{}] because request header value matched.",
                         super.name(),
-                        this.clientAuthorizationType
+                        this.clientAuthorizationType,
+                        tokenPrincipal
                     );
                     break;
                 case JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE:
@@ -518,21 +533,25 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     if (Strings.hasText(clientAuthorizationSharedSecretString)) {
                         final String msg = String.format(
                             Locale.ROOT,
-                            "Realm [%s] client authentication [%s] failed because a request header value is present.",
+                            "Realm [%s] client authentication [%s] failed for tokenPrincipal [%s] because a request header value is present.",
                             super.name(),
-                            this.clientAuthorizationType
+                            this.clientAuthorizationType,
+                            tokenPrincipal
                         );
                         LOGGER.debug(msg);
                         listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                         return;
                     }
                     LOGGER.trace(
-                        "Realm [{}] client authentication [{}] succeeded because request header value is not present.",
+                        "Realm [{}] client authentication [{}] succeeded for tokenPrincipal [{}] because request header value is not present.",
                         super.name(),
-                        this.clientAuthorizationType
+                        this.clientAuthorizationType,
+                        tokenPrincipal
                     );
                     break;
             }
+
+            // At this point, stop using tokenPrincipal. Extract the principal claim specified in the realm, and use that for logging.
 
             // JWT Authentication
             // 1. Verify signature (HMAC or RSA)
@@ -549,7 +568,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             final String jwtPrincipal = this.principalAttribute.getClaimValue(jwtClaimsSet);
             final String messageAboutPrincipalClaim = String.format(
                 Locale.ROOT,
-                "Realm [%s] got principal [%s] using parser [%s]. JWTClaimsSet is %s.",
+                "Realm [%s] got principal claim [%s] using parser [%s]. JWTClaimsSet is %s.",
                 super.name(),
                 jwtPrincipal,
                 this.principalAttribute.getName(),
@@ -632,7 +651,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 return;
             }
 
-            // Handle role mapping in JWT Realm. Realm settings decided what claims to use here for principal, groups, dn, and metadata.
+            // Handle role mapping in JWT Realm. Realm settings decided what claims to use here for principal, groups, dn, and
+            // metadata.
             final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(
                 jwtPrincipal,
                 jwtDn,

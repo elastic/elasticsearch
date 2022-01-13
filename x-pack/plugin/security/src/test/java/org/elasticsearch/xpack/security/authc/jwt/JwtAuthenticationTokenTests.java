@@ -36,10 +36,7 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
 
         jwtAuthenticationToken.clearCredentials();
 
-        final Exception exception = expectThrows(
-            IllegalStateException.class,
-            jwtAuthenticationToken.getSerializedJwt()::length
-        );
+        final Exception exception = expectThrows(IllegalStateException.class, jwtAuthenticationToken.getSerializedJwt()::length);
         assertThat(exception.getMessage(), equalTo("SecureString has already been closed"));
 
         assertThat(jwtAuthenticationToken.getSignedJwt(), is(nullValue()));

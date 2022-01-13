@@ -348,7 +348,7 @@ public class JwtRealmTests extends JwtTestCase {
             final List<String> allowedAudiences = IntStream.range(0, audienceCount)
                 .mapToObj(i -> authcName + "_aud" + i)
                 .collect(Collectors.toList());
-            final String claimPrincipal = authcName + "_claimPrincipal";
+            final String claimPrincipal = randomBoolean() ? "sub" : authcName + "_claimPrincipal";
             final String claimGroups = randomBoolean() ? null : authcName + "_claimGroups";
             final String claimDn = randomBoolean() ? null : authcName + "_claimDn";
             final String claimFullName = randomBoolean() ? null : authcName + "_claimFullName";

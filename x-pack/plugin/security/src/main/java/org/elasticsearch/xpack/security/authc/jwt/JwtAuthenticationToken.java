@@ -11,20 +11,28 @@ import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 import java.text.ParseException;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * An {@link AuthenticationToken} to hold JWT authentication related content.
  */
 public class JwtAuthenticationToken implements AuthenticationToken {
-    public static final String PRINCIPAL_CONSTANT = "";
-    public static final SecureString CREDENTIAL_CONSTANT = new SecureString("".toCharArray());
+    private static final Logger LOGGER = LogManager.getLogger(JwtAuthenticationToken.class);
+
+    private static final List<String> CLAIMS_TO_REMOVE = List.of("iss", "aud", "exp", "iat", "nbf", "auth_time", "nonce", "jti");
 
     // Stored members
     protected final SecureString endUserSecret; // required
@@ -35,6 +43,11 @@ public class JwtAuthenticationToken implements AuthenticationToken {
     protected final AtomicReference<JWSHeader> jwsHeader = new AtomicReference<>(null);
     protected final AtomicReference<JWTClaimsSet> jwtClaimsSet = new AtomicReference<>(null);
     protected final AtomicReference<byte[]> jwtSignature = new AtomicReference<>(null);
+    protected final String issuerClaim;
+    protected final List<String> audiencesClaim;
+    protected final String subjectClaim;
+    protected final String principal;
+    protected final SecureString credentials;
 
     /**
      * Store a mandatory JWT and optional Shared Secret. Parse the JWT, and extract the header, claims set, and signature.
@@ -70,16 +83,44 @@ public class JwtAuthenticationToken implements AuthenticationToken {
             this.jwtSignature.set(null);
             throw new IllegalArgumentException("Failed to parse JWT bearer token", e);
         }
+        final JWTClaimsSet jwtClaimsSet = this.jwtClaimsSet.get();
+        this.issuerClaim = jwtClaimsSet.getIssuer();
+        this.audiencesClaim = jwtClaimsSet.getAudience();
+        this.subjectClaim = jwtClaimsSet.getSubject();
+
+        if (Strings.hasText(this.issuerClaim) == false) {
+            throw new IllegalArgumentException("Issuer claim is missing.");
+        } else if ((this.audiencesClaim == null) || (this.audiencesClaim.isEmpty())) {
+            throw new IllegalArgumentException("Audiences claim is missing.");
+        }
+        final String orderedAudiencesString = String.join(",", new TreeSet<>(this.audiencesClaim));
+        if (Strings.hasText(this.subjectClaim)) {
+            // Subject is present, so set principal to "issuer/audiences/subject"
+            this.principal = this.issuerClaim + "/" + orderedAudiencesString + "/" + this.subjectClaim;
+        } else {
+            // Subject is absent, so set principal to "issuer/audiences/orderedClaims" (Note: remove unnecessary claims from orderedClaims)
+            final Map<String, Object> orderedClaimSet = new TreeMap<>(jwtClaimsSet.getClaims()); // ordered
+            for (final String claimToRemove : CLAIMS_TO_REMOVE) {
+                orderedClaimSet.remove(claimToRemove);
+            }
+            if (orderedClaimSet.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "Subject claim is missing, and no other claims found besides [" + String.join(",", CLAIMS_TO_REMOVE) + "]."
+                );
+            }
+            this.principal = this.issuerClaim + "/" + orderedAudiencesString + "/" + orderedClaimSet;
+        }
+        this.credentials = new SecureString(this.principal.toCharArray());
     }
 
     @Override
     public String principal() {
-        return JwtAuthenticationToken.PRINCIPAL_CONSTANT;
+        return this.principal;
     }
 
     @Override
     public SecureString credentials() {
-        return JwtAuthenticationToken.CREDENTIAL_CONSTANT;
+        return this.credentials;
     }
 
     public SecureString getSerializedJwt() {
@@ -104,6 +145,18 @@ public class JwtAuthenticationToken implements AuthenticationToken {
 
     public byte[] getSignatureBytes() {
         return this.jwtSignature.get();
+    }
+
+    public String getIssuerClaim() {
+        return this.issuerClaim;
+    }
+
+    public List<String> getAudiencesClaim() {
+        return this.audiencesClaim;
+    }
+
+    public String getSubjectClaim() {
+        return this.subjectClaim;
     }
 
     public void clearCredentials() {

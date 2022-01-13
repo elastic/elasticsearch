@@ -36,6 +36,7 @@ include::migrate_8_0/logging-changes.asciidoc[]
 include::migrate_8_0/mapping-changes.asciidoc[]
 include::migrate_8_0/packaging-changes.asciidoc[]
 include::migrate_8_0/painless-changes.asciidoc[]
+include::migrate_8_0/plugin-changes.asciidoc[]
 include::migrate_8_0/rest-api-changes.asciidoc[]
 include::migrate_8_0/system-req-changes.asciidoc[]
 include::migrate_8_0/transform.asciidoc[]
@@ -94,7 +95,7 @@ The `elasticsearch-setup-passwords` tool is deprecated in 8.0. To
 manually reset the password for built-in users (including the `elastic` user), use
 the {ref}/reset-password.html[`elasticsearch-reset-password`] tool, the {es}
 {ref}/security-api-change-password.html[change passwords API], or the
-User Management features in {kib}. 
+User Management features in {kib}.
 `elasticsearch-setup-passwords` will be removed in a future release.
 
 *Impact* +

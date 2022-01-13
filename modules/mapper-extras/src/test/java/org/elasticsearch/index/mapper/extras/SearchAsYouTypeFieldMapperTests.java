@@ -249,28 +249,42 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
     public void testMultiFields() throws IOException {
         for (int shingleSize = 2; shingleSize < 4; shingleSize++) {
-            assertMultiField(shingleSize);
+            int size = shingleSize;
+            MapperService mapperService = createMapperService(fieldMapping(b -> {
+                b.field("type", "text");
+                b.startObject("fields");
+                {
+                    b.startObject("suggest").field("type", "search_as_you_type").field("max_shingle_size", size).endObject();
+                }
+                b.endObject();
+            }));
+            assertMultiField(shingleSize, mapperService, "field.suggest", "field");
+        }
+        for (int shingleSize = 2; shingleSize < 4; shingleSize++) {
+            String path = "field";
+            int size = shingleSize;
+            MapperService mapperService = createMapperService(fieldMapping(b -> {
+                b.field("type", "search_as_you_type").field("max_shingle_size", size);
+                b.startObject("fields");
+                {
+                    b.startObject("text").field("type", "text").endObject();
+                }
+                b.endObject();
+            }));
+            assertMultiField(shingleSize, mapperService, "field", "field.text");
         }
     }
 
-    private void assertMultiField(int shingleSize) throws IOException {
-        String path = "field.suggest";
+    private void assertMultiField(int shingleSize, MapperService mapperService, String suggestPath, String textPath) throws IOException {
         List<String> fields = new ArrayList<>();
-        fields.add(path);
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            b.field("type", "text");
-            b.startObject("fields");
-            {
-                b.startObject("suggest").field("type", "search_as_you_type").field("max_shingle_size", shingleSize).endObject();
-            }
-            b.endObject();
-        }));
-        MappedFieldType fieldType = mapperService.fieldType(path + "._index_prefix");
+        fields.add(suggestPath);
+        fields.add(textPath);
+        MappedFieldType fieldType = mapperService.fieldType(suggestPath + "._index_prefix");
         assertThat(fieldType, instanceOf(PrefixFieldType.class));
         PrefixFieldType prefixFieldType = (PrefixFieldType) fieldType;
-        assertEquals(path, prefixFieldType.parentField);
+        assertEquals(suggestPath, prefixFieldType.parentField);
         for (int i = 2; i < shingleSize; i++) {
-            String name = path + "._" + i + "gram";
+            String name = suggestPath + "._" + i + "gram";
             fields.add(name);
             fieldType = mapperService.fieldType(name);
             assertThat(fieldType, instanceOf(ShingleFieldType.class));
@@ -278,6 +292,9 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             assertEquals(i, ft.shingleSize);
             assertSame(prefixFieldType, ft.prefixFieldType);
         }
+
+        MappedFieldType textFieldType = mapperService.fieldType(textPath);
+        assertThat(textFieldType, instanceOf(TextFieldMapper.TextFieldType.class));
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "new york city")));
         for (String field : fields) {

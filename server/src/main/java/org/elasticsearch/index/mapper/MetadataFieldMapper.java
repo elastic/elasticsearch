@@ -52,12 +52,11 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         Function<FieldMapper, Explicit<Boolean>> initializer,
         boolean defaultValue
     ) {
-        Explicit<Boolean> defaultExplicit = new Explicit<>(defaultValue, false);
         return new Parameter<>(
             name,
             true,
-            () -> defaultExplicit,
-            (n, c, o) -> new Explicit<>(XContentMapValues.nodeBooleanValue(o), true),
+            defaultValue ? () -> Explicit.IMPLICIT_TRUE : () -> Explicit.IMPLICIT_FALSE,
+            (n, c, o) -> Explicit.explicitBoolean(XContentMapValues.nodeBooleanValue(o)),
             initializer
         ).setSerializer((b, n, v) -> b.field(n, v.value()), v -> Boolean.toString(v.value()));
     }

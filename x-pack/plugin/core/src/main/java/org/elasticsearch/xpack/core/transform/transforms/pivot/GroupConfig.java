@@ -60,18 +60,12 @@ public class GroupConfig implements Writeable, ToXContentObject {
         source = in.readMap();
         groups = in.readOrderedMap(StreamInput::readString, (stream) -> {
             SingleGroupSource.Type groupType = SingleGroupSource.Type.fromId(stream.readByte());
-            switch (groupType) {
-                case TERMS:
-                    return new TermsGroupSource(stream);
-                case HISTOGRAM:
-                    return new HistogramGroupSource(stream);
-                case DATE_HISTOGRAM:
-                    return new DateHistogramGroupSource(stream);
-                case GEOTILE_GRID:
-                    return new GeoTileGroupSource(stream);
-                default:
-                    throw new IOException("Unknown group type");
-            }
+            return switch (groupType) {
+                case TERMS -> new TermsGroupSource(stream);
+                case HISTOGRAM -> new HistogramGroupSource(stream);
+                case DATE_HISTOGRAM -> new DateHistogramGroupSource(stream);
+                case GEOTILE_GRID -> new GeoTileGroupSource(stream);
+            };
         });
     }
 
@@ -191,23 +185,12 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
             token = parser.nextToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-            SingleGroupSource groupSource;
-            switch (groupType) {
-                case TERMS:
-                    groupSource = TermsGroupSource.fromXContent(parser, lenient);
-                    break;
-                case HISTOGRAM:
-                    groupSource = HistogramGroupSource.fromXContent(parser, lenient);
-                    break;
-                case DATE_HISTOGRAM:
-                    groupSource = DateHistogramGroupSource.fromXContent(parser, lenient);
-                    break;
-                case GEOTILE_GRID:
-                    groupSource = GeoTileGroupSource.fromXContent(parser, lenient);
-                    break;
-                default:
-                    throw new ParsingException(parser.getTokenLocation(), "invalid grouping type: " + groupType);
-            }
+            SingleGroupSource groupSource = switch (groupType) {
+                case TERMS -> TermsGroupSource.fromXContent(parser, lenient);
+                case HISTOGRAM -> HistogramGroupSource.fromXContent(parser, lenient);
+                case DATE_HISTOGRAM -> DateHistogramGroupSource.fromXContent(parser, lenient);
+                case GEOTILE_GRID -> GeoTileGroupSource.fromXContent(parser, lenient);
+            };
 
             parser.nextToken();
 

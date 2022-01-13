@@ -100,11 +100,11 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         waitForYellow.addParameter("wait_for_nodes", "3");
         waitForYellow.addParameter("wait_for_status", "yellow");
         switch (CLUSTER_TYPE) {
-            case OLD:
+            case OLD -> {
                 client().performRequest(waitForYellow);
                 createAndStartContinuousTransform();
-                break;
-            case MIXED:
+            }
+            case MIXED -> {
                 client().performRequest(waitForYellow);
                 long lastCheckpoint = 1;
                 if (Booleans.parseBoolean(System.getProperty("tests.first_round")) == false) {
@@ -112,15 +112,14 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                 }
                 verifyContinuousTransformHandlesData(lastCheckpoint);
                 verifyUpgradeFailsIfMixedCluster();
-                break;
-            case UPGRADED:
+            }
+            case UPGRADED -> {
                 client().performRequest(waitForYellow);
                 verifyContinuousTransformHandlesData(3);
                 verifyUpgrade();
                 cleanUpTransforms();
-                break;
-            default:
-                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+            }
+            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
     }
 

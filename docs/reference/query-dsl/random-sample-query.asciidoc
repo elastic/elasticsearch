@@ -5,6 +5,8 @@
 <titleabbrev>Random sample</titleabbrev>
 ++++
 
+experimental::[]
+
 Wraps a <<query-dsl-bool-query, filter query>> and returns a random subset of all the
 matching documents. This query is best used expensive <<search-aggregations, aggregations>> over large datasets.
 It can provide a significant speed improvement at the cost of loss of accuracy.

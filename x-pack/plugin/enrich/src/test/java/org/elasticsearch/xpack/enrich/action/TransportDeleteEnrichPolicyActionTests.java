@@ -241,4 +241,50 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
             assertNull(EnrichStore.getPolicy(name, clusterService.state()));
         }
     }
+
+    public void testDeletePolicyPrefixes() throws InterruptedException {
+        EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+
+        String name = "my-policy";
+        String otherName = "my-policy-two"; // the first policy is a prefix of this one
+
+        final TransportDeleteEnrichPolicyAction transportAction = node().injector().getInstance(TransportDeleteEnrichPolicyAction.class);
+        AtomicReference<Exception> error;
+        error = saveEnrichPolicy(name, policy, clusterService);
+        assertThat(error.get(), nullValue());
+        error = saveEnrichPolicy(otherName, policy, clusterService);
+        assertThat(error.get(), nullValue());
+
+        // create an index for the *other* policy
+        createIndex(EnrichPolicy.getBaseName(otherName) + "-foo1");
+
+        {
+            final CountDownLatch latch = new CountDownLatch(1);
+            final AtomicReference<AcknowledgedResponse> reference = new AtomicReference<>();
+
+            ActionTestUtils.execute(transportAction, null, new DeleteEnrichPolicyAction.Request(name), new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    reference.set(acknowledgedResponse);
+                    latch.countDown();
+                }
+
+                public void onFailure(final Exception e) {
+                    fail();
+                }
+            });
+            latch.await();
+            assertNotNull(reference.get());
+            assertTrue(reference.get().isAcknowledged());
+
+            assertNull(EnrichStore.getPolicy(name, clusterService.state()));
+
+            // deleting name policy should have no effect on the other policy
+            assertNotNull(EnrichStore.getPolicy(otherName, clusterService.state()));
+
+            // and the index associated with the other index should be unaffected
+            client().admin().indices().prepareGetIndex().setIndices(EnrichPolicy.getBaseName(otherName) + "-foo1").get();
+        }
+    }
 }

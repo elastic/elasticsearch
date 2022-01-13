@@ -3,8 +3,6 @@
 
 Also see <<breaking-changes-7.16,Breaking changes in 7.16>>.
 
-coming::[7.16.3]
-
 [[enhancement-7.16.3]]
 [float]
 === Enhancements

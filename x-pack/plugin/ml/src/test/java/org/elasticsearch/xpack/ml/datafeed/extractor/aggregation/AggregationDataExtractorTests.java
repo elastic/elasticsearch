@@ -196,6 +196,18 @@ public class AggregationDataExtractorTests extends ESTestCase {
         assertThat(capturedSearchRequests.size(), equalTo(1));
     }
 
+    public void testExtractionGivenResponseHasEmptyHistogramAgg() throws IOException {
+        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
+        SearchResponse response = createSearchResponse("time", Collections.emptyList());
+        extractor.setNextResponse(response);
+
+        assertThat(extractor.hasNext(), is(true));
+        assertThat(extractor.next().isPresent(), is(false));
+        assertThat(extractor.hasNext(), is(false));
+
+        assertThat(capturedSearchRequests.size(), equalTo(1));
+    }
+
     public void testExtractionGivenResponseHasMultipleTopLevelAggs() {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
 

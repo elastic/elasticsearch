@@ -168,7 +168,7 @@ public class MinScoreScorerTests extends ESTestCase {
                 return scores[idx];
             }
         };
-        final Scorer assertingScorer = AssertingScorer.wrap(random(), scorer, randomBoolean());
+        final Scorer assertingScorer = AssertingScorer.wrap(random(), scorer, true);
         if (twoPhase && randomBoolean()) {
             return hideTwoPhaseIterator(assertingScorer);
         } else {

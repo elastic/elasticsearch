@@ -43,7 +43,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.hamcrest.Matcher;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -52,6 +51,8 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.test.hamcrest.ThrowableAssertions.assertThatException;
+import static org.elasticsearch.test.hamcrest.ThrowableAssertions.assertThatThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
@@ -202,22 +203,9 @@ public class RepositoriesServiceTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                assertThat(e, RepositoryException.class, equalTo("[" + repoName + "] repository type [unknown] does not exist"));
+                assertThatException(e, RepositoryException.class, equalTo("[" + repoName + "] repository type [unknown] does not exist"));
             }
         });
-    }
-
-    private static void assertThatThrows(ThrowingRunnable code, Class<? extends Exception> exceptionType, Matcher<String> messageMatcher) {
-        try {
-            code.run();
-        } catch (Throwable e) {
-            assertThat(e, exceptionType, messageMatcher);
-        }
-    }
-
-    private static void assertThat(Throwable exception, Class<? extends Exception> exceptionType, Matcher<String> messageMatcher) {
-        assertThat(exception, isA(exceptionType));
-        assertThat(exception.getMessage(), messageMatcher);
     }
 
     private ClusterState createClusterStateWithRepo(String repoName, String repoType) {

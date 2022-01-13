@@ -1,0 +1,340 @@
+[[search-aggregations-bucket-ipprefix-aggregation]]
+=== IP prefix aggregation
+++++
+<titleabbrev>IP prefix</titleabbrev>
+++++
+IP addresses can be aggregated according to their network or sub-network. IP addresses consists of two groups of bits: the most significant bits which represent the network prefix, and the least significant bits which represent the host.
+The network or sub-network is usually identified using a netmask, or a prefix length. The prefix length defines the number of bits representing the network prefix.
+
+For example consider the following index:
+[source,console]
+----------------------------------------------
+PUT network-traffic
+{
+    "mappings": {
+        "properties": {
+            "ipv4": { "type": "ip" },
+            "ipv6": { "type": "ip" }
+        }
+    }
+}
+
+POST /network-traffic/_bulk?refresh
+{"index":{"_id":0}}
+{"ipv4":"192.168.1.10","ipv6":"2001:db8:a4f8:112a:6001:0:12:7f10"}
+{"index":{"_id":1}}
+{"ipv4":"192.168.1.12","ipv6":"2001:db8:a4f8:112a:6001:0:12:7f12"}
+{"index":{"_id":2}}
+{ "ipv4":"192.168.1.33","ipv6":"2001:db8:a4f8:112a:6001:0:12:7f33"}
+{"index":{"_id":3}}
+{"ipv4":"192.168.1.10","ipv6":"2001:db8:a4f8:112a:6001:0:12:7f10"}
+{"index":{"_id":4}}
+{"ipv4":"192.168.1.33","ipv6":"2001:db8:a4f8:112a:6001:0:12:7f33"}
+{"index":{"_id":5}}
+{"ipv4":"192.168.2.41","ipv6":"2001:db8:a4f8:112c:6001:0:12:7f41"}
+{"index":{"_id":6}}
+{"ipv4":"192.168.2.10","ipv6":"2001:db8:a4f8:112c:6001:0:12:7f10"}
+{"index":{"_id":7}}
+{"ipv4":"192.168.2.23","ipv6":"2001:db8:a4f8:112c:6001:0:12:7f23"}
+{"index":{"_id":8}}
+{"ipv4":"192.168.2.41","ipv6":"2001:db8:a4f8:112c:6001:0:12:7f41"}
+{"index":{"_id":9}}
+{"ipv4":"192.168.2.10","ipv6":"2001:db8:a4f8:112c:6001:0:12:7f10"}
+{"index":{"_id":10}}
+{"ipv4":"192.168.3.201","ipv6":"2001:db8:a4f8:114f:6001:0:12:7201"}
+{"index":{"_id":11}}
+{"ipv4":"192.168.3.107","ipv6":"2001:db8:a4f8:114f:6001:0:12:7307"}
+----------------------------------------------
+// TESTSETUP
+
+The following aggregation will aggregate documents in buckets, each identifying a different sub-network. The sub-network is calculated applying a netmask with prefix length of `24` to each IP address in the `ipv4` field:
+
+[source,console,id=ip-prefix-ipv4-example]
+--------------------------------------------------
+GET /network-traffic/_search
+{
+  "size": 0,
+  "aggs": {
+    "ipv4-subnets": {
+      "ip_prefix": {
+        "field": "ipv4",
+        "prefix_len": 24
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST
+
+Response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  ...
+
+  "aggregations": {
+    "ipv4-subnets": {
+      "buckets": [
+        {
+          "key": "192.168.1.0",
+          "is_ipv6": false,
+          "doc_count": 5,
+          "prefix_len": 24,
+          "netmask": "255.255.255.0"
+        },
+        {
+          "key": "192.168.2.0",
+          "is_ipv6": false,
+          "doc_count": 5,
+          "prefix_len": 24,
+          "netmask": "255.255.255.0"
+        },
+        {
+           "key": "192.168.3.0",
+           "is_ipv6": false,
+           "doc_count": 2,
+           "prefix_len": 24,
+           "netmask": "255.255.255.0"
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+In a similar way we can aggregate IPv6 addresses, making sure we set the `is_ipv6` flag to `true` (see section below):
+
+[source,console,id=ip-prefix-ipv6-example]
+--------------------------------------------------
+GET /network-traffic/_search
+{
+  "size": 0,
+  "aggs": {
+    "ipv6-subnets": {
+      "ip_prefix": {
+        "field": "ipv6",
+        "prefix_len": 64,
+        "is_ipv6": true
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST
+
+Response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  ...
+
+  "aggregations": {
+    "ipv6-subnets": {
+      "buckets": [
+        {
+          "key": "2001:db8:a4f8:112a::",
+          "is_ipv6": true,
+          "doc_count": 5,
+          "prefix_len": 64
+        },
+        {
+          "key": "2001:db8:a4f8:112c::",
+          "is_ipv6": true,
+          "doc_count": 5,
+          "prefix_len": 64
+        },
+        {
+          "key": "2001:db8:a4f8:114f::",
+          "is_ipv6": true,
+          "doc_count": 2,
+          "prefix_len": 64
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+NOTE: the `netmask` field is not returned in the response when flag `is_ipv6` is set to `true`.
+
+==== Keyed Response
+
+Setting the `keyed` flag to `true` will associate a unique IP address key with each bucket and return sub-networks as a hash rather than an array:
+
+Example:
+
+[source,console,id=ip-prefix-keyed-example]
+--------------------------------------------------
+GET /network-traffic/_search
+{
+  "size": 0,
+  "aggs": {
+    "ipv4-subnets": {
+      "ip_prefix": {
+        "field": "ipv4",
+        "prefix_len": 24,
+        "keyed": true
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST
+
+Response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  ...
+
+  "aggregations": {
+    "ipv4-subnets": {
+      "buckets": {
+        "192.168.1.0": {
+          "is_ipv6": false,
+          "doc_count": 5,
+          "prefix_len": 24,
+          "netmask": "255.255.255.0"
+        },
+        "192.168.2.0": {
+          "is_ipv6": false,
+          "doc_count": 5,
+          "prefix_len": 24,
+          "netmask": "255.255.255.0"
+        },
+        "192.168.3.0": {
+          "is_ipv6": false,
+          "doc_count": 2,
+          "prefix_len": 24,
+          "netmask": "255.255.255.0"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+==== Appending the prefix length to the IP address key
+
+Setting the `append_prefix_len` flag to `true` will return IP address keys catenated with the prefix length of the sub-network:
+
+Example:
+
+[source,console,id=ip-prefix-append-prefix-len-example]
+--------------------------------------------------
+GET /network-traffic/_search
+{
+  "size": 0,
+  "aggs": {
+    "ipv4-subnets": {
+      "ip_prefix": {
+        "field": "ipv4",
+        "prefix_len": 24,
+        "append_prefix_len": true
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST
+
+Response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  ...
+
+  "aggregations": {
+    "ipv4-subnets": {
+      "buckets": [
+        {
+          "key": "192.168.1.0/24",
+          "is_ipv6": false,
+          "doc_count": 5,
+          "prefix_len": 24,
+          "netmask": "255.255.255.0"
+        },
+        {
+          "key": "192.168.2.0/24",
+          "is_ipv6": false,
+          "doc_count": 5,
+          "prefix_len": 24,
+          "netmask": "255.255.255.0"
+        },
+        {
+          "key": "192.168.3.0/24",
+          "is_ipv6": false,
+          "doc_count": 2,
+          "prefix_len": 24,
+          "netmask": "255.255.255.0"
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+==== Minimum document count
+
+It is possible to change the response in such a way that only buckets including a minimum number of documents are returned, using the `min_doc_count` parameter.
+
+[source,console,id=ip-prefix-min-doc-count-example]
+--------------------------------------------------
+GET /network-traffic/_search
+{
+  "size": 0,
+  "aggs": {
+    "ipv4-subnets": {
+      "ip_prefix": {
+        "field": "ipv4",
+        "prefix_len": 24,
+        "min_doc_count": 3
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST
+
+Response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  ...
+
+  "aggregations": {
+    "ipv4-subnets": {
+      "buckets": [
+        {
+          "key": "192.168.1.0",
+          "is_ipv6": false,
+          "doc_count": 5,
+          "prefix_len": 24,
+          "netmask": "255.255.255.0"
+        },
+        {
+          "key": "192.168.2.0",
+          "is_ipv6": false,
+          "doc_count": 5,
+          "prefix_len": 24,
+          "netmask": "255.255.255.0"
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+==== IPv6 vs IPv4 addresses and sub-networks
+
+Just specifying the `prefix_len` parameter is not enough to know if sub-network aggregation is done on IPv4 or IPv6 addresses. As a result, the `is_ipv6` flag is needed and defaults to `false`. Failing to set it appropriately will result in unpredictable results due to the way the netmask is applied.

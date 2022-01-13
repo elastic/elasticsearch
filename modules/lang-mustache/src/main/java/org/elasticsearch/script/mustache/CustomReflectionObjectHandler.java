@@ -54,8 +54,8 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         public Object get(Object key) {
             if ("size".equals(key)) {
                 return size();
-            } else if (key instanceof Number) {
-                return Array.get(array, ((Number) key).intValue());
+            } else if (key instanceof Number number) {
+                return Array.get(array, number.intValue());
             }
             try {
                 int index = Integer.parseInt(key.toString());
@@ -112,8 +112,8 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         public Object get(Object key) {
             if ("size".equals(key)) {
                 return col.size();
-            } else if (key instanceof Number) {
-                return Iterables.get(col, ((Number) key).intValue());
+            } else if (key instanceof Number number) {
+                return Iterables.get(col, number.intValue());
             }
             try {
                 int index = Integer.parseInt(key.toString());

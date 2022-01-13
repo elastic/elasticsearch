@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -68,9 +69,12 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.filter.Filters;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.Stats;
+import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -489,6 +493,77 @@ public class JobResultsProvider {
         );
     }
 
+    public void getDataCountsModelSizeAndTimingStats(
+        String jobId,
+        TriConsumer<DataCounts, ModelSizeStats, TimingStats> handler,
+        Consumer<Exception> errorHandler
+    ) {
+        final String results = "results";
+        final String timingStats = "timing_stats";
+        final String dataCounts = "data_counts";
+        final String modelSizeStats = "model_size_stats";
+        final String topHits = "hits";
+        SearchRequest request = client.prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
+            .setSize(0)
+            .setTrackTotalHits(false)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .addAggregation(
+                AggregationBuilders.filters(
+                    results,
+                    new FiltersAggregator.KeyedFilter(
+                        dataCounts,
+                        QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId), DataCounts.v54DocumentId(jobId))
+                    ),
+                    new FiltersAggregator.KeyedFilter(timingStats, QueryBuilders.idsQuery().addIds(TimingStats.documentId(jobId))),
+                    new FiltersAggregator.KeyedFilter(
+                        modelSizeStats,
+                        QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ModelSizeStats.RESULT_TYPE_VALUE)
+                    )
+                )
+                    .subAggregation(
+                        AggregationBuilders.topHits(topHits)
+                            .size(1)
+                            .sorts(
+                                List.of(
+                                    SortBuilders.fieldSort(DataCounts.LOG_TIME.getPreferredName())
+                                        .order(SortOrder.DESC)
+                                        .unmappedType(NumberFieldMapper.NumberType.LONG.typeName())
+                                        .missing(0L),
+                                    SortBuilders.fieldSort(TimingStats.BUCKET_COUNT.getPreferredName())
+                                        .order(SortOrder.DESC)
+                                        .unmappedType(NumberFieldMapper.NumberType.LONG.typeName())
+                                        .missing(0L)
+                                )
+                            )
+                    )
+            )
+            .request();
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, ActionListener.<SearchResponse>wrap(response -> {
+            Aggregations aggs = response.getAggregations();
+            if (aggs == null) {
+                handler.apply(new DataCounts(jobId), new ModelSizeStats.Builder(jobId).build(), new TimingStats(jobId));
+                return;
+            }
+            Filters filters = aggs.get(results);
+            TopHits dataCountHit = filters.getBucketByKey(dataCounts).getAggregations().get(topHits);
+            DataCounts dataCountsResult = dataCountHit.getHits().getHits().length == 0
+                ? new DataCounts(jobId)
+                : MlParserUtils.parse(dataCountHit.getHits().getHits()[0], DataCounts.PARSER);
+
+            TopHits timingStatsHits = filters.getBucketByKey(timingStats).getAggregations().get(topHits);
+            TimingStats timingStatsResult = timingStatsHits.getHits().getHits().length == 0
+                ? new TimingStats(jobId)
+                : MlParserUtils.parse(timingStatsHits.getHits().getHits()[0], TimingStats.PARSER);
+
+            TopHits modelSizeHits = filters.getBucketByKey(modelSizeStats).getAggregations().get(topHits);
+            ModelSizeStats modelSizeStatsResult = modelSizeHits.getHits().getHits().length == 0
+                ? new ModelSizeStats.Builder(jobId).build()
+                : MlParserUtils.parse(modelSizeHits.getHits().getHits()[0], ModelSizeStats.LENIENT_PARSER).build();
+
+            handler.apply(dataCountsResult, modelSizeStatsResult, timingStatsResult);
+        }, errorHandler), client::search);
+    }
+
     private SearchRequestBuilder createLatestDataCountsSearch(String indexName, String jobId) {
         return client.prepareSearch(indexName)
             .setSize(1)
@@ -505,24 +580,6 @@ public class JobResultsProvider {
                     .missing(0L)
             )
             .addSort(SortBuilders.fieldSort(DataCounts.LATEST_RECORD_TIME.getPreferredName()).order(SortOrder.DESC));
-    }
-
-    /**
-     * Get the job's timing stats
-     *
-     * @param jobId The job id
-     */
-    public void timingStats(String jobId, Consumer<TimingStats> handler, Consumer<Exception> errorHandler) {
-        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        searchSingleResult(
-            jobId,
-            TimingStats.TYPE.getPreferredName(),
-            createLatestTimingStatsSearch(indexName, jobId),
-            TimingStats.PARSER,
-            result -> handler.accept(result.result),
-            errorHandler,
-            () -> new TimingStats(jobId)
-        );
     }
 
     private SearchRequestBuilder createLatestTimingStatsSearch(String indexName, String jobId) {
@@ -1470,16 +1527,19 @@ public class JobResultsProvider {
         // There might be an easy short-circuit if the latest model size stats say which number to use
         if (latestModelSizeStats.getAssignmentMemoryBasis() != null) {
             switch (latestModelSizeStats.getAssignmentMemoryBasis()) {
-                case MODEL_MEMORY_LIMIT:
+                case MODEL_MEMORY_LIMIT -> {
                     handler.accept(0L);
                     return;
-                case CURRENT_MODEL_BYTES:
+                }
+                case CURRENT_MODEL_BYTES -> {
                     handler.accept(latestModelSizeStats.getModelBytes());
                     return;
-                case PEAK_MODEL_BYTES:
+                }
+                case PEAK_MODEL_BYTES -> {
                     Long storedPeak = latestModelSizeStats.getPeakModelBytes();
                     handler.accept((storedPeak != null) ? storedPeak : latestModelSizeStats.getModelBytes());
                     return;
+                }
             }
         }
 
@@ -1695,7 +1755,7 @@ public class JobResultsProvider {
             AggregationBuilders.terms(ForecastStats.Fields.STATUSES).field(ForecastRequestStats.STATUS.getPreferredName())
         );
         sourceBuilder.size(0);
-        sourceBuilder.trackTotalHits(true);
+        sourceBuilder.trackTotalHits(false);
 
         searchRequest.source(sourceBuilder);
 
@@ -1704,9 +1764,8 @@ public class JobResultsProvider {
             ML_ORIGIN,
             searchRequest,
             ActionListener.<SearchResponse>wrap(searchResponse -> {
-                long totalHits = searchResponse.getHits().getTotalHits().value;
                 Aggregations aggregations = searchResponse.getAggregations();
-                if (totalHits == 0 || aggregations == null) {
+                if (aggregations == null) {
                     handler.accept(new ForecastStats());
                     return;
                 }
@@ -1714,9 +1773,10 @@ public class JobResultsProvider {
                 StatsAccumulator memoryStats = StatsAccumulator.fromStatsAggregation(
                     (Stats) aggregationsAsMap.get(ForecastStats.Fields.MEMORY)
                 );
-                StatsAccumulator recordStats = StatsAccumulator.fromStatsAggregation(
-                    (Stats) aggregationsAsMap.get(ForecastStats.Fields.RECORDS)
-                );
+                Stats aggRecordsStats = (Stats) aggregationsAsMap.get(ForecastStats.Fields.RECORDS);
+                // Stats already gives us all the counts and every doc as a "records" field.
+                long totalHits = aggRecordsStats.getCount();
+                StatsAccumulator recordStats = StatsAccumulator.fromStatsAggregation(aggRecordsStats);
                 StatsAccumulator runtimeStats = StatsAccumulator.fromStatsAggregation(
                     (Stats) aggregationsAsMap.get(ForecastStats.Fields.RUNTIME)
                 );

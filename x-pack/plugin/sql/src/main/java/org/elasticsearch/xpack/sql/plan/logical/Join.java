@@ -60,20 +60,19 @@ public class Join extends BinaryPlan {
 
     @Override
     public List<Attribute> output() {
-        switch (type) {
-            case LEFT:
+        return switch (type) {
+            case LEFT ->
                 // right side can be null
-                return combine(left().output(), makeNullable(right().output()));
-            case RIGHT:
+                combine(left().output(), makeNullable(right().output()));
+            case RIGHT ->
                 // left side can be null
-                return combine(makeNullable(left().output()), right().output());
-            case FULL:
+                combine(makeNullable(left().output()), right().output());
+            case FULL ->
                 // both sides can be null
-                return combine(makeNullable(left().output()), makeNullable(right().output()));
+                combine(makeNullable(left().output()), makeNullable(right().output()));
             // INNER
-            default:
-                return combine(left().output(), right().output());
-        }
+            default -> combine(left().output(), right().output());
+        };
     }
 
     private static List<Attribute> makeNullable(List<Attribute> output) {

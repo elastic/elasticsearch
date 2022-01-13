@@ -32,16 +32,10 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public final class SearchHits implements Writeable, ToXContentFragment, Iterable<SearchHit> {
-    public static SearchHits empty() {
-        return empty(true);
-    }
-
-    public static SearchHits empty(boolean withTotalHits) {
-        // TODO: consider using static final instance
-        return new SearchHits(EMPTY, withTotalHits ? new TotalHits(0, Relation.EQUAL_TO) : null, 0);
-    }
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
+    public static final SearchHits EMPTY_WITH_TOTAL_HITS = new SearchHits(EMPTY, new TotalHits(0, Relation.EQUAL_TO), 0);
+    public static final SearchHits EMPTY_WITHOUT_TOTAL_HITS = new SearchHits(EMPTY, null, 0);
 
     private final SearchHit[] hits;
     private final TotalHits totalHits;

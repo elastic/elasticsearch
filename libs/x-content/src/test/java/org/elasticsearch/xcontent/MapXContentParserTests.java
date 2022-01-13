@@ -138,10 +138,8 @@ public class MapXContentParserTests extends ESTestCase {
                                 assertEquals(parser.textOrNull(), mapParser.textOrNull());
                             }
                             switch (token) {
-                                case VALUE_STRING:
-                                    assertEquals(parser.text(), mapParser.text());
-                                    break;
-                                case VALUE_NUMBER:
+                                case VALUE_STRING -> assertEquals(parser.text(), mapParser.text());
+                                case VALUE_NUMBER -> {
                                     assertEquals(parser.numberType(), mapParser.numberType());
                                     assertEquals(parser.numberValue(), mapParser.numberValue());
                                     if (parser.numberType() == XContentParser.NumberType.LONG
@@ -156,16 +154,10 @@ public class MapXContentParserTests extends ESTestCase {
                                     } else {
                                         assertEquals(parser.doubleValue(), mapParser.doubleValue(), 0.000001);
                                     }
-                                    break;
-                                case VALUE_BOOLEAN:
-                                    assertEquals(parser.booleanValue(), mapParser.booleanValue());
-                                    break;
-                                case VALUE_EMBEDDED_OBJECT:
-                                    assertArrayEquals(parser.binaryValue(), mapParser.binaryValue());
-                                    break;
-                                case VALUE_NULL:
-                                    assertNull(mapParser.textOrNull());
-                                    break;
+                                }
+                                case VALUE_BOOLEAN -> assertEquals(parser.booleanValue(), mapParser.booleanValue());
+                                case VALUE_EMBEDDED_OBJECT -> assertArrayEquals(parser.binaryValue(), mapParser.binaryValue());
+                                case VALUE_NULL -> assertNull(mapParser.textOrNull());
                             }
                             assertEquals(parser.currentName(), mapParser.currentName());
                             assertEquals(parser.isClosed(), mapParser.isClosed());

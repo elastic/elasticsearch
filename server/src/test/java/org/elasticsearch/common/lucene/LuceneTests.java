@@ -633,30 +633,19 @@ public class LuceneTests extends ESTestCase {
     }
 
     public static Object randomSortValue() {
-        switch (randomIntBetween(0, 9)) {
-            case 0:
-                return null;
-            case 1:
-                return randomAlphaOfLengthBetween(3, 10);
-            case 2:
-                return randomInt();
-            case 3:
-                return randomLong();
-            case 4:
-                return randomFloat();
-            case 5:
-                return randomDouble();
-            case 6:
-                return randomByte();
-            case 7:
-                return randomShort();
-            case 8:
-                return randomBoolean();
-            case 9:
-                return new BytesRef(randomAlphaOfLengthBetween(3, 10));
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (randomIntBetween(0, 9)) {
+            case 0 -> null;
+            case 1 -> randomAlphaOfLengthBetween(3, 10);
+            case 2 -> randomInt();
+            case 3 -> randomLong();
+            case 4 -> randomFloat();
+            case 5 -> randomDouble();
+            case 6 -> randomByte();
+            case 7 -> randomShort();
+            case 8 -> randomBoolean();
+            case 9 -> new BytesRef(randomAlphaOfLengthBetween(3, 10));
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     public static Tuple<SortField, SortField> randomSortField() {
@@ -688,32 +677,26 @@ public class LuceneTests extends ESTestCase {
         boolean reverse = randomBoolean();
         Object missingValue = null;
         switch (randomIntBetween(0, 3)) {
-            case 0:
-                comparatorSource = new LongValuesComparatorSource(
-                    null,
-                    randomBoolean() ? randomLong() : null,
-                    randomFrom(MultiValueMode.values()),
-                    null,
-                    null
-                );
-                break;
-            case 1:
-                comparatorSource = new DoubleValuesComparatorSource(
-                    null,
-                    randomBoolean() ? randomDouble() : null,
-                    randomFrom(MultiValueMode.values()),
-                    null
-                );
-                break;
-            case 2:
-                comparatorSource = new FloatValuesComparatorSource(
-                    null,
-                    randomBoolean() ? randomFloat() : null,
-                    randomFrom(MultiValueMode.values()),
-                    null
-                );
-                break;
-            case 3:
+            case 0 -> comparatorSource = new LongValuesComparatorSource(
+                null,
+                randomBoolean() ? randomLong() : null,
+                randomFrom(MultiValueMode.values()),
+                null,
+                null
+            );
+            case 1 -> comparatorSource = new DoubleValuesComparatorSource(
+                null,
+                randomBoolean() ? randomDouble() : null,
+                randomFrom(MultiValueMode.values()),
+                null
+            );
+            case 2 -> comparatorSource = new FloatValuesComparatorSource(
+                null,
+                randomBoolean() ? randomFloat() : null,
+                randomFrom(MultiValueMode.values()),
+                null
+            );
+            case 3 -> {
                 comparatorSource = new BytesRefFieldComparatorSource(
                     null,
                     randomBoolean() ? "_first" : "_last",
@@ -721,9 +704,8 @@ public class LuceneTests extends ESTestCase {
                     null
                 );
                 missingValue = comparatorSource.missingValue(reverse);
-                break;
-            default:
-                throw new UnsupportedOperationException();
+            }
+            default -> throw new UnsupportedOperationException();
         }
         SortField sortField = new SortField(field, comparatorSource, reverse);
         SortField expected = new SortField(field, comparatorSource.reducedType(), reverse);
@@ -734,13 +716,13 @@ public class LuceneTests extends ESTestCase {
     private static Tuple<SortField, SortField> randomCustomSortField() {
         String field = randomAlphaOfLengthBetween(3, 10);
         switch (randomIntBetween(0, 3)) {
-            case 0: {
+            case 0 -> {
                 SortField sortField = LatLonDocValuesField.newDistanceSort(field, 0, 0);
                 SortField expected = new SortField(field, SortField.Type.DOUBLE);
                 expected.setMissingValue(Double.POSITIVE_INFINITY);
                 return Tuple.tuple(sortField, expected);
             }
-            case 1: {
+            case 1 -> {
                 SortedSetSortField sortField = new SortedSetSortField(field, randomBoolean(), randomFrom(SortedSetSelector.Type.values()));
                 SortField expected = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
                 Object missingValue = randomMissingValue(SortField.Type.STRING);
@@ -748,7 +730,7 @@ public class LuceneTests extends ESTestCase {
                 expected.setMissingValue(missingValue);
                 return Tuple.tuple(sortField, expected);
             }
-            case 2: {
+            case 2 -> {
                 SortField.Type type = randomFrom(SortField.Type.DOUBLE, SortField.Type.INT, SortField.Type.FLOAT, SortField.Type.LONG);
                 SortedNumericSortField sortField = new SortedNumericSortField(field, type, randomBoolean());
                 SortField expected = new SortField(sortField.getField(), sortField.getNumericType(), sortField.getReverse());
@@ -759,30 +741,23 @@ public class LuceneTests extends ESTestCase {
                 }
                 return Tuple.tuple(sortField, expected);
             }
-            case 3: {
+            case 3 -> {
                 ShardDocSortField sortField = new ShardDocSortField(randomIntBetween(0, 100), randomBoolean());
                 SortField expected = new SortField(ShardDocSortField.NAME, SortField.Type.LONG, sortField.getReverse());
                 return Tuple.tuple(sortField, expected);
             }
-            default:
-                throw new UnsupportedOperationException();
+            default -> throw new UnsupportedOperationException();
         }
     }
 
     private static Object randomMissingValue(SortField.Type type) {
-        switch (type) {
-            case INT:
-                return randomInt();
-            case FLOAT:
-                return randomFloat();
-            case DOUBLE:
-                return randomDouble();
-            case LONG:
-                return randomLong();
-            case STRING:
-                return randomBoolean() ? SortField.STRING_FIRST : SortField.STRING_LAST;
-            default:
-                return null;
-        }
+        return switch (type) {
+            case INT -> randomInt();
+            case FLOAT -> randomFloat();
+            case DOUBLE -> randomDouble();
+            case LONG -> randomLong();
+            case STRING -> randomBoolean() ? SortField.STRING_FIRST : SortField.STRING_LAST;
+            default -> null;
+        };
     }
 }

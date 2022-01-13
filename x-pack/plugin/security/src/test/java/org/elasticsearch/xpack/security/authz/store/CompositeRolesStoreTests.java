@@ -332,7 +332,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doAnswer((invocationOnMock) -> {
             @SuppressWarnings("unchecked")
             ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
-            final RuntimeException exception = new RuntimeException("Test - native roles unavailable");
+            final RuntimeException exception = new RuntimeException("Test(" + getTestName() + ") - native roles unavailable");
             if (randomBoolean()) {
                 callback.onFailure(exception);
             } else {
@@ -352,7 +352,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             return null;
         }).when(nativePrivilegeStore).getPrivileges(anySet(), anySet(), anyActionListener());
 
-        final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
         final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
             SECURITY_ENABLED_SETTINGS,
             fileRolesStore,
@@ -363,7 +362,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             null,
-            rds -> effectiveRoleDescriptors.set(rds)
+            null
         );
 
         final Set<String> roles = Set.of(randomAlphaOfLengthBetween(1, 6), "superuser", randomAlphaOfLengthBetween(7, 12));
@@ -371,6 +370,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         getRoleForRoleNames(compositeRolesStore, roles, future);
 
         final Role role = future.actionGet();
+        assertThat(role.names(), arrayContaining("superuser"));
         assertThat(role.application().getApplicationNames(), containsInAnyOrder("*"));
         assertThat(role.cluster().privileges(), containsInAnyOrder(ClusterPrivilegeResolver.ALL));
         assertThat(role.indices().check(SearchAction.NAME), Matchers.is(true));
@@ -385,8 +385,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final Predicate<String> securityActionPredicate = Automatons.predicate(role.indices().allowedActionsMatcher(".security"));
         assertThat(securityActionPredicate.test(SearchAction.NAME), is(true));
         assertThat(securityActionPredicate.test(IndexAction.NAME), is(false));
-
-        assertThat(effectiveRoleDescriptors.get(), hasSize(1));
     }
 
     public void testNegativeLookupsAreCached() {

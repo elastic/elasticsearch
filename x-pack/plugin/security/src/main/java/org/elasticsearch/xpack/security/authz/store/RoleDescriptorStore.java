@@ -210,8 +210,6 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     }
 
     private void loadRoleDescriptorsAsync(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {
-        final boolean isSuperuserRetrieval = containsSuperuser(roleNames);
-
         final RolesRetrievalResult rolesResult = new RolesRetrievalResult();
         final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> asyncRoleProviders = roleProviders.getProviders();
         final ActionListener<RoleRetrievalResult> descriptorsListener = ContextPreservingActionListener.wrapPreservingContext(
@@ -248,20 +246,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                     rolesResult.setFailure();
                 }
                 providerListener.onResponse(result);
-            }, e -> {
-                // If we're resolving a set that includes the `superuser` role, then ignore failures for subsequent roles
-                if (isSuperuserRetrieval && containsSuperuser(roleNames) == false) {
-                    logger.warn(new ParameterizedMessage("role [{}] retrieval failed from [{}]", roleNames, rolesProvider), e);
-                    rolesResult.setFailure();
-                    providerListener.onResponse(null);
-                } else {
-                    providerListener.onFailure(e);
-                }
-            }));
+            }, providerListener::onFailure));
         }, asyncRoleProviders, threadContext, Function.identity(), iterationPredicate).run();
     }
 
-    private boolean containsSuperuser(Set<String> roleNames) {
-        return roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
-    }
 }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -269,9 +270,36 @@ public class CompositeRolesStore {
                         roleActionListener
                     );
                 }
-            }, roleActionListener::onFailure));
+            }, e -> {
+                // Because superuser does not have write access to restricted indices, it is valid to mix superuser with other roles to
+                // gain addition access. However, if retrieving those roles fails for some reason, then that could leave admins in a
+                // situation where they are unable to administer their cluster (in order to resolve the problem that is leading to failures
+                // in role retrieval). So if a role reference includes superuser, but role retrieval failed, we fallback to the static
+                // superuser role.
+                if (includesSuperuserRole(roleReference)) {
+                    logger.warn(
+                        new ParameterizedMessage(
+                            "there was a failure resolving the roles [{}], falling back to the [{}] role instead",
+                            roleReference.id(),
+                            Strings.arrayToCommaDelimitedString(superuserRole.names())
+                        ),
+                        e
+                    );
+                    roleActionListener.onResponse(superuserRole);
+                } else {
+                    roleActionListener.onFailure(e);
+                }
+            }));
         } else {
             roleActionListener.onResponse(existing);
+        }
+    }
+
+    private boolean includesSuperuserRole(RoleReference roleReference) {
+        if (roleReference instanceof RoleReference.NamedRoleReference namedRoles) {
+            return Arrays.asList(namedRoles.getRoleNames()).contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
+        } else {
+            return false;
         }
     }
 

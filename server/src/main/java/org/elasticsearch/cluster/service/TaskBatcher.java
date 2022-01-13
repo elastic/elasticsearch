@@ -134,13 +134,16 @@ public abstract class TaskBatcher {
             final Map<String, List<BatchedTask>> processTasksBySource = new HashMap<>();
             final Set<BatchedTask> pending = tasksPerBatchingKey.remove(updateTask.batchingKey);
             if (pending != null) {
-                for (BatchedTask task : pending) {
-                    if (task.processed.getAndSet(true) == false) {
-                        logger.trace("will process {}", task);
-                        toExecute.add(task);
-                        processTasksBySource.computeIfAbsent(task.source, s -> new ArrayList<>()).add(task);
-                    } else {
-                        logger.trace("skipping {}, already processed", task);
+                // pending is a java.util.Collections.SynchronizedSet so we can safely iterate holding its mutex
+                synchronized (pending) {
+                    for (BatchedTask task : pending) {
+                        if (task.processed.getAndSet(true) == false) {
+                            logger.trace("will process {}", task);
+                            toExecute.add(task);
+                            processTasksBySource.computeIfAbsent(task.source, s -> new ArrayList<>()).add(task);
+                        } else {
+                            logger.trace("skipping {}, already processed", task);
+                        }
                     }
                 }
             }

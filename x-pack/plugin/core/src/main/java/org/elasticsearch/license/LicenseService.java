@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -301,7 +302,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                         mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(newLicense, trialVersion));
                         return ClusterState.builder(currentState).metadata(mdBuilder).build();
                     }
-                }
+                },
+                ClusterStateTaskExecutor.unbatched()
             );
         }
     }
@@ -362,7 +364,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest().acknowledge(true);
         clusterService.submitStateUpdateTask(
             "delete license",
-            new StartBasicClusterTask(logger, clusterService.getClusterName().value(), clock, startBasicRequest, listener)
+            new StartBasicClusterTask(logger, clusterService.getClusterName().value(), clock, startBasicRequest, listener),
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -387,12 +390,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             );
         }
         StartTrialClusterTask task = new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener);
-        clusterService.submitStateUpdateTask("started trial license", task);
+        clusterService.submitStateUpdateTask("started trial license", task, ClusterStateTaskExecutor.unbatched());
     }
 
     void startBasicLicense(PostStartBasicRequest request, final ActionListener<PostStartBasicResponse> listener) {
         StartBasicClusterTask task = new StartBasicClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener);
-        clusterService.submitStateUpdateTask("start basic license", task);
+        clusterService.submitStateUpdateTask("start basic license", task, ClusterStateTaskExecutor.unbatched());
     }
 
     /**
@@ -404,7 +407,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     private void registerOrUpdateSelfGeneratedLicense() {
         clusterService.submitStateUpdateTask(
             "maybe generate license for cluster",
-            new StartupSelfGeneratedLicenseTask(settings, clock, clusterService)
+            new StartupSelfGeneratedLicenseTask(settings, clock, clusterService),
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

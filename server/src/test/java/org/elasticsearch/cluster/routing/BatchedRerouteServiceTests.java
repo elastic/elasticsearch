@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -89,7 +90,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             public void onFailure(String source, Exception e) {
                 throw new AssertionError(source, e);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
 
         cyclicBarrier.await(); // wait for master thread to be blocked
 
@@ -158,7 +159,8 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                                 tasksCompletedCountDown.countDown();
                             }
-                        }
+                        },
+                        ClusterStateTaskExecutor.unbatched()
                     );
                     if (submittedConcurrentlyWithReroute) {
                         tasksSubmittedCountDown.countDown();

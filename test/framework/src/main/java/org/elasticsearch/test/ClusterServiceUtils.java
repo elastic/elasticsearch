@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -91,7 +92,7 @@ public class ClusterServiceUtils {
             public void onFailure(String source, Exception e) {
                 fail("unexpected exception" + e);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
         try {
             latch.await();
         } catch (InterruptedException e) {

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.slm.action.StopSLMAction;
 import org.mockito.ArgumentMatcher;
 
 import static java.util.Collections.emptyMap;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -76,7 +77,8 @@ public class TransportStopSLMActionTests extends ESTestCase {
                     actualPriority = other.priority();
                     return actualPriority == Priority.IMMEDIATE;
                 }
-            })
+            }),
+            any()
         );
     }
 

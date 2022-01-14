@@ -1,7 +1,14 @@
 {
   "phases": {
+    "hot": {
+      "actions": {
+        "rollover": {
+          "max_age": "3d"
+        }
+      }
+    },
     "delete": {
-      "min_age": "7d",
+      "min_age": "4d",
       "actions": {
         "delete": {}
       }

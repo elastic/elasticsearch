@@ -145,16 +145,17 @@ public class UpdateHelper {
             }
         }
 
-        indexRequest.index(request.index())
+        final IndexRequest finalIndexRequest = Requests.indexRequest(request.index())
             .id(request.id())
-            .setRefreshPolicy(request.getRefreshPolicy())
             .routing(request.routing())
+            .source(indexRequest.source())
+            .setRefreshPolicy(request.getRefreshPolicy())
             .timeout(request.timeout())
             .waitForActiveShards(request.waitForActiveShards())
             // it has to be a "create!"
             .create(true);
 
-        return new Result(indexRequest, DocWriteResponse.Result.CREATED, null, null);
+        return new Result(finalIndexRequest, DocWriteResponse.Result.CREATED, null, null);
     }
 
     /**

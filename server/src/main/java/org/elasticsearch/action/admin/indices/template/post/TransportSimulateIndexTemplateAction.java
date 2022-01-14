@@ -218,6 +218,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             Settings result = provider.getAdditionalIndexSettings(
                 indexName,
                 template.getDataStreamTemplate() != null ? indexName : null,
+                template,
                 simulatedState.getMetadata(),
                 System.currentTimeMillis(),
                 templateSettings

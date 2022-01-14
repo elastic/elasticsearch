@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -47,6 +48,8 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
     private boolean performReroute = true;
+
+    private ComposableIndexTemplate matchingTemplateV2;
 
     public CreateIndexClusterStateUpdateRequest(String cause, String index, String providedName) {
         this.cause = cause;
@@ -183,6 +186,15 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public CreateIndexClusterStateUpdateRequest performReroute(boolean performReroute) {
         this.performReroute = performReroute;
+        return this;
+    }
+
+    public ComposableIndexTemplate matchingTemplateV2() {
+        return matchingTemplateV2;
+    }
+
+    public CreateIndexClusterStateUpdateRequest setMatchingTemplateV2(ComposableIndexTemplate matchingTemplateV2) {
+        this.matchingTemplateV2 = matchingTemplateV2;
         return this;
     }
 

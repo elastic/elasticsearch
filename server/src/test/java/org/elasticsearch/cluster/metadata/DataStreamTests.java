@@ -437,7 +437,8 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             preSnapshotDataStream.isHidden(),
             preSnapshotDataStream.isReplicated() && randomBoolean(),
             preSnapshotDataStream.isSystem(),
-            preSnapshotDataStream.isAllowCustomRouting()
+            preSnapshotDataStream.isAllowCustomRouting(),
+            preSnapshotDataStream.getIndexMode()
         );
 
         var reconciledDataStream = postSnapshotDataStream.snapshot(
@@ -479,7 +480,8 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             preSnapshotDataStream.isHidden(),
             preSnapshotDataStream.isReplicated(),
             preSnapshotDataStream.isSystem(),
-            preSnapshotDataStream.isAllowCustomRouting()
+            preSnapshotDataStream.isAllowCustomRouting(),
+            preSnapshotDataStream.getIndexMode()
         );
 
         assertNull(
@@ -517,6 +519,53 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(6, ChronoUnit.HOURS), clusterState.getMetadata());
         assertThat(result, equalTo(dataStream.getIndices().get(0)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())));
+    }
+
+    public void testValidate() {
+        {
+            // Valid case:
+            Instant currentTime = Instant.now();
+
+            Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
+            Instant end1 = currentTime.minus(2, ChronoUnit.HOURS);
+            Instant start2 = currentTime.minus(2, ChronoUnit.HOURS);
+            Instant end2 = currentTime.plus(2, ChronoUnit.HOURS);
+
+            String dataStreamName = "logs_my-app_prod";
+            var clusterState = DataStreamTestHelper.getClusterStateWithDataStream(
+                dataStreamName,
+                List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
+            );
+        }
+        {
+            // Invalid case:
+            Instant currentTime = Instant.now();
+
+            Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
+            Instant end1 = currentTime.minus(2, ChronoUnit.HOURS);
+            // Start2 is inside start1 and end1 range:
+            Instant start2 = currentTime.minus(3, ChronoUnit.HOURS);
+            Instant end2 = currentTime.plus(2, ChronoUnit.HOURS);
+
+            String dataStreamName = "logs_my-app_prod";
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> DataStreamTestHelper.getClusterStateWithDataStream(
+                    dataStreamName,
+                    List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
+                )
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "backing index ["
+                        + DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())
+                        + "] is overlapping with backing index ["
+                        + DataStream.getDefaultBackingIndexName(dataStreamName, 2, start2.toEpochMilli())
+                        + "]"
+                )
+            );
+        }
     }
 
 }

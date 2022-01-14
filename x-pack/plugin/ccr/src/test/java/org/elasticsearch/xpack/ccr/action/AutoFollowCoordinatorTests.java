@@ -2280,7 +2280,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             false,
             false,
             system,
-            false
+            false,
+            null
         );
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder().put(indexMetadata, true).put(dataStream).version(0L));

@@ -867,6 +867,7 @@ public class MetadataCreateIndexService {
                     provider.getAdditionalIndexSettings(
                         request.index(),
                         request.dataStreamName(),
+                        request.matchingTemplateV2(),
                         currentState.getMetadata(),
                         request.getNameResolvedAt(),
                         templateAndRequestSettings

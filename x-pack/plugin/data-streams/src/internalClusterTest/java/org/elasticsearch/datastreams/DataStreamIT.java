@@ -1137,7 +1137,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, true)
+            new ComposableIndexTemplate.DataStreamTemplate(false, true, null)
         );
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,
@@ -1787,7 +1787,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, true)
+            new ComposableIndexTemplate.DataStreamTemplate(false, true, null)
         );
         ComposableIndexTemplate finalTemplate = template;
         client().execute(
@@ -1813,7 +1813,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, true)
+            new ComposableIndexTemplate.DataStreamTemplate(false, true, null)
         );
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,
@@ -1839,7 +1839,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false)
+            new ComposableIndexTemplate.DataStreamTemplate(false, false, null)
         );
         ComposableIndexTemplate finalTemplate1 = template;
         Exception e = expectThrows(
@@ -1881,7 +1881,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, true)
+            new ComposableIndexTemplate.DataStreamTemplate(false, true, null)
         );
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,

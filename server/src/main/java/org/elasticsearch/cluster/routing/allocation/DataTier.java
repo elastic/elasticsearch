@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -234,6 +235,7 @@ public class DataTier {
         public Settings getAdditionalIndexSettings(
             String indexName,
             String dataStreamName,
+            ComposableIndexTemplate matchingTemplate,
             Metadata metadata,
             long resolvedAt,
             Settings allSettings

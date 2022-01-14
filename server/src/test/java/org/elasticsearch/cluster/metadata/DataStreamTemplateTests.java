@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -32,7 +33,8 @@ public class DataStreamTemplateTests extends AbstractSerializingTestCase<DataStr
     }
 
     public static DataStreamTemplate randomInstance() {
-        return new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean());
+        IndexMode indexMode = randomBoolean() ? randomFrom(IndexMode.values()) : null;
+        return new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean(), indexMode);
     }
 
 }

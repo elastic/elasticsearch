@@ -134,10 +134,10 @@ start the new node with the generated enrollment token.
 --
 .Generating enrollment tokens
 ****
-The enrollment token is valid for 30 minutes. If you need to generate a 
+The enrollment token is valid for 30 minutes. If you need to generate a
 new enrollment token, run the
 <<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool on your
-existing node. This tool is available in the {es} `bin` directory of the Docker 
+existing node. This tool is available in the {es} `bin` directory of the Docker
 container.
 
 For example, run the following command on the existing `es01` node to
@@ -151,7 +151,7 @@ docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-create-enrollmen
 --
 
 . In the terminal where you started your first node, copy the generated
-enrollment token for adding new {es} nodes. 
+enrollment token for adding new {es} nodes.
 
 . On your new node, start {es} and include the generated enrollment token.
 +
@@ -425,11 +425,17 @@ chmod g+rwx esdatadir
 chgrp 0 esdatadir
 --------------------------------------------
 
-You can also run an {es} container using both a custom UID and GID. Unless you
-bind-mount each of the `config`, `data` and `logs` directories, you must pass
-the command line option `--group-add 0` to `docker run`. This ensures that the user
-under which {es} is running is also a member of the `root` (GID 0) group inside the
-container.
+You can also run an {es} container using both a custom UID and GID. You
+must ensure that file permissions will not prevent {es} from executing. You
+have two options.
+
+* Pass the `--group-add 0` command line options to `docker run`. This
+  ensures that the user under which {es} is running is also a member of the
+  `root` (GID 0) group inside the container.
+* Alternatively, you must bind-mound the `config`, `data` and `logs`
+  directories. You must also bind-mount the `plugins` directory if you
+  intend to install plugins and prefer not to <<_c_customized_image, create a
+  custom Docker image>>.
 
 ===== Increase ulimits for nofile and nproc
 

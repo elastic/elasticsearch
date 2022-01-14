@@ -20,6 +20,13 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.junit.After;
@@ -36,6 +43,7 @@ import java.util.Set;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -153,7 +161,33 @@ public class ProfileServiceTests extends ESTestCase {
     }
 
     public void testActivateProfileShouldFailIfSubjectTypeIsNotUser() {
-        
+        final Authentication authentication;
+        if (randomBoolean()) {
+            final User user = new User(randomAlphaOfLengthBetween(5, 8));
+            authentication = AuthenticationTests.randomApiKeyAuthentication(user, randomAlphaOfLength(20));
+        } else {
+            authentication = AuthenticationTests.randomServiceAccountAuthentication();
+        }
+
+        final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
+        profileService.activateProfile(authentication, future1);
+        final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, future1::actionGet);
+        assertThat(e1.getMessage(), containsString("profile is supported for user only"));
+    }
+
+    public void testActivateProfileShouldFailForInternalUser() {
+        final User user = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
+        final Authentication.RealmRef realmRef = new Authentication.RealmRef(
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLength(5)
+        );
+        final Authentication authentication = new Authentication(user, realmRef, null);
+
+        final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
+        profileService.activateProfile(authentication, future1);
+        final IllegalStateException e1 = expectThrows(IllegalStateException.class, future1::actionGet);
+        assertThat(e1.getMessage(), containsString("profile should not be created for internal user"));
     }
 
     private void mockGetRequest(String uid, long lastSynchronized) {
@@ -161,5 +195,4 @@ public class ProfileServiceTests extends ESTestCase {
 
         SecurityMocks.mockGetRequest(client, SECURITY_PROFILE_ALIAS, "profile_" + uid, new BytesArray(source));
     }
-
 }

@@ -109,25 +109,6 @@ public record ProfileDocument(
         return builder;
     }
 
-    ProfileDocument updateWithSubjectAndStripApplicationData(Subject subject) {
-        final User subjectUser = subject.getUser();
-        return new ProfileDocument(
-            uid,
-            true,
-            Instant.now().toEpochMilli(),
-            new ProfileDocumentUser(
-                subjectUser.principal(),
-                subject.getRealm(),
-                subjectUser.email() != null ? subjectUser.email() : user.email,
-                subjectUser.fullName() != null ? subjectUser.fullName() : user.fullName,
-                user.displayName,
-                subjectUser.enabled()
-            ),
-            new Access(List.of(subjectUser.roles()), access.applications),
-            null
-        );
-    }
-
     static ProfileDocument fromSubject(Subject subject) {
         final String uid = "u_" + UUIDs.randomBase64UUID();
         final User subjectUser = subject.getUser();

@@ -50,7 +50,9 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -108,7 +110,7 @@ public class ProfileService {
 
         getVersionedDocument(authentication, ActionListener.wrap(versionedDocument -> {
             if (versionedDocument == null) {
-                createProfile(subject, listener);
+                createNewProfile(subject, listener);
             } else {
                 updateProfileForActivate(subject, versionedDocument, listener);
 
@@ -189,13 +191,13 @@ public class ProfileService {
         });
     }
 
-    private void createProfile(Subject subject, ActionListener<Profile> listener) throws IOException {
+    private void createNewProfile(Subject subject, ActionListener<Profile> listener) throws IOException {
         final ProfileDocument profileDocument = ProfileDocument.fromSubject(subject);
         final String docId = uidToDocId(profileDocument.uid());
         final BulkRequest bulkRequest = toSingleItemBulkRequest(
             client.prepareIndex(SECURITY_PROFILE_ALIAS)
-                .setSource(profileDocument.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
                 .setId(docId)
+                .setSource(profileDocument.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                 .request()
         );
@@ -208,7 +210,7 @@ public class ProfileService {
                 bulkRequest,
                 TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(indexResponse -> {
                     assert docId.equals(indexResponse.getId());
-                    // TODO: replace realm name with domain
+                    // TODO: replace with actual domain information
                     listener.onResponse(
                         new VersionedDocument(profileDocument, indexResponse.getPrimaryTerm(), indexResponse.getSeqNo()).toProfile(null)
                     );
@@ -219,7 +221,7 @@ public class ProfileService {
 
     private void updateProfileForActivate(Subject subject, VersionedDocument versionedDocument, ActionListener<Profile> listener)
         throws IOException {
-        final ProfileDocument profileDocument = versionedDocument.doc.updateWithSubjectAndStripApplicationData(subject);
+        final ProfileDocument profileDocument = updateWithSubjectAndStripApplicationData(versionedDocument.doc, subject);
 
         doUpdate(
             buildUpdateRequest(
@@ -309,6 +311,27 @@ public class ProfileService {
             return Optional.empty();
         }
         return Optional.of(frozenProfileIndex);
+    }
+
+    private ProfileDocument updateWithSubjectAndStripApplicationData(ProfileDocument doc, Subject subject) {
+        final User subjectUser = subject.getUser();
+        return new ProfileDocument(
+            doc.uid(),
+            true,
+            Instant.now().toEpochMilli(),
+            new ProfileDocument.ProfileDocumentUser(
+                subjectUser.principal(),
+                subject.getRealm(),
+                // Replace with incoming information even when they are null
+                subjectUser.email(),
+                subjectUser.fullName(),
+                // TODO: displayName is not available in Authentication object
+                doc.user().displayName(),
+                subjectUser.enabled()
+            ),
+            new ProfileDocument.Access(List.of(subjectUser.roles()), doc.access().applications()),
+            null
+        );
     }
 
     // Package private for testing

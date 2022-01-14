@@ -41,6 +41,7 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
@@ -147,22 +148,36 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(profile2.uid(), equalTo(profile1.uid()));
 
         // Create another rac user in the native realm
-        final PutUserRequest putUserRequest = new PutUserRequest();
-        putUserRequest.username(RAC_USER_NAME);
-        putUserRequest.roles("rac_role");
+        final PutUserRequest putUserRequest1 = new PutUserRequest();
+        putUserRequest1.username(RAC_USER_NAME);
+        putUserRequest1.roles("rac_role");
         final SecureString nativeRacUserPassword = new SecureString("native_rac_user_password".toCharArray());
-        final String nativeRacUserPasswordHash =
-            new String(getFastStoredHashAlgoForTests().hash(nativeRacUserPassword));
-        putUserRequest.passwordHash(nativeRacUserPasswordHash.toCharArray());
-        putUserRequest.email(RAC_USER_NAME + "@example.com");
-        putUserRequest.fullName("Native RAC User");
-        assertThat(client().execute(PutUserAction.INSTANCE, putUserRequest).actionGet().created(), is(true));
+        final String nativeRacUserPasswordHash = new String(getFastStoredHashAlgoForTests().hash(nativeRacUserPassword));
+        putUserRequest1.passwordHash(nativeRacUserPasswordHash.toCharArray());
+        putUserRequest1.email(RAC_USER_NAME + "@example.com");
+        assertThat(client().execute(PutUserAction.INSTANCE, putUserRequest1).actionGet().created(), is(true));
 
         // Since file and native realms are not in the same domain yet, the new profile should be a different one
         final Profile profile3 = doActivateProfile(RAC_USER_NAME, nativeRacUserPassword);
         assertThat(profile3.uid(), not(equalTo(profile1.uid())));
         assertThat(profile3.user().email(), equalTo(RAC_USER_NAME + "@example.com"));
-        assertThat(profile3.user().fullName(), equalTo("Native RAC User"));
+        assertThat(profile3.user().fullName(), nullValue());
+        assertThat(profile3.access().roles(), containsInAnyOrder("rac_role"));
+
+        // Update native rac user
+        final PutUserRequest putUserRequest2 = new PutUserRequest();
+        putUserRequest2.username(RAC_USER_NAME);
+        putUserRequest2.roles("rac_role", "superuser");
+        putUserRequest2.email(null);
+        putUserRequest2.fullName("Native RAC User");
+        assertThat(client().execute(PutUserAction.INSTANCE, putUserRequest2).actionGet().created(), is(false));
+
+        // Activate again should see the updated user info
+        final Profile profile4 = doActivateProfile(RAC_USER_NAME, nativeRacUserPassword);
+        assertThat(profile4.uid(), equalTo(profile3.uid()));
+        assertThat(profile4.user().email(), nullValue());
+        assertThat(profile4.user().fullName(), equalTo("Native RAC User"));
+        assertThat(profile4.access().roles(), containsInAnyOrder("rac_role", "superuser"));
     }
 
     private Profile doActivateProfile(String username, SecureString password) {

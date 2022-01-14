@@ -385,4 +385,4 @@ Defines whether the netmask is an IPv6 netmask.
 
 `netmask`::
 (string)
-The IPv4 netmask. If `is_ipv6` is `true` in the request this field is missing.
+The IPv4 netmask. If `is_ipv6` is `true` in the request, this field is missing in the response.

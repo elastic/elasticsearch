@@ -3,8 +3,11 @@
 ++++
 <titleabbrev>IP prefix</titleabbrev>
 ++++
-IP addresses can be aggregated according to their network or sub-network. IP addresses consists of two groups of bits: the most significant bits which represent the network prefix, and the least significant bits which represent the host.
-The network or sub-network is usually identified using a netmask, or a prefix length. The prefix length defines the number of bits representing the network prefix.
+
+A bucket aggregation that groups documents based on the network or sub-network of an IP address. An IP address consists of two groups of bits: the most significant bits which represent the network prefix, and the least significant bits which represent the host.
+
+[[ipprefix-agg-ex]]
+==== Example
 
 For example consider the following index:
 [source,console]
@@ -41,7 +44,7 @@ POST /network-traffic/_bulk?refresh
 ----------------------------------------------
 // TESTSETUP
 
-The following aggregation will aggregate documents in buckets, each identifying a different sub-network. The sub-network is calculated applying a netmask with prefix length of `24` to each IP address in the `ipv4` field:
+The following aggregation groups documents into buckets. Each bucket identifies a different sub-network. The sub-network is calculated applying a netmask with prefix length of `24` to each IP address in the `ipv4` field:
 
 [source,console,id=ip-prefix-ipv4-example]
 --------------------------------------------------
@@ -98,7 +101,7 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-In a similar way we can aggregate IPv6 addresses, making sure we set the `is_ipv6` flag to `true` (see section below):
+To aggregate IPv6 addresses, set `is_ipv6` to `true`.
 
 [source,console,id=ip-prefix-ipv6-example]
 --------------------------------------------------
@@ -153,11 +156,12 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-NOTE: the `netmask` field is not returned in the response when flag `is_ipv6` is set to `true`.
+The `netmask` field is not returned in the response when flag `is_ipv6` is set to `true`.
 
+[[ipprefix-agg-keyed-response]]
 ==== Keyed Response
 
-Setting the `keyed` flag to `true` will associate a unique IP address key with each bucket and return sub-networks as a hash rather than an array:
+Set the `keyed` flag of `true` to associate an unique IP address key with each bucket and return sub-networks as a hash rather than an array:
 
 Example:
 
@@ -214,9 +218,10 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-==== Appending the prefix length to the IP address key
+[[ipprefix-agg-append-prefix-length]]
+==== Append the prefix length to the IP address key
 
-Setting the `append_prefix_len` flag to `true` will return IP address keys catenated with the prefix length of the sub-network:
+Set the `append_prefix_len` flag to `true` to catenate IP address keys with the prefix length of the sub-network:
 
 Example:
 
@@ -276,9 +281,10 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
+[[ipprefix-agg-min-doc-count]]
 ==== Minimum document count
 
-It is possible to change the response in such a way that only buckets including a minimum number of documents are returned, using the `min_doc_count` parameter.
+Use the `min_doc_count` parameter to only return buckets with a minimum number of documents.
 
 [source,console,id=ip-prefix-min-doc-count-example]
 --------------------------------------------------
@@ -329,6 +335,54 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-==== IPv6 vs IPv4 addresses and sub-networks
+[role="child_attributes"]
+[[ip-prefix-agg-params]]
+==== Parameters
 
-Just specifying the `prefix_len` parameter is not enough to know if an IP prefix aggregation is done on IPv4 or IPv6 addresses. As a result, the `is_ipv6` flag is needed and defaults to `false`. Failing to set it appropriately will result in unpredictable results due to the way the netmask is applied.
+`field`::
+(Required, string)
+The document IP address field to aggregate on.
+
+`prefix_len`::
+(Required, integer)
+The length of the network prefix. For IPv4 addresses the accepted range is `[0, 32]`. For Ipv6 addresses the accepted range is `[0, 128]`.
+
+`is_ipv6`::
+(Optional, boolean)
+Defines whether the prefix applies to IPv6 addresses. Just specifying the `prefix_len` parameter is not enough to know if an IP prefix applies to IPv4 or IPv6 addresses. Defaults to `false`.
+
+`append_prefix_len`::
+(Optional, boolean)
+Defines whether the prefix length is appended to IP address keys in the response. Defaults to `false`.
+
+`keyed`::
+(Optional, boolean)
+Defines whether buckets are returned as a hash rather than an array in the response. Defaults to `false`.
+
+`min_doc_count`::
+(Optional, integer)
+Defines the minimum number of documents for buckets to be included in the response. Defaults to `1`.
+
+
+[[ipprefix-agg-response]]
+==== Response body
+
+`key`::
+(string)
+The IPv6 or IPv4 subnet.
+
+`prefix_len`::
+(integer)
+The length of the prefix used to aggregate the bucket.
+
+`doc_count`::
+(integer)
+Number of documents matching a specific IP prefix.
+
+`is_ipv6`::
+(boolean)
+Defines whether the netmask is an IPv6 netmask.
+
+`netmask`::
+(string)
+The IPv4 netmask. If `is_ipv6` is `true` in the request this field is missing.

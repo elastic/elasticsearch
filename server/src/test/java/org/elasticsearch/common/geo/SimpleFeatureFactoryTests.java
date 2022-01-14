@@ -118,6 +118,7 @@ public class SimpleFeatureFactoryTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82592")
     public void testRectangle() throws IOException {
         int z = randomIntBetween(3, 10);
         int x = randomIntBetween(1, (1 << z) - 2);

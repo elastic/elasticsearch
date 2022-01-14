@@ -262,7 +262,8 @@ public class ClusterStateTests extends ESTestCase {
                 },
                 "index-graveyard": {
                   "tombstones": []
-                }
+                },
+                "oldest_index_version" : %s
               },
               "routing_table": {
                 "indices": {
@@ -304,7 +305,7 @@ public class ClusterStateTests extends ESTestCase {
                   "nodeId1": []
                 }
               }
-            }""".formatted(ephemeralId, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId)), Strings.toString(builder));
+            }""".formatted(ephemeralId, Version.CURRENT.id, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId)), Strings.toString(builder));
 
     }
 
@@ -464,7 +465,8 @@ public class ClusterStateTests extends ESTestCase {
                 },
                 "index-graveyard" : {
                   "tombstones" : [ ]
-                }
+                },
+                "oldest_index_version" : %s
               },
               "routing_table" : {
                 "indices" : {
@@ -506,7 +508,7 @@ public class ClusterStateTests extends ESTestCase {
                   "nodeId1" : [ ]
                 }
               }
-            }""".formatted(ephemeralId, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId), Strings.toString(builder));
+            }""".formatted(ephemeralId, Version.CURRENT.id, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId), Strings.toString(builder));
 
     }
 
@@ -673,7 +675,8 @@ public class ClusterStateTests extends ESTestCase {
                 },
                 "index-graveyard" : {
                   "tombstones" : [ ]
-                }
+                },
+                "oldest_index_version" : %s
               },
               "routing_table" : {
                 "indices" : {
@@ -715,7 +718,7 @@ public class ClusterStateTests extends ESTestCase {
                   "nodeId1" : [ ]
                 }
               }
-            }""".formatted(ephemeralId, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId), Strings.toString(builder));
+            }""".formatted(ephemeralId, Version.CURRENT.id, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId), Strings.toString(builder));
 
     }
 
@@ -814,7 +817,8 @@ public class ClusterStateTests extends ESTestCase {
                 },
                 "index-graveyard" : {
                   "tombstones" : [ ]
-                }
+                },
+                "oldest_index_version" : %s
               },
               "routing_table" : {
                 "indices" : { }
@@ -823,7 +827,7 @@ public class ClusterStateTests extends ESTestCase {
                 "unassigned" : [ ],
                 "nodes" : { }
               }
-            }""".formatted(Version.CURRENT.id), Strings.toString(builder));
+            }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
 
     private ClusterState buildClusterState() throws IOException {

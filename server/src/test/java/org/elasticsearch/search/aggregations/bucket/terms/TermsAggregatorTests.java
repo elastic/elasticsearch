@@ -407,7 +407,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         for (String v : values) {
             BytesRef bytes = new BytesRef(v);
             doc.add(new SortedSetDocValuesField(ft.name(), bytes));
-            if (ft.isSearchable()) {
+            if (ft.isIndexed()) {
                 doc.add(new KeywordField(ft.name(), bytes, KeywordFieldMapper.Defaults.FIELD_TYPE));
             }
         }
@@ -602,12 +602,12 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         List<IndexableField> doc = new ArrayList<IndexableField>();
         doc.add(new SortedSetDocValuesField(ft1.name(), new BytesRef(f1v1)));
         doc.add(new SortedSetDocValuesField(ft1.name(), new BytesRef(f1v2)));
-        if (ft1.isSearchable()) {
+        if (ft1.isIndexed()) {
             doc.add(new KeywordField(ft1.name(), new BytesRef(f1v1), KeywordFieldMapper.Defaults.FIELD_TYPE));
             doc.add(new KeywordField(ft1.name(), new BytesRef(f1v2), KeywordFieldMapper.Defaults.FIELD_TYPE));
         }
         doc.add(new SortedDocValuesField(ft2.name(), new BytesRef(f2v)));
-        if (ft2.isSearchable()) {
+        if (ft2.isIndexed()) {
             doc.add(new KeywordField(ft2.name(), new BytesRef(f2v), KeywordFieldMapper.Defaults.FIELD_TYPE));
         }
         return doc;
@@ -740,7 +740,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             } else {
                 result.add(new SortedDocValuesField("field", new BytesRef(val)));
             }
-            if (fieldType.isSearchable()) {
+            if (fieldType.isIndexed()) {
                 result.add(new KeywordField("field", new BytesRef(val), KeywordFieldMapper.Defaults.FIELD_TYPE));
             }
             return result;
@@ -784,7 +784,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             } else {
                 result.add(new SortedDocValuesField("field", new BytesRef(InetAddressPoint.encode(val))));
             }
-            if (fieldType.isSearchable()) {
+            if (fieldType.isIndexed()) {
                 result.add(new InetAddressPoint("field", val));
             }
             return result;
@@ -1170,7 +1170,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             Document document = new Document();
             InetAddress point = InetAddresses.forString("192.168.100.42");
             document.add(new SortedSetDocValuesField("field", new BytesRef(InetAddressPoint.encode(point))));
-            if (fieldType.isSearchable()) {
+            if (fieldType.isIndexed()) {
                 document.add(new InetAddressPoint("field", point));
             }
             iw.addDocument(document);

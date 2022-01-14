@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -55,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -140,7 +142,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         // Trying to create the new repository on master to make sure it works
         try {
-            closeRepository(createRepository(newRepositoryMetadata, typesRegistry));
+            closeRepository(createRepository(newRepositoryMetadata, typesRegistry, this::throwRepositoryTypeDoesNotExists));
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -258,7 +260,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     }
                     publicationStep.onResponse(oldState != newState);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -319,7 +322,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     listener.onResponse(null);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -380,7 +384,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     // repository was created on both master and data nodes
                     return discoveryNode.isMasterNode() || discoveryNode.canContainData();
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -490,7 +495,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         archiveRepositoryStats(repository, state.version());
                         repository = null;
                         try {
-                            repository = createRepository(repositoryMetadata, typesRegistry);
+                            repository = createRepository(repositoryMetadata, typesRegistry, this::createUnknownTypeRepository);
                         } catch (RepositoryException ex) {
                             // TODO: this catch is bogus, it means the old repo is already closed,
                             // but we have nothing to replace it
@@ -499,7 +504,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     }
                 } else {
                     try {
-                        repository = createRepository(repositoryMetadata, typesRegistry);
+                        repository = createRepository(repositoryMetadata, typesRegistry, this::createUnknownTypeRepository);
                     } catch (RepositoryException ex) {
                         logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", repositoryMetadata.name()), ex);
                     }
@@ -592,7 +597,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         RepositoryMetadata metadata = new RepositoryMetadata(name, type, Settings.EMPTY);
         Repository repository = internalRepositories.computeIfAbsent(name, (n) -> {
             logger.debug("put internal repository [{}][{}]", name, type);
-            return createRepository(metadata, internalTypesRegistry);
+            return createRepository(metadata, internalTypesRegistry, this::throwRepositoryTypeDoesNotExists);
         });
         if (type.equals(repository.getMetadata().type()) == false) {
             logger.warn(
@@ -647,11 +652,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /**
      * Creates repository holder. This method starts the repository
      */
-    private Repository createRepository(RepositoryMetadata repositoryMetadata, Map<String, Repository.Factory> factories) {
+    private Repository createRepository(
+        RepositoryMetadata repositoryMetadata,
+        Map<String, Repository.Factory> factories,
+        Function<RepositoryMetadata, Repository> defaultFactory
+    ) {
         logger.debug("creating repository [{}][{}]", repositoryMetadata.type(), repositoryMetadata.name());
         Repository.Factory factory = factories.get(repositoryMetadata.type());
         if (factory == null) {
-            throw new RepositoryException(repositoryMetadata.name(), "repository type [" + repositoryMetadata.type() + "] does not exist");
+            return defaultFactory.apply(repositoryMetadata);
         }
         Repository repository = null;
         try {
@@ -666,6 +675,19 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             );
             throw new RepositoryException(repositoryMetadata.name(), "failed to create repository", e);
         }
+    }
+
+    private Repository throwRepositoryTypeDoesNotExists(RepositoryMetadata repositoryMetadata) {
+        throw new RepositoryException(repositoryMetadata.name(), "repository type [" + repositoryMetadata.type() + "] does not exist");
+    }
+
+    private Repository createUnknownTypeRepository(RepositoryMetadata repositoryMetadata) {
+        logger.warn(
+            "[{}] repository type [{}] is unknown; ensure that all required plugins are installed on this node",
+            repositoryMetadata.name(),
+            repositoryMetadata.type()
+        );
+        return new UnknownTypeRepository(repositoryMetadata);
     }
 
     private static void validate(final String repositoryName) {

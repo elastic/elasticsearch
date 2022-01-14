@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -233,7 +234,8 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                                 // now, reroute in case things that require it changed (e.g. number of replicas)
                                 return allocationService.reroute(currentState, "reroute after cluster update settings");
                             }
-                        }
+                        },
+                        ClusterStateTaskExecutor.unbatched()
                     );
                 }
 
@@ -254,7 +256,8 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                     changed = clusterState != currentState;
                     return clusterState;
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

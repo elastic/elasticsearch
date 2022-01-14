@@ -578,9 +578,11 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
     public void testRewriteToTermQueries() throws IOException {
         MatchQueryBuilder queryBuilder = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "value");
+        queryBuilder.boost(2f);
         SearchExecutionContext context = createSearchExecutionContext();
         QueryBuilder rewritten = queryBuilder.rewrite(context);
         assertThat(rewritten, instanceOf(TermQueryBuilder.class));
+        assertThat(rewritten.boost(), equalTo(2f));
     }
 
     public void testRewriteWithFuzziness() throws IOException {
@@ -589,7 +591,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         queryBuilder.fuzziness(Fuzziness.AUTO);
         SearchExecutionContext context = createSearchExecutionContext();
         QueryBuilder rewritten = queryBuilder.rewrite(context);
-        assertThat(rewritten, instanceOf(MatchQueryBuilder.class));
+        assertEquals(queryBuilder, rewritten);
     }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {

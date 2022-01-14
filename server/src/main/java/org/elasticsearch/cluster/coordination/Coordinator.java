@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalClusterUpdateTask;
@@ -799,7 +800,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     private void cleanMasterService() {
-        masterService.submitStateUpdateTask("clean-up after stepping down as master", new LocalClusterUpdateTask() {
+        final LocalClusterUpdateTask update = new LocalClusterUpdateTask() {
             @Override
             public void onFailure(String source, Exception e) {
                 // ignore
@@ -814,7 +815,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 return unchanged();
             }
 
-        });
+        };
+        masterService.submitStateUpdateTask("clean-up after stepping down as master", update, update);
     }
 
     private PreVoteResponse getPreVoteResponse() {
@@ -1179,7 +1181,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     reconfigurationTaskScheduled.set(false);
                     logger.debug("reconfiguration failed", e);
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         }
     }
 

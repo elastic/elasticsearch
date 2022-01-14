@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -85,7 +86,11 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
                     if (cancelScheduling.get()) {
                         return;
                     }
-                    clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE, DelayedRerouteTask.this);
+                    clusterService.submitStateUpdateTask(
+                        CLUSTER_UPDATE_TASK_SOURCE,
+                        DelayedRerouteTask.this,
+                        ClusterStateTaskExecutor.unbatched()
+                    );
                 }
 
                 @Override

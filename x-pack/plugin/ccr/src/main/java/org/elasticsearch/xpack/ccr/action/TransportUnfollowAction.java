@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -220,7 +221,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 }
             }
 
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     @Override

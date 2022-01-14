@@ -68,10 +68,10 @@ public class RollupResponseTranslator {
 
     /**
      * Translates a rollup-only search response back into the expected convention.  Similar to
-     * {@link #combineResponses(MultiSearchResponse.Item[], InternalAggregation.ReduceContext)} except it only
+     * {@link #combineResponses(MultiSearchResponse.Item[], AggregationReduceContext)} except it only
      * has to deal with the rollup response (no live response)
      *
-     * See {@link #combineResponses(MultiSearchResponse.Item[], InternalAggregation.ReduceContext)} for more details
+     * See {@link #combineResponses(MultiSearchResponse.Item[], AggregationReduceContext)} for more details
      * on the translation conventions
      */
     public static SearchResponse translateResponse(MultiSearchResponse.Item[] rolledMsearch, AggregationReduceContext reduceContext)

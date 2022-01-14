@@ -73,7 +73,6 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         RandomSamplingQuery query = new RandomSamplingQuery(probability, seed, hash, false, topLevelQuery());
-        // Weight weight = searcher().createWeight(searcher().rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
         Weight weight = searcher().rewrite(query).createWeight(searcher(), ScoreMode.COMPLETE_NO_SCORES, 1f);
         Scorer scorer = weight.scorer(ctx);
         if (scorer == null) {

@@ -79,7 +79,7 @@ public final class RandomSamplingQuery extends Query {
                 }
             };
         } else {
-            final Weight innerWeight = query.createWeight(searcher, scoreMode, boost);
+            final Weight innerWeight = searcher.createWeight(query, scoreMode, boost);
             return new ConstantScoreWeight(query, boost) {
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {

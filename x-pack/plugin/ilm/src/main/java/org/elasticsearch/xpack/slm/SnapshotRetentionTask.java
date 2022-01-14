@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -447,6 +448,10 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     }
 
     void updateStateWithStats(SnapshotLifecycleStats newStats) {
-        clusterService.submitStateUpdateTask("update_slm_stats", new UpdateSnapshotLifecycleStatsTask(newStats));
+        clusterService.submitStateUpdateTask(
+            "update_slm_stats",
+            new UpdateSnapshotLifecycleStatsTask(newStats),
+            ClusterStateTaskExecutor.unbatched()
+        );
     }
 }

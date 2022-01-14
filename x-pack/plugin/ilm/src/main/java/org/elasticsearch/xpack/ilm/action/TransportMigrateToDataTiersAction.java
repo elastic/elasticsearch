@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -29,6 +30,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersAction;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersRequest;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersResponse;
+import org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService;
 import org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.MigratedEntities;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 
@@ -85,8 +87,17 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
                 licenseState,
                 request.isDryRun()
             ).v2();
+            MetadataMigrateToDataTiersRoutingService.MigratedTemplates migratedTemplates = entities.migratedTemplates;
             listener.onResponse(
-                new MigrateToDataTiersResponse(entities.removedIndexTemplateName, entities.migratedPolicies, entities.migratedIndices, true)
+                new MigrateToDataTiersResponse(
+                    entities.removedIndexTemplateName,
+                    entities.migratedPolicies,
+                    entities.migratedIndices,
+                    entities.migratedTemplates.migratedLegacyTemplates,
+                    entities.migratedTemplates.migratedComposableTemplates,
+                    entities.migratedTemplates.migratedComponentTemplates,
+                    true
+                )
             );
             return;
         }
@@ -133,11 +144,14 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
                         entities.removedIndexTemplateName,
                         entities.migratedPolicies,
                         entities.migratedIndices,
+                        entities.migratedTemplates.migratedLegacyTemplates,
+                        entities.migratedTemplates.migratedComposableTemplates,
+                        entities.migratedTemplates.migratedComponentTemplates,
                         false
                     )
                 );
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
 
     }
 

@@ -923,6 +923,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             String currentLuceneVersion = Version.CURRENT.luceneVersion.toString();
             String bwcLuceneVersion = getOldClusterVersion().luceneVersion.toString();
+            String minCompatibleBWCVersion = Version.CURRENT.minimumCompatibilityVersion().luceneVersion.toString();
             if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
                 int numCurrentVersion = 0;
                 int numBwcVersion = 0;
@@ -941,6 +942,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         numCurrentVersion++;
                     } else if (bwcLuceneVersion.equals(version)) {
                         numBwcVersion++;
+                    } else if (minCompatibleBWCVersion.equals(version) && minCompatibleBWCVersion.equals(bwcLuceneVersion) == false) {
+                        // Our upgrade path from 7.non-last always goes through 7.last, which depending on timing can create 7.last
+                        // index segment. We ignore those.
+                        continue;
                     } else {
                         fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
                     }

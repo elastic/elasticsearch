@@ -502,6 +502,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         void processedDifferentClusterState(ClusterState previousClusterState, ClusterState newClusterState) {
+            assert previousClusterState != newClusterState;
             nonFailedTasks.forEach(task -> task.listener.clusterStateProcessed(task.source(), previousClusterState, newClusterState));
         }
 
@@ -546,7 +547,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     // no need to wait for ack if nothing changed, the update can be counted as acknowledged
                     ((AckedClusterStateTaskListener) task.listener).onAllNodesAcked(null);
                 }
-                task.listener.clusterStateProcessed(task.source(), newClusterState, newClusterState);
+                task.listener.clusterStateUnchanged(task.source(), newClusterState);
             });
         }
     }
@@ -622,6 +623,22 @@ public class MasterService extends AbstractLifecycleComponent {
             } catch (Exception e) {
                 logger.error(
                     () -> new ParameterizedMessage("exception thrown by listener while notifying no longer master from [{}]", source),
+                    e
+                );
+            }
+        }
+
+        @Override
+        public void clusterStateUnchanged(String source, ClusterState clusterState) {
+            try (ThreadContext.StoredContext ignore = context.get()) {
+                listener.clusterStateUnchanged(source, clusterState);
+            } catch (Exception e) {
+                logger.error(
+                    () -> new ParameterizedMessage(
+                        "exception thrown by listener while notifying of unchanged cluster state from [{}], cluster state:\n{}",
+                        source,
+                        clusterState
+                    ),
                     e
                 );
             }

@@ -78,10 +78,11 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
+    public void clusterStateUnchanged(String source, ClusterState clusterState) {}
+
+    @Override
     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-        if (newState.equals(oldState) == false) {
-            stateChangeConsumer.accept(newState);
-        }
+        stateChangeConsumer.accept(newState);
     }
 
     @Override

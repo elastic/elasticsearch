@@ -497,6 +497,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 @Override
+                public void clusterStateUnchanged(String source, ClusterState clusterState) {
+                    if (executedTask) {
+                        updateTask.clusterStateUnchanged(source, clusterState);
+                    } else {
+                        executeConsistentStateUpdate(createUpdateTask, source, onFailure);
+                    }
+                }
+
+                @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     if (executedTask) {
                         updateTask.clusterStateProcessed(source, oldState, newState);

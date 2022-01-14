@@ -108,13 +108,11 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
         }
 
         @Override
-        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-            if (oldState == newState) {
-                // no state changed, check when we should remove the delay flag from the shards the next time.
-                // if cluster state changed, we can leave the scheduling of the next delay up to the clusterChangedEvent
-                // this should not be needed, but we want to be extra safe here
-                scheduleIfNeeded(currentNanoTime(), newState);
-            }
+        public void clusterStateUnchanged(String source, ClusterState clusterState) {
+            // no state changed, check when we should remove the delay flag from the shards the next time.
+            // if cluster state changed, we can leave the scheduling of the next delay up to the clusterChangedEvent
+            // this should not be needed, but we want to be extra safe here
+            scheduleIfNeeded(currentNanoTime(), clusterState);
         }
 
         @Override

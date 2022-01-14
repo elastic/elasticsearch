@@ -1456,6 +1456,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         }
 
                         @Override
+                        public void clusterStateUnchanged(String source, ClusterState clusterState) {
+                            ClusterState state = committedStatesByVersion.get(clusterState.version());
+                            assertNotNull("State not committed : " + clusterState, state);
+                            logger.trace("successfully processed noop: [{}]", clusterState);
+                            taskListener.clusterStateUnchanged(source, clusterState);
+                        }
+
+                        @Override
                         public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                             updateCommittedStates();
                             ClusterState state = committedStatesByVersion.get(newState.version());

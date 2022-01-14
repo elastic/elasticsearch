@@ -314,21 +314,22 @@ class IndexLifecycleRunner {
                     }
 
                     @Override
+                    public void clusterStateUnchanged(String source, ClusterState clusterState) {}
+
+                    @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        if (oldState.equals(newState) == false) {
-                            IndexMetadata newIndexMeta = newState.metadata().index(index);
-                            Step indexMetaCurrentStep = getCurrentStep(stepRegistry, policy, newIndexMeta);
-                            StepKey stepKey = indexMetaCurrentStep.getKey();
-                            if (stepKey != null && stepKey != TerminalPolicyStep.KEY && newIndexMeta != null) {
-                                logger.trace(
-                                    "policy [{}] for index [{}] was moved back on the failed step for as part of an automatic "
-                                        + "retry. Attempting to execute the failed step [{}] if it's an async action",
-                                    policy,
-                                    index,
-                                    stepKey
-                                );
-                                maybeRunAsyncAction(newState, newIndexMeta, policy, stepKey);
-                            }
+                        IndexMetadata newIndexMeta = newState.metadata().index(index);
+                        Step indexMetaCurrentStep = getCurrentStep(stepRegistry, policy, newIndexMeta);
+                        StepKey stepKey = indexMetaCurrentStep.getKey();
+                        if (stepKey != null && stepKey != TerminalPolicyStep.KEY && newIndexMeta != null) {
+                            logger.trace(
+                                "policy [{}] for index [{}] was moved back on the failed step for as part of an automatic "
+                                    + "retry. Attempting to execute the failed step [{}] if it's an async action",
+                                policy,
+                                index,
+                                stepKey
+                            );
+                            maybeRunAsyncAction(newState, newIndexMeta, policy, stepKey);
                         }
                     }
                 },

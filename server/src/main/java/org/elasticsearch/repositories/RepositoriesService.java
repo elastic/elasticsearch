@@ -250,6 +250,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
 
                 @Override
+                public void clusterStateUnchanged(String source, ClusterState clusterState) {
+                    publicationStep.onResponse(false);
+                }
+
+                @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     if (changed) {
                         if (found) {
@@ -258,7 +263,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             logger.info("put repository [{}]", request.name());
                         }
                     }
-                    publicationStep.onResponse(oldState != newState);
+                    publicationStep.onResponse(true);
                 }
             },
             ClusterStateTaskExecutor.unbatched()

@@ -69,7 +69,7 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
     }
 
     @Override
-    public void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void onClusterStateProcessed(String source, ClusterState newState) {
         stateChangeConsumer.accept(newState);
     }
 

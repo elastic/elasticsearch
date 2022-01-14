@@ -206,7 +206,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
     }
 
     @Override
-    public void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void onClusterStateProcessed(String source, ClusterState newState) {
         IndexMetadata indexMetadata = newState.metadata().index(index);
         if (indexMetadata != null) {
 

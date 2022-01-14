@@ -34,7 +34,7 @@ dependencies {
 tasks.named("copyRestCompatTestTask").configure { task ->
     task.dependsOn(configurations.compatXpackTests);
     task.setXpackConfig(configurations.compatXpackTests);
-    task.getIncludeXpack().set(List.of("license", "migration", "ml", "rollup", "ssl"));
+    task.getIncludeXpack().set(List.of("license", "migration", "ml", "rollup", "sql", "ssl"));
     task.getOutputResourceDir().set(project.getLayout().getBuildDirectory().dir("restResources/v${compatVersion}/yamlTests/original"));
     task.setXpackConfigToFileTree(
       config -> project.fileTree(
@@ -170,6 +170,11 @@ tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
   task.replaceKeyInDo("rollup.start_job", "xpack-rollup.start_job")
   task.replaceKeyInDo("rollup.stop_job", "xpack-rollup.stop_job")
   task.addAllowedWarningRegex(".*_xpack/rollup.* is deprecated.*")
+
+  task.replaceKeyInDo("sql.clear_cursor", "xpack-sql.clear_cursor")
+  task.replaceKeyInDo("sql.query", "xpack-sql.query")
+  task.replaceKeyInDo("sql.translate", "xpack-sql.translate")
+  task.addAllowedWarningRegex(".*_xpack/sql.* is deprecated.*")
 
   task.replaceKeyInDo("ssl.certificates", "xpack-ssl.certificates", "Test get SSL certificates")
   task.addAllowedWarningRegexForTest(".*_xpack/ssl.* is deprecated.*", "Test get SSL certificates")

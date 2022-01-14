@@ -153,6 +153,9 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         SearchExecutionContext sec = queryRewriteContext.convertToSearchExecutionContext();
+        if (sec == null) {
+            return this;
+        }
         // If we're using the default keyword analyzer then we can rewrite this to a TermQueryBuilder
         // and possibly shortcut
         if (analyzer != null) {

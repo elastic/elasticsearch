@@ -468,7 +468,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                                     throw new AssertionError(e);
                                 }
 
-                            });
+                            }, ClusterStateTaskExecutor.unbatched());
                         }
                     }
                 }

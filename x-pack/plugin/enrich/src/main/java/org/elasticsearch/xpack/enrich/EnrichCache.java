@@ -14,8 +14,15 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -43,11 +50,11 @@ import static org.elasticsearch.action.ActionListener.wrap;
  */
 public class EnrichCache {
 
-    protected final Cache<CacheKey, CompletableFuture<SearchResponse>> cache;
+    protected final Cache<CacheKey, CompletableFuture<List<Map<?, ?>>>> cache;
     private volatile Metadata metadata;
 
     EnrichCache(long maxSize) {
-        this.cache = CacheBuilder.<CacheKey, CompletableFuture<SearchResponse>>builder().setMaximumWeight(maxSize).build();
+        this.cache = CacheBuilder.<CacheKey, CompletableFuture<List<Map<?, ?>>>>builder().setMaximumWeight(maxSize).build();
     }
 
     /**
@@ -56,7 +63,7 @@ public class EnrichCache {
      * @param searchRequest the key
      * @return the cached value or null
      */
-    CompletableFuture<SearchResponse> get(SearchRequest searchRequest) {
+    CompletableFuture<List<Map<?, ?>>> get(SearchRequest searchRequest) {
         CacheKey cacheKey = toKey(searchRequest);
         return cache.get(cacheKey);
     }
@@ -89,13 +96,16 @@ public class EnrichCache {
     public void resolveOrDispatchSearch(
         SearchRequest searchRequest,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> searchDispatcher,
-        BiConsumer<SearchResponse, Exception> callBack
+        BiConsumer<List<Map<?, ?>>, Exception> callBack
     ) {
         CacheKey cacheKey = toKey(searchRequest);
         try {
-            CompletableFuture<SearchResponse> cacheEntry = cache.computeIfAbsent(cacheKey, request -> {
-                CompletableFuture<SearchResponse> completableFuture = new CompletableFuture<>();
-                searchDispatcher.accept(searchRequest, wrap(completableFuture::complete, completableFuture::completeExceptionally));
+            CompletableFuture<List<Map<?, ?>>> cacheEntry = cache.computeIfAbsent(cacheKey, request -> {
+                CompletableFuture<List<Map<?, ?>>> completableFuture = new CompletableFuture<>();
+                searchDispatcher.accept(
+                    searchRequest,
+                    wrap(response -> completableFuture.complete(toCacheValue(response)), completableFuture::completeExceptionally)
+                );
                 return completableFuture;
             });
             cacheEntry.whenComplete((response, throwable) -> {
@@ -103,13 +113,13 @@ public class EnrichCache {
                     // Don't cache failures
                     cache.invalidate(cacheKey, cacheEntry);
                     if (throwable instanceof Exception e) {
-                        callBack.accept(response, e);
+                        callBack.accept(null, e);
                         return;
                     }
                     // Let ElasticsearchUncaughtExceptionHandler handle this, which should halt Elasticsearch
                     throw (Error) throwable;
                 }
-                callBack.accept(response, null);
+                callBack.accept(deepCopy(response, false), null);
             });
         } catch (ExecutionException e) {
             callBack.accept(null, e);
@@ -125,6 +135,41 @@ public class EnrichCache {
         String alias = searchRequest.indices()[0];
         IndexAbstraction ia = metadata.getIndicesLookup().get(alias);
         return ia.getIndices().get(0).getName();
+    }
+
+    private List<Map<?, ?>> toCacheValue(SearchResponse response) {
+        List<Map<?, ?>> result = new ArrayList<>(response.getHits().getHits().length);
+        for (SearchHit hit : response.getHits()) {
+            result.add(deepCopy(hit.getSourceAsMap(), true));
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    @SuppressWarnings("unchecked")
+    static <T> T deepCopy(T value, boolean unmodifiable) {
+        return (T) innerDeepCopy(value, unmodifiable);
+    }
+
+    private static Object innerDeepCopy(Object value, boolean unmodifiable) {
+        if (value instanceof Map<?, ?> mapValue) {
+            Map<Object, Object> copy = new HashMap<>(mapValue.size());
+            for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
+                copy.put(entry.getKey(), innerDeepCopy(entry.getValue(), unmodifiable));
+            }
+            return unmodifiable ? Collections.unmodifiableMap(copy) : copy;
+        } else if (value instanceof List<?> listValue) {
+            List<Object> copy = new ArrayList<>(listValue.size());
+            for (Object itemValue : listValue) {
+                copy.add(innerDeepCopy(itemValue, unmodifiable));
+            }
+            return unmodifiable ? Collections.unmodifiableList(copy) : copy;
+        } else if (value instanceof byte[] bytes) {
+            return Arrays.copyOf(bytes, bytes.length);
+        } else if (value == null || value instanceof String || value instanceof Number || value instanceof Boolean) {
+            return value;
+        } else {
+            throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
+        }
     }
 
     private static class CacheKey {

@@ -501,7 +501,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     if (Strings.hasText(clientAuthorizationSharedSecretString) == false) {
                         final String msg = String.format(
                             Locale.ROOT,
-                            "Realm [%s] client authentication [%s] failed for tokenPrincipal [%s] because request header value is missing.",
+                            "Realm [%s] client authentication [%s] failed for tokenPrincipal [%s] because request header is missing.",
                             super.name(),
                             this.clientAuthorizationType,
                             tokenPrincipal
@@ -512,7 +512,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     } else if (this.clientAuthorizationSharedSecret.toString().equals(clientAuthorizationSharedSecretString) == false) {
                         final String msg = String.format(
                             Locale.ROOT,
-                            "Realm [%s] client authentication [%s] failed for tokenPrincipal [%s] because request header value did not match.",
+                            "Realm [%s] client authentication [%s] failed for tokenPrincipal [%s] because request header did not match.",
                             super.name(),
                             this.clientAuthorizationType,
                             tokenPrincipal
@@ -522,7 +522,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         return;
                     }
                     LOGGER.trace(
-                        "Realm [{}] client authentication [{}] succeeded for tokenPrincipal [{}] because request header value matched.",
+                        "Realm [{}] client authentication [{}] succeeded for tokenPrincipal [{}] because request header matched.",
                         super.name(),
                         this.clientAuthorizationType,
                         tokenPrincipal
@@ -533,7 +533,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     if (Strings.hasText(clientAuthorizationSharedSecretString)) {
                         final String msg = String.format(
                             Locale.ROOT,
-                            "Realm [%s] client authentication [%s] failed for tokenPrincipal [%s] because a request header value is present.",
+                            "Realm [%s] client authentication [%s] failed for tokenPrincipal [%s] because request header is present.",
                             super.name(),
                             this.clientAuthorizationType,
                             tokenPrincipal
@@ -543,7 +543,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         return;
                     }
                     LOGGER.trace(
-                        "Realm [{}] client authentication [{}] succeeded for tokenPrincipal [{}] because request header value is not present.",
+                        "Realm [{}] client authentication [{}] succeeded for tokenPrincipal [{}] because request header is not present.",
                         super.name(),
                         this.clientAuthorizationType,
                         tokenPrincipal

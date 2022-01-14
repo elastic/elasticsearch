@@ -196,6 +196,7 @@ public class GatewayMetaState implements Closeable {
             .andThen(ClusterStateUpdaters::addStateNotRecoveredBlock)
             .andThen(state -> ClusterStateUpdaters.setLocalNode(state, transportService.getLocalNode()))
             .andThen(state -> ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterService.getClusterSettings()))
+            .andThen(state -> ClusterStateUpdaters.determineOldestIndex(state))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .apply(clusterState);
     }

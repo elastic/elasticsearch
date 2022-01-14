@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -248,8 +249,19 @@ public final class NodeEnvironment implements Closeable {
     /**
      * Setup the environment.
      * @param settings settings from elasticsearch.yml
+     * @param environment global environment
      */
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
+        this(settings, environment, NamedXContentRegistry.EMPTY);
+    }
+
+    /**
+     * Setup the environment.
+     * @param settings settings from elasticsearch.yml
+     * @param environment global environment
+     * @param xContentRegistry content registry for parsing persisted content
+     */
+    public NodeEnvironment(Settings settings, Environment environment, NamedXContentRegistry xContentRegistry) throws IOException {
         boolean success = false;
 
         try {
@@ -310,7 +322,7 @@ public final class NodeEnvironment implements Closeable {
                 ensureNoShardData(nodePaths);
             }
 
-            this.nodeMetadata = loadNodeMetadata(settings, logger, nodePaths);
+            this.nodeMetadata = loadNodeMetadata(settings, logger, xContentRegistry, nodePaths);
 
             success = true;
         } finally {
@@ -532,7 +544,12 @@ public final class NodeEnvironment implements Closeable {
     /**
      * scans the node paths and loads existing metadata file. If not found a new meta data will be generated
      */
-    private static NodeMetadata loadNodeMetadata(Settings settings, Logger logger, NodePath... nodePaths) throws IOException {
+    private static NodeMetadata loadNodeMetadata(
+        Settings settings,
+        Logger logger,
+        NamedXContentRegistry xContentRegistry,
+        NodePath... nodePaths
+    ) throws IOException {
         final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
         NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(paths);
         if (metadata == null) {
@@ -557,6 +574,34 @@ public final class NodeEnvironment implements Closeable {
                 metadata = legacyMetadata;
             }
         }
+
+        if (xContentRegistry.equals(NamedXContentRegistry.EMPTY) == false) {
+            PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
+                paths,
+                metadata.nodeId(),
+                xContentRegistry,
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                () -> TimeValue.nsecToMSec(System.nanoTime())
+            );
+
+            PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState();
+
+            logger.info("oldest index version recorded in ClusterState {}", onDiskState.metadata.oldestIndexVersion());
+
+            if (onDiskState.metadata.oldestIndexVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+                throw new IllegalStateException(
+                    "cannot upgrade node because incompatible indices created with version ["
+                        + onDiskState.metadata.oldestIndexVersion()
+                        + "] exist, while the minimum compatible index version is ["
+                        + Version.CURRENT.minimumIndexCompatibilityVersion()
+                        + "]. "
+                        + "Upgrade your older indices by booting version ["
+                        + Version.CURRENT.minimumCompatibilityVersion()
+                        + "] first."
+                );
+            }
+        }
+
         metadata = metadata.upgradeToCurrentVersion();
         assert metadata.nodeVersion().equals(Version.CURRENT) : metadata.nodeVersion() + " != " + Version.CURRENT;
 

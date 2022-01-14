@@ -341,7 +341,7 @@ Response:
 
 `field`::
 (Required, string)
-The document IP address field to aggregate on.
+The document IP address field to aggregate on. The field mapping type must be `IP`.
 
 `prefix_len`::
 (Required, integer)

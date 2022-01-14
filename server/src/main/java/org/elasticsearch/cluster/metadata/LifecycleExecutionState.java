@@ -1,16 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.core.ilm;
+package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -101,59 +99,6 @@ public class LifecycleExecutionState {
         this.rollupIndexName = rollupIndexName;
     }
 
-    /**
-     * Retrieves the execution state from an {@link IndexMetadata} based on the
-     * custom metadata.
-     * @param indexMetadata The metadata of the index to retrieve the execution
-     *                      state from.
-     * @return The execution state of that index.
-     */
-    public static LifecycleExecutionState fromIndexMetadata(IndexMetadata indexMetadata) {
-        Map<String, String> customData = indexMetadata.getCustomData(ILM_CUSTOM_METADATA_KEY);
-        if (customData != null && customData.isEmpty() == false) {
-            return fromCustomMetadata(customData);
-        } else {
-            return EMPTY_STATE;
-        }
-    }
-
-    /**
-     * Return true if this index is in the frozen phase, false if not controlled by ILM or not in frozen.
-     * @param indexMetadata the metadata of the index to retrieve phase from.
-     * @return true if frozen phase, false otherwise.
-     */
-    public static boolean isFrozenPhase(IndexMetadata indexMetadata) {
-        Map<String, String> customData = indexMetadata.getCustomData(ILM_CUSTOM_METADATA_KEY);
-        // deliberately do not parse out the entire `LifeCycleExecutionState` to avoid the extra work involved since this method is
-        // used heavily by autoscaling.
-        return customData != null && TimeseriesLifecycleType.FROZEN_PHASE.equals(customData.get(PHASE));
-    }
-
-    /**
-     * Retrieves the current {@link Step.StepKey} from the lifecycle state. Note that
-     * it is illegal for the step to be set with the phase and/or action unset,
-     * or for the step to be unset with the phase and/or action set. All three
-     * settings must be either present or missing.
-     *
-     * @param lifecycleState the index custom data to extract the {@link Step.StepKey} from.
-     */
-    @Nullable
-    public static Step.StepKey getCurrentStepKey(LifecycleExecutionState lifecycleState) {
-        Objects.requireNonNull(lifecycleState, "cannot determine current step key as lifecycle state is null");
-        String currentPhase = lifecycleState.getPhase();
-        String currentAction = lifecycleState.getAction();
-        String currentStep = lifecycleState.getStep();
-        if (Strings.isNullOrEmpty(currentStep)) {
-            assert Strings.isNullOrEmpty(currentPhase) : "Current phase is not empty: " + currentPhase;
-            assert Strings.isNullOrEmpty(currentAction) : "Current action is not empty: " + currentAction;
-            return null;
-        } else {
-            assert Strings.isNullOrEmpty(currentPhase) == false;
-            assert Strings.isNullOrEmpty(currentAction) == false;
-            return new Step.StepKey(currentPhase, currentAction, currentStep);
-        }
-    }
-
     public static Builder builder() {
         return new Builder();
     }
@@ -178,7 +123,7 @@ public class LifecycleExecutionState {
             .setStepTime(state.stepTime);
     }
 
-    static LifecycleExecutionState fromCustomMetadata(Map<String, String> customData) {
+    public static LifecycleExecutionState fromCustomMetadata(Map<String, String> customData) {
         Builder builder = builder();
         String phase = customData.get(PHASE);
         if (phase != null) {

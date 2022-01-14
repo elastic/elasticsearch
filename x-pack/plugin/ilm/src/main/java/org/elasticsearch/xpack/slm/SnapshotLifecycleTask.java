@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -116,7 +117,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         final long timestamp = Instant.now().toEpochMilli();
                         clusterService.submitStateUpdateTask(
                             "slm-record-success-" + policyMetadata.getPolicy().getId(),
-                            WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), snapshotStartTime, timestamp)
+                            WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), snapshotStartTime, timestamp),
+                            ClusterStateTaskExecutor.unbatched()
                         );
                         historyStore.putAsync(
                             SnapshotHistoryItem.creationSuccessRecord(timestamp, policyMetadata.getPolicy(), request.snapshot())
@@ -140,7 +142,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                     final long timestamp = Instant.now().toEpochMilli();
                     clusterService.submitStateUpdateTask(
                         "slm-record-failure-" + policyMetadata.getPolicy().getId(),
-                        WriteJobStatus.failure(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp, e)
+                        WriteJobStatus.failure(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp, e),
+                        ClusterStateTaskExecutor.unbatched()
                     );
                     final SnapshotHistoryItem failureRecord;
                     try {

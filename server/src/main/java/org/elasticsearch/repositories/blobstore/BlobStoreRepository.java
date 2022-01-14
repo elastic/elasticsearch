@@ -33,6 +33,7 @@ import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
@@ -503,7 +504,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         executeConsistentStateUpdate(createUpdateTask, source, onFailure);
                     }
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         }, onFailure));
     }
 
@@ -1843,7 +1844,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                                 );
                                             });
                                         }
-                                    }
+                                    },
+                                    ClusterStateTaskExecutor.unbatched()
                                 ),
                                 onFailure
                             ),
@@ -2081,7 +2083,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     listener.onResponse(null);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -2230,7 +2233,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.trace("[{}] successfully set pending repository generation to [{}]", metadata.name(), newGen);
                     setPendingStep.onResponse(newGen);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
 
         final StepListener<RepositoryData> filterRepositoryDataStep = new StepListener<>();
@@ -2370,7 +2374,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             return newRepositoryData;
                         }));
                     }
-                }
+                },
+                ClusterStateTaskExecutor.unbatched()
             );
         }, listener::onFailure);
     }

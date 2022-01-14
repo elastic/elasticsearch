@@ -67,9 +67,9 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
      * The stack monitoring ILM policy information. The template variables for the ILM policy are generated when the
      * registry is created so that we can pick a default retention value that is sensitive to legacy monitoring settings.
      */
-    private static final String MONITORING_POLICY_NAME = ".monitoring-8-ilm-policy";
+    public static final String MONITORING_POLICY_NAME = ".monitoring-8-ilm-policy";
     private static final String MONITORING_POLICY_NAME_VARIABLE = "xpack.stack.monitoring.policy.name";
-    private static final String MONITORING_POLICY_DEFAULT_RETENTION = "3d";
+    public static final String MONITORING_POLICY_DEFAULT_RETENTION = "3d";
     private static final String MONITORING_POLICY_RETENTION_VARIABLE = "xpack.stack.monitoring.history.duration";
     private static final String MONITORING_POLICY_RETENTION_REASON_VARIABLE = "xpack.stack.monitoring.history.duration.reason";
 

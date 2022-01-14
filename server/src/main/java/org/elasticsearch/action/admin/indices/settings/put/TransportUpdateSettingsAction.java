@@ -41,6 +41,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.indices.SystemIndexManager.MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST;
+
 public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNodeAction<UpdateSettingsRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);
@@ -157,6 +159,10 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
                 final Settings descriptorSettings = descriptor.getSettings();
                 List<String> failedKeys = new ArrayList<>();
                 for (String key : requestSettings.keySet()) {
+                    if (MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST.contains(key)) {
+                        // Don't check the setting if it's on the allowlist.
+                        continue;
+                    }
                     final String expectedValue = descriptorSettings.get(key);
                     final String actualValue = requestSettings.get(key);
 

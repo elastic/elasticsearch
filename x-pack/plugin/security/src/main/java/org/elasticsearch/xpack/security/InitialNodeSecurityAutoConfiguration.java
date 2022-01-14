@@ -93,7 +93,7 @@ public class InitialNodeSecurityAutoConfiguration {
                 // is now a system index), it's not a catastrophic position to be in either, because it only entails
                 // that new tokens and possibly credentials are generated anew
                 // TODO maybe we can improve the check that this is indeed the initial node
-                threadPool.generic().execute(new AbstractRunnable() {
+                threadPool.schedule(new AbstractRunnable() {
 
                     @Override
                     public void onFailure(Exception e) {
@@ -189,7 +189,7 @@ public class InitialNodeSecurityAutoConfiguration {
                             }
                         }, backoff);
                     }
-                });
+                }, TimeValue.timeValueSeconds(9), ThreadPool.Names.GENERIC);
             }
         });
     }

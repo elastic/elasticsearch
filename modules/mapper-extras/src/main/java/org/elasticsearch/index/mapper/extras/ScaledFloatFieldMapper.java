@@ -198,7 +198,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor) {
-            this(name, true, false, true, Collections.emptyMap(), scalingFactor, null, null);
+            this(name, scalingFactor, true);
+        }
+
+        public ScaledFloatFieldType(String name, double scalingFactor, boolean indexed) {
+            this(name, indexed, false, true, Collections.emptyMap(), scalingFactor, null, null);
         }
 
         public double getScalingFactor() {
@@ -212,20 +216,24 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            failIfNotIndexed();
+            failIfNotIndexedNorDocValuesFallback(context);
             long scaledValue = Math.round(scale(value));
-            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue);
+            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, isIndexed());
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            failIfNotIndexed();
-            List<Long> scaledValues = new ArrayList<>(values.size());
-            for (Object value : values) {
-                long scaledValue = Math.round(scale(value));
-                scaledValues.add(scaledValue);
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                List<Long> scaledValues = new ArrayList<>(values.size());
+                for (Object value : values) {
+                    long scaledValue = Math.round(scale(value));
+                    scaledValues.add(scaledValue);
+                }
+                return NumberFieldMapper.NumberType.LONG.termsQuery(name(), Collections.unmodifiableList(scaledValues));
+            } else {
+                return super.termsQuery(values, context);
             }
-            return NumberFieldMapper.NumberType.LONG.termsQuery(name(), Collections.unmodifiableList(scaledValues));
         }
 
         @Override
@@ -236,7 +244,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            failIfNotIndexed();
+            failIfNotIndexedNorDocValuesFallback(context);
             Long lo = null;
             if (lowerTerm != null) {
                 double dValue = scale(lowerTerm);
@@ -253,7 +261,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue));
             }
-            return NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context);
+            return NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context, isIndexed());
         }
 
         @Override

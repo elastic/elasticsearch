@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -87,7 +88,7 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Ack
                     indexLifecycleService.maybeRunAsyncAction(newState, idxMeta, retryStep);
                 }
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     @Override

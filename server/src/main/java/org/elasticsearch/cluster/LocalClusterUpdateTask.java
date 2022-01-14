@@ -41,7 +41,7 @@ public abstract class LocalClusterUpdateTask implements ClusterStateTaskListener
 
                 @Override
                 public String describeTasks(List<LocalClusterUpdateTask> tasks) {
-                    return "";
+                    return ""; // only one task in the batch so the source is enough
                 }
 
                 @Override

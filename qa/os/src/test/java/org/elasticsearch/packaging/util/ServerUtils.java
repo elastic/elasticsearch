@@ -151,7 +151,7 @@ public class ServerUtils {
         int retries = 60;
         while (retries > 0) {
             retries -= 1;
-            try (Socket s = new Socket(InetAddress.getLoopbackAddress(), 9200)) {
+            try (Socket s = new Socket(InetAddress.getLoopbackAddress(), installation.port)) {
                 return;
             } catch (IOException e) {
                 // ignore, only want to establish a connection

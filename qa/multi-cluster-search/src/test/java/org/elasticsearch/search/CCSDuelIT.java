@@ -178,13 +178,23 @@ public class CCSDuelIT extends ESRestTestCase {
         int numShards = randomIntBetween(1, 5);
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(INDEX_NAME);
         createIndexRequest.settings(Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", 0));
-        createIndexRequest.mapping(
-            "{\"properties\":{"
-                + "\"id\":{\"type\":\"keyword\"},"
-                + "\"suggest\":{\"type\":\"completion\"},"
-                + "\"join\":{\"type\":\"join\", \"relations\": {\"question\":\"answer\"}}}}",
-            XContentType.JSON
-        );
+        createIndexRequest.mapping("""
+            {
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "suggest": {
+                  "type": "completion"
+                },
+                "join": {
+                  "type": "join",
+                  "relations": {
+                    "question": "answer"
+                  }
+                }
+              }
+            }""", XContentType.JSON);
         CreateIndexResponse createIndexResponse = restHighLevelClient.indices().create(createIndexRequest, RequestOptions.DEFAULT);
         assertTrue(createIndexResponse.isAcknowledged());
 
@@ -830,8 +840,7 @@ public class CCSDuelIT extends ESRestTestCase {
         assertNotNull(response.getAggregations());
         List<Aggregation> aggregations = response.getAggregations().asList();
         for (Aggregation aggregation : aggregations) {
-            if (aggregation instanceof MultiBucketsAggregation) {
-                MultiBucketsAggregation multiBucketsAggregation = (MultiBucketsAggregation) aggregation;
+            if (aggregation instanceof MultiBucketsAggregation multiBucketsAggregation) {
                 assertThat(
                     "agg " + multiBucketsAggregation.getName() + " has 0 buckets",
                     multiBucketsAggregation.getBuckets().size(),

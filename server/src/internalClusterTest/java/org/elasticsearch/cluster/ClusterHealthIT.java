@@ -301,12 +301,12 @@ public class ClusterHealthIT extends ESIntegTestCase {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (keepSubmittingTasks.get()) {
-                    clusterService.submitStateUpdateTask("looping task", this);
+                    clusterService.submitStateUpdateTask("looping task", this, ClusterStateTaskExecutor.unbatched());
                 } else {
                     completionFuture.onResponse(null);
                 }
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
 
         try {
             createIndex("index");
@@ -392,12 +392,12 @@ public class ClusterHealthIT extends ESIntegTestCase {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (keepSubmittingTasks.get()) {
-                    clusterService.submitStateUpdateTask("looping task", this);
+                    clusterService.submitStateUpdateTask("looping task", this, ClusterStateTaskExecutor.unbatched());
                 } else {
                     completionFuture.onResponse(null);
                 }
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
 
         try {
             final ClusterHealthResponse clusterHealthResponse = client().admin()

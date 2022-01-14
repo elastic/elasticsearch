@@ -1257,7 +1257,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
                     }
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -1433,7 +1434,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     public void onFailure(Exception e) {
                         clusterService.submitStateUpdateTask(
                             "fail repo tasks for [" + repoName + "]",
-                            new FailPendingRepoTasksTask(repoName, e)
+                            new FailPendingRepoTasksTask(repoName, e),
+                            ClusterStateTaskExecutor.unbatched()
                         );
                     }
                 });
@@ -1725,7 +1727,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     deleteSnapshotsFromRepository(deletionToRun, repositoryData, newState.nodes().getMinNodeVersion());
                 }
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     /**
@@ -1990,7 +1992,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     runNextQueuedOperation(repositoryData, snapshot.getRepository(), true);
                 }
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     /**
@@ -2166,7 +2168,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             return abortedEntry;
                         }
                         return existing;
-                    }).filter(Objects::nonNull).collect(Collectors.toUnmodifiableList())
+                    }).filter(Objects::nonNull).toList()
                 );
                 if (snapshotIdsRequiringCleanup.isEmpty()) {
                     // We only saw snapshots that could be removed from the cluster state right away, no need to update the deletions
@@ -2366,7 +2368,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public void onFailure(Exception e) {
                 clusterService.submitStateUpdateTask(
                     "fail repo tasks for [" + deleteEntry.repository() + "]",
-                    new FailPendingRepoTasksTask(deleteEntry.repository(), e)
+                    new FailPendingRepoTasksTask(deleteEntry.repository(), e),
+                    ClusterStateTaskExecutor.unbatched()
                 );
             }
         });
@@ -2387,6 +2390,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             assert currentlyFinalizing.contains(deleteEntry.repository());
             final List<SnapshotId> snapshotIds = deleteEntry.getSnapshots();
             assert deleteEntry.state() == SnapshotDeletionsInProgress.State.STARTED : "incorrect state for entry [" + deleteEntry + "]";
+            if (snapshotIds.isEmpty()) {
+                // this deletion overlapped one or more deletions that were successfully processed and there is no remaining snapshot to
+                // delete now, we can avoid reaching to the repository and can complete the deletion.
+                // TODO we should complete the deletion and resolve the listeners of SnapshotDeletionsInProgress with no snapshot sooner,
+                // that would save some cluster state updates.
+                removeSnapshotDeletionFromClusterState(deleteEntry, null, repositoryData);
+                return;
+            }
             repositoriesService.repository(deleteEntry.repository())
                 .deleteSnapshots(
                     snapshotIds,
@@ -2451,7 +2462,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             };
         }
-        clusterService.submitStateUpdateTask("remove snapshot deletion metadata", clusterStateUpdateTask);
+        clusterService.submitStateUpdateTask(
+            "remove snapshot deletion metadata",
+            clusterStateUpdateTask,
+            ClusterStateTaskExecutor.unbatched()
+        );
     }
 
     /**

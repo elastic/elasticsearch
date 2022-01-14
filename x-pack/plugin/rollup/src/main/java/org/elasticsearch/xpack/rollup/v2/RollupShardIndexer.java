@@ -30,7 +30,7 @@ import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -191,8 +191,8 @@ class RollupShardIndexer {
         if (fieldType instanceof DateFieldMapper.DateFieldType == false) {
             throw new IllegalArgumentException("Wrong type for the timestamp field, " + "expected [date], got [" + fieldType.name() + "]");
         }
-        if (fieldType.isSearchable() == false) {
-            throw new IllegalArgumentException("The timestamp field [" + fieldType.name() + "]  is not searchable");
+        if (fieldType.isIndexed() == false) {
+            throw new IllegalArgumentException("The timestamp field [" + fieldType.name() + "]  is not indexed");
         }
     }
 

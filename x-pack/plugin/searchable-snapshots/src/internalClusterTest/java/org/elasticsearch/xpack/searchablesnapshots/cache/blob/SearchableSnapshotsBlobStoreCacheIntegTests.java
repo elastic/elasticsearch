@@ -12,8 +12,8 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -120,6 +120,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put(cacheSettings).build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82470")
     public void testBlobStoreCache() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);

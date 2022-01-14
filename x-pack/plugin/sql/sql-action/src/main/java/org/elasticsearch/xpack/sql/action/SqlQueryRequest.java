@@ -17,9 +17,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
@@ -30,17 +28,17 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.DEFAULT_KEEP_ALIVE;
-import static org.elasticsearch.xpack.sql.proto.Protocol.DEFAULT_KEEP_ON_COMPLETION;
-import static org.elasticsearch.xpack.sql.proto.Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.INDEX_INCLUDE_FROZEN_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.KEEP_ALIVE_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.KEEP_ON_COMPLETION_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.MIN_KEEP_ALIVE;
-import static org.elasticsearch.xpack.sql.proto.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.BINARY_FORMAT_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.COLUMNAR_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.DEFAULT_KEEP_ALIVE;
+import static org.elasticsearch.xpack.sql.action.Protocol.DEFAULT_KEEP_ON_COMPLETION;
+import static org.elasticsearch.xpack.sql.action.Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT;
+import static org.elasticsearch.xpack.sql.action.Protocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.INDEX_INCLUDE_FROZEN_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.KEEP_ALIVE_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.KEEP_ON_COMPLETION_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.MIN_KEEP_ALIVE;
+import static org.elasticsearch.xpack.sql.action.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 
 /**
  * Request to perform an sql query
@@ -135,10 +133,24 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         return validationException;
     }
 
+    public SqlQueryRequest(StreamInput in) throws IOException {
+        super(in);
+        cursor = in.readString();
+        columnar = in.readOptionalBoolean();
+        fieldMultiValueLeniency = in.readBoolean();
+        indexIncludeFrozen = in.readBoolean();
+        binaryCommunication = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
+            this.waitForCompletionTimeout = in.readOptionalTimeValue();
+            this.keepOnCompletion = in.readBoolean();
+            this.keepAlive = in.readOptionalTimeValue();
+        }
+    }
+
     /**
-     * The key that must be sent back to SQL to access the next page of
-     * results.
-     */
+    * The key that must be sent back to SQL to access the next page of
+    * results.
+    */
     public String cursor() {
         return cursor;
     }
@@ -244,20 +256,6 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         );
     }
 
-    public SqlQueryRequest(StreamInput in) throws IOException {
-        super(in);
-        cursor = in.readString();
-        columnar = in.readOptionalBoolean();
-        fieldMultiValueLeniency = in.readBoolean();
-        indexIncludeFrozen = in.readBoolean();
-        binaryCommunication = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
-            this.waitForCompletionTimeout = in.readOptionalTimeValue();
-            this.keepOnCompletion = in.readBoolean();
-            this.keepAlive = in.readOptionalTimeValue();
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -304,31 +302,6 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     @Override
     public String getDescription() {
         return "SQL [" + query() + "][" + filter() + "]";
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // This is needed just to test round-trip compatibility with proto.SqlQueryRequest
-        return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(
-            query(),
-            params(),
-            zoneId(),
-            catalog(),
-            fetchSize(),
-            requestTimeout(),
-            pageTimeout(),
-            filter(),
-            columnar(),
-            cursor(),
-            requestInfo(),
-            fieldMultiValueLeniency(),
-            indexIncludeFrozen(),
-            binaryCommunication(),
-            runtimeMappings(),
-            waitForCompletionTimeout(),
-            keepOnCompletion(),
-            keepAlive()
-        ).toXContent(builder, params);
     }
 
     public static SqlQueryRequest fromXContent(XContentParser parser) {

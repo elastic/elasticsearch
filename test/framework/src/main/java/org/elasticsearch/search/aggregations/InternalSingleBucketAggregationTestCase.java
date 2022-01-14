@@ -73,27 +73,22 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
         InternalAggregations aggregations = instance.getAggregations();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                docCount += between(1, 2000);
-                break;
-            case 2:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> docCount += between(1, 2000);
+            case 2 -> {
                 List<InternalAggregation> aggs = new ArrayList<>();
                 aggs.add(new InternalMax("new_max", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
                 aggs.add(new InternalMin("new_min", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
                 aggregations = InternalAggregations.from(aggs);
-                break;
-            case 3:
-            default:
+            }
+            default -> {
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
+            }
         }
         return createTestInstance(name, docCount, aggregations, metadata);
     }

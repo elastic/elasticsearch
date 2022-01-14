@@ -165,17 +165,17 @@ public class WildcardServiceProviderResolver {
         });
 
         switch (matches.size()) {
-            case 0:
+            case 0 -> {
                 logger.trace("No wildcard services found for [{}] [{}]", entityId, acs);
                 return null;
-
-            case 1:
+            }
+            case 1 -> {
                 final SamlServiceProvider serviceProvider = Iterables.get(matches.values(), 0);
                 logger.trace("Found exactly 1 wildcard service for [{}] [{}] - [{}]", entityId, acs, serviceProvider);
                 currentState.cache.put(cacheKey, serviceProvider);
                 return serviceProvider;
-
-            default:
+            }
+            default -> {
                 final String names = Strings.collectionToCommaDelimitedString(matches.keySet());
                 logger.warn("Found multiple matching wildcard services for [{}] [{}] - [{}]", entityId, acs, names);
                 throw new IllegalStateException(
@@ -187,6 +187,7 @@ public class WildcardServiceProviderResolver {
                         + names
                         + "]"
                 );
+            }
         }
     }
 

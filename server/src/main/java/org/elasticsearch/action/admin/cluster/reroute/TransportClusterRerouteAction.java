@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -88,8 +89,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     ) {
         Map<String, List<AbstractAllocateAllocationCommand>> stalePrimaryAllocations = new HashMap<>();
         for (AllocationCommand command : request.getCommands().commands()) {
-            if (command instanceof AllocateStalePrimaryAllocationCommand) {
-                final AllocateStalePrimaryAllocationCommand cmd = (AllocateStalePrimaryAllocationCommand) command;
+            if (command instanceof final AllocateStalePrimaryAllocationCommand cmd) {
                 stalePrimaryAllocations.computeIfAbsent(cmd.index(), k -> new ArrayList<>()).add(cmd);
             }
         }
@@ -167,7 +167,8 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                     response.getExplanations().getYesDecisionMessages().forEach(logger::info);
                 }
                 return response;
-            }))
+            })),
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

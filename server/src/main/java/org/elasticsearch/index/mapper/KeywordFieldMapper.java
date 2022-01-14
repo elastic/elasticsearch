@@ -52,6 +52,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -296,8 +297,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isDimension = builder.dimension.getValue();
         }
 
-        public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
-            super(name, isSearchable, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public KeywordFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
+            super(name, isIndexed, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
@@ -636,25 +637,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             if (ts.incrementToken() == false) {
-                throw new IllegalStateException(
-                    "The normalization token stream is "
-                        + "expected to produce exactly 1 token, but got 0 for analyzer "
-                        + normalizer
-                        + " and input \""
-                        + value
-                        + "\""
-                );
+                throw new IllegalStateException(String.format(Locale.ROOT, """
+                    The normalization token stream is expected to produce exactly 1 token, \
+                    but got 0 for analyzer %s and input "%s"
+                    """, normalizer, value));
             }
             final String newValue = termAtt.toString();
             if (ts.incrementToken()) {
-                throw new IllegalStateException(
-                    "The normalization token stream is "
-                        + "expected to produce exactly 1 token, but got 2+ for analyzer "
-                        + normalizer
-                        + " and input \""
-                        + value
-                        + "\""
-                );
+                throw new IllegalStateException(String.format(Locale.ROOT, """
+                    The normalization token stream is expected to produce exactly 1 token, \
+                    but got 2+ for analyzer %s and input "%s"
+                    """, normalizer, value));
             }
             ts.end();
             return newValue;

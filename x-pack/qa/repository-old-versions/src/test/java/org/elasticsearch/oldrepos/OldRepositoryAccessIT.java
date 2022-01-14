@@ -25,25 +25,34 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CloseIndexRequest;
+import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -71,13 +80,26 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         };
     }
 
-    @SuppressWarnings("removal")
     public void testOldRepoAccess() throws IOException {
+        runTest(false);
+    }
+
+    public void testOldSourceOnlyRepoAccess() throws IOException {
+        runTest(true);
+    }
+
+    @SuppressWarnings("removal")
+    public void runTest(boolean sourceOnlyRepository) throws IOException {
         String repoLocation = System.getProperty("tests.repo.location");
         Version oldVersion = Version.fromString(System.getProperty("tests.es.version"));
+        assumeTrue(
+            "source only repositories only supported since ES 6.5.0",
+            sourceOnlyRepository == false || oldVersion.onOrAfter(Version.fromString("6.5.0"))
+        );
 
         int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
-        int numDocs = 5;
+        int numDocs = 10;
+        int extraDocs = 1;
         final Set<String> expectedIds = new HashSet<>();
         try (
             RestHighLevelClient client = highLevelClient(adminClient());
@@ -86,37 +108,65 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             try {
                 Request createIndex = new Request("PUT", "/test");
                 int numberOfShards = randomIntBetween(1, 3);
-                createIndex.setJsonEntity("{\"settings\":{\"number_of_shards\": " + numberOfShards + "}}");
-                oldEs.performRequest(createIndex);
 
-                for (int i = 0; i < numDocs; i++) {
+                XContentBuilder settingsBuilder = XContentFactory.jsonBuilder().startObject().startObject("settings");
+                settingsBuilder.field("index.number_of_shards", numberOfShards);
+
+                // 6.5.0 started using soft-deletes, but it was only enabled by default on 7.0
+                if (oldVersion.onOrAfter(Version.fromString("6.5.0"))
+                    && oldVersion.before(Version.fromString("7.0.0"))
+                    && randomBoolean()) {
+                    settingsBuilder.field("index.soft_deletes.enabled", true);
+                }
+
+                settingsBuilder.endObject().endObject();
+
+                createIndex.setJsonEntity(Strings.toString(settingsBuilder));
+                assertOK(oldEs.performRequest(createIndex));
+
+                for (int i = 0; i < numDocs + extraDocs; i++) {
                     String id = "testdoc" + i;
                     expectedIds.add(id);
                     Request doc = new Request("PUT", "/test/doc/" + id);
                     doc.addParameter("refresh", "true");
                     doc.setJsonEntity(sourceForDoc(i));
+                    assertOK(oldEs.performRequest(doc));
+                }
+
+                for (int i = 0; i < extraDocs; i++) {
+                    String id = randomFrom(expectedIds);
+                    expectedIds.remove(id);
+                    Request doc = new Request("DELETE", "/test/doc/" + id);
+                    doc.addParameter("refresh", "true");
                     oldEs.performRequest(doc);
                 }
 
                 // register repo on old ES and take snapshot
                 Request createRepoRequest = new Request("PUT", "/_snapshot/testrepo");
-                createRepoRequest.setJsonEntity("{\"type\":\"fs\",\"settings\":{\"location\":\"" + repoLocation + "\"}}");
-                oldEs.performRequest(createRepoRequest);
+                createRepoRequest.setJsonEntity(sourceOnlyRepository ? """
+                    {"type":"source","settings":{"location":"%s","delegate_type":"fs"}}
+                    """.formatted(repoLocation) : """
+                    {"type":"fs","settings":{"location":"%s"}}
+                    """.formatted(repoLocation));
+                assertOK(oldEs.performRequest(createRepoRequest));
 
                 Request createSnapshotRequest = new Request("PUT", "/_snapshot/testrepo/snap1");
                 createSnapshotRequest.addParameter("wait_for_completion", "true");
                 createSnapshotRequest.setJsonEntity("{\"indices\":\"test\"}");
-                oldEs.performRequest(createSnapshotRequest);
+                assertOK(oldEs.performRequest(createSnapshotRequest));
 
                 // register repo on new ES
                 Settings.Builder repoSettingsBuilder = Settings.builder().put("location", repoLocation);
+                if (sourceOnlyRepository) {
+                    repoSettingsBuilder.put("delegate_type", "fs");
+                }
                 if (Build.CURRENT.isSnapshot()) {
                     repoSettingsBuilder.put("allow_bwc_indices", true);
                 }
                 ElasticsearchAssertions.assertAcked(
                     client.snapshot()
                         .createRepository(
-                            new PutRepositoryRequest("testrepo").type("fs").settings(repoSettingsBuilder),
+                            new PutRepositoryRequest("testrepo").type(sourceOnlyRepository ? "source" : "fs").settings(repoSettingsBuilder),
                             RequestOptions.DEFAULT
                         )
                 );
@@ -168,7 +218,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
                 if (Build.CURRENT.isSnapshot()) {
                     // restore / mount and check whether searches work
-                    restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards);
+                    restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards, sourceOnlyRepository);
 
                     // close indices
                     assertTrue(
@@ -186,10 +236,22 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                     );
 
                     // restore / mount again
-                    restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards);
+                    restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards, sourceOnlyRepository);
                 }
             } finally {
-                oldEs.performRequest(new Request("DELETE", "/test"));
+                IOUtils.closeWhileHandlingException(
+                    () -> oldEs.performRequest(new Request("DELETE", "/test")),
+                    () -> oldEs.performRequest(new Request("DELETE", "/_snapshot/testrepo/snap1")),
+                    () -> oldEs.performRequest(new Request("DELETE", "/_snapshot/testrepo"))
+                );
+                if (Build.CURRENT.isSnapshot()) {
+                    IOUtils.closeWhileHandlingException(
+                        () -> client().performRequest(new Request("DELETE", "/restored_test")),
+                        () -> client().performRequest(new Request("DELETE", "/mounted_full_copy_test")),
+                        () -> client().performRequest(new Request("DELETE", "/mounted_shared_cache_test"))
+                    );
+                }
+                IOUtils.closeWhileHandlingException(() -> client().performRequest(new Request("DELETE", "/_snapshot/testrepo")));
             }
         }
     }
@@ -199,8 +261,13 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("removal")
-    private void restoreMountAndVerify(int numDocs, Set<String> expectedIds, RestHighLevelClient client, int numberOfShards)
-        throws IOException {
+    private void restoreMountAndVerify(
+        int numDocs,
+        Set<String> expectedIds,
+        RestHighLevelClient client,
+        int numberOfShards,
+        boolean sourceOnlyRepository
+    ) throws IOException {
         // restore index
         RestoreSnapshotResponse restoreSnapshotResponse = client.snapshot()
             .restore(
@@ -225,7 +292,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         );
 
         // run a search against the index
-        assertDocs("restored_test", numDocs, expectedIds, client);
+        assertDocs("restored_test", numDocs, expectedIds, client, sourceOnlyRepository);
 
         // mount as full copy searchable snapshot
         RestoreSnapshotResponse mountSnapshotResponse = client.searchableSnapshots()
@@ -251,7 +318,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         );
 
         // run a search against the index
-        assertDocs("mounted_full_copy_test", numDocs, expectedIds, client);
+        assertDocs("mounted_full_copy_test", numDocs, expectedIds, client, sourceOnlyRepository);
 
         // mount as shared cache searchable snapshot
         mountSnapshotResponse = client.searchableSnapshots()
@@ -266,11 +333,12 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().successfulShards());
 
         // run a search against the index
-        assertDocs("mounted_shared_cache_test", numDocs, expectedIds, client);
+        assertDocs("mounted_shared_cache_test", numDocs, expectedIds, client, sourceOnlyRepository);
     }
 
     @SuppressWarnings("removal")
-    private void assertDocs(String index, int numDocs, Set<String> expectedIds, RestHighLevelClient client) throws IOException {
+    private void assertDocs(String index, int numDocs, Set<String> expectedIds, RestHighLevelClient client, boolean sourceOnlyRepository)
+        throws IOException {
         // run a search against the index
         SearchResponse searchResponse = client.search(new SearchRequest(index), RequestOptions.DEFAULT);
         logger.info(searchResponse);
@@ -284,21 +352,55 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertTrue(Arrays.stream(searchResponse.getHits().getHits()).allMatch(SearchHit::hasSource));
         // check that correct _source present for each document
         for (SearchHit h : searchResponse.getHits().getHits()) {
-            assertEquals(sourceForDoc(Integer.parseInt(h.getId().substring("testdoc".length()))), h.getSourceAsString());
+            assertEquals(sourceForDoc(getIdAsNumeric(h.getId())), h.getSourceAsString());
         }
 
+        String id = randomFrom(expectedIds);
+        int num = getIdAsNumeric(id);
         // run a search using runtime fields against the index
         searchResponse = client.search(
             new SearchRequest(index).source(
                 SearchSourceBuilder.searchSource()
-                    .query(QueryBuilders.matchQuery("val", 2))
+                    .query(QueryBuilders.matchQuery("val", num))
                     .runtimeMappings(Map.of("val", Map.of("type", "long")))
             ),
             RequestOptions.DEFAULT
         );
         logger.info(searchResponse);
         assertEquals(1, searchResponse.getHits().getTotalHits().value);
-        assertEquals("testdoc2", searchResponse.getHits().getHits()[0].getId());
-        assertEquals(sourceForDoc(2), searchResponse.getHits().getHits()[0].getSourceAsString());
+        assertEquals(id, searchResponse.getHits().getHits()[0].getId());
+        assertEquals(sourceForDoc(num), searchResponse.getHits().getHits()[0].getSourceAsString());
+
+        if (sourceOnlyRepository == false) {
+            // check that doc values can be accessed by (reverse) sorting on numeric val field
+            // first add mapping for field (this will be done automatically in the future)
+            XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
+            mappingBuilder.startObject().startObject("properties").startObject("val");
+            mappingBuilder.field("type", "long");
+            mappingBuilder.endObject().endObject().endObject();
+            assertTrue(
+                client.indices().putMapping(new PutMappingRequest(index).source(mappingBuilder), RequestOptions.DEFAULT).isAcknowledged()
+            );
+
+            // search using reverse sort on val
+            searchResponse = client.search(
+                new SearchRequest(index).source(
+                    SearchSourceBuilder.searchSource()
+                        .query(QueryBuilders.matchAllQuery())
+                        .sort(SortBuilders.fieldSort("val").order(SortOrder.DESC))
+                ),
+                RequestOptions.DEFAULT
+            );
+            logger.info(searchResponse);
+            // check sort order
+            assertEquals(
+                expectedIds.stream().sorted(Comparator.comparingInt(this::getIdAsNumeric).reversed()).collect(Collectors.toList()),
+                Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toList())
+            );
+        }
+    }
+
+    private int getIdAsNumeric(String id) {
+        return Integer.parseInt(id.substring("testdoc".length()));
     }
 }

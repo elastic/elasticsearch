@@ -76,6 +76,8 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     // The minimum number of buckets considered acceptable for the model_prune_window field
     public static final long MINIMUM_MODEL_PRUNE_WINDOW_BUCKETS = 2;
 
+    public static final TimeValue DEFAULT_MODEL_PRUNE_WINDOW = TimeValue.timeValueDays(30);
+
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<AnalysisConfig.Builder, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<AnalysisConfig.Builder, Void> parser = new ConstructingObjectParser<>(

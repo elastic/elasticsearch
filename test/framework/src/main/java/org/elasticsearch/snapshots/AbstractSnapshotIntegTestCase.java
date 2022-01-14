@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -653,7 +654,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 future.onResponse(null);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
         future.get();
     }
 
@@ -728,31 +729,15 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         if (sort == null) {
             assertion = (s1, s2) -> assertThat(s2, greaterThanOrEqualTo(s1));
         } else {
-            switch (sort) {
-                case START_TIME:
-                    assertion = (s1, s2) -> assertThat(s2.startTime(), greaterThanOrEqualTo(s1.startTime()));
-                    break;
-                case NAME:
-                    assertion = (s1, s2) -> assertThat(s2.snapshotId().getName(), greaterThanOrEqualTo(s1.snapshotId().getName()));
-                    break;
-                case DURATION:
-                    assertion = (s1, s2) -> assertThat(s2.endTime() - s2.startTime(), greaterThanOrEqualTo(s1.endTime() - s1.startTime()));
-                    break;
-                case INDICES:
-                    assertion = (s1, s2) -> assertThat(s2.indices().size(), greaterThanOrEqualTo(s1.indices().size()));
-                    break;
-                case SHARDS:
-                    assertion = (s1, s2) -> assertThat(s2.totalShards(), greaterThanOrEqualTo(s1.totalShards()));
-                    break;
-                case FAILED_SHARDS:
-                    assertion = (s1, s2) -> assertThat(s2.failedShards(), greaterThanOrEqualTo(s1.failedShards()));
-                    break;
-                case REPOSITORY:
-                    assertion = (s1, s2) -> assertThat(s2.repository(), greaterThanOrEqualTo(s1.repository()));
-                    break;
-                default:
-                    throw new AssertionError("unknown sort column [" + sort + "]");
-            }
+            assertion = switch (sort) {
+                case START_TIME -> (s1, s2) -> assertThat(s2.startTime(), greaterThanOrEqualTo(s1.startTime()));
+                case NAME -> (s1, s2) -> assertThat(s2.snapshotId().getName(), greaterThanOrEqualTo(s1.snapshotId().getName()));
+                case DURATION -> (s1, s2) -> assertThat(s2.endTime() - s2.startTime(), greaterThanOrEqualTo(s1.endTime() - s1.startTime()));
+                case INDICES -> (s1, s2) -> assertThat(s2.indices().size(), greaterThanOrEqualTo(s1.indices().size()));
+                case SHARDS -> (s1, s2) -> assertThat(s2.totalShards(), greaterThanOrEqualTo(s1.totalShards()));
+                case FAILED_SHARDS -> (s1, s2) -> assertThat(s2.failedShards(), greaterThanOrEqualTo(s1.failedShards()));
+                case REPOSITORY -> (s1, s2) -> assertThat(s2.repository(), greaterThanOrEqualTo(s1.repository()));
+            };
         }
         final BiConsumer<SnapshotInfo, SnapshotInfo> orderAssertion;
         if (sortOrder == SortOrder.ASC) {

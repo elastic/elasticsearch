@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
@@ -456,7 +457,8 @@ public class RestoreService implements ClusterStateApplier {
                 updater,
                 repository.getMetadata(),
                 listener
-            )
+            ),
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -1079,7 +1081,7 @@ public class RestoreService implements ClusterStateApplier {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 cleanupInProgress = false;
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     @Override
@@ -1417,25 +1419,13 @@ public class RestoreService implements ClusterStateApplier {
                     .collect(Collectors.toMap(DataStream::getName, Function.identity()))
             );
             final Map<String, DataStreamAlias> updatedDataStreamAliases = new HashMap<>(currentState.metadata().dataStreamAliases());
-            metadata.dataStreamAliases()
-                .values()
-                .stream()
-                // Optionally rename the data stream names for each alias
-                .map(alias -> {
-                    if (request.renamePattern() != null && request.renameReplacement() != null) {
-                        return alias.renameDataStreams(request.renamePattern(), request.renameReplacement());
-                    } else {
-                        return alias;
-                    }
-                })
-                .forEach(alias -> {
-                    final DataStreamAlias current = updatedDataStreamAliases.putIfAbsent(alias.getName(), alias);
-                    if (current != null) {
-                        // Merge data stream alias from snapshot with an existing data stream aliases in target cluster:
-                        DataStreamAlias newInstance = alias.merge(current);
-                        updatedDataStreamAliases.put(alias.getName(), newInstance);
-                    }
-                });
+            for (DataStreamAlias alias : metadata.dataStreamAliases().values()) {
+                // Merge data stream alias from snapshot with an existing data stream aliases in target cluster:
+                updatedDataStreamAliases.compute(
+                    alias.getName(),
+                    (key, previous) -> alias.restore(previous, request.renamePattern(), request.renameReplacement())
+                );
+            }
             mdBuilder.dataStreams(updatedDataStreams, updatedDataStreamAliases);
         }
 

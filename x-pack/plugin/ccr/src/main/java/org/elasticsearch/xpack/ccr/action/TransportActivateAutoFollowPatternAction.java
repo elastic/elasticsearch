@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -70,7 +71,8 @@ public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransp
                 public ClusterState execute(final ClusterState currentState) {
                     return innerActivate(request, currentState);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

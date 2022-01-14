@@ -52,22 +52,17 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
 
         switch (between(0, 2)) {
-            case 0:
-                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
+            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 2 -> {
                 if (numberOfShards != null) {
                     numberOfShards = numberOfShards + 1;
                 }
                 if (maxPrimaryShardSize != null) {
                     maxPrimaryShardSize = new ByteSizeValue(maxPrimaryShardSize.getBytes() + 1);
                 }
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new ShrinkStep(key, nextKey, instance.getClient(), numberOfShards, maxPrimaryShardSize);

@@ -107,15 +107,21 @@ public class AnnotationIndex {
             finalListener::onFailure
         );
 
-        final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
+        final ActionListener<String> createAliasListener = ActionListener.wrap(currentIndexName -> {
             final IndicesAliasesRequestBuilder requestBuilder = client.admin()
                 .indices()
                 .prepareAliases()
-                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(LATEST_INDEX_NAME).alias(READ_ALIAS_NAME).isHidden(true))
-                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(LATEST_INDEX_NAME).alias(WRITE_ALIAS_NAME).isHidden(true));
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(currentIndexName).alias(READ_ALIAS_NAME).isHidden(true))
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(currentIndexName).alias(WRITE_ALIAS_NAME).isHidden(true));
+            SortedMap<String, IndexAbstraction> lookup = state.getMetadata().getIndicesLookup();
             for (String oldIndexName : OLD_INDEX_NAMES) {
-                if (state.getMetadata().hasIndexAbstraction(oldIndexName)) {
-                    requestBuilder.removeAlias(oldIndexName, WRITE_ALIAS_NAME);
+                IndexAbstraction oldIndexAbstraction = lookup.get(oldIndexName);
+                if (oldIndexAbstraction != null) {
+                    // The old index might no longer be an index - that index could have been reindexed
+                    // with the old index name now being an alias to that reindexed index.
+                    for (Index oldIndex : oldIndexAbstraction.getIndices()) {
+                        requestBuilder.removeAlias(oldIndex.getName(), WRITE_ALIAS_NAME);
+                    }
                 }
             }
             executeAsyncWithOrigin(
@@ -140,7 +146,8 @@ public class AnnotationIndex {
             && mlLookup.firstKey().startsWith(".ml")) {
 
             // Create the annotations index if it doesn't exist already.
-            if (mlLookup.containsKey(LATEST_INDEX_NAME) == false) {
+            IndexAbstraction currentIndexAbstraction = mlLookup.get(LATEST_INDEX_NAME);
+            if (currentIndexAbstraction == null) {
                 logger.debug(
                     () -> new ParameterizedMessage(
                         "Creating [{}] because [{}] exists; trace {}",
@@ -162,12 +169,12 @@ public class AnnotationIndex {
                     client.threadPool().getThreadContext(),
                     ML_ORIGIN,
                     createIndexRequest,
-                    ActionListener.<CreateIndexResponse>wrap(r -> createAliasListener.onResponse(r.isAcknowledged()), e -> {
+                    ActionListener.<CreateIndexResponse>wrap(r -> createAliasListener.onResponse(LATEST_INDEX_NAME), e -> {
                         // Possible that the index was created while the request was executing,
                         // so we need to handle that possibility
                         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                             // Create the alias
-                            createAliasListener.onResponse(true);
+                            createAliasListener.onResponse(LATEST_INDEX_NAME);
                         } else {
                             finalListener.onFailure(e);
                         }
@@ -177,16 +184,20 @@ public class AnnotationIndex {
                 return;
             }
 
+            // Account for the possibility that the latest index has been reindexed
+            // into a new index with the latest index name as an alias.
+            String currentIndexName = currentIndexAbstraction.getIndices().get(0).getName();
+
             // Recreate the aliases if they've gone even though the index still exists.
-            IndexAbstraction writeAliasDefinition = mlLookup.get(WRITE_ALIAS_NAME);
-            if (mlLookup.containsKey(READ_ALIAS_NAME) == false || writeAliasDefinition == null) {
-                createAliasListener.onResponse(true);
+            IndexAbstraction writeAliasAbstraction = mlLookup.get(WRITE_ALIAS_NAME);
+            if (mlLookup.containsKey(READ_ALIAS_NAME) == false || writeAliasAbstraction == null) {
+                createAliasListener.onResponse(currentIndexName);
                 return;
             }
 
-            List<Index> writeAliasIndices = writeAliasDefinition.getIndices();
-            if (writeAliasIndices.size() != 1 || LATEST_INDEX_NAME.equals(writeAliasIndices.get(0).getName()) == false) {
-                createAliasListener.onResponse(true);
+            List<Index> writeAliasIndices = writeAliasAbstraction.getIndices();
+            if (writeAliasIndices.size() != 1 || currentIndexName.equals(writeAliasIndices.get(0).getName()) == false) {
+                createAliasListener.onResponse(currentIndexName);
                 return;
             }
 

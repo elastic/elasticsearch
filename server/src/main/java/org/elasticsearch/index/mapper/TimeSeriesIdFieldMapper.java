@@ -136,7 +136,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) throws IOException {
-        assert fieldType().isSearchable() == false;
+        assert fieldType().isIndexed() == false;
 
         // SortedMap is expected to be sorted by key (field name)
         SortedMap<String, BytesReference> dimensionFields = context.doc().getDimensionBytes();
@@ -187,18 +187,15 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
                 int type = in.read();
                 switch (type) {
-                    case (byte) 's': // parse a string
+                    case (byte) 's' -> // parse a string
                         result.put(name, in.readBytesRef().utf8ToString());
-                        break;
-                    case (byte) 'l': // parse a long
+                    case (byte) 'l' -> // parse a long
                         result.put(name, in.readLong());
-                        break;
-                    case (byte) 'u': // parse an unsigned_long
+                    case (byte) 'u' -> { // parse an unsigned_long
                         Object ul = DocValueFormat.UnsignedLongShiftedDocValueFormat.INSTANCE.format(in.readLong());
                         result.put(name, ul);
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
+                    }
+                    default -> throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
                 }
             }
             return result;

@@ -80,22 +80,17 @@ public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBo
         DocValueFormat formatter = instance.format();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                state.add(randomDouble());
-                break;
-            case 2:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> state.add(randomDouble());
+            case 2 -> {
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalBoxplot(name, state, formatter, metadata);
     }

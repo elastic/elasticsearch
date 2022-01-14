@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestValidator;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
@@ -159,9 +160,12 @@ public final class CreateApiKeyRequest extends ActionRequest {
         }
         if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {
             validationException = addValidationError(
-                "metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
+                "API key metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
                 validationException
             );
+        }
+        for (RoleDescriptor roleDescriptor : roleDescriptors) {
+            validationException = RoleDescriptorRequestValidator.validate(roleDescriptor, validationException);
         }
         return validationException;
     }

@@ -75,7 +75,7 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange<Inte
             int docCount = randomIntBetween(0, 1000);
             double from = range.v1();
             double to = range.v2();
-            buckets.add(new InternalRange.Bucket("range_" + i, from, to, docCount, aggregations, keyed, format));
+            buckets.add(new InternalRange.Bucket("range_" + i, from, from, to, to, docCount, aggregations, keyed, format));
         }
         return new InternalRange<>(name, buckets, format, keyed, metadata);
     }
@@ -103,37 +103,35 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange<Inte
         List<InternalRange.Bucket> buckets = instance.getBuckets();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                keyed = keyed == false;
-                break;
-            case 2:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> keyed = keyed == false;
+            case 2 -> {
                 buckets = new ArrayList<>(buckets);
                 double from = randomDouble();
+                double to = from + randomDouble();
                 buckets.add(
                     new InternalRange.Bucket(
                         "range_a",
                         from,
-                        from + randomDouble(),
+                        from,
+                        to,
+                        to,
                         randomNonNegativeLong(),
                         InternalAggregations.EMPTY,
                         false,
                         format
                     )
                 );
-                break;
-            case 3:
+            }
+            case 3 -> {
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalRange<>(name, buckets, format, keyed, metadata);
     }

@@ -1389,7 +1389,7 @@ public class RBACEngineTests extends ESTestCase {
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices.add(DataStreamTestHelper.createBackingIndex(dataStreamName, k + 1).build());
         }
-        DataStream ds = new DataStream(
+        DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
             null,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
@@ -1430,7 +1430,7 @@ public class RBACEngineTests extends ESTestCase {
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices.add(DataStreamTestHelper.createBackingIndex(dataStreamName, k + 1).build());
         }
-        DataStream ds = new DataStream(
+        DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
             null,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())

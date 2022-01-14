@@ -164,6 +164,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.index());
         }
 
+        // TODO: split the listner out of this task and use AckedClusterStateTaskListener directly to avoid the complicated listener
+        // construction upstream when instantiating these
         private final class CreateIndexTask extends AckedClusterStateUpdateTask {
 
             final CreateIndexRequest request;

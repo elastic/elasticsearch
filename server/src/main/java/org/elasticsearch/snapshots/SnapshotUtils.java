@@ -9,8 +9,10 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsPending;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -19,6 +21,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * Snapshot utilities
@@ -109,6 +113,28 @@ public class SnapshotUtils {
             return List.of(selectedIndices);
         }
         return List.copyOf(result);
+    }
+
+    static Set<SnapshotId> cloneSources(final ClusterState state) {
+        return state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+            .asStream()
+            .filter(SnapshotsInProgress.Entry::isClone)
+            .map(SnapshotsInProgress.Entry::source)
+            .collect(Collectors.toUnmodifiableSet());
+    }
+
+    static Set<SnapshotId> restoreSources(final ClusterState state) {
+        return StreamSupport.stream(state.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY).spliterator(), false)
+            .map(restore -> restore.snapshot().getSnapshotId())
+            .collect(Collectors.toUnmodifiableSet());
+    }
+
+    static Set<SnapshotId> deletionsSources(final ClusterState state) {
+        return state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+            .getEntries()
+            .stream()
+            .flatMap(deletion -> deletion.getSnapshots().stream())
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     static void ensureSnapshotNotDeletedOrPendingDeletion(

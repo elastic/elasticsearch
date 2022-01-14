@@ -32,6 +32,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.snapshots.SnapshotDeletionsPendingExecutor;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -53,6 +54,7 @@ import java.util.concurrent.CyclicBarrier;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION;
+import static org.elasticsearch.snapshots.SnapshotDeletionsPendingExecutor.PENDING_SNAPSHOT_DELETIONS_EXPIRATION_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
@@ -100,9 +102,11 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
 
                 assertAcked(client().admin().indices().prepareDelete(mountedIndex(index)));
                 awaitSnapshotPendingDeletion(snapshot);
+                assertConflict(snapshot);
 
                 assertAcked(client().admin().cluster().prepareDeleteRepository(repository));
                 awaitSnapshotPendingDeletion(snapshot);
+                assertConflict(snapshot);
 
                 final String repoName;
                 if (randomBoolean()) {
@@ -119,6 +123,7 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
                     createRepository(repoName, "mock", repositorySettings, true);
                 }
                 awaitNoMoreSnapshotsDeletions();
+                assertNoConflict(snapshot);
 
                 expectThrows(
                     SnapshotMissingException.class,
@@ -150,6 +155,7 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
                 assertAcked(client().admin().indices().prepareDelete(mountedIndex(index)));
                 awaitSnapshotPendingDeletion(snapshot);
                 assertFalse(restoreFuture.isDone());
+                assertConflict(snapshot);
 
                 unblockNode(repository, masterNode);
                 awaitNoMoreSnapshotsDeletions();
@@ -157,6 +163,7 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
                 final RestoreInfo restoreInfoResponse = restoreFuture.actionGet().getRestoreInfo();
                 assertThat(restoreInfoResponse.successfulShards(), greaterThan(0));
                 assertThat(restoreInfoResponse.failedShards(), equalTo(0));
+                assertNoConflict(snapshot);
 
                 expectThrows(
                     SnapshotMissingException.class,
@@ -186,10 +193,12 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
                 assertAcked(client().admin().indices().prepareDelete(mountedIndex(index)));
                 awaitSnapshotPendingDeletion(snapshot);
                 assertFalse(cloneFuture.isDone());
+                assertConflict(snapshot);
 
                 unblockNode(repository, masterNode);
                 awaitNoMoreSnapshotsDeletions();
                 assertAcked(cloneFuture.get());
+                assertNoConflict(snapshot);
 
                 expectThrows(
                     SnapshotMissingException.class,
@@ -398,6 +407,7 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
                 }
                 garbageFuture.get();
 
+                // repository clean up writes a new index-N blob to ensure concurrent operations will fail so we can block on this
                 blockMasterOnWriteIndexFile(repository);
 
                 final ActionFuture<CleanupRepositoryResponse> cleanUpFuture = client().admin()
@@ -414,9 +424,11 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
                 assertAcked(client().admin().indices().prepareDelete(mountedIndex(index)));
                 awaitSnapshotPendingDeletion(snapshot);
                 assertFalse(cleanUpFuture.isDone());
+                assertConflict(snapshot);
 
                 unblockNode(repository, masterNode);
                 awaitNoMoreSnapshotsDeletions();
+                assertNoConflict(snapshot);
 
                 final CleanupRepositoryResponse cleanUpResponse = cleanUpFuture.get();
                 assertThat(cleanUpResponse.result().blobs(), equalTo((long) garbageFiles));
@@ -440,7 +452,7 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
                         .setTransientSettings(
                             Settings.builder()
                                 .put(
-                                    SnapshotsService.PENDING_SNAPSHOT_DELETIONS_RETRY_INTERVAL_SETTING.getKey(),
+                                    SnapshotDeletionsPendingExecutor.PENDING_SNAPSHOT_DELETIONS_RETRY_INTERVAL_SETTING.getKey(),
                                     TimeValue.timeValueMillis(randomLongBetween(100L, 1000L))
                                 )
                                 .build()
@@ -462,19 +474,23 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
                 assertAcked(client().admin().indices().prepareDelete(mountedIndex(index)));
                 awaitSnapshotPendingDeletion(snapshot);
 
-                final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
-                assertBusy(() -> assertTrue(snapshotsService.hasOngoingSnapshotsDeletions(snapshot)));
+                assertBusy(() -> {
+                    final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
+                    assertTrue(snapshotsService.isSnapshotPendingDeletionTriggered(snapshot));
+                });
 
                 assertAcked(
                     clusterAdmin().prepareUpdateSettings()
                         .setTransientSettings(
-                            Settings.builder()
-                                .put(SnapshotsService.PENDING_SNAPSHOT_DELETIONS_EXPIRATION_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
-                                .build()
+                            Settings.builder().put(PENDING_SNAPSHOT_DELETIONS_EXPIRATION_INTERVAL_SETTING.getKey(), TimeValue.ZERO).build()
                         )
                 );
 
-                assertBusy(() -> assertFalse(snapshotsService.hasOngoingSnapshotsDeletions(snapshot)));
+                assertBusy(() -> {
+                    final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
+                    assertFalse(snapshotsService.isSnapshotPendingDeletionTriggered(snapshot));
+                });
+
                 awaitNoMoreSnapshotsDeletions();
 
             } catch (Exception e) {
@@ -484,8 +500,8 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
                     clusterAdmin().prepareUpdateSettings()
                         .setTransientSettings(
                             Settings.builder()
-                                .putNull(SnapshotsService.PENDING_SNAPSHOT_DELETIONS_EXPIRATION_INTERVAL_SETTING.getKey())
-                                .putNull(SnapshotsService.PENDING_SNAPSHOT_DELETIONS_RETRY_INTERVAL_SETTING.getKey())
+                                .putNull(PENDING_SNAPSHOT_DELETIONS_EXPIRATION_INTERVAL_SETTING.getKey())
+                                .putNull(SnapshotDeletionsPendingExecutor.PENDING_SNAPSHOT_DELETIONS_RETRY_INTERVAL_SETTING.getKey())
                                 .build()
                         )
                 );
@@ -582,5 +598,20 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
 
     private String mountedIndex(String index) {
         return "restored-" + index;
+    }
+
+    private static void assertConflict(final SnapshotId snapshotId) throws Exception {
+        assertSnapshotPendingDeletionConflict(snapshotId, true);
+    }
+
+    private static void assertNoConflict(final SnapshotId snapshotId) throws Exception {
+        assertSnapshotPendingDeletionConflict(snapshotId, false);
+    }
+
+    private static void assertSnapshotPendingDeletionConflict(final SnapshotId snapshotId, final boolean expected) throws Exception {
+        assertBusy(() -> {
+            final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
+            assertThat(snapshotsService.isSnapshotPendingDeletionConflicting(snapshotId), equalTo(expected));
+        });
     }
 }

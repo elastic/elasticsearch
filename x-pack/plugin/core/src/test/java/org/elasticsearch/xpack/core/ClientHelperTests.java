@@ -15,7 +15,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -41,7 +41,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -96,7 +95,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         threadContext.putHeader(headerName, headerValue);
         ClientHelper.executeAsyncWithOrigin(client, origin, ClusterHealthAction.INSTANCE, new ClusterHealthRequest(), listener);
@@ -128,7 +127,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         threadContext.putHeader(headerName, headerValue);
         Client clientWithOrigin = ClientHelper.clientWithOrigin(client, origin);
@@ -154,7 +153,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
 
@@ -182,7 +181,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
         Map<String, String> headers = new HashMap<>(1);
@@ -215,7 +214,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
         Map<String, String> headers = new HashMap<>(1);
@@ -238,7 +237,7 @@ public class ClientHelperTests extends ESTestCase {
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         searchFuture.onResponse(
             new SearchResponse(
-                InternalSearchResponse.empty(),
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                 null,
                 0,
                 0,
@@ -262,7 +261,7 @@ public class ClientHelperTests extends ESTestCase {
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         searchFuture.onResponse(
             new SearchResponse(
-                InternalSearchResponse.empty(),
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                 null,
                 0,
                 0,
@@ -295,7 +294,7 @@ public class ClientHelperTests extends ESTestCase {
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         searchFuture.onResponse(
             new SearchResponse(
-                InternalSearchResponse.empty(),
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                 null,
                 0,
                 0,

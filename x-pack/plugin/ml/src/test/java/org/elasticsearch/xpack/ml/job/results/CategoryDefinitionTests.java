@@ -153,7 +153,9 @@ public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<Ca
      * For this class the strict parser is <em>only</em> used for parsing C++ output.
      */
     public void testStrictParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
@@ -165,7 +167,9 @@ public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<Ca
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             CategoryDefinition.LENIENT_PARSER.apply(parser, null);
         }
@@ -173,10 +177,6 @@ public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<Ca
 
     @Override
     protected CategoryDefinition mutateInstanceForVersion(CategoryDefinition instance, Version version) {
-        if (version.before(Version.V_7_8_0)) {
-            instance.setPreferredToCategories(new long[0]);
-            instance.setNumMatches(0L);
-        }
         return instance;
     }
 }

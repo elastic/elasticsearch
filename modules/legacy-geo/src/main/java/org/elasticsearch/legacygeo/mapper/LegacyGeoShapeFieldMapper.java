@@ -112,15 +112,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         public static final double DISTANCE_ERROR_PCT = 0.025d;
 
         public static int defaultTreeLevel(String tree) {
-            switch (tree) {
-                case PrefixTrees.GEOHASH:
-                    return GEOHASH_TREE_LEVELS;
-                case PrefixTrees.LEGACY_QUADTREE:
-                case PrefixTrees.QUADTREE:
-                    return QUADTREE_LEVELS;
-                default:
-                    throw new IllegalArgumentException("Unknown prefix type [" + tree + "]");
-            }
+            return switch (tree) {
+                case PrefixTrees.GEOHASH -> GEOHASH_TREE_LEVELS;
+                case PrefixTrees.LEGACY_QUADTREE, PrefixTrees.QUADTREE -> QUADTREE_LEVELS;
+                default -> throw new IllegalArgumentException("Unknown prefix type [" + tree + "]");
+            };
         }
     }
 
@@ -266,7 +262,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         public Builder coerce(boolean coerce) {
-            this.coerce.setValue(new Explicit<>(coerce, true));
+            this.coerce.setValue(Explicit.explicitBoolean(coerce));
             return this;
         }
 
@@ -403,6 +399,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                 onMalformed.accept(e);
             }
         }
+
+        @Override
+        public ShapeBuilder<?, ?, ?> normalizeFromSource(ShapeBuilder<?, ?, ?> geometry) {
+            return geometry;
+        }
     }
 
     public static final class GeoShapeFieldType extends AbstractShapeGeometryFieldType<ShapeBuilder<?, ?, ?>> implements GeoShapeQueryable {
@@ -446,11 +447,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         public Query geoShapeQuery(
             Geometry shape,
             String fieldName,
-            SpatialStrategy strategy,
+            SpatialStrategy spatialStrategy,
             ShapeRelation relation,
             SearchExecutionContext context
         ) {
-            return queryProcessor.geoShapeQuery(shape, fieldName, strategy, relation, context);
+            return queryProcessor.geoShapeQuery(shape, fieldName, spatialStrategy, relation, context);
         }
 
         @Override
@@ -517,8 +518,8 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             return this.defaultPrefixTreeStrategy;
         }
 
-        public PrefixTreeStrategy resolvePrefixTreeStrategy(SpatialStrategy strategy) {
-            return resolvePrefixTreeStrategy(strategy.getStrategyName());
+        public PrefixTreeStrategy resolvePrefixTreeStrategy(SpatialStrategy spatialStrategy) {
+            return resolvePrefixTreeStrategy(spatialStrategy.getStrategyName());
         }
 
         public PrefixTreeStrategy resolvePrefixTreeStrategy(String strategyName) {

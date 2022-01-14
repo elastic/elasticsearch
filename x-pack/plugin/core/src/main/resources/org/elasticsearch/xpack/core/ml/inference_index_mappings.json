@@ -38,6 +38,9 @@
       "estimated_heap_memory_usage_bytes": {
         "type": "long"
       },
+      "model_size_bytes": {
+        "type": "long"
+      },
       "doc_num": {
         "type": "long"
       },

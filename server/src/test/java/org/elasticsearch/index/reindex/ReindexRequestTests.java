@@ -259,7 +259,10 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertEquals("https", remoteInfo.getScheme());
         assertEquals("example.com", remoteInfo.getHost());
         assertEquals(9200, remoteInfo.getPort());
-        assertEquals("{\n  \"a\" : \"b\"\n}", remoteInfo.getQuery().utf8ToString());
+        assertEquals("""
+            {
+              "a" : "b"
+            }""", remoteInfo.getQuery().utf8ToString());
         assertEquals("testuser", remoteInfo.getUsername());
         assertEquals("testpass", remoteInfo.getPassword());
         assertEquals(headers, remoteInfo.getHeaders());

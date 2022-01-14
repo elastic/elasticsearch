@@ -126,45 +126,13 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             instance.getDependentVariable(),
             BoostedTreeParamsTests.mutateForVersion(instance.getBoostedTreeParams(), version),
             instance.getPredictionFieldName(),
-            version.onOrAfter(Version.V_7_7_0) ? instance.getClassAssignmentObjective() : null,
+            instance.getClassAssignmentObjective(),
             instance.getNumTopClasses(),
             instance.getTrainingPercent(),
             instance.getRandomizeSeed(),
-            version.onOrAfter(Version.V_7_10_0) ? instance.getFeatureProcessors() : Collections.emptyList(),
+            instance.getFeatureProcessors(),
             instance.getEarlyStoppingEnabled()
         );
-    }
-
-    @Override
-    protected void assertOnBWCObject(Classification bwcSerializedObject, Classification testInstance, Version version) {
-        if (version.onOrAfter(Version.V_7_6_0)) {
-            super.assertOnBWCObject(bwcSerializedObject, testInstance, version);
-            return;
-        }
-
-        Classification newBwc = new Classification(
-            bwcSerializedObject.getDependentVariable(),
-            bwcSerializedObject.getBoostedTreeParams(),
-            bwcSerializedObject.getPredictionFieldName(),
-            bwcSerializedObject.getClassAssignmentObjective(),
-            bwcSerializedObject.getNumTopClasses(),
-            bwcSerializedObject.getTrainingPercent(),
-            42L,
-            bwcSerializedObject.getFeatureProcessors(),
-            bwcSerializedObject.getEarlyStoppingEnabled()
-        );
-        Classification newInstance = new Classification(
-            testInstance.getDependentVariable(),
-            testInstance.getBoostedTreeParams(),
-            testInstance.getPredictionFieldName(),
-            testInstance.getClassAssignmentObjective(),
-            testInstance.getNumTopClasses(),
-            testInstance.getTrainingPercent(),
-            42L,
-            testInstance.getFeatureProcessors(),
-            testInstance.getEarlyStoppingEnabled()
-        );
-        super.assertOnBWCObject(newBwc, newInstance, version);
     }
 
     @Override
@@ -173,42 +141,42 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     public void testDeserialization() throws IOException {
-        String toDeserialize = "{\n"
-            + "      \"dependent_variable\": \"FlightDelayMin\",\n"
-            + "      \"feature_processors\": [\n"
-            + "        {\n"
-            + "          \"one_hot_encoding\": {\n"
-            + "            \"field\": \"OriginWeather\",\n"
-            + "            \"hot_map\": {\n"
-            + "              \"sunny_col\": \"Sunny\",\n"
-            + "              \"clear_col\": \"Clear\",\n"
-            + "              \"rainy_col\": \"Rain\"\n"
-            + "            }\n"
-            + "          }\n"
-            + "        },\n"
-            + "        {\n"
-            + "          \"one_hot_encoding\": {\n"
-            + "            \"field\": \"DestWeather\",\n"
-            + "            \"hot_map\": {\n"
-            + "              \"dest_sunny_col\": \"Sunny\",\n"
-            + "              \"dest_clear_col\": \"Clear\",\n"
-            + "              \"dest_rainy_col\": \"Rain\"\n"
-            + "            }\n"
-            + "          }\n"
-            + "        },\n"
-            + "        {\n"
-            + "          \"frequency_encoding\": {\n"
-            + "            \"field\": \"OriginWeather\",\n"
-            + "            \"feature_name\": \"mean\",\n"
-            + "            \"frequency_map\": {\n"
-            + "              \"Sunny\": 0.8,\n"
-            + "              \"Rain\": 0.2\n"
-            + "            }\n"
-            + "          }\n"
-            + "        }\n"
-            + "      ]\n"
-            + "    }"
-            + "";
+        String toDeserialize = """
+            {
+                  "dependent_variable": "FlightDelayMin",
+                  "feature_processors": [
+                    {
+                      "one_hot_encoding": {
+                        "field": "OriginWeather",
+                        "hot_map": {
+                          "sunny_col": "Sunny",
+                          "clear_col": "Clear",
+                          "rainy_col": "Rain"
+                        }
+                      }
+                    },
+                    {
+                      "one_hot_encoding": {
+                        "field": "DestWeather",
+                        "hot_map": {
+                          "dest_sunny_col": "Sunny",
+                          "dest_clear_col": "Clear",
+                          "dest_rainy_col": "Rain"
+                        }
+                      }
+                    },
+                    {
+                      "frequency_encoding": {
+                        "field": "OriginWeather",
+                        "feature_name": "mean",
+                        "frequency_map": {
+                          "Sunny": 0.8,
+                          "Rain": 0.2
+                        }
+                      }
+                    }
+                  ]
+                }""";
 
         try (
             XContentParser parser = XContentHelper.createParser(

@@ -19,7 +19,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -219,8 +219,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             Object atomicResponse = atomicResponses.get(i);
             if (atomicResponse == null) {
                 // simply ignore non active operations
-            } else if (atomicResponse instanceof NodeTermsEnumResponse) {
-                NodeTermsEnumResponse str = (NodeTermsEnumResponse) atomicResponse;
+            } else if (atomicResponse instanceof NodeTermsEnumResponse str) {
                 // Only one node response has to be incomplete for the entire result to be labelled incomplete.
                 if (str.isComplete() == false) {
                     complete = false;
@@ -247,8 +246,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     successfulShards += shards.size();
                 }
                 termsList.add(str.terms());
-            } else if (atomicResponse instanceof RemoteClusterTermsEnumResponse) {
-                RemoteClusterTermsEnumResponse rc = (RemoteClusterTermsEnumResponse) atomicResponse;
+            } else if (atomicResponse instanceof RemoteClusterTermsEnumResponse rc) {
                 // Only one node response has to be incomplete for the entire result to be labelled incomplete.
                 if (rc.resp.isComplete() == false || rc.resp.getFailedShards() > 0) {
                     complete = false;
@@ -436,7 +434,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                         QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
                             querySource,
                             scriptService,
-                            queryShardContext.getXContentRegistry(),
+                            queryShardContext.getParserConfig().registry(),
                             securityContext.getUser()
                         );
                         QueryBuilder rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);

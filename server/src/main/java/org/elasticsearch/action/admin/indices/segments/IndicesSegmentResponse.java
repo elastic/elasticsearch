@@ -27,17 +27,15 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 public class IndicesSegmentResponse extends BroadcastResponse {
 
     private final ShardSegments[] shards;
 
-    private Map<String, IndexSegments> indicesSegments;
+    private volatile Map<String, IndexSegments> indicesSegments;
 
     IndicesSegmentResponse(StreamInput in) throws IOException {
         super(in);
@@ -61,19 +59,12 @@ public class IndicesSegmentResponse extends BroadcastResponse {
         }
         Map<String, IndexSegments> indicesSegments = new HashMap<>();
 
-        Set<String> indices = new HashSet<>();
+        final Map<String, List<ShardSegments>> segmentsByIndex = new HashMap<>();
         for (ShardSegments shard : shards) {
-            indices.add(shard.getShardRouting().getIndexName());
+            segmentsByIndex.computeIfAbsent(shard.getShardRouting().getIndexName(), k -> new ArrayList<>()).add(shard);
         }
-
-        for (String indexName : indices) {
-            List<ShardSegments> shards = new ArrayList<>();
-            for (ShardSegments shard : this.shards) {
-                if (shard.getShardRouting().getIndexName().equals(indexName)) {
-                    shards.add(shard);
-                }
-            }
-            indicesSegments.put(indexName, new IndexSegments(indexName, shards.toArray(new ShardSegments[shards.size()])));
+        for (Map.Entry<String, List<ShardSegments>> entry : segmentsByIndex.entrySet()) {
+            indicesSegments.put(entry.getKey(), new IndexSegments(entry.getKey(), entry.getValue()));
         }
         this.indicesSegments = indicesSegments;
         return indicesSegments;

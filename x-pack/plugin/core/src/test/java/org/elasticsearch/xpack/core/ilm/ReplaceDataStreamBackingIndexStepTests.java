@@ -19,6 +19,7 @@ import java.util.UUID;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.is;
 
 public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase<ReplaceDataStreamBackingIndexStep> {
@@ -36,17 +37,10 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         BiFunction<String, LifecycleExecutionState, String> indexNameSupplier = instance.getTargetIndexNameSupplier();
 
         switch (between(0, 2)) {
-            case 0:
-                key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                indexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 2 -> indexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new ReplaceDataStreamBackingIndexStep(key, nextKey, indexNameSupplier);
     }
@@ -86,7 +80,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .metadata(
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(sourceIndexMetadata.getIndex())))
+                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(sourceIndexMetadata.getIndex())))
                     .build()
             )
             .build();
@@ -117,7 +111,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices))
                     .build()
             )
             .build();
@@ -165,7 +159,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices))
                     .put(targetIndexMetadata, true)
                     .build()
             )
@@ -217,7 +211,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices))
                     .put(targetIndexMetadata, true)
                     .build()
             )

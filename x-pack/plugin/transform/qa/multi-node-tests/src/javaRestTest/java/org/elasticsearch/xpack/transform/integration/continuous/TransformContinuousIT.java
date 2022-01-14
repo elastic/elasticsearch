@@ -34,7 +34,6 @@ import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
@@ -118,15 +117,16 @@ public class TransformContinuousIT extends ESRestTestCase {
         // Set logging level to trace
         // see: https://github.com/elastic/elasticsearch/issues/45562
         Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
-        addFailureRetrySetting.setJsonEntity(
-            "{\"persistent\": {\"xpack.transform.num_transform_failure_retries\": \""
-                + 0
-                + "\","
-                + "\"logger.org.elasticsearch.action.bulk\": \"info\","
-                + // reduces bulk failure spam
-                "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"debug\","
-                + "\"logger.org.elasticsearch.xpack.transform\": \"debug\"}}"
-        );
+        // reduces bulk failure spam
+        addFailureRetrySetting.setJsonEntity("""
+            {
+              "persistent": {
+                "xpack.transform.num_transform_failure_retries": "0",
+                "logger.org.elasticsearch.action.bulk": "info",
+                "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "debug",
+                "logger.org.elasticsearch.xpack.transform": "debug"
+              }
+            }""");
         client().performRequest(addFailureRetrySetting);
     }
 
@@ -193,7 +193,8 @@ public class TransformContinuousIT extends ESRestTestCase {
         for (int i = 0; i < 100; i++) {
             dates.add(
                 // create a random date between 1/1/2001 and 1/1/2006
-                formatTimestmap(dateType).format(Instant.ofEpochMilli(randomLongBetween(978307200000L, 1136073600000L)))
+                ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
+                    .format(Instant.ofEpochMilli(randomLongBetween(978307200000L, 1136073600000L)))
             );
         }
 
@@ -247,18 +248,16 @@ public class TransformContinuousIT extends ESRestTestCase {
                 }
 
                 // simulate a different timestamp that is off from the timestamp used for sync, so it can fall into the previous bucket
-                String metricDateString = formatTimestmap(dateType).format(
-                    runDate.minusSeconds(randomIntBetween(0, 2)).plusNanos(randomIntBetween(0, 999999))
-                );
+                String metricDateString = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
+                    .format(runDate.minusSeconds(randomIntBetween(0, 2)).plusNanos(randomIntBetween(0, 999999)));
                 source.append("\"metric-timestamp\":\"").append(metricDateString).append("\",");
 
-                final Instant timestamp = runDate.plusNanos(randomIntBetween(0, 999999));
-                String dateString = formatTimestmap(dateType).format(timestamp);
+                String dateString = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
+                    .format(runDate.plusNanos(randomIntBetween(0, 999999)));
 
                 source.append("\"timestamp\":\"").append(dateString).append("\",");
                 // for data streams
-                // dynamic field results in a date type
-                source.append("\"@timestamp\":\"").append(formatTimestmap("date").format(timestamp)).append("\",");
+                source.append("\"@timestamp\":\"").append(dateString).append("\",");
                 source.append("\"run\":").append(run);
                 source.append("}");
 
@@ -298,14 +297,6 @@ public class TransformContinuousIT extends ESRestTestCase {
                     );
                 }
             }
-        }
-    }
-
-    private DateFormatter formatTimestmap(String dateType) {
-        if (dateType == "date_nanos") {
-            return DateFormatter.forPattern("strict_date_optional_time_nanos").withZone(ZoneId.of("UTC"));
-        } else {
-            return DateFormatter.forPattern("strict_date_optional_time").withZone(ZoneId.of("UTC"));
         }
     }
 
@@ -438,17 +429,13 @@ public class TransformContinuousIT extends ESRestTestCase {
             logger.info("Creating source index with: {}", indexSettingsAndMappings);
             if (isDataStream) {
                 Request createCompositeTemplate = new Request("PUT", "_index_template/" + indexName + "_template");
-                createCompositeTemplate.setJsonEntity(
-                    "{\n"
-                        + "  \"index_patterns\": [ \""
-                        + indexName
-                        + "\" ],\n"
-                        + "  \"data_stream\": {\n"
-                        + "  },\n"
-                        + "  \"template\": \n"
-                        + indexSettingsAndMappings
-                        + "}"
-                );
+                createCompositeTemplate.setJsonEntity("""
+                    {
+                      "index_patterns": [ "%s" ],
+                      "data_stream": {
+                      },
+                      "template": %s
+                    }""".formatted(indexName, indexSettingsAndMappings));
                 client().performRequest(createCompositeTemplate);
                 client().performRequest(new Request("PUT", "_data_stream/" + indexName));
             } else {

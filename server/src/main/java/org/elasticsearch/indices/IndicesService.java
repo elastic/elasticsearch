@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -131,6 +131,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
@@ -203,6 +204,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final PluginsService pluginsService;
     private final NodeEnvironment nodeEnv;
     private final NamedXContentRegistry xContentRegistry;
+    private final XContentParserConfiguration parserConfig;
     private final TimeValue shardsClosedTimeout;
     private final AnalysisRegistry analysisRegistry;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -235,6 +237,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
     private volatile boolean allowExpensiveQueries;
+
+    private final IdFieldMapper idFieldMapper = new IdFieldMapper(() -> idFieldDataEnabled);
 
     @Nullable
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
@@ -283,6 +287,8 @@ public class IndicesService extends AbstractLifecycleComponent
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
         this.xContentRegistry = xContentRegistry;
+        this.parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
+            .withRegistry(xContentRegistry);
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
         this.analysisRegistry = analysisRegistry;
@@ -435,30 +441,14 @@ public class IndicesService extends AbstractLifecycleComponent
         // the cumulative statistics also account for shards that are no longer on this node, which is tracked by oldShardsStats
         for (Flag flag : flags.getFlags()) {
             switch (flag) {
-                case Get:
-                    commonStats.get.add(oldShardsStats.getStats);
-                    break;
-                case Indexing:
-                    commonStats.indexing.add(oldShardsStats.indexingStats);
-                    break;
-                case Search:
-                    commonStats.search.add(oldShardsStats.searchStats);
-                    break;
-                case Merge:
-                    commonStats.merge.add(oldShardsStats.mergeStats);
-                    break;
-                case Refresh:
-                    commonStats.refresh.add(oldShardsStats.refreshStats);
-                    break;
-                case Recovery:
-                    commonStats.recoveryStats.add(oldShardsStats.recoveryStats);
-                    break;
-                case Flush:
-                    commonStats.flush.add(oldShardsStats.flushStats);
-                    break;
-                case Bulk:
-                    commonStats.bulk.add(oldShardsStats.bulkStats);
-                    break;
+                case Get -> commonStats.get.add(oldShardsStats.getStats);
+                case Indexing -> commonStats.indexing.add(oldShardsStats.indexingStats);
+                case Search -> commonStats.search.add(oldShardsStats.searchStats);
+                case Merge -> commonStats.merge.add(oldShardsStats.mergeStats);
+                case Refresh -> commonStats.refresh.add(oldShardsStats.refreshStats);
+                case Recovery -> commonStats.recoveryStats.add(oldShardsStats.recoveryStats);
+                case Flush -> commonStats.flush.add(oldShardsStats.flushStats);
+                case Bulk -> commonStats.bulk.add(oldShardsStats.bulkStats);
             }
         }
 
@@ -728,7 +718,7 @@ public class IndicesService extends AbstractLifecycleComponent
             mapperRegistry,
             indicesFieldDataCache,
             namedWriteableRegistry,
-            this::isIdFieldDataEnabled,
+            idFieldMapper,
             valuesSourceRegistry,
             indexFoldersDeletionListeners,
             snapshotCommitSuppliers
@@ -1683,12 +1673,12 @@ public class IndicesService extends AbstractLifecycleComponent
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
-        return new QueryRewriteContext(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
+        return new QueryRewriteContext(parserConfig, namedWriteableRegistry, client, nowInMillis);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {
         return new CoordinatorRewriteContextProvider(
-            xContentRegistry,
+            parserConfig,
             namedWriteableRegistry,
             client,
             nowInMillis,
@@ -1734,13 +1724,6 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public Set<String> getAllMetadataFields() {
         return mapperRegistry.getAllMetadataMapperParsers().keySet();
-    }
-
-    /**
-     * Returns <code>true</code> if fielddata is enabled for the {@link IdFieldMapper} field, <code>false</code> otherwise.
-     */
-    public boolean isIdFieldDataEnabled() {
-        return idFieldDataEnabled;
     }
 
     private void setIdFieldDataEnabled(boolean value) {

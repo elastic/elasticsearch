@@ -11,24 +11,23 @@ package org.elasticsearch.gradle.internal.conventions;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.provider.Provider;
-import org.gradle.initialization.layout.BuildLayout;
 
-import javax.inject.Inject;
 import java.io.File;
 
 public class VersionPropertiesPlugin implements Plugin<Project> {
 
-    private BuildLayout buildLayout;
-
-    @Inject
-    VersionPropertiesPlugin(BuildLayout buildLayout) {
-        this.buildLayout = buildLayout;
-    }
-
     @Override
     public void apply(Project project) {
+        File workspaceDir;
+        if (project.getGradle().getIncludedBuilds().isEmpty()) {
+            // This is an included build, use the parent directory as workspace root
+            workspaceDir = project.getRootDir().getParentFile();
+        } else {
+            workspaceDir = project.getRootDir();
+        }
+
         // Register the service if not done yet
-        File infoPath = new File(buildLayout.getRootDirectory(), "build-tools-internal");
+        File infoPath = new File(workspaceDir, "build-tools-internal");
         Provider<VersionPropertiesBuildService> serviceProvider = project.getGradle().getSharedServices()
                 .registerIfAbsent("versions", VersionPropertiesBuildService.class, spec -> {
             spec.getParameters().getInfoPath().set(infoPath);

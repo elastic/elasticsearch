@@ -1,9 +1,3 @@
-package org.elasticsearch.painless;
-
-import java.util.Collections;
-import java.util.List;
-import java.util.function.Function;
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -11,6 +5,12 @@ import java.util.function.Function;
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+
+package org.elasticsearch.painless;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Function;
 
 /** Currently just a dummy class for testing a few features not yet exposed by whitelist! */
 public class FeatureTestObject {
@@ -105,8 +105,8 @@ public class FeatureTestObject {
         return this.x * fn.apply(arg) * (inject1 + inject2 + inject3);
     }
 
-    public Double mixedAdd(int i, Byte b, char c, Float f) {
-        return (double) (i + b + c + f);
+    public Double mixedAdd(int someInt, Byte b, char c, Float f) {
+        return (double) (someInt + b + c + f);
     }
 
     /** method taking two functions! */

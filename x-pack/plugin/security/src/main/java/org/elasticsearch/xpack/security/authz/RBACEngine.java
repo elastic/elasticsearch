@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
@@ -73,9 +74,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
-import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
@@ -124,24 +123,13 @@ public class RBACEngine implements AuthorizationEngine {
     @Override
     public void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener) {
         final Authentication authentication = requestInfo.getAuthentication();
-        getRoles(authentication.getUser(), authentication, ActionListener.wrap(role -> {
-            if (authentication.getUser().isRunAs()) {
-                getRoles(
-                    authentication.getUser().authenticatedUser(),
-                    authentication,
-                    ActionListener.wrap(
-                        authenticatedUserRole -> listener.onResponse(new RBACAuthorizationInfo(role, authenticatedUserRole)),
-                        listener::onFailure
-                    )
-                );
-            } else {
-                listener.onResponse(new RBACAuthorizationInfo(role, role));
-            }
-        }, listener::onFailure));
-    }
-
-    private void getRoles(User user, Authentication authentication, ActionListener<Role> listener) {
-        rolesStore.getRoles(user, authentication, listener);
+        rolesStore.getRoles(
+            authentication,
+            ActionListener.wrap(
+                roleTuple -> listener.onResponse(new RBACAuthorizationInfo(roleTuple.v1(), roleTuple.v2())),
+                listener::onFailure
+            )
+        );
     }
 
     @Override
@@ -182,8 +170,7 @@ public class RBACEngine implements AuthorizationEngine {
     boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication) {
         final boolean actionAllowed = SAME_USER_PRIVILEGE.test(action);
         if (actionAllowed) {
-            if (request instanceof UserRequest) {
-                UserRequest userRequest = (UserRequest) request;
+            if (request instanceof UserRequest userRequest) {
                 String[] usernames = userRequest.usernames();
                 if (usernames == null || usernames.length != 1 || usernames[0] == null) {
                     assert false : "this role should only be used for actions to apply to a single user";
@@ -200,12 +187,11 @@ public class RBACEngine implements AuthorizationEngine {
                     || GetUserPrivilegesAction.NAME.equals(action)
                     || sameUsername == false : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
                 return sameUsername;
-            } else if (request instanceof GetApiKeyRequest) {
-                GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
+            } else if (request instanceof GetApiKeyRequest getApiKeyRequest) {
                 if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
                     assert authentication.getLookedUpBy() == null : "runAs not supported for api key authentication";
                     // if authenticated by API key then the request must also contain same API key id
-                    String authenticatedApiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
+                    String authenticatedApiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
                     if (Strings.hasText(getApiKeyRequest.getApiKeyId())) {
                         return getApiKeyRequest.getApiKeyId().equals(authenticatedApiKeyId);
                     } else {
@@ -801,7 +787,12 @@ public class RBACEngine implements AuthorizationEngine {
 
         @Override
         public int hashCode() {
-            return Objects.hash(role, authenticatedUserAuthorizationInfo);
+            // Since authenticatedUserAuthorizationInfo can self reference, we handle it specially to avoid infinite recursion.
+            if (this.authenticatedUserAuthorizationInfo == this) {
+                return Objects.hashCode(role);
+            } else {
+                return Objects.hash(role, authenticatedUserAuthorizationInfo);
+            }
         }
     }
 

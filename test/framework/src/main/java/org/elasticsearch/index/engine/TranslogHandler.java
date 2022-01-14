@@ -16,6 +16,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -57,24 +58,17 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             similarityService,
             mapperRegistry,
             () -> null,
-            () -> false,
+            IdFieldMapper.NO_FIELD_DATA,
             null
         );
     }
 
     private void applyOperation(Engine engine, Engine.Operation operation) throws IOException {
         switch (operation.operationType()) {
-            case INDEX:
-                engine.index((Engine.Index) operation);
-                break;
-            case DELETE:
-                engine.delete((Engine.Delete) operation);
-                break;
-            case NO_OP:
-                engine.noOp((Engine.NoOp) operation);
-                break;
-            default:
-                throw new IllegalStateException("No operation defined for [" + operation + "]");
+            case INDEX -> engine.index((Engine.Index) operation);
+            case DELETE -> engine.delete((Engine.Delete) operation);
+            case NO_OP -> engine.noOp((Engine.NoOp) operation);
+            default -> throw new IllegalStateException("No operation defined for [" + operation + "]");
         }
     }
 
@@ -95,19 +89,12 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
         // If a translog op is replayed on the primary (eg. ccr), we need to use external instead of null for its version type.
         final VersionType versionType = (origin == Engine.Operation.Origin.PRIMARY) ? VersionType.EXTERNAL : null;
         switch (operation.opType()) {
-            case INDEX:
+            case INDEX -> {
                 final Translog.Index index = (Translog.Index) operation;
                 final String indexName = mapperService.index().getName();
                 final Engine.Index engineIndex = IndexShard.prepareIndex(
                     mapperService,
-                    new SourceToParse(
-                        indexName,
-                        index.id(),
-                        index.source(),
-                        XContentHelper.xContentType(index.source()),
-                        index.routing(),
-                        Map.of()
-                    ),
+                    new SourceToParse(index.id(), index.source(), XContentHelper.xContentType(index.source()), index.routing(), Map.of()),
                     index.seqNo(),
                     index.primaryTerm(),
                     index.version(),
@@ -119,7 +106,8 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                     SequenceNumbers.UNASSIGNED_PRIMARY_TERM
                 );
                 return engineIndex;
-            case DELETE:
+            }
+            case DELETE -> {
                 final Translog.Delete delete = (Translog.Delete) operation;
                 return IndexShard.prepareDelete(
                     delete.id(),
@@ -131,12 +119,13 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
                     SequenceNumbers.UNASSIGNED_PRIMARY_TERM
                 );
-            case NO_OP:
+            }
+            case NO_OP -> {
                 final Translog.NoOp noOp = (Translog.NoOp) operation;
                 final Engine.NoOp engineNoOp = new Engine.NoOp(noOp.seqNo(), noOp.primaryTerm(), origin, System.nanoTime(), noOp.reason());
                 return engineNoOp;
-            default:
-                throw new IllegalStateException("No operation defined for [" + operation + "]");
+            }
+            default -> throw new IllegalStateException("No operation defined for [" + operation + "]");
         }
     }
 

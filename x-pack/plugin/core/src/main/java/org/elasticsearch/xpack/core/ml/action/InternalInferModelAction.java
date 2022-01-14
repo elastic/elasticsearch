@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -15,11 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -74,18 +69,7 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             super(in);
             this.modelId = in.readString();
             this.objectsToInfer = Collections.unmodifiableList(in.readList(StreamInput::readMap));
-            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-                this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
-            } else {
-                InferenceConfig oldConfig = in.readNamedWriteable(InferenceConfig.class);
-                if (oldConfig instanceof RegressionConfig) {
-                    this.update = RegressionConfigUpdate.fromConfig((RegressionConfig) oldConfig);
-                } else if (oldConfig instanceof ClassificationConfig) {
-                    this.update = ClassificationConfigUpdate.fromConfig((ClassificationConfig) oldConfig);
-                } else {
-                    throw new IOException("Unexpected configuration type [" + oldConfig.getName() + "]");
-                }
-            }
+            this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readBoolean();
         }
 
@@ -115,11 +99,7 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             super.writeTo(out);
             out.writeString(modelId);
             out.writeCollection(objectsToInfer, StreamOutput::writeMap);
-            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-                out.writeNamedWriteable(update);
-            } else {
-                out.writeNamedWriteable(update.toConfig());
-            }
+            out.writeNamedWriteable(update);
             out.writeBoolean(previouslyLicensed);
         }
 

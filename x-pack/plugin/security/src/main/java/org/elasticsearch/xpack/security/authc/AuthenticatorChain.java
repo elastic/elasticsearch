@@ -35,6 +35,11 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
+
 class AuthenticatorChain {
 
     private static final Logger logger = LogManager.getLogger(AuthenticatorChain.class);
@@ -196,8 +201,7 @@ class AuthenticatorChain {
         Authentication authentication,
         ActionListener<Authentication> listener
     ) {
-        // TODO: only allow run as for realm authentication to maintain the existing behaviour
-        if (false == runAsEnabled || authentication.getAuthenticationType() != Authentication.AuthenticationType.REALM) {
+        if (false == runAsEnabled) {
             finishAuthentication(context, authentication, listener);
             return;
         }
@@ -227,9 +231,23 @@ class AuthenticatorChain {
             if (tuple == null) {
                 logger.debug("Cannot find run-as user [{}] for authenticated user [{}]", runAsUsername, user.principal());
                 // the user does not exist, but we still create a User object, which will later be rejected by authz
-                finalAuth = new Authentication(new User(runAsUsername, null, user), authentication.getAuthenticatedBy(), null);
+                finalAuth = new Authentication(
+                    new User(runAsUsername, null, user),
+                    authentication.getAuthenticatedBy(),
+                    null,
+                    authentication.getVersion(),
+                    authentication.getAuthenticationType(),
+                    authentication.getMetadata()
+                );
             } else {
-                finalAuth = new Authentication(new User(tuple.v1(), user), authentication.getAuthenticatedBy(), tuple.v2());
+                finalAuth = new Authentication(
+                    new User(tuple.v1(), user),
+                    authentication.getAuthenticatedBy(),
+                    tuple.v2(),
+                    authentication.getVersion(),
+                    authentication.getAuthenticationType(),
+                    authentication.getMetadata()
+                );
             }
             finishAuthentication(context, finalAuth, listener);
         }, listener::onFailure));
@@ -285,7 +303,7 @@ class AuthenticatorChain {
                 context.getRequest(),
                 context.getFallbackUser().principal()
             );
-            Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("__fallback", "__fallback", nodeName);
+            Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(FALLBACK_REALM_NAME, FALLBACK_REALM_TYPE, nodeName);
             authentication = new Authentication(
                 context.getFallbackUser(),
                 authenticatedBy,
@@ -300,7 +318,7 @@ class AuthenticatorChain {
                 context.getRequest(),
                 anonymousUser.principal()
             );
-            Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("__anonymous", "__anonymous", nodeName);
+            Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(ANONYMOUS_REALM_NAME, ANONYMOUS_REALM_TYPE, nodeName);
             authentication = new Authentication(
                 anonymousUser,
                 authenticatedBy,

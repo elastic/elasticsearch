@@ -62,7 +62,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -176,7 +175,7 @@ public class ReservedRealmTests extends ESTestCase {
         final AuthenticationResult<User> result = listener.actionGet();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.CONTINUE));
         assertNull(result.getValue());
-        verifyZeroInteractions(usersStore);
+        verifyNoMoreInteractions(usersStore);
     }
 
     public void testAuthenticationEnabledUserWithStoredPassword() throws Throwable {
@@ -309,7 +308,7 @@ public class ReservedRealmTests extends ESTestCase {
         reservedRealm.doLookupUser(principal, assertListenerIsOnlyCalledOnce(listener));
         final User user = listener.actionGet();
         assertNull(user);
-        verifyZeroInteractions(usersStore);
+        verifyNoMoreInteractions(usersStore);
     }
 
     public void testLookupDisabledAnonymous() throws Exception {
@@ -345,7 +344,7 @@ public class ReservedRealmTests extends ESTestCase {
         PlainActionFuture<User> listener = new PlainActionFuture<>();
         reservedRealm.doLookupUser(principal, assertListenerIsOnlyCalledOnce(listener));
         assertThat(listener.actionGet(), equalTo(expectedUser));
-        verifyZeroInteractions(usersStore);
+        verifyNoMoreInteractions(usersStore);
     }
 
     public void testLookupThrows() throws Exception {

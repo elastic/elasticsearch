@@ -76,7 +76,12 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         Settings baseSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Map<String, Function<Map<String, Object>, Object>> scripts = Collections.singletonMap(MOCK_SCRIPT_NAME, p -> null);
         ScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts, Collections.emptyMap());
-        scriptService = new ScriptService(baseSettings, Collections.singletonMap(engine.getType(), engine), ScriptModule.CORE_CONTEXTS);
+        scriptService = new ScriptService(
+            baseSettings,
+            Collections.singletonMap(engine.getType(), engine),
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L
+        );
 
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
@@ -243,16 +248,12 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     protected static QueryBuilder randomNestedFilter() {
         int id = randomIntBetween(0, 2);
-        switch (id) {
-            case 0:
-                return (new MatchAllQueryBuilder()).boost(randomFloat());
-            case 1:
-                return (new IdsQueryBuilder()).boost(randomFloat());
-            case 2:
-                return (new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomDouble()).boost(randomFloat()));
-            default:
-                throw new IllegalStateException("Only three query builders supported for testing sort");
-        }
+        return switch (id) {
+            case 0 -> (new MatchAllQueryBuilder()).boost(randomFloat());
+            case 1 -> (new IdsQueryBuilder()).boost(randomFloat());
+            case 2 -> (new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomDouble()).boost(randomFloat()));
+            default -> throw new IllegalStateException("Only three query builders supported for testing sort");
+        };
     }
 
     @SuppressWarnings("unchecked")

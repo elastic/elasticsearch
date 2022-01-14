@@ -83,7 +83,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             }
         },
         Setting.Property.NodeScope,
-        Setting.Property.Deprecated
+        Setting.Property.DeprecatedWarning
     );
 
     public static final Setting<Boolean> SETTING_IGNORE_DISK_WATERMARKS = Setting.boolSetting(

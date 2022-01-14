@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-put-job]]
 = Create {anomaly-jobs} API
 ++++
@@ -437,7 +436,8 @@ When the job is created, you receive the following results:
         "detector_index" : 0
       }
     ],
-    "influencers" : [ ]
+    "influencers" : [ ],
+    "model_prune_window": "30d"
   },
   "analysis_limits" : {
     "model_memory_limit" : "1024mb",

@@ -42,7 +42,7 @@ public class RestTermVectorsActionTests extends RestActionTestCase {
         ).withMethod(RestRequest.Method.POST).withPath("/some_index/some_type/some_id/_termvectors").build();
 
         dispatchRequest(request);
-        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeInBody() throws IOException {
@@ -57,6 +57,6 @@ public class RestTermVectorsActionTests extends RestActionTestCase {
             .build();
 
         dispatchRequest(request);
-        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

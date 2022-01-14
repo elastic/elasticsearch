@@ -68,7 +68,7 @@ public class ReindexValidator {
         );
         SearchSourceBuilder searchSource = request.getSearchRequest().source();
         if (searchSource != null && searchSource.sorts() != null && searchSource.sorts().isEmpty() == false) {
-            deprecationLogger.critical(DeprecationCategory.API, "reindex_sort", SORT_DEPRECATED_MESSAGE);
+            deprecationLogger.warn(DeprecationCategory.API, "reindex_sort", SORT_DEPRECATED_MESSAGE);
         }
     }
 

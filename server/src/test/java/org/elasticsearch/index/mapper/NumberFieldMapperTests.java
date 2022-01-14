@@ -199,8 +199,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                 b.field("ignore_malformed", ignoreMalformed);
             }));
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(malformed));
-            assertThat(e.getCause().getMessage(), containsString("Current token"));
-            assertThat(e.getCause().getMessage(), containsString("not numeric, can not use numeric value accessors"));
+            assertThat(e.getCause().getMessage(), containsString("Cannot parse object as number"));
         }
     }
 

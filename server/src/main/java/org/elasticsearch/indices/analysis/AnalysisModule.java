@@ -127,7 +127,7 @@ public final class AnalysisModule {
             @Override
             public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
                 if (indexSettings.getIndexVersionCreated().before(Version.V_7_0_0)) {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.ANALYSIS,
                         "standard_deprecation",
                         "The [standard] token filter name is deprecated and will be removed in a future version."
@@ -196,7 +196,7 @@ public final class AnalysisModule {
                 // in certain circumstances to create a new index referencing the standard token filter
                 // until version 7_5_2
                 if (version.before(Version.V_7_6_0)) {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.ANALYSIS,
                         "standard_deprecation",
                         "The [standard] token filter is deprecated and will be removed in a future version."
@@ -226,14 +226,10 @@ public final class AnalysisModule {
         // Temporary shim to register old style pre-configured tokenizers
         for (PreBuiltTokenizers tokenizer : PreBuiltTokenizers.values()) {
             String name = tokenizer.name().toLowerCase(Locale.ROOT);
-            PreConfiguredTokenizer preConfigured;
-            switch (tokenizer.getCachingStrategy()) {
-                case ONE:
-                    preConfigured = PreConfiguredTokenizer.singleton(name, () -> tokenizer.create(Version.CURRENT));
-                    break;
-                default:
-                    throw new UnsupportedOperationException("Caching strategy unsupported by temporary shim [" + tokenizer + "]");
-            }
+            PreConfiguredTokenizer preConfigured = switch (tokenizer.getCachingStrategy()) {
+                case ONE -> PreConfiguredTokenizer.singleton(name, () -> tokenizer.create(Version.CURRENT));
+                default -> throw new UnsupportedOperationException("Caching strategy unsupported by temporary shim [" + tokenizer + "]");
+            };
             preConfiguredTokenizers.register(name, preConfigured);
         }
         for (AnalysisPlugin plugin : plugins) {

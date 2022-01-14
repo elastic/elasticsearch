@@ -802,7 +802,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         StreamInput streamInput = output.bytes().streamInput();
         primaryContext = new ReplicationTracker.PrimaryContext(streamInput);
         switch (randomInt(3)) {
-            case 0: {
+            case 0 -> {
                 // apply cluster state update on old primary while primary context is being transferred
                 clusterState = randomUpdateClusterState(allocationIds, clusterState);
                 clusterState.apply(oldPrimary);
@@ -810,9 +810,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
                 newPrimary.activateWithPrimaryContext(primaryContext);
                 // apply cluster state update on new primary so that the states on old and new primary are comparable
                 clusterState.apply(newPrimary);
-                break;
             }
-            case 1: {
+            case 1 -> {
                 // apply cluster state update on new primary while primary context is being transferred
                 clusterState = randomUpdateClusterState(allocationIds, clusterState);
                 clusterState.apply(newPrimary);
@@ -820,20 +819,17 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
                 newPrimary.activateWithPrimaryContext(primaryContext);
                 // apply cluster state update on old primary so that the states on old and new primary are comparable
                 clusterState.apply(oldPrimary);
-                break;
             }
-            case 2: {
+            case 2 -> {
                 // apply cluster state update on both copies while primary context is being transferred
                 clusterState = randomUpdateClusterState(allocationIds, clusterState);
                 clusterState.apply(oldPrimary);
                 clusterState.apply(newPrimary);
                 newPrimary.activateWithPrimaryContext(primaryContext);
-                break;
             }
-            case 3: {
+            case 3 -> {
                 // no cluster state update
                 newPrimary.activateWithPrimaryContext(primaryContext);
-                break;
             }
         }
 

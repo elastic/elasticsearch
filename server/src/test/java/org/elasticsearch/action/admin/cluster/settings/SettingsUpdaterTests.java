@@ -210,7 +210,7 @@ public class SettingsUpdaterTests extends ESTestCase {
             "deprecated.setting",
             Property.Dynamic,
             Property.NodeScope,
-            Property.Deprecated
+            Property.DeprecatedWarning
         );
         final Settings settings = Settings.builder().put("deprecated.setting", "foo").build();
         final Set<Setting<?>> settingsSet = Stream.concat(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(), Stream.of(deprecatedSetting))

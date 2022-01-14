@@ -234,11 +234,6 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate, NamedX
     }
 
     @Override
-    public InferenceConfig toConfig() {
-        return apply(ClassificationConfig.EMPTY_PARAMS);
-    }
-
-    @Override
     public boolean isSupported(InferenceConfig inferenceConfig) {
         return inferenceConfig instanceof ClassificationConfig;
     }

@@ -93,7 +93,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         Phase warmPhase = new Phase(
             "warm",
             TimeValue.ZERO,
-            Map.of(MigrateAction.NAME, new MigrateAction(false), ShrinkAction.NAME, new ShrinkAction(1, null))
+            Map.of(MigrateAction.NAME, MigrateAction.DISABLED, ShrinkAction.NAME, new ShrinkAction(1, null))
         );
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("warm", warmPhase));
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);

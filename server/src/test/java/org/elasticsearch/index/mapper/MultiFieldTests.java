@@ -37,7 +37,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
-        LuceneDocument doc = mapperService.documentMapper().parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        LuceneDocument doc = mapperService.documentMapper().parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -66,24 +66,28 @@ public class MultiFieldTests extends MapperServiceTestCase {
 
         assertThat(mapperService.fieldType("name"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
+        assertTrue(mapperService.fieldType("name").isIndexed());
         assertTrue(mapperService.fieldType("name").isSearchable());
         assertTrue(mapperService.fieldType("name").isStored());
         assertTrue(mapperService.fieldType("name").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.fieldType("name.indexed"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
+        assertTrue(mapperService.fieldType("name.indexed").isIndexed());
         assertTrue(mapperService.fieldType("name.indexed").isSearchable());
         assertFalse(mapperService.fieldType("name.indexed").isStored());
         assertTrue(mapperService.fieldType("name.indexed").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.fieldType("name.not_indexed"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
+        assertFalse(mapperService.fieldType("name.not_indexed").isIndexed());
         assertFalse(mapperService.fieldType("name.not_indexed").isSearchable());
         assertTrue(mapperService.fieldType("name.not_indexed").isStored());
         assertTrue(mapperService.fieldType("name.not_indexed").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.fieldType("name.test1"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
+        assertTrue(mapperService.fieldType("name.test1").isIndexed());
         assertTrue(mapperService.fieldType("name.test1").isSearchable());
         assertTrue(mapperService.fieldType("name.test1").isStored());
         assertTrue(mapperService.fieldType("name.test1").getTextSearchInfo().isTokenized());
@@ -93,6 +97,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
         assertThat(mapperService.fieldType("object1.multi1"), instanceOf(DateFieldMapper.DateFieldType.class));
         assertThat(mapperService.fieldType("object1.multi1.string"), notNullValue());
         assertThat(mapperService.fieldType("object1.multi1.string"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertTrue(mapperService.fieldType("object1.multi1.string").isIndexed());
         assertTrue(mapperService.fieldType("object1.multi1.string").isSearchable());
         assertNotNull(mapperService.fieldType("object1.multi1.string").getTextSearchInfo());
         assertFalse(mapperService.fieldType("object1.multi1.string").getTextSearchInfo().isTokenized());
@@ -113,7 +118,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
         }));
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
-        LuceneDocument doc = builderDocMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        LuceneDocument doc = builderDocMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));

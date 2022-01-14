@@ -30,8 +30,12 @@ import static org.hamcrest.Matchers.lessThan;
 public class TransformCheckpointTests extends AbstractSerializingTransformTestCase<TransformCheckpoint> {
 
     public static TransformCheckpoint randomTransformCheckpoint() {
+        return randomTransformCheckpoint(randomAlphaOfLengthBetween(1, 10));
+    }
+
+    public static TransformCheckpoint randomTransformCheckpoint(String transformId) {
         return new TransformCheckpoint(
-            randomAlphaOfLengthBetween(1, 10),
+            transformId,
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomCheckpointsByIndex(),

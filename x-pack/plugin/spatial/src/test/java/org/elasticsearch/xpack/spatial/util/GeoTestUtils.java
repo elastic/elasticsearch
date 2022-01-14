@@ -13,7 +13,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
@@ -38,8 +40,7 @@ import java.io.IOException;
 public class GeoTestUtils {
 
     public static GeometryDocValueReader geometryDocValueReader(Geometry geometry, CoordinateEncoder encoder) throws IOException {
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
-        geometry = indexer.prepareForIndexing(geometry);
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(geometry);
         GeometryDocValueReader reader = new GeometryDocValueReader();
@@ -48,8 +49,7 @@ public class GeoTestUtils {
     }
 
     public static BinaryGeoShapeDocValuesField binaryGeoShapeDocValuesField(String name, Geometry geometry) {
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, name);
-        geometry = indexer.prepareForIndexing(geometry);
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, name);
         BinaryGeoShapeDocValuesField field = new BinaryGeoShapeDocValuesField(name);
         field.add(indexer.indexShape(geometry), geometry);
         return field;
@@ -92,6 +92,6 @@ public class GeoTestUtils {
         );
         parser.nextToken();
         Geometry geometry = new GeometryParser(true, true, true).parse(parser);
-        return new GeoShapeIndexer(true, "indexer").prepareForIndexing(geometry);
+        return GeometryNormalizer.apply(Orientation.CCW, geometry);
     }
 }

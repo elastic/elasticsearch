@@ -212,7 +212,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     }
 
     public void testFreezeAction() throws Exception {
-        createNewSingletonPolicy(client(), policyName, "cold", new FreezeAction());
+        createNewSingletonPolicy(client(), policyName, "cold", FreezeAction.INSTANCE);
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
@@ -285,7 +285,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     }
 
     public void testDeleteOnlyIndexInDataStreamDeletesDataStream() throws Exception {
-        createNewSingletonPolicy(client(), policyName, "delete", new DeleteAction(false));
+        createNewSingletonPolicy(client(), policyName, "delete", DeleteAction.NO_SNAPSHOT_DELETE);
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 

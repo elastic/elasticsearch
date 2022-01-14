@@ -20,12 +20,12 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -133,16 +133,17 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     @Override
     public String configRoles() {
-        return super.configRoles()
-            + "\n"
-            + "no_api_key_role:\n"
-            + "  cluster: [\"manage_token\"]\n"
-            + "manage_api_key_role:\n"
-            + "  cluster: [\"manage_api_key\"]\n"
-            + "manage_own_api_key_role:\n"
-            + "  cluster: [\"manage_own_api_key\"]\n"
-            + "run_as_role:\n"
-            + "  run_as: [\"user_with_manage_own_api_key_role\"]\n";
+        return super.configRoles() + """
+
+            no_api_key_role:
+              cluster: ["manage_token"]
+            manage_api_key_role:
+              cluster: ["manage_api_key"]
+            manage_own_api_key_role:
+              cluster: ["manage_own_api_key"]
+            run_as_role:
+              run_as: ["user_with_manage_own_api_key_role"]
+            """;
     }
 
     @Override
@@ -162,10 +163,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     @Override
     public String configUsersRoles() {
-        return super.configUsersRoles()
-            + "no_api_key_role:user_with_no_api_key_role\n"
-            + "manage_api_key_role:user_with_manage_api_key_role\n"
-            + "manage_own_api_key_role:user_with_manage_own_api_key_role\n";
+        return super.configUsersRoles() + """
+            no_api_key_role:user_with_no_api_key_role
+            manage_api_key_role:user_with_manage_api_key_role
+            manage_own_api_key_role:user_with_manage_own_api_key_role
+            """;
     }
 
     private void awaitApiKeysRemoverCompletion() throws Exception {

@@ -215,7 +215,8 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         searchHit.score(1.5f);
         XContentBuilder builder = JsonXContent.contentBuilder();
         searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"_id\":\"id1\",\"_score\":1.5}", Strings.toString(builder));
+        assertEquals("""
+            {"_id":"id1","_score":1.5}""", Strings.toString(builder));
     }
 
     public void testSerializeShardTarget() throws Exception {
@@ -288,17 +289,15 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
 
     public void testWeirdScriptFields() throws Exception {
         {
-            XContentParser parser = createParser(
-                XContentType.JSON.xContent(),
-                "{\n"
-                    + "  \"_index\": \"twitter\",\n"
-                    + "  \"_id\": \"1\",\n"
-                    + "  \"_score\": 1.0,\n"
-                    + "  \"fields\": {\n"
-                    + "    \"result\": [null]\n"
-                    + "  }\n"
-                    + "}"
-            );
+            XContentParser parser = createParser(XContentType.JSON.xContent(), """
+                {
+                  "_index": "twitter",
+                  "_id": "1",
+                  "_score": 1.0,
+                  "fields": {
+                    "result": [null]
+                  }
+                }""");
             SearchHit searchHit = SearchHit.fromXContent(parser);
             Map<String, DocumentField> fields = searchHit.getFields();
             assertEquals(1, fields.size());
@@ -308,17 +307,15 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             assertNull(result.getValues().get(0));
         }
         {
-            XContentParser parser = createParser(
-                XContentType.JSON.xContent(),
-                "{\n"
-                    + "  \"_index\": \"twitter\",\n"
-                    + "  \"_id\": \"1\",\n"
-                    + "  \"_score\": 1.0,\n"
-                    + "  \"fields\": {\n"
-                    + "    \"result\": [{}]\n"
-                    + "  }\n"
-                    + "}"
-            );
+            XContentParser parser = createParser(XContentType.JSON.xContent(), """
+                {
+                  "_index": "twitter",
+                  "_id": "1",
+                  "_score": 1.0,
+                  "fields": {
+                    "result": [{}]
+                  }
+                }""");
 
             SearchHit searchHit = SearchHit.fromXContent(parser);
             Map<String, DocumentField> fields = searchHit.getFields();
@@ -332,19 +329,17 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             assertEquals(0, map.size());
         }
         {
-            XContentParser parser = createParser(
-                JsonXContent.jsonXContent,
-                "{\n"
-                    + "  \"_index\": \"twitter\",\n"
-                    + "  \"_id\": \"1\",\n"
-                    + "  \"_score\": 1.0,\n"
-                    + "  \"fields\": {\n"
-                    + "    \"result\": [\n"
-                    + "      []\n"
-                    + "    ]\n"
-                    + "  }\n"
-                    + "}"
-            );
+            XContentParser parser = createParser(JsonXContent.jsonXContent, """
+                {
+                  "_index": "twitter",
+                  "_id": "1",
+                  "_score": 1.0,
+                  "fields": {
+                    "result": [
+                      []
+                    ]
+                  }
+                }""");
 
             SearchHit searchHit = SearchHit.fromXContent(parser);
             Map<String, DocumentField> fields = searchHit.getFields();

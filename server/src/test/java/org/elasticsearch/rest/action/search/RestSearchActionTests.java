@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
@@ -39,7 +40,7 @@ public class RestSearchActionTests extends RestActionTestCase {
         ).withMethod(RestRequest.Method.GET).withPath("/some_index/some_type/_search").build();
 
         dispatchRequest(request);
-        assertWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeParameter() {
@@ -51,7 +52,21 @@ public class RestSearchActionTests extends RestActionTestCase {
         ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
 
         dispatchRequest(request);
-        assertWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    /**
+     * The "enable_fields_emulation" flag on search requests is a no-op but should not raise an error
+     */
+    public void testEnableFieldsEmulationNoErrors() throws Exception {
+        Map<String, String> params = new HashMap<>();
+        params.put("enable_fields_emulation", "true");
+
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
+        ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
+
+        action.handleRequest(request, new FakeRestChannel(request, false, 1), verifyingClient);
     }
 
     /**

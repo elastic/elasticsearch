@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -66,9 +65,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             id = in.readString();
             expandedIds = Collections.unmodifiableList(in.readStringList());
             pageParams = new PageParams(in);
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                allowNoMatch = in.readBoolean();
-            }
+            allowNoMatch = in.readBoolean();
         }
 
         @Override
@@ -112,9 +109,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             out.writeString(id);
             out.writeStringCollection(expandedIds);
             pageParams.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                out.writeBoolean(allowNoMatch);
-            }
+            out.writeBoolean(allowNoMatch);
         }
 
         @Override
@@ -178,12 +173,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                transformsStats = new QueryPage<>(in, TransformStats::new);
-            } else {
-                List<TransformStats> stats = in.readList(TransformStats::new);
-                transformsStats = new QueryPage<>(stats, stats.size(), TransformField.TRANSFORMS);
-            }
+            transformsStats = new QueryPage<>(in, TransformStats::new);
         }
 
         public List<TransformStats> getTransformsStats() {
@@ -197,11 +187,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                transformsStats.writeTo(out);
-            } else {
-                out.writeList(transformsStats.results());
-            }
+            transformsStats.writeTo(out);
         }
 
         @Override

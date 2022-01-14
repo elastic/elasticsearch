@@ -20,7 +20,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -112,12 +111,11 @@ public class SourceLookup implements Map<String, Object> {
         if (this.reader != context.reader()) {
             this.reader = context.reader();
             // only reset reader and fieldReader when reader changes
-            if (context.reader() instanceof SequentialStoredFieldsLeafReader) {
+            if (context.reader()instanceof SequentialStoredFieldsLeafReader lf) {
                 // All the docs to fetch are adjacent but Lucene stored fields are optimized
                 // for random access and don't optimize for sequential access - except for merging.
                 // So we do a little hack here and pretend we're going to do merges in order to
                 // get better sequential access.
-                SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
                 fieldReader = lf.getSequentialStoredFieldsReader()::visitDocument;
             } else {
                 fieldReader = context.reader()::document;
@@ -173,18 +171,17 @@ public class SourceLookup implements Map<String, Object> {
         if (source != null) {
             return XContentMapValues.extractRawValues(path, source);
         }
-        FilterPath[] filterPaths = FilterPath.compile(Set.of(path));
         if (sourceAsBytes != null) {
             return XContentMapValues.extractRawValues(
                 path,
-                XContentHelper.convertToMap(sourceAsBytes, false, null, filterPaths, null).v2()
+                XContentHelper.convertToMap(sourceAsBytes, false, null, Set.of(path), null).v2()
             );
         }
         try {
             FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
             fieldReader.accept(docId, sourceFieldVisitor);
             BytesReference source = sourceFieldVisitor.source();
-            return XContentMapValues.extractRawValues(path, XContentHelper.convertToMap(source, false, null, filterPaths, null).v2());
+            return XContentMapValues.extractRawValues(path, XContentHelper.convertToMap(source, false, null, Set.of(path), null).v2());
         } catch (Exception e) {
             throw new ElasticsearchParseException("failed to parse / load source", e);
         }

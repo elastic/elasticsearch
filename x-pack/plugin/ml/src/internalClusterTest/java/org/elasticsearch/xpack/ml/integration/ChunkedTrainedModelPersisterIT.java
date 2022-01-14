@@ -122,7 +122,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         TrainedModelConfig storedConfig = getTrainedModelFuture.actionGet();
         assertThat(storedConfig.getCompressedDefinition(), equalTo(compressedDefinition));
         assertThat(storedConfig.getEstimatedOperations(), equalTo((long) modelSizeInfo.numOperations()));
-        assertThat(storedConfig.getEstimatedHeapMemory(), equalTo(modelSizeInfo.ramBytesUsed()));
+        assertThat(storedConfig.getModelSize(), equalTo(modelSizeInfo.ramBytesUsed()));
         assertThat(storedConfig.getMetadata(), hasKey("total_feature_importance"));
         assertThat(storedConfig.getMetadata(), hasKey("feature_importance_baseline"));
         assertThat(storedConfig.getMetadata(), hasKey("hyperparameters"));
@@ -147,7 +147,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             .setModelType(TrainedModelType.TREE_ENSEMBLE)
             .setVersion(Version.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
-            .setEstimatedHeapMemory(bytesUsed)
+            .setModelSize(bytesUsed)
             .setEstimatedOperations(operations)
             .setInput(TrainedModelInputTests.createRandomInput());
     }

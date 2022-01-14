@@ -37,7 +37,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -50,8 +49,8 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
     private final String resourceName = ".my_thing";
     private final String resourceType = "thingamajig";
     private final Logger logger = mock(Logger.class);
-    private final HttpEntity entity = mock(HttpEntity.class);
-    private final Supplier<HttpEntity> body = () -> entity;
+    private final HttpEntity mockEntity = mock(HttpEntity.class);
+    private final Supplier<HttpEntity> body = () -> mockEntity;
 
     private final PublishableHttpResource resource = new MockHttpResource(owner, masterTimeout, PublishableHttpResource.NO_BODY_PARAMETERS);
 
@@ -195,7 +194,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"));
         final Request request = new Request("PUT", endpoint);
         addParameters(request, resource.getDefaultParameters());
-        request.setEntity(entity);
+        request.setEntity(mockEntity);
 
         whenPerformRequestAsyncWith(client, request, e);
 
@@ -268,7 +267,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
     }
 
     public void testDoCheckAndPublishIgnoresPublishWhenCheckErrors() {
-        final PublishableHttpResource resource = new MockHttpResource(
+        final PublishableHttpResource mockResource = new MockHttpResource(
             owner,
             masterTimeout,
             PublishableHttpResource.NO_BODY_PARAMETERS,
@@ -276,7 +275,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
             true
         );
 
-        resource.doCheckAndPublish(client, wrapMockListener(publishListener));
+        mockResource.doCheckAndPublish(client, wrapMockListener(publishListener));
 
         verifyPublishListener(null);
     }
@@ -286,7 +285,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final boolean exists = randomBoolean();
         final boolean publish = randomBoolean();
 
-        final PublishableHttpResource resource = new MockHttpResource(
+        final PublishableHttpResource mockResource = new MockHttpResource(
             owner,
             masterTimeout,
             PublishableHttpResource.NO_BODY_PARAMETERS,
@@ -294,7 +293,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
             publish
         );
 
-        resource.doCheckAndPublish(client, wrapMockListener(publishListener));
+        mockResource.doCheckAndPublish(client, wrapMockListener(publishListener));
 
         verifyPublishListener(new ResourcePublishResult(exists || publish));
     }
@@ -433,7 +432,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final Response response = response("PUT", endpoint, status);
         final Request request = new Request("PUT", endpoint);
         addParameters(request, resource.getDefaultParameters());
-        request.setEntity(entity);
+        request.setEntity(mockEntity);
 
         whenPerformRequestAsyncWith(client, request, response);
 
@@ -470,10 +469,10 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
             );
         }
 
-        verifyNoMoreInteractions(client, response, logger, entity);
+        verifyNoMoreInteractions(client, response, logger, mockEntity);
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "HiddenField" })
     private void assertCheckForResource(
         final RestClient client,
         final Logger logger,
@@ -509,12 +508,12 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         if (expected == Boolean.TRUE) {
             verify(responseChecker).apply(response);
-            verifyZeroInteractions(dneResponseChecker);
+            verifyNoMoreInteractions(dneResponseChecker);
         } else if (expected == Boolean.FALSE) {
-            verifyZeroInteractions(responseChecker);
+            verifyNoMoreInteractions(responseChecker);
             verify(dneResponseChecker).apply(response);
         } else {
-            verifyZeroInteractions(responseChecker, dneResponseChecker);
+            verifyNoMoreInteractions(responseChecker, dneResponseChecker);
         }
 
         verifyCheckListener(expected);
@@ -560,7 +559,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
             verifyCheckListener(null);
         }
 
-        verifyNoMoreInteractions(client, response, logger, entity);
+        verifyNoMoreInteractions(client, response, logger, mockEntity);
     }
 
 }

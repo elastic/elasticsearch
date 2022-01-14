@@ -33,7 +33,6 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanNotQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
@@ -83,6 +82,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.BlendedTermQuery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -257,7 +257,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         // many iterations with boolean queries, which are the most complex queries to deal with when nested
         int numRandomBoolQueries = 1000;
         for (int i = 0; i < numRandomBoolQueries; i++) {
-            queryFunctions.add(() -> createRandomBooleanQuery(1, stringFields, stringContent, intFieldType, intValues));
+            queryFunctions.add(() -> createRandomBooleanQuery(1, stringFields, stringContent, intFieldType, intValues, context));
         }
         queryFunctions.add(() -> {
             int numClauses = randomIntBetween(1, 1 << randomIntBetween(2, 4));
@@ -312,7 +312,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         List<String> fields,
         Map<String, List<String>> content,
         MappedFieldType intFieldType,
-        List<Integer> intValues
+        List<Integer> intValues,
+        SearchExecutionContext context
     ) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         int numClauses = randomIntBetween(1, 1 << randomIntBetween(2, 4)); // use low numbers of clauses more often
@@ -326,24 +327,24 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                     String field = randomFrom(fields);
                     builder.add(new TermQuery(new Term(field, randomFrom(content.get(field)))), occur);
                 } else {
-                    builder.add(intFieldType.termQuery(randomFrom(intValues), null), occur);
+                    builder.add(intFieldType.termQuery(randomFrom(intValues), context), occur);
                 }
             } else if (rarely() && depth <= 3) {
                 occur = randomFrom(Arrays.asList(Occur.FILTER, Occur.MUST, Occur.SHOULD));
-                builder.add(createRandomBooleanQuery(depth + 1, fields, content, intFieldType, intValues), occur);
+                builder.add(createRandomBooleanQuery(depth + 1, fields, content, intFieldType, intValues, context), occur);
             } else if (rarely()) {
                 if (randomBoolean()) {
                     occur = randomFrom(Arrays.asList(Occur.FILTER, Occur.MUST, Occur.SHOULD));
                     if (randomBoolean()) {
                         builder.add(new TermQuery(new Term("unknown_field", randomAlphaOfLength(8))), occur);
                     } else {
-                        builder.add(intFieldType.termQuery(randomFrom(intValues), null), occur);
+                        builder.add(intFieldType.termQuery(randomFrom(intValues), context), occur);
                     }
                 } else if (randomBoolean()) {
                     String field = randomFrom(fields);
                     builder.add(new TermQuery(new Term(field, randomFrom(content.get(field)))), occur = Occur.MUST_NOT);
                 } else {
-                    builder.add(intFieldType.termQuery(randomFrom(intValues), null), occur = Occur.MUST_NOT);
+                    builder.add(intFieldType.termQuery(randomFrom(intValues), context), occur = Occur.MUST_NOT);
                 }
             } else {
                 if (randomBoolean()) {
@@ -352,7 +353,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                         String field = randomFrom(fields);
                         builder.add(new TermQuery(new Term(field, randomFrom(content.get(field)))), occur);
                     } else {
-                        builder.add(intFieldType.termQuery(randomFrom(intValues), null), occur);
+                        builder.add(intFieldType.termQuery(randomFrom(intValues), context), occur);
                     }
                 } else {
                     builder.add(new TermQuery(new Term("unknown_field", randomAlphaOfLength(8))), occur = Occur.MUST_NOT);
@@ -1126,12 +1127,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         assertEquals(0, topDocs.scoreDocs[0].doc);
     }
 
-    private void duelRun(PercolateQuery.QueryStore queryStore, MemoryIndex memoryIndex, IndexSearcher shardSearcher) throws IOException {
+    private void duelRun(PercolateQuery.QueryStore percolateQueryStore, MemoryIndex memoryIndex, IndexSearcher shardSearcher)
+        throws IOException {
         boolean requireScore = randomBoolean();
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         Query percolateQuery = fieldType.percolateQuery(
             "_name",
-            queryStore,
+            percolateQueryStore,
             Collections.singletonList(new BytesArray("{}")),
             percolateSearcher,
             false,
@@ -1140,7 +1142,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         Query query = requireScore ? percolateQuery : new ConstantScoreQuery(percolateQuery);
         TopDocs topDocs = shardSearcher.search(query, 100);
 
-        Query controlQuery = new ControlQuery(memoryIndex, queryStore);
+        Query controlQuery = new ControlQuery(memoryIndex, percolateQueryStore);
         controlQuery = requireScore ? controlQuery : new ConstantScoreQuery(controlQuery);
         TopDocs controlTopDocs = shardSearcher.search(controlQuery, 100);
 
@@ -1212,12 +1214,12 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         queries.add(query);
     }
 
-    private TopDocs executeQuery(PercolateQuery.QueryStore queryStore, MemoryIndex memoryIndex, IndexSearcher shardSearcher)
+    private TopDocs executeQuery(PercolateQuery.QueryStore percolateQueryStore, MemoryIndex memoryIndex, IndexSearcher shardSearcher)
         throws IOException {
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         Query percolateQuery = fieldType.percolateQuery(
             "_name",
-            queryStore,
+            percolateQueryStore,
             Collections.singletonList(new BytesArray("{}")),
             percolateSearcher,
             false,

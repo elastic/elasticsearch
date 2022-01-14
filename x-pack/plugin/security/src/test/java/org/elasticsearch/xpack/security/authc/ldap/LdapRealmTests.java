@@ -10,7 +10,7 @@ import com.unboundid.ldap.sdk.LDAPURL;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -435,10 +435,11 @@ public class LdapRealmTests extends LdapTestCase {
         PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", new SecureString(PASSWORD)), future);
         final AuthenticationResult<User> result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        assertThat(result, notNullValue());
+        assertThat(result.toString(), result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         User user = result.getValue();
         assertThat(user, notNullValue());
-        assertThat(user.roles(), arrayContaining("avenger"));
+        assertThat(user.toString(), user.roles(), arrayContaining("avenger"));
     }
 
     /**
@@ -472,7 +473,8 @@ public class LdapRealmTests extends LdapTestCase {
         final ScriptService scriptService = new ScriptService(
             defaultGlobalSettings,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
-            ScriptModule.CORE_CONTEXTS
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L
         );
         NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(
             defaultGlobalSettings,
@@ -482,45 +484,30 @@ public class LdapRealmTests extends LdapTestCase {
         ) {
             @Override
             protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
-                listener.onResponse(
-                    Arrays.asList(
-                        this.buildMapping(
-                            "m1",
-                            new BytesArray(
-                                "{"
-                                    + "\"role_templates\":[{\"template\":{\"source\":\"_user_{{metadata.uid}}\"}}],"
-                                    + "\"enabled\":true,"
-                                    + "\"rules\":{ \"any\":["
-                                    + " { \"field\":{\"realm.name\":\"ldap1\"}},"
-                                    + " { \"field\":{\"realm.name\":\"ldap2\"}}"
-                                    + "]}}"
-                            )
-                        ),
-                        this.buildMapping(
-                            "m2",
-                            new BytesArray(
-                                "{"
-                                    + "\"roles\":[\"should_not_happen\"],"
-                                    + "\"enabled\":true,"
-                                    + "\"rules\":{ \"all\":["
-                                    + " { \"field\":{\"realm.name\":\"ldap1\"}},"
-                                    + " { \"field\":{\"realm.name\":\"ldap2\"}}"
-                                    + "]}}"
-                            )
-                        ),
-                        this.buildMapping(
-                            "m3",
-                            new BytesArray(
-                                "{"
-                                    + "\"roles\":[\"sales_admin\"],"
-                                    + "\"enabled\":true,"
-                                    + "\"rules\":"
-                                    + " { \"field\":{\"dn\":\"*,ou=people,o=sevenSeas\"}}"
-                                    + "}"
-                            )
-                        )
-                    )
-                );
+                listener.onResponse(Arrays.asList(this.buildMapping("m1", new BytesArray("""
+                    {
+                        "role_templates": [ { "template": { "source": "_user_{{metadata.uid}}" } } ],
+                        "enabled": true,
+                        "rules": {
+                          "any": [ { "field": { "realm.name": "ldap1" } }, { "field": { "realm.name": "ldap2" } } ]
+                        }
+                      }""")), this.buildMapping("m2", new BytesArray("""
+                    {
+                      "roles": [ "should_not_happen" ],
+                      "enabled": true,
+                      "rules": {
+                        "all": [ { "field": { "realm.name": "ldap1" } }, { "field": { "realm.name": "ldap2" } } ]
+                      }
+                    }""")), this.buildMapping("m3", new BytesArray("""
+                    {
+                      "roles": [ "sales_admin" ],
+                      "enabled": true,
+                      "rules": {
+                        "field": {
+                          "dn": "*,ou=people,o=sevenSeas"
+                        }
+                      }
+                    }"""))));
             }
         };
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, sslService, threadPool);
@@ -530,7 +517,8 @@ public class LdapRealmTests extends LdapTestCase {
         PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", new SecureString(PASSWORD)), future);
         final AuthenticationResult<User> result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        assertThat(result, notNullValue());
+        assertThat(result.toString(), result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         User user = result.getValue();
         assertThat(user, notNullValue());
         assertThat(user.roles(), arrayContainingInAnyOrder("_user_hhornblo", "sales_admin"));
@@ -560,7 +548,8 @@ public class LdapRealmTests extends LdapTestCase {
         PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         final AuthenticationResult<User> result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.CONTINUE));
+        assertThat(result, notNullValue());
+        assertThat(result.toString(), result.getStatus(), is(AuthenticationResult.Status.CONTINUE));
         assertThat(result.getValue(), nullValue());
         assertThat(result.getMessage(), is("authenticate failed"));
         assertThat(result.getException(), notNullValue());

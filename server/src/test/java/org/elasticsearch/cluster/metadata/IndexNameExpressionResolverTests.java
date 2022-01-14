@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -54,6 +56,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.indices.SystemIndices.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
@@ -71,6 +74,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class IndexNameExpressionResolverTests extends ESTestCase {
 
@@ -1273,20 +1278,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
      */
     public void testConcreteIndicesAllPatternRandom() {
         for (int i = 0; i < 10; i++) {
-            final String[] allIndices;
-            switch (randomIntBetween(0, 2)) {
-                case 0:
-                    allIndices = null;
-                    break;
-                case 1:
-                    allIndices = new String[0];
-                    break;
-                case 2:
-                    allIndices = new String[] { Metadata.ALL };
-                    break;
-                default:
-                    throw new UnsupportedOperationException();
-            }
+            final String[] allIndices = switch (randomIntBetween(0, 2)) {
+                case 0 -> null;
+                case 1 -> new String[0];
+                case 2 -> new String[] { Metadata.ALL };
+                default -> throw new UnsupportedOperationException();
+            };
             final IndicesOptions indicesOptions = IndicesOptions.fromOptions(
                 randomBoolean(),
                 randomBoolean(),
@@ -1675,8 +1672,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(backingIndex1, false)
             .put(backingIndex2, false)
-            .put(new DataStream(dataStreamName1, createTimestampField("@timestamp"), List.of(backingIndex1.getIndex())))
-            .put(new DataStream(dataStreamName2, createTimestampField("@timestamp"), List.of(backingIndex2.getIndex())));
+            .put(newInstance(dataStreamName1, createTimestampField("@timestamp"), List.of(backingIndex1.getIndex())))
+            .put(newInstance(dataStreamName2, createTimestampField("@timestamp"), List.of(backingIndex2.getIndex())));
         mdBuilder.put("logs_foo", dataStreamName1, null, "{ \"term\": \"foo\"}");
         mdBuilder.put("logs", dataStreamName1, null, "{ \"term\": \"logs\"}");
         mdBuilder.put("logs_bar", dataStreamName1, null, null);
@@ -2126,7 +2123,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(backingIndex, false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(backingIndex.getIndex())));
+            .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(backingIndex.getIndex())));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
@@ -2266,9 +2263,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
     }
 
-    public void testFullWildcardSystemIndexResolutionAllowed() {
+    public void testFullWildcardSystemIndexResolutionWithExpandHiddenAllowed() {
         ClusterState state = systemIndexTestClusterState();
         SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
+        request.indicesOptions(IndicesOptions.strictExpandHidden());
 
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
         assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta", ".watches"));
@@ -2298,16 +2296,29 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(indexNames, containsInAnyOrder(".ml-meta"));
     }
 
-    public void testFullWildcardSystemIndexResolutionDeprecated() {
-        threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
+    public void testFullWildcardSystemIndicesAreHidden() {
         ClusterState state = systemIndexTestClusterState();
         SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
 
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
+        assertThat(indexNames, containsInAnyOrder("some-other-index"));
+    }
+
+    public void testFullWildcardSystemIndexResolutionDeprecated() {
+        threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
+        ClusterState state = systemIndexTestClusterState();
+        SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
+        request.indicesOptions(IndicesOptions.strictExpandHidden());
+
+        List<String> indexNames = resolveConcreteIndexNameList(state, request);
         assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta", ".watches"));
         assertWarnings(
-            "this request accesses system indices: [.ml-meta, .ml-stuff, .watches], but in a future major version, "
-                + "direct access to system indices will be prevented by default"
+            true,
+            new DeprecationWarning(
+                Level.WARN,
+                "this request accesses system indices: [.ml-meta, .ml-stuff, .watches], "
+                    + "but in a future major version, direct access to system indices will be prevented by default"
+            )
         );
 
     }
@@ -2320,13 +2331,16 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
         assertThat(indexNames, containsInAnyOrder(".ml-meta"));
         assertWarnings(
-            "this request accesses system indices: [.ml-meta], but in a future major version, direct access "
-                + "to system indices will be prevented by default"
+            true,
+            new DeprecationWarning(
+                Level.WARN,
+                "this request accesses system indices: [.ml-meta], "
+                    + "but in a future major version, direct access to system indices will be prevented by default"
+            )
         );
-
     }
 
-    public void testWildcardSystemIndexReslutionSingleMatchDeprecated() {
+    public void testWildcardSystemIndexResolutionSingleMatchDeprecated() {
         threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
         ClusterState state = systemIndexTestClusterState();
         SearchRequest request = new SearchRequest(".w*");
@@ -2334,8 +2348,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
         assertThat(indexNames, containsInAnyOrder(".watches"));
         assertWarnings(
-            "this request accesses system indices: [.watches], but in a future major version, direct access "
-                + "to system indices will be prevented by default"
+            true,
+            new DeprecationWarning(
+                Level.WARN,
+                "this request accesses system indices: [.watches], "
+                    + "but in a future major version, direct access to system indices will be prevented by default"
+            )
         );
 
     }
@@ -2348,8 +2366,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
         assertThat(indexNames, containsInAnyOrder(".ml-meta", ".ml-stuff"));
         assertWarnings(
-            "this request accesses system indices: [.ml-meta, .ml-stuff], but in a future major version, direct access "
-                + "to system indices will be prevented by default"
+            true,
+            new DeprecationWarning(
+                Level.WARN,
+                "this request accesses system indices: [.ml-meta, .ml-stuff], "
+                    + "but in a future major version, direct access to system indices will be prevented by default"
+            )
         );
 
     }
@@ -2396,8 +2418,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 List<String> indexNames = resolveConcreteIndexNameList(state, request);
                 assertThat(indexNames, contains(".external-sys-idx"));
                 assertWarnings(
-                    "this request accesses system indices: [.external-sys-idx], but in a future major version, direct access "
-                        + "to system indices will be prevented by default"
+                    true,
+                    new DeprecationWarning(
+                        Level.WARN,
+                        "this request accesses system indices: [.external-sys-idx], "
+                            + "but in a future major version, direct access to system indices will be prevented by default"
+                    )
                 );
             }
         }
@@ -2409,8 +2435,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 List<String> indexNames = resolveConcreteIndexNameList(state, request);
                 assertThat(indexNames, contains(".external-sys-idx"));
                 assertWarnings(
-                    "this request accesses system indices: [.external-sys-idx], but in a future major version, direct access "
-                        + "to system indices will be prevented by default"
+                    true,
+                    new DeprecationWarning(
+                        Level.WARN,
+                        "this request accesses system indices: [.external-sys-idx], "
+                            + "but in a future major version, direct access to system indices will be prevented by default"
+                    )
                 );
             }
         }
@@ -2471,7 +2501,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(index1, false)
             .put(index2, false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())));
+            .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
@@ -2491,7 +2521,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(index1, false)
             .put(index2, false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())));
+            .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
@@ -2592,9 +2622,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(index4, false)
             .put(index5, false)
             .put(index6, false)
-            .put(new DataStream(dataStream1, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())))
-            .put(new DataStream(dataStream2, createTimestampField("@timestamp"), List.of(index3.getIndex(), index4.getIndex())))
-            .put(new DataStream(dataStream3, createTimestampField("@timestamp"), List.of(index5.getIndex(), index6.getIndex())));
+            .put(newInstance(dataStream1, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())))
+            .put(newInstance(dataStream2, createTimestampField("@timestamp"), List.of(index3.getIndex(), index4.getIndex())))
+            .put(newInstance(dataStream3, createTimestampField("@timestamp"), List.of(index5.getIndex(), index6.getIndex())));
         mdBuilder.put(dataStreamAlias1, dataStream1, null, null);
         mdBuilder.put(dataStreamAlias1, dataStream2, true, null);
         mdBuilder.put(dataStreamAlias2, dataStream2, null, null);
@@ -2680,8 +2710,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(index2, false)
             .put(index3, false)
             .put(index4, false)
-            .put(new DataStream(dataStream1, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())))
-            .put(new DataStream(dataStream2, createTimestampField("@timestamp"), List.of(index3.getIndex(), index4.getIndex())));
+            .put(newInstance(dataStream1, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())))
+            .put(newInstance(dataStream2, createTimestampField("@timestamp"), List.of(index3.getIndex(), index4.getIndex())));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         {
@@ -2737,8 +2767,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(index2, false)
             .put(index3, false)
             .put(index4, false)
-            .put(new DataStream(dataStream1, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())))
-            .put(new DataStream(dataStream2, createTimestampField("@timestamp"), List.of(index3.getIndex(), index4.getIndex())));
+            .put(newInstance(dataStream1, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())))
+            .put(newInstance(dataStream2, createTimestampField("@timestamp"), List.of(index3.getIndex(), index4.getIndex())));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
@@ -2775,7 +2805,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     .put(index1, false)
                     .put(index2, false)
                     .put(justAnIndex, false)
-                    .put(new DataStream(dataStream1, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())))
+                    .put(newInstance(dataStream1, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())))
             )
             .build();
 
@@ -2813,6 +2843,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                             Collections.emptyMap(),
                             true,
                             false,
+                            false,
                             false
                         )
                     )
@@ -2849,8 +2880,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     .put(index3, false)
                     .put(index4, false)
                     .put(justAnIndex, false)
-                    .put(new DataStream(dataStream1, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())))
-                    .put(new DataStream(dataStream2, createTimestampField("@timestamp"), List.of(index3.getIndex(), index4.getIndex())))
+                    .put(newInstance(dataStream1, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())))
+                    .put(newInstance(dataStream2, createTimestampField("@timestamp"), List.of(index3.getIndex(), index4.getIndex())))
             )
             .build();
 
@@ -2927,12 +2958,93 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
     }
 
+    public void testResolveWriteIndexAbstraction() {
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(new Tuple<>("logs-foobar", 1)),
+            List.of("my-index")
+        );
+        state = ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.getMetadata())
+                    .put(IndexMetadata.builder(state.getMetadata().index("my-index")).putAlias(new AliasMetadata.Builder("my-alias")))
+                    .build()
+            )
+            .build();
+        DocWriteRequest<?> request = new IndexRequest("logs-foobar");
+        IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request);
+        assertThat(result.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(result.getName(), equalTo("logs-foobar"));
+
+        request = new IndexRequest("my-index");
+        result = indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request);
+        assertThat(result.getName(), equalTo("my-index"));
+        assertThat(result.getType(), equalTo(IndexAbstraction.Type.CONCRETE_INDEX));
+
+        request = new IndexRequest("my-alias");
+        result = indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request);
+        assertThat(result.getName(), equalTo("my-alias"));
+        assertThat(result.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+    }
+
+    public void testResolveWriteIndexAbstractionNoWriteIndexForAlias() {
+        ClusterState state1 = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(new Tuple<>("logs-foobar", 1)),
+            List.of("my-index", "my-index2")
+        );
+        ClusterState state2 = ClusterState.builder(state1)
+            .metadata(
+                Metadata.builder(state1.getMetadata())
+                    .put(IndexMetadata.builder(state1.getMetadata().index("my-index")).putAlias(new AliasMetadata.Builder("my-alias")))
+                    .put(IndexMetadata.builder(state1.getMetadata().index("my-index2")).putAlias(new AliasMetadata.Builder("my-alias")))
+                    .build()
+            )
+            .build();
+
+        DocWriteRequest<?> request = new IndexRequest("my-alias");
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state2, request)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "no write index is defined for alias [my-alias]. The write index may be explicitly disabled using is_write_index=false"
+                    + " or the alias points to multiple indices without one being designated as a write index"
+            )
+        );
+    }
+
+    public void testResolveWriteIndexAbstractionMissing() {
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(new Tuple<>("logs-foobar", 1)),
+            List.of("my-index")
+        );
+        DocWriteRequest<?> request = new IndexRequest("logs-my-index");
+        expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request));
+    }
+
+    public void testResolveWriteIndexAbstractionMultipleMatches() {
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(), List.of("logs-foo", "logs-bar"));
+        DocWriteRequest<?> request = mock(DocWriteRequest.class);
+        when(request.index()).thenReturn("logs-*");
+        when(request.indicesOptions()).thenReturn(IndicesOptions.lenientExpandOpen());
+        when(request.opType()).thenReturn(DocWriteRequest.OpType.INDEX);
+        when(request.includeDataStreams()).thenReturn(true);
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("unable to return a single target as the provided expression and options got resolved to multiple targets")
+        );
+    }
+
     private ClusterState systemIndexTestClusterState() {
-        Settings settings = Settings.builder().build();
         Metadata.Builder mdBuilder = Metadata.builder()
-            .put(indexBuilder(".ml-meta", settings).state(State.OPEN).system(true))
-            .put(indexBuilder(".watches", settings).state(State.OPEN).system(true))
-            .put(indexBuilder(".ml-stuff", settings).state(State.OPEN).system(true))
+            .put(indexBuilder(".ml-meta", SystemIndexDescriptor.DEFAULT_SETTINGS).state(State.OPEN).system(true))
+            .put(indexBuilder(".watches", SystemIndexDescriptor.DEFAULT_SETTINGS).state(State.OPEN).system(true))
+            .put(indexBuilder(".ml-stuff", SystemIndexDescriptor.DEFAULT_SETTINGS).state(State.OPEN).system(true))
             .put(indexBuilder("some-other-index").state(State.OPEN));
         SystemIndices systemIndices = new SystemIndices(
             Map.of(

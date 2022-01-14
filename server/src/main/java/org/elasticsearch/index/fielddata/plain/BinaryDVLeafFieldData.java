@@ -45,8 +45,8 @@ public class BinaryDVLeafFieldData implements LeafFieldData {
     }
 
     @Override
-    public DocValuesField getScriptField(String name) {
-        return new DelegateDocValuesField(new ScriptDocValues.Strings(getBytesValues()), name);
+    public DocValuesField<?> getScriptField(String name) {
+        return new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(getBytesValues())), name);
     }
 
     @Override

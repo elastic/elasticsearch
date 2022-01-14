@@ -36,7 +36,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.ml.MlTasks.trainedModelDeploymentTaskId;
+import static org.elasticsearch.xpack.core.ml.MlTasks.trainedModelAllocationTaskDescription;
 
 public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedModelAllocationAction.Response> {
 
@@ -44,6 +44,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/start";
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(20, TimeUnit.SECONDS);
+
+    /**
+     * This has been found to be approximately 300MB on linux by manual testing.
+     * We also subtract 30MB that we always add as overhead (see MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD).
+     * TODO Check if it is substantially different in other platforms.
+     */
+    private static final ByteSizeValue MEMORY_OVERHEAD = ByteSizeValue.ofMb(270);
 
     public StartTrainedModelDeploymentAction() {
         super(NAME, CreateTrainedModelAllocationAction.Response::new);
@@ -265,16 +272,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return PARSER.apply(parser, null);
         }
 
-        /**
-         * This has been found to be approximately 300MB on linux by manual testing.
-         * We also subtract 30MB that we always add as overhead (see MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD).
-         * TODO Check if it is substantially different in other platforms.
-         */
-        private static final ByteSizeValue MEMORY_OVERHEAD = ByteSizeValue.ofMb(270);
-
         private final String modelId;
         private final long modelBytes;
+        // How many threads are used by the model during inference. Used to increase inference speed.
         private final int inferenceThreads;
+        // How many threads are used when forwarding the request to the model. Used to increase throughput.
         private final int modelThreads;
         private final int queueCapacity;
 
@@ -299,8 +301,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         }
 
         public long estimateMemoryUsageBytes() {
-            // While loading the model in the process we need twice the model size.
-            return MEMORY_OVERHEAD.getBytes() + 2 * modelBytes;
+            return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(modelBytes);
         }
 
         public Version getMinimalSupportedVersion() {
@@ -380,10 +381,15 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 if (Strings.isAllOrWildcard(expectedId)) {
                     return true;
                 }
-                String expectedDescription = trainedModelDeploymentTaskId(expectedId);
+                String expectedDescription = trainedModelAllocationTaskDescription(expectedId);
                 return expectedDescription.equals(task.getDescription());
             }
             return false;
         }
+    }
+
+    public static long estimateMemoryUsageBytes(long totalDefinitionLength) {
+        // While loading the model in the process we need twice the model size.
+        return MEMORY_OVERHEAD.getBytes() + 2 * totalDefinitionLength;
     }
 }

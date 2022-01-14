@@ -15,7 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -53,8 +53,8 @@ public abstract class TestCluster implements Closeable {
     /**
      * This method should be executed before each test to reset the cluster to its initial state.
      */
-    public void beforeTest(Random random) throws IOException, InterruptedException {
-        this.random = new Random(random.nextLong());
+    public void beforeTest(Random randomGenerator) throws IOException, InterruptedException {
+        this.random = new Random(randomGenerator.nextLong());
     }
 
     /**

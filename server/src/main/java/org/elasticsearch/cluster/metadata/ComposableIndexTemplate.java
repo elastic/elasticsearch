@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -274,12 +275,25 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         ComposableIndexTemplate other = (ComposableIndexTemplate) obj;
         return Objects.equals(this.indexPatterns, other.indexPatterns)
             && Objects.equals(this.template, other.template)
-            && Objects.equals(this.componentTemplates, other.componentTemplates)
+            && componentTemplatesEquals(this.componentTemplates, other.componentTemplates)
             && Objects.equals(this.priority, other.priority)
             && Objects.equals(this.version, other.version)
             && Objects.equals(this.metadata, other.metadata)
             && Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate)
             && Objects.equals(this.allowAutoCreate, other.allowAutoCreate);
+    }
+
+    static boolean componentTemplatesEquals(List<String> c1, List<String> c2) {
+        if (Objects.equals(c1, c2)) {
+            return true;
+        }
+        if (c1 == null && c2.isEmpty()) {
+            return true;
+        }
+        if (c2 == null && c1.isEmpty()) {
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -329,11 +343,21 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         }
 
         /**
-         * @return a mapping snippet for a backing index with `_data_stream_timestamp` meta field mapper properly configured.
+         * A mapping snippet for a backing index with `_data_stream_timestamp` meta field mapper properly configured.
          */
-        public Map<String, Object> getDataStreamMappingSnippet() {
-            // _data_stream_timestamp meta fields default to @timestamp:
-            return Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of(DataStreamTimestampFieldMapper.NAME, Map.of("enabled", true)));
+        public static CompressedXContent DATA_STREAM_MAPPING_SNIPPET;
+
+        static {
+            try {
+                DATA_STREAM_MAPPING_SNIPPET = new CompressedXContent(
+                    (builder, params) -> builder.field(
+                        MapperService.SINGLE_MAPPING_NAME,
+                        Map.of(DataStreamTimestampFieldMapper.NAME, Map.of("enabled", true))
+                    )
+                );
+            } catch (IOException e) {
+                throw new AssertionError("no actual IO happens here", e);
+            }
         }
 
         public boolean isHidden() {

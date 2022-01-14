@@ -76,7 +76,7 @@ public class LifecycleSettings {
         TimeValue.timeValueSeconds(30),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope,
-        Setting.Property.Deprecated
+        Setting.Property.DeprecatedWarning
     );
     // This setting configures how much time since step_time should ILM wait for a condition to be met. After the threshold wait time has
     // elapsed ILM will likely stop waiting and go to the next step.

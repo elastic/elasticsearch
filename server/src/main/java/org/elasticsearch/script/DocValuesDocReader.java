@@ -39,7 +39,7 @@ public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier 
     }
 
     @Override
-    public Field field(String fieldName) {
+    public Field<?> field(String fieldName) {
         LeafDocLookup leafDocLookup = leafSearchLookup.doc();
 
         if (leafDocLookup.containsKey(fieldName) == false) {
@@ -50,7 +50,7 @@ public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier 
     }
 
     @Override
-    public Stream<Field> fields(String fieldGlob) {
+    public Stream<Field<?>> fields(String fieldGlob) {
         throw new UnsupportedOperationException("not implemented");
     }
 

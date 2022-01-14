@@ -11,6 +11,7 @@ package org.elasticsearch.transport.nio;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -72,6 +73,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 
 public class MockNioTransport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(MockNioTransport.class);
@@ -227,8 +229,10 @@ public class MockNioTransport extends TcpTransport {
                 if (length > PageCacheRecycler.BYTE_PAGE_SIZE) {
                     return new Page(ByteBuffer.allocate(length), () -> {});
                 } else {
-                    Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
-                    return new Page(ByteBuffer.wrap(bytes.v(), 0, length), bytes);
+                    Recycler.V<BytesRef> bytes = recycler.obtain();
+                    BytesRef v = bytes.v();
+                    assert v.length == length;
+                    return new Page(ByteBuffer.wrap(v.bytes, v.offset, length), bytes);
                 }
             };
             MockTcpReadWriteHandler readWriteHandler = new MockTcpReadWriteHandler(nioChannel, bytesRefRecycler, MockNioTransport.this);
@@ -327,7 +331,9 @@ public class MockNioTransport extends TcpTransport {
                 threadPool::relativeTimeInMillis,
                 breaker,
                 requestHandlers::getHandler,
-                transport::inboundMessage
+                transport::inboundMessage,
+                (transport instanceof MockNioTransport)
+                    && IGNORE_DESERIALIZATION_ERRORS_SETTING.get(((MockNioTransport) transport).settings)
             );
         }
 
@@ -458,7 +464,7 @@ public class MockNioTransport extends TcpTransport {
                         "Slow execution on network thread [{} milliseconds]",
                         TimeUnit.NANOSECONDS.toMillis(elapsedTime)
                     ),
-                    new RuntimeException("Slow exception on network thread")
+                    new RuntimeException("Slow execution on network thread")
                 );
             }
         }

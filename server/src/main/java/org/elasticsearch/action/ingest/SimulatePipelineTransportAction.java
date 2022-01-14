@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
@@ -33,12 +32,7 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
         ActionFilters actionFilters,
         IngestService ingestService
     ) {
-        super(
-            SimulatePipelineAction.NAME,
-            transportService,
-            actionFilters,
-            (Writeable.Reader<SimulatePipelineRequest>) SimulatePipelineRequest::new
-        );
+        super(SimulatePipelineAction.NAME, transportService, actionFilters, SimulatePipelineRequest::new);
         this.ingestService = ingestService;
         this.executionService = new SimulateExecutionService(threadPool);
     }

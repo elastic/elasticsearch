@@ -16,11 +16,9 @@ import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -57,7 +55,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private static final String INITIALIZING_SHARDS = "initializing_shards";
     private static final String UNASSIGNED_SHARDS = "unassigned_shards";
     private static final String INDICES = "indices";
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
 
     private static final ConstructingObjectParser<ClusterHealthResponse, Void> PARSER = new ConstructingObjectParser<>(
         "cluster_health_response",
@@ -122,12 +119,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         XContentParser parser,
         Void context,
         String index) -> ClusterIndexHealth.innerFromXContent(parser, index);
-    static final String ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY = "return_200_for_cluster_health_timeout";
-    static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG = "The HTTP status code for a cluster health timeout "
-        + "will be changed from 408 to 200 in a future version. Set the ["
-        + ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY
-        + "] "
-        + "query parameter to [true] to suppress this message and opt in to the future behaviour now.";
 
     static {
         // ClusterStateHealth fields
@@ -160,7 +151,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private boolean timedOut = false;
     private ClusterStateHealth clusterStateHealth;
     private ClusterHealthStatus clusterHealthStatus;
-    private boolean return200ForClusterHealthTimeout;
+
+    public ClusterHealthResponse() {}
 
     public ClusterHealthResponse(StreamInput in) throws IOException {
         super(in);
@@ -172,17 +164,11 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         numberOfInFlightFetch = in.readInt();
         delayedUnassignedShards = in.readInt();
         taskMaxWaitingTime = in.readTimeValue();
-        return200ForClusterHealthTimeout = in.readBoolean();
     }
 
     /** needed for plugins BWC */
-    public ClusterHealthResponse(
-        String clusterName,
-        String[] concreteIndices,
-        ClusterState clusterState,
-        boolean return200ForServerTimeout
-    ) {
-        this(clusterName, concreteIndices, clusterState, -1, -1, -1, TimeValue.timeValueHours(0), return200ForServerTimeout);
+    public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
+        this(clusterName, concreteIndices, clusterState, -1, -1, -1, TimeValue.timeValueHours(0));
     }
 
     public ClusterHealthResponse(
@@ -192,8 +178,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         int numberOfPendingTasks,
         int numberOfInFlightFetch,
         int delayedUnassignedShards,
-        TimeValue taskMaxWaitingTime,
-        boolean return200ForServerTimeout
+        TimeValue taskMaxWaitingTime
     ) {
         this.clusterName = clusterName;
         this.numberOfPendingTasks = numberOfPendingTasks;
@@ -202,7 +187,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         this.taskMaxWaitingTime = taskMaxWaitingTime;
         this.clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
         this.clusterHealthStatus = clusterStateHealth.getStatus();
-        this.return200ForClusterHealthTimeout = return200ForServerTimeout;
     }
 
     /**
@@ -341,7 +325,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         out.writeInt(numberOfInFlightFetch);
         out.writeInt(delayedUnassignedShards);
         out.writeTimeValue(taskMaxWaitingTime);
-        out.writeBoolean(return200ForClusterHealthTimeout);
     }
 
     @Override
@@ -351,15 +334,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     @Override
     public RestStatus status() {
-        if (isTimedOut() == false) {
-            return RestStatus.OK;
-        }
-        if (return200ForClusterHealthTimeout) {
-            return RestStatus.OK;
-        } else {
-            deprecationLogger.compatibleCritical("cluster_health_request_timeout", CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG);
-            return RestStatus.REQUEST_TIMEOUT;
-        }
+        return isTimedOut() ? RestStatus.REQUEST_TIMEOUT : RestStatus.OK;
     }
 
     @Override

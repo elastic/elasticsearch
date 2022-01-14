@@ -73,7 +73,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class TransportBulkActionIngestTests extends ESTestCase {
@@ -253,7 +253,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             ActionListener.wrap(response -> {}, exception -> { throw new AssertionError(exception); })
         );
         assertTrue(action.isExecuted);
-        verifyZeroInteractions(ingestService);
+        verifyNoMoreInteractions(ingestService);
     }
 
     public void testSingleItemBulkActionIngestSkipped() throws Exception {
@@ -266,7 +266,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             ActionListener.wrap(response -> {}, exception -> { throw new AssertionError(exception); })
         );
         assertTrue(action.isExecuted);
-        verifyZeroInteractions(ingestService);
+        verifyNoMoreInteractions(ingestService);
     }
 
     public void testIngestLocal() throws Exception {
@@ -314,7 +314,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoMoreInteractions(transportService);
     }
 
     public void testSingleItemBulkActionIngestLocal() throws Exception {
@@ -354,7 +354,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoMoreInteractions(transportService);
     }
 
     public void testIngestSystemLocal() throws Exception {
@@ -402,7 +402,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoMoreInteractions(transportService);
     }
 
     public void testIngestForward() throws Exception {
@@ -562,7 +562,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoMoreInteractions(transportService);
     }
 
     public void testDoExecuteCalledTwiceCorrectly() throws Exception {
@@ -607,7 +607,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertTrue(action.isExecuted);
         assertTrue(action.indexCreated); // now the index is created since we skipped the ingest node path.
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoMoreInteractions(transportService);
     }
 
     public void testNotFindDefaultPipelineFromTemplateMatches() {
@@ -626,7 +626,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             })
         );
         assertEquals(IngestService.NOOP_PIPELINE_NAME, indexRequest.getPipeline());
-        verifyZeroInteractions(ingestService);
+        verifyNoMoreInteractions(ingestService);
 
     }
 
@@ -741,6 +741,43 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         );
     }
 
+    public void testIngestCallbackExceptionHandled() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest1 = new IndexRequest("index");
+        indexRequest1.source(Collections.emptyMap());
+        indexRequest1.setPipeline("testpipeline");
+        bulkRequest.add(indexRequest1);
+
+        AtomicBoolean responseCalled = new AtomicBoolean(false);
+        AtomicBoolean failureCalled = new AtomicBoolean(false);
+        ActionTestUtils.execute(
+            action,
+            null,
+            bulkRequest,
+            ActionListener.wrap(response -> { responseCalled.set(true); }, e -> { failureCalled.set(true); })
+        );
+
+        // check failure works, and passes through to the listener
+        assertFalse(action.isExecuted); // haven't executed yet
+        assertFalse(responseCalled.get());
+        assertFalse(failureCalled.get());
+        verify(ingestService).executeBulkRequest(
+            eq(bulkRequest.numberOfActions()),
+            bulkDocsItr.capture(),
+            failureHandler.capture(),
+            completionHandler.capture(),
+            any(),
+            eq(Names.WRITE)
+        );
+        indexRequest1.process();
+        completionHandler.getValue().accept(Thread.currentThread(), null);
+
+        // check failure passed through to the listener
+        assertFalse(action.isExecuted);
+        assertFalse(responseCalled.get());
+        assertTrue(failureCalled.get());
+    }
+
     private void validateDefaultPipeline(IndexRequest indexRequest) {
         Exception exception = new Exception("fake exception");
         indexRequest.source(Collections.emptyMap());
@@ -778,6 +815,6 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoMoreInteractions(transportService);
     }
 }

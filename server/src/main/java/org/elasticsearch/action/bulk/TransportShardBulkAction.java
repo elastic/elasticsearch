@@ -32,8 +32,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -52,7 +50,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
@@ -61,7 +58,6 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -269,6 +265,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     ) throws Exception {
         final DocWriteRequest.OpType opType = context.getCurrent().opType();
 
+        // Translate update requests into index or delete requests which can be executed directly
         final UpdateHelper.Result updateResult;
         if (opType == DocWriteRequest.OpType.UPDATE) {
             final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
@@ -283,26 +280,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 context.markAsCompleted(context.getExecutionResult());
                 return true;
             }
-            // execute translated update request
-            switch (updateResult.getResponseResult()) {
-                case CREATED:
-                case UPDATED:
-                    IndexRequest indexRequest = updateResult.action();
-                    IndexMetadata metadata = context.getPrimary().indexSettings().getIndexMetadata();
-                    MappingMetadata mappingMd = metadata.mapping();
-                    indexRequest.process(metadata.getCreationVersion(), mappingMd, updateRequest.concreteIndex());
-                    context.setRequestToExecute(indexRequest);
-                    break;
-                case DELETED:
-                    context.setRequestToExecute(updateResult.action());
-                    break;
-                case NOOP:
-                    context.markOperationAsNoOp(updateResult.action());
-                    context.markAsCompleted(context.getExecutionResult());
-                    return true;
-                default:
-                    throw new IllegalStateException("Illegal update operation " + updateResult.getResponseResult());
+            if (updateResult.getResponseResult() == DocWriteResponse.Result.NOOP) {
+                context.markOperationAsNoOp(updateResult.action());
+                context.markAsCompleted(context.getExecutionResult());
+                return true;
             }
+            DocWriteRequest<?> translated = updateResult.action();
+            translated.process();
+            context.setRequestToExecute(translated);
         } else {
             context.setRequestToExecute(context.getCurrent());
             updateResult = null;
@@ -326,7 +311,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } else {
             final IndexRequest request = context.getRequestToExecute();
             final SourceToParse sourceToParse = new SourceToParse(
-                request.index(),
                 request.id(),
                 request.source(),
                 request.getContentType(),
@@ -349,7 +333,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 primary.mapperService()
                     .merge(
                         MapperService.SINGLE_MAPPING_NAME,
-                        new CompressedXContent(result.getRequiredMappingUpdate(), XContentType.JSON, ToXContent.EMPTY_PARAMS),
+                        new CompressedXContent(result.getRequiredMappingUpdate()),
                         MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT
                     );
             } catch (Exception e) {
@@ -584,12 +568,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     ) throws Exception {
         final Engine.Result result;
         switch (docWriteRequest.opType()) {
-            case CREATE:
-            case INDEX:
+            case CREATE, INDEX -> {
                 final IndexRequest indexRequest = (IndexRequest) docWriteRequest;
-                final ShardId shardId = replica.shardId();
                 final SourceToParse sourceToParse = new SourceToParse(
-                    shardId.getIndexName(),
                     indexRequest.id(),
                     indexRequest.source(),
                     indexRequest.getContentType(),
@@ -604,8 +585,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     indexRequest.isRetry(),
                     sourceToParse
                 );
-                break;
-            case DELETE:
+            }
+            case DELETE -> {
                 DeleteRequest deleteRequest = (DeleteRequest) docWriteRequest;
                 result = replica.applyDeleteOperationOnReplica(
                     primaryResponse.getSeqNo(),
@@ -613,10 +594,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     primaryResponse.getVersion(),
                     deleteRequest.id()
                 );
-                break;
-            default:
+            }
+            default -> {
                 assert false : "Unexpected request operation type on replica: " + docWriteRequest + ";primary result: " + primaryResponse;
                 throw new IllegalStateException("Unexpected request operation type on replica: " + docWriteRequest.opType().getLowercase());
+            }
         }
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
             // Even though the primary waits on all nodes to ack the mapping changes to the master

@@ -217,17 +217,13 @@ public class NioHttpRequest implements HttpRequest {
     }
 
     @Override
-    public NioHttpResponse createResponse(RestStatus status, BytesReference content) {
-        return new NioHttpResponse(request.headers(), request.protocolVersion(), status, content);
+    public NioHttpResponse createResponse(RestStatus status, BytesReference contentRef) {
+        return new NioHttpResponse(request.protocolVersion(), status, contentRef);
     }
 
     @Override
     public Exception getInboundException() {
         return inboundException;
-    }
-
-    public FullHttpRequest nettyRequest() {
-        return request;
     }
 
     /**
@@ -258,7 +254,7 @@ public class NioHttpRequest implements HttpRequest {
 
         @Override
         public boolean containsKey(Object key) {
-            return key instanceof String && httpHeaders.contains((String) key);
+            return key instanceof String string && httpHeaders.contains(string);
         }
 
         @Override
@@ -268,7 +264,7 @@ public class NioHttpRequest implements HttpRequest {
 
         @Override
         public List<String> get(Object key) {
-            return key instanceof String ? httpHeaders.getAll((String) key) : null;
+            return key instanceof String string ? httpHeaders.getAll(string) : null;
         }
 
         @Override

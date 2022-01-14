@@ -33,8 +33,6 @@ public class GetDatafeedsAction extends ActionType<GetDatafeedsAction.Response> 
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        @Deprecated
-        public static final String ALLOW_NO_DATAFEEDS = "allow_no_datafeeds";
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
         private String datafeedId;

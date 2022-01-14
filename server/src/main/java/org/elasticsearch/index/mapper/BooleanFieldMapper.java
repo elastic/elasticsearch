@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.field.BooleanDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -138,14 +139,14 @@ public class BooleanFieldMapper extends FieldMapper {
 
         public BooleanFieldType(
             String name,
-            boolean isSearchable,
+            boolean isIndexed,
             boolean isStored,
             boolean hasDocValues,
             Boolean nullValue,
             FieldValues<Boolean> scriptValues,
             Map<String, String> meta
         ) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
         }
@@ -198,14 +199,11 @@ public class BooleanFieldMapper extends FieldMapper {
             } else {
                 sValue = value.toString();
             }
-            switch (sValue) {
-                case "true":
-                    return Values.TRUE;
-                case "false":
-                    return Values.FALSE;
-                default:
-                    throw new IllegalArgumentException("Can't parse boolean value [" + sValue + "], expected [true] or [false]");
-            }
+            return switch (sValue) {
+                case "true" -> Values.TRUE;
+                case "false" -> Values.FALSE;
+                default -> throw new IllegalArgumentException("Can't parse boolean value [" + sValue + "], expected [true] or [false]");
+            };
         }
 
         @Override
@@ -213,20 +211,17 @@ public class BooleanFieldMapper extends FieldMapper {
             if (value == null) {
                 return null;
             }
-            switch (value.toString()) {
-                case "F":
-                    return false;
-                case "T":
-                    return true;
-                default:
-                    throw new IllegalArgumentException("Expected [T] or [F] but got [" + value + "]");
-            }
+            return switch (value.toString()) {
+                case "F" -> false;
+                case "T" -> true;
+                default -> throw new IllegalArgumentException("Expected [T] or [F] but got [" + value + "]");
+            };
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.BOOLEAN);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.BOOLEAN, BooleanDocValuesField::new);
         }
 
         @Override

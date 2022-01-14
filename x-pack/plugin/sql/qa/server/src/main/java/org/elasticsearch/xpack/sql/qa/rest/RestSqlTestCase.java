@@ -24,6 +24,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.qa.ErrorsTestCase;
@@ -54,21 +55,21 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.xpack.ql.TestUtils.getNumberOfSearchContexts;
-import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNS_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_ASYNC_ID;
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_ASYNC_PARTIAL;
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_ASYNC_RUNNING;
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_CURSOR;
-import static org.elasticsearch.xpack.sql.proto.Protocol.ID_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.IS_PARTIAL_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.IS_RUNNING_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.ROWS_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_ASYNC_DELETE_REST_ENDPOINT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_ASYNC_REST_ENDPOINT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_ASYNC_STATUS_REST_ENDPOINT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
-import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_FORMAT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.COLUMNS_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_ASYNC_ID;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_ASYNC_PARTIAL;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_ASYNC_RUNNING;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_CURSOR;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ID_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.IS_PARTIAL_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.IS_RUNNING_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ROWS_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_ASYNC_DELETE_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_ASYNC_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_ASYNC_STATUS_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_FORMAT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -77,8 +78,8 @@ import static org.hamcrest.Matchers.containsString;
  */
 public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements ErrorsTestCase {
 
-    public static String SQL_QUERY_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
-    private static String SQL_TRANSLATE_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_TRANSLATE_REST_ENDPOINT;
+    public static String SQL_QUERY_REST_ENDPOINT = CoreProtocol.SQL_QUERY_REST_ENDPOINT;
+    private static String SQL_TRANSLATE_REST_ENDPOINT = CoreProtocol.SQL_TRANSLATE_REST_ENDPOINT;
 
     /**
      * Builds that map that is returned in the header for each column.
@@ -301,10 +302,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         String mode = randomMode();
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
-        bulk.append("{\"name\":\"test\", \"score\":10}\n");
-        request.setJsonEntity(bulk.toString());
+        String bulk = """
+            {"index":{"_id":"1"}}
+            {"name":"test", "score":10}
+            """;
+        request.setJsonEntity(bulk);
         provisioningClient().performRequest(request);
 
         Map<String, Object> expected = new HashMap<>();
@@ -687,37 +689,41 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         boolean columnar = randomBoolean();
         String expected = "";
         if (columnar) {
-            expected = "{\n"
-                + "  \"columns\" : [\n"
-                + "    {\n"
-                + "      \"name\" : \"test1\",\n"
-                + "      \"type\" : \"text\"\n"
-                + "    }\n"
-                + "  ],\n"
-                + "  \"values\" : [\n"
-                + "    [\n"
-                + "      \"test1\",\n"
-                + "      \"test2\"\n"
-                + "    ]\n"
-                + "  ]\n"
-                + "}\n";
+            expected = """
+                {
+                  "columns" : [
+                    {
+                      "name" : "test1",
+                      "type" : "text"
+                    }
+                  ],
+                  "values" : [
+                    [
+                      "test1",
+                      "test2"
+                    ]
+                  ]
+                }
+                """;
         } else {
-            expected = "{\n"
-                + "  \"columns\" : [\n"
-                + "    {\n"
-                + "      \"name\" : \"test1\",\n"
-                + "      \"type\" : \"text\"\n"
-                + "    }\n"
-                + "  ],\n"
-                + "  \"rows\" : [\n"
-                + "    [\n"
-                + "      \"test1\"\n"
-                + "    ],\n"
-                + "    [\n"
-                + "      \"test2\"\n"
-                + "    ]\n"
-                + "  ]\n"
-                + "}\n";
+            expected = """
+                {
+                  "columns" : [
+                    {
+                      "name" : "test1",
+                      "type" : "text"
+                    }
+                  ],
+                  "rows" : [
+                    [
+                      "test1"
+                    ],
+                    [
+                      "test2"
+                    ]
+                  ]
+                }
+                """;
         }
         executeAndAssertPrettyPrinting(expected, "true", columnar);
     }
@@ -726,9 +732,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         boolean columnar = randomBoolean();
         String expected = "";
         if (columnar) {
-            expected = "{\"columns\":[{\"name\":\"test1\",\"type\":\"text\"}],\"values\":[[\"test1\",\"test2\"]]}";
+            expected = """
+                {"columns":[{"name":"test1","type":"text"}],"values":[["test1","test2"]]}""";
         } else {
-            expected = "{\"columns\":[{\"name\":\"test1\",\"type\":\"text\"}],\"rows\":[[\"test1\"],[\"test2\"]]}";
+            expected = """
+                {"columns":[{"name":"test1","type":"text"}],"rows":[["test1"],["test2"]]}""";
         }
         executeAndAssertPrettyPrinting(expected, randomFrom("false", null), columnar);
     }
@@ -975,7 +983,12 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     public void testBasicQueryText() throws IOException {
         index("{\"test\":\"test\"}", "{\"test\":\"test\"}");
 
-        String expected = "     test      \n" + "---------------\n" + "test           \n" + "test           \n";
+        String expected = """
+                 test     \s
+            ---------------
+            test          \s
+            test          \s
+            """;
         Tuple<String, String> response = runSqlAsText("SELECT * FROM " + indexPattern("test"), "text/plain");
         assertEquals(expected, response.v1());
     }
@@ -997,7 +1010,12 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             "{\"name\":" + toJson("\"third,\"") + ", \"number\": 3 }"
         );
 
-        String expected = "name,number\r\n" + "first,1\r\n" + "second\t,2\r\n" + "\"\"\"third,\"\"\",3\r\n";
+        String expected = """
+            name,number\r
+            first,1\r
+            second\t,2\r
+            ""\"third,""\",3\r
+            """;
 
         String query = "SELECT * FROM " + indexPattern("test") + " ORDER BY number";
         Tuple<String, String> response = runSqlAsText(query, "text/csv");
@@ -1014,7 +1032,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             "{\"name\":" + toJson("\"third,\"") + ", \"number\": 3 }"
         );
 
-        String expected = "first,1\r\n" + "second\t,2\r\n" + "\"\"\"third,\"\"\",3\r\n";
+        String expected = """
+            first,1\r
+            second\t,2\r
+            ""\"third,""\",3\r
+            """;
 
         String query = "SELECT * FROM " + indexPattern("test") + " ORDER BY number";
         Tuple<String, String> response = runSqlAsText(query, "text/csv; header=absent");
@@ -1061,7 +1083,12 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             "{\"name\":" + toJson("\"third,\"") + ", \"number\": 3 }"
         );
 
-        String expected = "name\tnumber\n" + "first\t1\n" + "second\\t\t2\n" + "\"third,\"\t3\n";
+        String expected = """
+            name\tnumber
+            first\t1
+            second\\t\t2
+            "third,"\t3
+            """;
 
         String query = "SELECT * FROM " + indexPattern("test") + " ORDER BY number";
         Tuple<String, String> response = runSqlAsText(query, "text/tab-separated-values");
@@ -1129,7 +1156,9 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         int size = 20;
         String[] docs = new String[size];
         for (int i = 0; i < size; i++) {
-            docs[i] = "{\"text\":\"text" + i + "\", \"number\":" + i + "}\n";
+            docs[i] = """
+                {"text":"text%s", "number":%s}
+                """.formatted(i, i);
         }
         index(docs);
 
@@ -1184,8 +1213,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < count; i++) {
-            bulk.append("{\"index\":{\"_id\":\"" + i + "\"}}\n");
-            bulk.append("{\"text\":\"text" + i + "\", \"number\":" + i + "}\n");
+            bulk.append("""
+                {"index":{"_id":"%s"}}
+                {"text":"text%s", "number":%s}
+                """.formatted(i, i, i));
         }
         request.setJsonEntity(bulk.toString());
         provisioningClient().performRequest(request);
@@ -1276,6 +1307,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80089")
     public void testAsyncTextPaginated() throws IOException, InterruptedException {
         final Map<String, String> acceptMap = new HashMap<>() {
             {
@@ -1421,15 +1453,9 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             int val = fetchSize * count + i;
             sb.append("text").append(val);
             switch (format) {
-                case "txt":
-                    sb.append(val < 10 ? " " : StringUtils.EMPTY).append("         |");
-                    break;
-                case "csv":
-                    sb.append(csvDelimiter);
-                    break;
-                case "tsv":
-                    sb.append('\t');
-                    break;
+                case "txt" -> sb.append(val < 10 ? " " : StringUtils.EMPTY).append("         |");
+                case "csv" -> sb.append(csvDelimiter);
+                case "tsv" -> sb.append('\t');
             }
             sb.append(val);
             if (format.equals("txt")) {

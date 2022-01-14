@@ -200,26 +200,17 @@ public abstract class Rounding implements Writeable {
         }
 
         public static DateTimeUnit resolve(byte id) {
-            switch (id) {
-                case 1:
-                    return WEEK_OF_WEEKYEAR;
-                case 2:
-                    return YEAR_OF_CENTURY;
-                case 3:
-                    return QUARTER_OF_YEAR;
-                case 4:
-                    return MONTH_OF_YEAR;
-                case 5:
-                    return DAY_OF_MONTH;
-                case 6:
-                    return HOUR_OF_DAY;
-                case 7:
-                    return MINUTES_OF_HOUR;
-                case 8:
-                    return SECOND_OF_MINUTE;
-                default:
-                    throw new ElasticsearchException("Unknown date time unit id [" + id + "]");
-            }
+            return switch (id) {
+                case 1 -> WEEK_OF_WEEKYEAR;
+                case 2 -> YEAR_OF_CENTURY;
+                case 3 -> QUARTER_OF_YEAR;
+                case 4 -> MONTH_OF_YEAR;
+                case 5 -> DAY_OF_MONTH;
+                case 6 -> HOUR_OF_DAY;
+                case 7 -> MINUTES_OF_HOUR;
+                case 8 -> SECOND_OF_MINUTE;
+                default -> throw new ElasticsearchException("Unknown date time unit id [" + id + "]");
+            };
         }
     }
 
@@ -283,9 +274,11 @@ public abstract class Rounding implements Writeable {
     public abstract Prepared prepareForUnknown();
 
     /**
-     * Prepare rounding using java time classes. Package private for testing.
+     * Prepare rounding forcing the java time implementation. Prefer
+     * {@link #prepare} or {@link #prepareForUnknown} which can be much
+     * faster.
      */
-    abstract Prepared prepareJavaTime();
+    public abstract Prepared prepareJavaTime();
 
     /**
      * Rounds the given value.
@@ -558,7 +551,7 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        TimeUnitPreparedRounding prepareJavaTime() {
+        public TimeUnitPreparedRounding prepareJavaTime() {
             if (unitRoundsToMidnight) {
                 return new JavaTimeToMidnightRounding();
             }
@@ -649,6 +642,9 @@ public abstract class Rounding implements Writeable {
                     }
                 }
             }
+
+            @Override
+            public abstract String toString();
         }
 
         private class FixedToMidnightRounding extends TimeUnitPreparedRounding {
@@ -667,6 +663,11 @@ public abstract class Rounding implements Writeable {
             public long nextRoundingValue(long utcMillis) {
                 // TODO this is used in date range's collect so we should optimize it too
                 return new JavaTimeToMidnightRounding().nextRoundingValue(utcMillis);
+            }
+
+            @Override
+            public String toString() {
+                return TimeUnitRounding.this + "[fixed to midnight]";
             }
         }
 
@@ -687,6 +688,11 @@ public abstract class Rounding implements Writeable {
             @Override
             public final long nextRoundingValue(long utcMillis) {
                 return round(utcMillis + unitMillis);
+            }
+
+            @Override
+            public String toString() {
+                return TimeUnitRounding.this + "[fixed to " + unitMillis + "]";
             }
         }
 
@@ -736,6 +742,11 @@ public abstract class Rounding implements Writeable {
                 }
                 return super.maybeUseArray(minUtcMillis, maxUtcMillis, max);
             }
+
+            @Override
+            public String toString() {
+                return TimeUnitRounding.this + "[across DST to midnight]";
+            }
         }
 
         private class NotToMidnightRounding extends AbstractNotToMidnightRounding implements LocalTimeOffset.Strategy {
@@ -776,6 +787,11 @@ public abstract class Rounding implements Writeable {
                     return overlap.localToUtcInThisOffset(localMillis);
                 }
                 return overlap.previous().localToUtc(localMillis, this); // This is mostly for Asia/Lord_Howe
+            }
+
+            @Override
+            public String toString() {
+                return TimeUnitRounding.this + "[across DST to " + unitMillis + "]";
             }
         }
 
@@ -822,20 +838,19 @@ public abstract class Rounding implements Writeable {
             private LocalDateTime nextRelevantMidnight(LocalDateTime localMidnight) {
                 assert localMidnight.toLocalTime().equals(LocalTime.MIDNIGHT) : "nextRelevantMidnight should only be called at midnight";
 
-                switch (unit) {
-                    case DAY_OF_MONTH:
-                        return localMidnight.plus(1, ChronoUnit.DAYS);
-                    case WEEK_OF_WEEKYEAR:
-                        return localMidnight.plus(7, ChronoUnit.DAYS);
-                    case MONTH_OF_YEAR:
-                        return localMidnight.plus(1, ChronoUnit.MONTHS);
-                    case QUARTER_OF_YEAR:
-                        return localMidnight.plus(3, ChronoUnit.MONTHS);
-                    case YEAR_OF_CENTURY:
-                        return localMidnight.plus(1, ChronoUnit.YEARS);
-                    default:
-                        throw new IllegalArgumentException("Unknown round-to-midnight unit: " + unit);
-                }
+                return switch (unit) {
+                    case DAY_OF_MONTH -> localMidnight.plus(1, ChronoUnit.DAYS);
+                    case WEEK_OF_WEEKYEAR -> localMidnight.plus(7, ChronoUnit.DAYS);
+                    case MONTH_OF_YEAR -> localMidnight.plus(1, ChronoUnit.MONTHS);
+                    case QUARTER_OF_YEAR -> localMidnight.plus(3, ChronoUnit.MONTHS);
+                    case YEAR_OF_CENTURY -> localMidnight.plus(1, ChronoUnit.YEARS);
+                    default -> throw new IllegalArgumentException("Unknown round-to-midnight unit: " + unit);
+                };
+            }
+
+            @Override
+            public String toString() {
+                return TimeUnitRounding.this + "[java.time to midnight]";
             }
         }
 
@@ -891,6 +906,11 @@ public abstract class Rounding implements Writeable {
                     // is missing due to an offset transition, so the time cannot be truncated.
                     return null;
                 }
+            }
+
+            @Override
+            public String toString() {
+                return TimeUnitRounding.this + "[java.time to " + unitMillis + "]";
             }
         }
 
@@ -975,7 +995,7 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        TimeIntervalPreparedRounding prepareJavaTime() {
+        public TimeIntervalPreparedRounding prepareJavaTime() {
             return new JavaTimeRounding();
         }
 
@@ -1038,6 +1058,9 @@ public abstract class Rounding implements Writeable {
                     );
                 }
             }
+
+            @Override
+            public abstract String toString();
         }
 
         /**
@@ -1065,6 +1088,11 @@ public abstract class Rounding implements Writeable {
             public long nextRoundingValue(long utcMillis) {
                 // TODO this is used in date range's collect so we should optimize it too
                 return new JavaTimeRounding().nextRoundingValue(utcMillis);
+            }
+
+            @Override
+            public String toString() {
+                return TimeIntervalRounding.this + "[fixed]";
             }
         }
 
@@ -1112,6 +1140,11 @@ public abstract class Rounding implements Writeable {
             public long beforeOverlap(long localMillis, Overlap overlap) {
                 return overlap.previous().localToUtc(roundKey(overlap.firstNonOverlappingLocalTime() - 1, interval) * interval, this);
             }
+
+            @Override
+            public String toString() {
+                return TimeIntervalRounding.this + "[lookup]";
+            }
         }
 
         /**
@@ -1128,52 +1161,74 @@ public abstract class Rounding implements Writeable {
          * of dates with the same {@link Prepared} instance.</li>
          * </ul>
          */
-        private class JavaTimeRounding extends TimeIntervalPreparedRounding {
+        class JavaTimeRounding extends TimeIntervalPreparedRounding {
             @Override
-            public long round(long utcMillis) {
-                final Instant utcInstant = Instant.ofEpochMilli(utcMillis);
-                final LocalDateTime rawLocalDateTime = LocalDateTime.ofInstant(utcInstant, timeZone);
+            public long round(long originalUtcMillis) {
+                /*
+                 * We give up after 5000 attempts and throw an exception. The
+                 * most attempts I could get running locally are 500 - for
+                 * Asia/Tehran with an 80,000 day range. You just can't declare
+                 * ranges much larger than that in ES right now.
+                 */
+                return round(originalUtcMillis, 5000);
+            }
 
-                // a millisecond value with the same local time, in UTC, as `utcMillis` has in `timeZone`
-                final long localMillis = utcMillis + timeZone.getRules().getOffset(utcInstant).getTotalSeconds() * 1000;
-                assert localMillis == rawLocalDateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
+            long round(long originalUtcMillis, int maxAttempts) {
+                long utcMillis = originalUtcMillis;
+                int attempts = 0;
+                attempt: while (attempts < maxAttempts) {
+                    final Instant utcInstant = Instant.ofEpochMilli(utcMillis);
+                    final LocalDateTime rawLocalDateTime = LocalDateTime.ofInstant(utcInstant, timeZone);
 
-                final long roundedMillis = roundKey(localMillis, interval) * interval;
-                final LocalDateTime roundedLocalDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(roundedMillis), ZoneOffset.UTC);
+                    // a millisecond value with the same local time, in UTC, as `utcMillis` has in `timeZone`
+                    final long localMillis = utcMillis + timeZone.getRules().getOffset(utcInstant).getTotalSeconds() * 1000;
+                    assert localMillis == rawLocalDateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
 
-                // Now work out what roundedLocalDateTime actually means
-                final List<ZoneOffset> currentOffsets = timeZone.getRules().getValidOffsets(roundedLocalDateTime);
-                if (currentOffsets.isEmpty() == false) {
-                    // There is at least one instant with the desired local time. In general the desired result is
-                    // the latest rounded time that's no later than the input time, but this could involve rounding across
-                    // a timezone transition, which may yield the wrong result
-                    final ZoneOffsetTransition previousTransition = timeZone.getRules().previousTransition(utcInstant.plusMillis(1));
-                    for (int offsetIndex = currentOffsets.size() - 1; 0 <= offsetIndex; offsetIndex--) {
-                        final OffsetDateTime offsetTime = roundedLocalDateTime.atOffset(currentOffsets.get(offsetIndex));
+                    final long roundedMillis = roundKey(localMillis, interval) * interval;
+                    final LocalDateTime roundedLocalDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(roundedMillis), ZoneOffset.UTC);
+
+                    // Now work out what roundedLocalDateTime actually means
+                    final List<ZoneOffset> currentOffsets = timeZone.getRules().getValidOffsets(roundedLocalDateTime);
+                    if (currentOffsets.isEmpty() == false) {
+                        // There is at least one instant with the desired local time. In general the desired result is
+                        // the latest rounded time that's no later than the input time, but this could involve rounding across
+                        // a timezone transition, which may yield the wrong result
+                        final ZoneOffsetTransition previousTransition = timeZone.getRules().previousTransition(utcInstant.plusMillis(1));
+                        for (int offsetIndex = currentOffsets.size() - 1; 0 <= offsetIndex; offsetIndex--) {
+                            final OffsetDateTime offsetTime = roundedLocalDateTime.atOffset(currentOffsets.get(offsetIndex));
+                            final Instant offsetInstant = offsetTime.toInstant();
+                            if (previousTransition != null && offsetInstant.isBefore(previousTransition.getInstant())) {
+                                /*
+                                 * Rounding down across the transition can yield the
+                                 * wrong result. It's best to return to the transition
+                                 * time and round that down.
+                                 */
+                                attempts++;
+                                utcMillis = previousTransition.getInstant().toEpochMilli() - 1;
+                                continue attempt;
+                            }
+
+                            if (utcInstant.isBefore(offsetTime.toInstant()) == false) {
+                                return offsetInstant.toEpochMilli();
+                            }
+                        }
+
+                        final OffsetDateTime offsetTime = roundedLocalDateTime.atOffset(currentOffsets.get(0));
                         final Instant offsetInstant = offsetTime.toInstant();
-                        if (previousTransition != null && offsetInstant.isBefore(previousTransition.getInstant())) {
-                            /*
-                             * Rounding down across the transition can yield the
-                             * wrong result. It's best to return to the transition
-                             * time and round that down.
-                             */
-                            return round(previousTransition.getInstant().toEpochMilli() - 1);
-                        }
-
-                        if (utcInstant.isBefore(offsetTime.toInstant()) == false) {
-                            return offsetInstant.toEpochMilli();
-                        }
+                        assert false : this + " failed to round " + utcMillis + " down: " + offsetInstant + " is the earliest possible";
+                        return offsetInstant.toEpochMilli(); // TODO or throw something?
+                    } else {
+                        // The desired time isn't valid because within a gap, so just return the start of the gap
+                        ZoneOffsetTransition zoneOffsetTransition = timeZone.getRules().getTransition(roundedLocalDateTime);
+                        return zoneOffsetTransition.getInstant().toEpochMilli();
                     }
-
-                    final OffsetDateTime offsetTime = roundedLocalDateTime.atOffset(currentOffsets.get(0));
-                    final Instant offsetInstant = offsetTime.toInstant();
-                    assert false : this + " failed to round " + utcMillis + " down: " + offsetInstant + " is the earliest possible";
-                    return offsetInstant.toEpochMilli(); // TODO or throw something?
-                } else {
-                    // The desired time isn't valid because within a gap, so just return the start of the gap
-                    ZoneOffsetTransition zoneOffsetTransition = timeZone.getRules().getTransition(roundedLocalDateTime);
-                    return zoneOffsetTransition.getInstant().toEpochMilli();
                 }
+                throw new IllegalArgumentException(
+                    this
+                        + " failed to round "
+                        + utcMillis
+                        + " down: transitioned backwards through too many daylight savings time transitions"
+                );
             }
 
             @Override
@@ -1238,6 +1293,11 @@ public abstract class Rounding implements Writeable {
                 );
                 return round(from);
             }
+
+            @Override
+            public String toString() {
+                return TimeIntervalRounding.this + "[java.time]";
+            }
         }
     }
 
@@ -1280,7 +1340,7 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        Prepared prepareJavaTime() {
+        public Prepared prepareJavaTime() {
             return wrapPreparedRounding(delegate.prepareJavaTime());
         }
 
@@ -1346,16 +1406,12 @@ public abstract class Rounding implements Writeable {
 
     public static Rounding read(StreamInput in) throws IOException {
         byte id = in.readByte();
-        switch (id) {
-            case TimeUnitRounding.ID:
-                return new TimeUnitRounding(in);
-            case TimeIntervalRounding.ID:
-                return new TimeIntervalRounding(in);
-            case OffsetRounding.ID:
-                return new OffsetRounding(in);
-            default:
-                throw new ElasticsearchException("unknown rounding id [" + id + "]");
-        }
+        return switch (id) {
+            case TimeUnitRounding.ID -> new TimeUnitRounding(in);
+            case TimeIntervalRounding.ID -> new TimeIntervalRounding(in);
+            case OffsetRounding.ID -> new OffsetRounding(in);
+            default -> throw new ElasticsearchException("unknown rounding id [" + id + "]");
+        };
     }
 
     /**

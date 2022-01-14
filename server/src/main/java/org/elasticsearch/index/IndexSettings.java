@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Booleans;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -49,10 +51,9 @@ import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_F
  * be called for each settings update.
  */
 public final class IndexSettings {
-    public static final Setting<List<String>> DEFAULT_FIELD_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> DEFAULT_FIELD_SETTING = Setting.stringListSetting(
         "index.query.default_field",
         Collections.singletonList("*"),
-        Function.identity(),
         Property.IndexScope,
         Property.Dynamic
     );
@@ -104,16 +105,12 @@ public final class IndexSettings {
         Property.IndexScope
     );
     public static final Setting<String> INDEX_CHECK_ON_STARTUP = new Setting<>("index.shard.check_on_startup", "false", (s) -> {
-        switch (s) {
-            case "false":
-            case "true":
-            case "checksum":
-                return s;
-            default:
-                throw new IllegalArgumentException(
-                    "unknown value for [index.shard.check_on_startup] must be one of " + "[true, false, checksum] but was: " + s
-                );
-        }
+        return switch (s) {
+            case "false", "true", "checksum" -> s;
+            default -> throw new IllegalArgumentException(
+                "unknown value for [index.shard.check_on_startup] must be one of " + "[true, false, checksum] but was: " + s
+            );
+        };
     }, Property.IndexScope);
 
     /**
@@ -475,6 +472,46 @@ public final class IndexSettings {
     }
 
     /**
+     * in time series mode, the start time of the index, timestamp must larger than start_time
+     */
+    public static final Setting<Instant> TIME_SERIES_START_TIME = Setting.dateSetting(
+        "index.time_series.start_time",
+        Instant.ofEpochMilli(0),
+        v -> {},
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * in time series mode, the end time of the index, timestamp must smaller than start_time
+     */
+    public static final Setting<Instant> TIME_SERIES_END_TIME = Setting.dateSetting(
+        "index.time_series.end_time",
+        Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999),
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Instant value) {}
+
+            @Override
+            public void validate(Instant value, Map<Setting<?>, Object> settings) {
+                @SuppressWarnings("unchecked")
+                Instant startTime = (Instant) settings.get(TIME_SERIES_START_TIME);
+                if (startTime.toEpochMilli() > value.toEpochMilli()) {
+                    throw new IllegalArgumentException("index.time_series.end_time must be larger than index.time_series.start_time");
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> settings = List.of(TIME_SERIES_START_TIME);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    /**
      * The {@link IndexMode "mode"} of the index.
      */
     public static final Setting<IndexMode> MODE = Setting.enumSetting(
@@ -499,6 +536,15 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<TimeValue> LOOK_AHEAD_TIME = Setting.timeSetting(
+        "index.look_ahead_time",
+        TimeValue.timeValueHours(2),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueDays(7),
+        Property.IndexScope,
+        Property.Final
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -509,6 +555,11 @@ public final class IndexSettings {
      * The {@link IndexMode "mode"} of the index.
      */
     private final IndexMode mode;
+    /**
+     * The bounds for {@code @timestamp} on this index or
+     * {@code null} if there are no bounds.
+     */
+    private final TimestampBounds timestampBounds;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
@@ -651,7 +702,7 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
-
+        this.timestampBounds = TIME_SERIES_START_TIME.exists(settings) ? new TimestampBounds(scopedSettings) : null;
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
@@ -712,10 +763,7 @@ public final class IndexSettings {
             MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
             mergePolicyConfig::setMaxMergesAtOnce
         );
-        scopedSettings.addSettingsUpdateConsumer(
-            MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING,
-            mergePolicyConfig::setMaxMergesAtOnceExplicit
-        );
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING, ignored -> {});
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
             mergePolicyConfig::setMaxMergedSegment
@@ -1277,5 +1325,13 @@ public final class IndexSettings {
 
     private void setMappingDimensionFieldsLimit(long value) {
         this.mappingDimensionFieldsLimit = value;
+    }
+
+    /**
+     * The bounds for {@code @timestamp} on this index or
+     * {@code null} if there are no bounds.
+     */
+    public TimestampBounds getTimestampBounds() {
+        return timestampBounds;
     }
 }

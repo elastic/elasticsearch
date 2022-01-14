@@ -47,12 +47,13 @@ public class DeploymentManagerTests extends ESTestCase {
     }
 
     public void testInferListenerOnlyCalledOnce() {
-        PyTorchResultProcessor resultProcessor = new PyTorchResultProcessor("1");
+        PyTorchResultProcessor resultProcessor = new PyTorchResultProcessor("1", threadSettings -> {});
         DeploymentManager.ProcessContext processContext = mock(DeploymentManager.ProcessContext.class);
         when(processContext.getResultProcessor()).thenReturn(resultProcessor);
 
         ListenerCounter listener = new ListenerCounter();
         DeploymentManager.InferenceAction action = new DeploymentManager.InferenceAction(
+            "test-model",
             1,
             TimeValue.MAX_VALUE,
             processContext,
@@ -72,6 +73,7 @@ public class DeploymentManagerTests extends ESTestCase {
         assertThat(listener.responseCounts, equalTo(1));
 
         action = new DeploymentManager.InferenceAction(
+            "test-model",
             1,
             TimeValue.MAX_VALUE,
             processContext,
@@ -91,6 +93,7 @@ public class DeploymentManagerTests extends ESTestCase {
         assertThat(listener.responseCounts, equalTo(1));
 
         action = new DeploymentManager.InferenceAction(
+            "test-model",
             1,
             TimeValue.MAX_VALUE,
             processContext,

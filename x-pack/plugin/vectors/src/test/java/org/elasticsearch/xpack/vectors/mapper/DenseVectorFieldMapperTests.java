@@ -123,6 +123,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     @Override
     protected void assertSearchable(MappedFieldType fieldType) {
         assertThat(fieldType, instanceOf(DenseVectorFieldType.class));
+        assertEquals(fieldType.isIndexed(), indexed);
         assertEquals(fieldType.isSearchable(), indexed);
     }
 
@@ -228,7 +229,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertThat(
             e.getCause().getMessage(),
             containsString(
-                "The [dot_product] similarity can only be used with unit-length vectors. " + "Preview of invalid vector: [-12.1, 2.7, -4.0]"
+                "The [dot_product] similarity can only be used with unit-length vectors. Preview of invalid vector: [-12.1, 2.7, -4.0]"
             )
         );
 
@@ -245,6 +246,23 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             containsString(
                 "The [dot_product] similarity can only be used with unit-length vectors. "
                     + "Preview of invalid vector: [-12.1, 2.7, -4.0, 1.05, 10.0, ...]"
+            )
+        );
+    }
+
+    public void testCosineWithZeroVector() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(
+                b -> b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", VectorSimilarity.cosine)
+            )
+        );
+        float[] vector = { -0.0f, 0.0f, 0.0f };
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array("field", vector))));
+        assertNotNull(e.getCause());
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "The [cosine] similarity does not support vectors with zero magnitude. Preview of invalid vector: [-0.0, 0.0, 0.0]"
             )
         );
     }
@@ -410,6 +428,26 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
         })));
         assertThat(e.getMessage(), containsString("Field [vectors] of type [dense_vector] can't be used in multifields"));
+    }
+
+    public void testNestedVectorsCannotBeIndexed() {
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(
+                fieldMapping(
+                    b -> b.field("type", "nested")
+                        .startObject("properties")
+                        .startObject("vector")
+                        .field("type", "dense_vector")
+                        .field("dims", 4)
+                        .field("index", true)
+                        .field("similarity", "dot_product")
+                        .endObject()
+                        .endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("[dense_vector] fields cannot be indexed if they're within [nested] mappings"));
     }
 
     public void testKnnVectorsFormat() throws IOException {

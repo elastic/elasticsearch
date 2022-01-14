@@ -39,7 +39,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -126,6 +126,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -175,12 +176,10 @@ public final class TokenService {
     static final int IV_BYTES = 12;
     private static final int VERSION_BYTES = 4;
     private static final String ENCRYPTION_CIPHER = "AES/GCM/NoPadding";
-    private static final String EXPIRED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\""
-        + XPackField.SECURITY
-        + "\", error=\"invalid_token\", error_description=\"The access token expired\"";
-    private static final String MALFORMED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\""
-        + XPackField.SECURITY
-        + "\", error=\"invalid_token\", error_description=\"The access token is malformed\"";
+    private static final String EXPIRED_TOKEN_WWW_AUTH_VALUE = String.format(Locale.ROOT, """
+        Bearer realm="%s", error="invalid_token", error_description="The access token expired\"""", XPackField.SECURITY);
+    private static final String MALFORMED_TOKEN_WWW_AUTH_VALUE = String.format(Locale.ROOT, """
+        Bearer realm="%s", error="invalid_token", error_description="The access token is malformed\"""", XPackField.SECURITY);
     private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
 
     public static final String THREAD_POOL_NAME = XPackField.SECURITY + "-token-key";
@@ -1031,12 +1030,12 @@ public final class TokenService {
                     unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
                 } catch (IOException e) {
                     logger.debug(() -> new ParameterizedMessage("Could not decode refresh token [{}].", refreshToken), e);
-                    listener.onResponse(SearchHits.empty());
+                    listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
                     return;
                 }
                 if (refreshTokenVersion.before(VERSION_TOKENS_INDEX_INTRODUCED) || unencodedRefreshToken.length() != TOKEN_LENGTH) {
                     logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken, refreshTokenVersion);
-                    listener.onResponse(SearchHits.empty());
+                    listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
                 } else {
                     // TODO Remove this conditional after backporting to 7.x
                     if (refreshTokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {

@@ -55,8 +55,8 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivile
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -88,6 +89,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
@@ -108,7 +110,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anySetOf;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -127,7 +128,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     private String tomorrowSuffix;
 
     @Before
-    // @SuppressWarnings("unchecked")
     public void setup() {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -207,13 +207,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             .put(dataStreamIndex2, true)
             .put(dataStreamIndex3, true)
             .put(
-                new DataStream(
+                newInstance(
                     dataStreamName,
                     createTimestampField("@timestamp"),
                     List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex())
                 )
             )
-            .put(new DataStream(otherDataStreamName, createTimestampField("@timestamp"), List.of(dataStreamIndex3.getIndex())))
+            .put(newInstance(otherDataStreamName, createTimestampField("@timestamp"), List.of(dataStreamIndex3.getIndex())))
             .put(indexBuilder(securityIndexName).settings(settings))
             .build();
 
@@ -334,11 +334,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         doAnswer((i) -> {
             @SuppressWarnings("unchecked")
             ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[1];
-            @SuppressWarnings("unchecked")
-            Set<String> names = (Set<String>) i.getArguments()[0];
-            assertNotNull(names);
+            final RoleReference.NamedRoleReference namedRoleReference = (RoleReference.NamedRoleReference) i.getArguments()[0];
             Set<RoleDescriptor> roleDescriptors = new HashSet<>();
-            for (String name : names) {
+            for (String name : namedRoleReference.getRoleNames()) {
                 RoleDescriptor descriptor = roleMap.get(name);
                 if (descriptor != null) {
                     roleDescriptors.add(descriptor);
@@ -357,12 +355,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 );
             }
             return Void.TYPE;
-        }).when(rolesStore).roles(anySetOf(String.class), anyActionListener());
+        }).when(rolesStore).buildRoleFromRoleReference(any(RoleReference.NamedRoleReference.class), anyActionListener());
 
         doAnswer(i -> {
-            User user = (User) i.getArguments()[0];
+            User user = ((Subject) i.getArguments()[0]).getUser();
             @SuppressWarnings("unchecked")
-            ActionListener<Role> listener = (ActionListener<Role>) i.getArguments()[2];
+            ActionListener<Role> listener = (ActionListener<Role>) i.getArguments()[1];
             if (XPackUser.is(user)) {
                 listener.onResponse(Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES_AUTOMATON).build());
                 return Void.TYPE;
@@ -379,9 +377,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 );
                 return Void.TYPE;
             }
+
             i.callRealMethod();
             return Void.TYPE;
-        }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), anyActionListener());
+        }).when(rolesStore).getRole(any(Subject.class), anyActionListener());
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
@@ -2250,12 +2249,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     private Set<String> buildAuthorizedIndices(User user, String action, TransportRequest request) {
         PlainActionFuture<Role> rolesListener = new PlainActionFuture<>();
-        final Authentication authentication = new Authentication(
-            user,
-            new RealmRef("test", "indices-aliases-resolver-tests", "node"),
-            null
-        );
-        rolesStore.getRoles(user, authentication, rolesListener);
+        final Subject subject = new Subject(user, new RealmRef("test", "indices-aliases-resolver-tests", "node"));
+        rolesStore.getRole(subject, rolesListener);
         return RBACEngine.resolveAuthorizedIndicesFromRole(
             rolesListener.actionGet(),
             getRequestInfo(request, action),

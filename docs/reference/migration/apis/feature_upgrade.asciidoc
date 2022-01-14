@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[migration-api-feature-upgrade]]
 === Feature Upgrade APIs
 ++++

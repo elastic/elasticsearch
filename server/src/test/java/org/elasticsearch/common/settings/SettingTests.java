@@ -651,7 +651,7 @@ public class SettingTests extends ESTestCase {
             "foo.deprecated",
             Collections.singletonList("foo.deprecated"),
             Function.identity(),
-            Property.Deprecated,
+            Property.DeprecatedWarning,
             Property.NodeScope
         );
         final Setting<List<String>> nonDeprecatedListSetting = Setting.listSetting(
@@ -1379,7 +1379,11 @@ public class SettingTests extends ESTestCase {
         undeprecatedSetting1.checkDeprecation(settings);
         undeprecatedSetting2.checkDeprecation(settings);
         ensureNoWarnings();
-        final Setting<String> criticalDeprecatedSetting = Setting.simpleString(criticalSettingName, settingValue, Property.Deprecated);
+        final Setting<String> criticalDeprecatedSetting = Setting.simpleString(
+            criticalSettingName,
+            settingValue,
+            Property.DeprecatedWarning
+        );
         criticalDeprecatedSetting.checkDeprecation(settings);
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { criticalDeprecatedSetting });
         final Setting<String> deprecatedSettingWarningOnly = Setting.simpleString(
@@ -1398,7 +1402,7 @@ public class SettingTests extends ESTestCase {
         final Settings settings = Settings.builder().put(settingName, settingValue).build();
         setting.checkDeprecation(settings);
         ensureNoWarnings();
-        final Setting<String> deprecatedSetting = Setting.simpleString(settingName, settingValue, Property.Deprecated);
+        final Setting<String> deprecatedSetting = Setting.simpleString(settingName, settingValue, Property.DeprecatedWarning);
         deprecatedSetting.checkDeprecation(settings);
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedSetting });
         final Settings settingsWithSkipDeprecationSetting = Settings.builder()

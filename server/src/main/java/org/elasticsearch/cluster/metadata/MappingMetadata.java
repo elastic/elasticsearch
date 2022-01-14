@@ -19,12 +19,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -35,7 +32,10 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  */
 public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
 
-    public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata("_doc", Collections.emptyMap());
+    public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(
+        MapperService.SINGLE_MAPPING_NAME,
+        Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of())
+    );
 
     private final String type;
 
@@ -64,11 +64,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
     public MappingMetadata(String type, Map<String, Object> mapping) {
         this.type = type;
         try {
-            this.source = new CompressedXContent(
-                (builder, params) -> builder.mapContents(mapping),
-                XContentType.JSON,
-                ToXContent.EMPTY_PARAMS
-            );
+            this.source = new CompressedXContent((builder, params) -> builder.mapContents(mapping));
         } catch (IOException e) {
             throw new UncheckedIOException(e);  // XContent exception, should never happen
         }
@@ -147,6 +143,10 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
 
     public boolean routingRequired() {
         return this.routingRequired;
+    }
+
+    public String getSha256() {
+        return source.getSha256();
     }
 
     @Override

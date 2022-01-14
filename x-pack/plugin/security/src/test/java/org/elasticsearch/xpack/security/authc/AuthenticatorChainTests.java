@@ -41,7 +41,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class AuthenticatorChainTests extends ESTestCase {
@@ -106,10 +106,10 @@ public class AuthenticatorChainTests extends ESTestCase {
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         authenticatorChain.authenticateAsync(context, future);
         assertThat(future.actionGet(), is(authentication));
-        verifyZeroInteractions(serviceAccountAuthenticator);
-        verifyZeroInteractions(oAuth2TokenAuthenticator);
-        verifyZeroInteractions(apiKeyAuthenticator);
-        verifyZeroInteractions(realmsAuthenticator);
+        verifyNoMoreInteractions(serviceAccountAuthenticator);
+        verifyNoMoreInteractions(oAuth2TokenAuthenticator);
+        verifyNoMoreInteractions(apiKeyAuthenticator);
+        verifyNoMoreInteractions(realmsAuthenticator);
         verify(authenticationContextSerializer, never()).writeToContext(any(), any());
         verify(operatorPrivilegesService, times(1)).maybeMarkOperatorUser(eq(authentication), any());
     }
@@ -140,9 +140,9 @@ public class AuthenticatorChainTests extends ESTestCase {
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         authenticatorChain.authenticateAsync(context, future);
         assertThat(future.actionGet(), is(authentication));
-        verifyZeroInteractions(oAuth2TokenAuthenticator);
-        verifyZeroInteractions(apiKeyAuthenticator);
-        verifyZeroInteractions(realmsAuthenticator);
+        verifyNoMoreInteractions(oAuth2TokenAuthenticator);
+        verifyNoMoreInteractions(apiKeyAuthenticator);
+        verifyNoMoreInteractions(realmsAuthenticator);
         verify(authenticationContextSerializer).writeToContext(eq(authentication), any());
         verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(authentication), any());
     }
@@ -163,8 +163,8 @@ public class AuthenticatorChainTests extends ESTestCase {
         assertThat(future.actionGet(), is(authentication));
         verify(serviceAccountAuthenticator).extractCredentials(eq(context));
         verify(serviceAccountAuthenticator, never()).authenticate(eq(context), any());
-        verifyZeroInteractions(apiKeyAuthenticator);
-        verifyZeroInteractions(realmsAuthenticator);
+        verifyNoMoreInteractions(apiKeyAuthenticator);
+        verifyNoMoreInteractions(realmsAuthenticator);
         verify(authenticationContextSerializer).writeToContext(eq(authentication), any());
         verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(authentication), any());
     }
@@ -189,7 +189,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         verify(serviceAccountAuthenticator, never()).authenticate(eq(context), any());
         verify(oAuth2TokenAuthenticator).extractCredentials(eq(context));
         verify(oAuth2TokenAuthenticator, never()).authenticate(eq(context), any());
-        verifyZeroInteractions(realmsAuthenticator);
+        verifyNoMoreInteractions(realmsAuthenticator);
         verify(authenticationContextSerializer).writeToContext(eq(authentication), any());
         verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(authentication), any());
     }

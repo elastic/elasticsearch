@@ -9,12 +9,13 @@ package org.elasticsearch.xpack.ml.aggs.inference;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -229,8 +230,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
                 );
             }
 
-            if (inferenceConfig instanceof ClassificationConfigUpdate) {
-                ClassificationConfigUpdate classUpdate = (ClassificationConfigUpdate) inferenceConfig;
+            if (inferenceConfig instanceof ClassificationConfigUpdate classUpdate) {
 
                 // error if the top classes result field is set and not equal to the only acceptable value
                 String topClassesField = classUpdate.getTopClassesResultsField();
@@ -263,11 +263,11 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
 
         SetOnce<LocalModel> loadedModel = new SetOnce<>();
         BiConsumer<Client, ActionListener<?>> modelLoadAction = (client, listener) -> modelLoadingService.get()
-            .getModelForSearch(modelId, listener.delegateFailure((delegate, model) -> {
-                loadedModel.set(model);
+            .getModelForSearch(modelId, listener.delegateFailure((delegate, localModel) -> {
+                loadedModel.set(localModel);
 
-                boolean isLicensed = MachineLearningField.ML_API_FEATURE.check(licenseState)
-                    || licenseState.isAllowedByLicense(model.getLicenseLevel());
+                boolean isLicensed = localModel.getLicenseLevel() == License.OperationMode.BASIC
+                    || MachineLearningField.ML_API_FEATURE.check(licenseState);
                 if (isLicensed) {
                     delegate.onResponse(null);
                 } else {

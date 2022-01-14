@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
@@ -96,7 +97,9 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
             IngestCommonPlugin.class,
             MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
-            IndexLifecycle.class
+            IndexLifecycle.class,
+            // Needed for scaled_float
+            MapperExtrasPlugin.class
         );
     }
 
@@ -120,12 +123,17 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
 
     protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response, AtomicReference<Exception> error)
         throws InterruptedException {
+        blockingCall(function, response::set, error::set);
+    }
+
+    protected <T> void blockingCall(Consumer<ActionListener<T>> function, Consumer<T> response, Consumer<Exception> error)
+        throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         ActionListener<T> listener = ActionListener.wrap(r -> {
-            response.set(r);
+            response.accept(r);
             latch.countDown();
         }, e -> {
-            error.set(e);
+            error.accept(e);
             latch.countDown();
         });
 

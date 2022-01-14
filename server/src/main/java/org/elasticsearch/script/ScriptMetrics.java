@@ -10,17 +10,24 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.metrics.CounterMetric;
 
+import java.util.function.LongSupplier;
+
 public class ScriptMetrics {
-    final CounterMetric compilationsMetric = new CounterMetric();
-    final CounterMetric cacheEvictionsMetric = new CounterMetric();
     final CounterMetric compilationLimitTriggered = new CounterMetric();
+    final TimeSeriesCounter compilations;
+    final TimeSeriesCounter cacheEvictions;
+
+    public ScriptMetrics(LongSupplier timeProvider) {
+        compilations = new TimeSeriesCounter(timeProvider);
+        cacheEvictions = new TimeSeriesCounter(timeProvider);
+    }
 
     public void onCompilation() {
-        compilationsMetric.inc();
+        compilations.inc();
     }
 
     public void onCacheEviction() {
-        cacheEvictionsMetric.inc();
+        cacheEvictions.inc();
     }
 
     public void onCompilationLimit() {
@@ -28,17 +35,20 @@ public class ScriptMetrics {
     }
 
     public ScriptStats stats() {
-        return new ScriptStats(compilationsMetric.count(), cacheEvictionsMetric.count(), compilationLimitTriggered.count());
+        TimeSeries compilationsTimeSeries = compilations.timeSeries();
+        TimeSeries cacheEvictionsTimeSeries = cacheEvictions.timeSeries();
+        return new ScriptStats(
+            compilationsTimeSeries.total,
+            cacheEvictionsTimeSeries.total,
+            compilationLimitTriggered.count(),
+            compilationsTimeSeries,
+            cacheEvictionsTimeSeries
+        );
     }
 
     public ScriptContextStats stats(String context) {
-        return new ScriptContextStats(
-            context,
-            compilationsMetric.count(),
-            cacheEvictionsMetric.count(),
-            compilationLimitTriggered.count(),
-            new ScriptContextStats.TimeSeries(),
-            new ScriptContextStats.TimeSeries()
-        );
+        TimeSeries compilationsTimeSeries = compilations.timeSeries();
+        TimeSeries cacheEvictionsTimeSeries = cacheEvictions.timeSeries();
+        return new ScriptContextStats(context, compilationLimitTriggered.count(), compilationsTimeSeries, cacheEvictionsTimeSeries);
     }
 }

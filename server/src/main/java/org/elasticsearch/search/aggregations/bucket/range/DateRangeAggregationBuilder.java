@@ -71,7 +71,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
                 Aggregator parent,
                 CardinalityUpperBound cardinality,
                 Map<String, Object> metadata) -> {
-                DEPRECATION_LOGGER.critical(
+                DEPRECATION_LOGGER.warn(
                     DeprecationCategory.AGGREGATIONS,
                     "Range-boolean",
                     "Running Range or DateRange aggregations on [boolean] fields is deprecated"
@@ -364,7 +364,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
             } else if (Double.isFinite(to)) {
                 to = parser.parseDouble(Long.toString((long) to), false, context::nowInMillis);
             }
-            return new RangeAggregator.Range(range.getKey(), from, fromAsString, to, toAsString);
+            return new RangeAggregator.Range(range.getKey(), from, from, fromAsString, to, to, toAsString);
         });
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");

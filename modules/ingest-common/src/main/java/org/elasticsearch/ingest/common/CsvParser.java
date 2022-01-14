@@ -47,9 +47,9 @@ final class CsvParser {
         this.emptyValue = emptyValue;
     }
 
-    void process(String line) {
-        this.line = line;
-        length = line.length();
+    void process(String lineValue) {
+        this.line = lineValue;
+        length = lineValue.length();
         for (currentIndex = 0; currentIndex < length; currentIndex++) {
             switch (state) {
                 case START:
@@ -75,14 +75,9 @@ final class CsvParser {
 
         // we've reached end of string, we need to handle last field
         switch (state) {
-            case UNQUOTED:
-                setField(length);
-                break;
-            case QUOTED_END:
-                setField(length - 1);
-                break;
-            case QUOTED:
-                throw new IllegalArgumentException("Unmatched quote");
+            case UNQUOTED -> setField(length);
+            case QUOTED_END -> setField(length - 1);
+            case QUOTED -> throw new IllegalArgumentException("Unmatched quote");
         }
     }
 

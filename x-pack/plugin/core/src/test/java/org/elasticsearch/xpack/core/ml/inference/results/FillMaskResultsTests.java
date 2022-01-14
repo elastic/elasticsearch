@@ -18,8 +18,10 @@ import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FillMaskResultsTests extends AbstractWireSerializingTestCase<FillMaskResults> {
@@ -36,13 +38,12 @@ public class FillMaskResultsTests extends AbstractWireSerializingTestCase<FillMa
             resultList.add(TopClassEntryTests.createRandomTopClassEntry());
         }
         return new FillMaskResults(
-            0.0,
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             resultList,
-            DEFAULT_TOP_CLASSES_RESULTS_FIELD,
             DEFAULT_RESULTS_FIELD,
-            randomDouble()
+            randomDouble(),
+            randomBoolean()
         );
     }
 
@@ -54,6 +55,11 @@ public class FillMaskResultsTests extends AbstractWireSerializingTestCase<FillMa
         assertThat(asMap.get(PREDICTION_PROBABILITY), equalTo(testInstance.getPredictionProbability()));
         assertThat(asMap.get(DEFAULT_RESULTS_FIELD + "_sequence"), equalTo(testInstance.getPredictedSequence()));
         List<Map<String, Object>> resultList = (List<Map<String, Object>>) asMap.get(DEFAULT_TOP_CLASSES_RESULTS_FIELD);
+        if (testInstance.isTruncated) {
+            assertThat(asMap.get("is_truncated"), is(true));
+        } else {
+            assertThat(asMap, not(hasKey("is_truncated")));
+        }
         if (testInstance.getTopClasses().size() == 0) {
             assertThat(resultList, is(nullValue()));
         } else {

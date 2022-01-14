@@ -10,9 +10,11 @@ package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
 import org.apache.http.entity.ContentType;
+import org.elasticsearch.Version;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.ServerUtils;
+import org.junit.BeforeClass;
 
 import java.nio.file.Paths;
 
@@ -20,6 +22,7 @@ import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.Assume.assumeTrue;
 
 public class PackageUpgradeTests extends PackagingTestCase {
 
@@ -27,6 +30,12 @@ public class PackageUpgradeTests extends PackagingTestCase {
     protected static final Distribution bwcDistribution;
     static {
         bwcDistribution = new Distribution(Paths.get(System.getProperty("tests.bwc-distribution")));
+    }
+
+    @BeforeClass
+    public static void filterVersions() {
+        // TODO: Explicitly add testing for these versions that validates that starting the node after upgrade fails
+        assumeTrue("only wire compatible versions", Version.fromString(bwcDistribution.baseVersion).isCompatible(Version.CURRENT));
     }
 
     public void test10InstallBwcVersion() throws Exception {
@@ -75,6 +84,7 @@ public class PackageUpgradeTests extends PackagingTestCase {
         stopElasticsearch();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79950")
     public void test20InstallUpgradedVersion() throws Exception {
         if (bwcDistribution.path.equals(distribution.path)) {
             // the old and new distributions are the same, so we are testing force upgrading

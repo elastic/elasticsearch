@@ -16,7 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -70,34 +70,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         Client client,
         IngestService ingestService
     ) {
-        this(
-            PutTransformAction.NAME,
-            settings,
-            transportService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver,
-            clusterService,
-            transformServices,
-            client,
-            ingestService
-        );
-    }
-
-    protected TransportPutTransformAction(
-        String name,
-        Settings settings,
-        TransportService transportService,
-        ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterService clusterService,
-        TransformServices transformServices,
-        Client client,
-        IngestService ingestService
-    ) {
         super(
-            name,
+            PutTransformAction.NAME,
             transportService,
             clusterService,
             threadPool,

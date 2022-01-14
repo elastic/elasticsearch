@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -594,9 +592,9 @@ public abstract class StreamOutput extends OutputStream {
     public final <K, V> void writeMap(final ImmutableOpenMap<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
         throws IOException {
         writeVInt(map.size());
-        for (final ObjectObjectCursor<K, V> entry : map) {
-            keyWriter.write(this, entry.key);
-            valueWriter.write(this, entry.value);
+        for (final Map.Entry<K, V> entry : map.entrySet()) {
+            keyWriter.write(this, entry.getKey());
+            valueWriter.write(this, entry.getValue());
         }
     }
 
@@ -936,9 +934,8 @@ public abstract class StreamOutput extends OutputStream {
                 writeInt(((IndexFormatTooNewException) throwable).getMaxVersion());
                 writeMessage = false;
                 writeCause = false;
-            } else if (throwable instanceof IndexFormatTooOldException) {
+            } else if (throwable instanceof IndexFormatTooOldException t) {
                 writeVInt(3);
-                IndexFormatTooOldException t = (IndexFormatTooOldException) throwable;
                 writeOptionalString(t.getResourceDescription());
                 if (t.getVersion() == null) {
                     writeBoolean(false);
@@ -1203,4 +1200,17 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    /**
+     * Similar to {@link #writeOptionalWriteable} but for use when the value is always missing.
+     */
+    public <T extends Writeable> void writeMissingWriteable(Class<T> ignored) throws IOException {
+        writeBoolean(false);
+    }
+
+    /**
+     * Similar to {@link #writeOptionalString} but for use when the value is always missing.
+     */
+    public void writeMissingString() throws IOException {
+        writeBoolean(false);
+    }
 }

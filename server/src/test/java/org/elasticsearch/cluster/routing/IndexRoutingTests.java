@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
@@ -380,25 +381,33 @@ public class IndexRoutingTests extends ESTestCase {
             String key = entry.getKey();
             int shardId;
             switch (between(0, 2)) {
-                case 0:
-                    shardId = shardIdFromSimple(indexRouting, key, null);
-                    break;
-                case 1:
-                    shardId = shardIdFromSimple(indexRouting, randomAlphaOfLength(5), key);
-                    break;
-                case 2:
+                case 0 -> shardId = shardIdFromSimple(indexRouting, key, null);
+                case 1 -> shardId = shardIdFromSimple(indexRouting, randomAlphaOfLength(5), key);
+                case 2 -> {
                     AtomicInteger s = new AtomicInteger(-1);
                     indexRouting.collectSearchShards(key, r -> {
                         int old = s.getAndSet(r);
                         assertThat("only called once", old, equalTo(-1));
                     });
                     shardId = s.get();
-                    break;
-                default:
-                    throw new AssertionError("invalid option");
+                }
+                default -> throw new AssertionError("invalid option");
             }
             assertEquals(shardId, entry.getValue().intValue());
         }
+    }
+
+    public void testRequiredRouting() {
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(2)
+                .numberOfReplicas(1)
+                .putMapping("{\"_routing\":{\"required\": true}}")
+                .build()
+        );
+        Exception e = expectThrows(RoutingMissingException.class, () -> shardIdFromSimple(indexRouting, "id", null));
+        assertThat(e.getMessage(), equalTo("routing is required for [test]/[id]"));
     }
 
     /**
@@ -406,19 +415,14 @@ public class IndexRoutingTests extends ESTestCase {
      * chosen method. All of the random methods <strong>should</strong> return
      * the same results.
      */
-    private int shardIdFromSimple(IndexRouting indexRouting, String key, @Nullable String routing) {
-        switch (between(0, 3)) {
-            case 0:
-                return indexRouting.indexShard(key, routing, null, null);
-            case 1:
-                return indexRouting.updateShard(key, routing);
-            case 2:
-                return indexRouting.deleteShard(key, routing);
-            case 3:
-                return indexRouting.getShard(key, routing);
-            default:
-                throw new AssertionError("invalid option");
-        }
+    private int shardIdFromSimple(IndexRouting indexRouting, String id, @Nullable String routing) {
+        return switch (between(0, 3)) {
+            case 0 -> indexRouting.indexShard(id, routing, null, null);
+            case 1 -> indexRouting.updateShard(id, routing);
+            case 2 -> indexRouting.deleteShard(id, routing);
+            case 3 -> indexRouting.getShard(id, routing);
+            default -> throw new AssertionError("invalid option");
+        };
     }
 
     public void testRoutingPathSpecifiedRouting() throws IOException {

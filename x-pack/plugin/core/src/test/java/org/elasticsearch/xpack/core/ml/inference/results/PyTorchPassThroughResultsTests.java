@@ -14,6 +14,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class PyTorchPassThroughResultsTests extends InferenceResultsTestCase<PyTorchPassThroughResults> {
     @Override
@@ -32,14 +33,18 @@ public class PyTorchPassThroughResultsTests extends InferenceResultsTestCase<PyT
             }
         }
 
-        return new PyTorchPassThroughResults(DEFAULT_RESULTS_FIELD, arr);
+        return new PyTorchPassThroughResults(DEFAULT_RESULTS_FIELD, arr, randomBoolean());
     }
 
     public void testAsMap() {
         PyTorchPassThroughResults testInstance = createTestInstance();
         Map<String, Object> asMap = testInstance.asMap();
-        assertThat(asMap.keySet(), hasSize(1));
+        int size = testInstance.isTruncated ? 2 : 1;
+        assertThat(asMap.keySet(), hasSize(size));
         assertArrayEquals(testInstance.getInference(), (double[][]) asMap.get(DEFAULT_RESULTS_FIELD));
+        if (testInstance.isTruncated) {
+            assertThat(asMap.get("is_truncated"), is(true));
+        }
     }
 
     @Override

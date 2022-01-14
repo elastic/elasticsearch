@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyMapOf;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -84,51 +84,51 @@ public class HttpInputTests extends ESTestCase {
 
         HttpResponse response;
         switch (randomIntBetween(1, 6)) {
-            case 1:
+            case 1 -> {
                 response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8));
                 httpInput = InputBuilders.httpInput(request.build()).build();
-                break;
-            case 2:
+            }
+            case 2 -> {
                 response = new HttpResponse(123, "---\nkey : value".getBytes(StandardCharsets.UTF_8));
                 httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.YAML).build();
-                break;
-            case 3:
+            }
+            case 3 -> {
                 response = new HttpResponse(
                     123,
                     "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8),
                     singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.JSON.mediaType() })
                 );
                 httpInput = InputBuilders.httpInput(request.build()).build();
-                break;
-            case 4:
+            }
+            case 4 -> {
                 response = new HttpResponse(
                     123,
                     "key: value".getBytes(StandardCharsets.UTF_8),
                     singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.YAML.mediaType() })
                 );
                 httpInput = InputBuilders.httpInput(request.build()).build();
-                break;
-            case 5:
+            }
+            case 5 -> {
                 response = new HttpResponse(
                     123,
                     "---\nkey: value".getBytes(StandardCharsets.UTF_8),
                     singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" })
                 );
                 httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.YAML).build();
-                break;
-            default:
+            }
+            default -> {
                 response = new HttpResponse(
                     123,
                     "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8),
                     singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" })
                 );
                 httpInput = InputBuilders.httpInput(request.build()).build();
-                break;
+            }
         }
 
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
-        when(templateEngine.render(eq(new TextTemplate("_body")), anyMapOf(String.class, Object.class))).thenReturn("_body");
+        when(templateEngine.render(eq(new TextTemplate("_body")), anyMap())).thenReturn("_body");
 
         WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
@@ -145,7 +145,7 @@ public class HttpInputTests extends ESTestCase {
         String notJson = "This is not json";
         HttpResponse response = new HttpResponse(123, notJson.getBytes(StandardCharsets.UTF_8));
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
-        when(templateEngine.render(eq(new TextTemplate("_body")), anyMapOf(String.class, Object.class))).thenReturn("_body");
+        when(templateEngine.render(eq(new TextTemplate("_body")), anyMap())).thenReturn("_body");
 
         WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
@@ -259,7 +259,7 @@ public class HttpInputTests extends ESTestCase {
 
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
 
-        when(templateEngine.render(eq(new TextTemplate("_body")), anyMapOf(String.class, Object.class))).thenReturn("_body");
+        when(templateEngine.render(eq(new TextTemplate("_body")), anyMap())).thenReturn("_body");
 
         WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());

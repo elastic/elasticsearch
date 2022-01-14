@@ -219,23 +219,11 @@ public class Classification implements DataFrameAnalysis {
         dependentVariable = in.readString();
         boostedTreeParams = new BoostedTreeParams(in);
         predictionFieldName = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            classAssignmentObjective = in.readEnum(ClassAssignmentObjective.class);
-        } else {
-            classAssignmentObjective = ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL;
-        }
+        classAssignmentObjective = in.readEnum(ClassAssignmentObjective.class);
         numTopClasses = in.readOptionalVInt();
         trainingPercent = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-            randomizeSeed = in.readOptionalLong();
-        } else {
-            randomizeSeed = Randomness.get().nextLong();
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            featureProcessors = Collections.unmodifiableList(in.readNamedWriteableList(PreProcessor.class));
-        } else {
-            featureProcessors = Collections.emptyList();
-        }
+        randomizeSeed = in.readOptionalLong();
+        featureProcessors = Collections.unmodifiableList(in.readNamedWriteableList(PreProcessor.class));
         earlyStoppingEnabled = in.readBoolean();
     }
 
@@ -286,17 +274,11 @@ public class Classification implements DataFrameAnalysis {
         out.writeString(dependentVariable);
         boostedTreeParams.writeTo(out);
         out.writeOptionalString(predictionFieldName);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeEnum(classAssignmentObjective);
-        }
+        out.writeEnum(classAssignmentObjective);
         out.writeOptionalVInt(numTopClasses);
         out.writeDouble(trainingPercent);
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-            out.writeOptionalLong(randomizeSeed);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            out.writeNamedWriteableList(featureProcessors);
-        }
+        out.writeOptionalLong(randomizeSeed);
+        out.writeNamedWriteableList(featureProcessors);
         out.writeBoolean(earlyStoppingEnabled);
     }
 
@@ -354,17 +336,13 @@ public class Classification implements DataFrameAnalysis {
         if (predictionFieldType == null) {
             return null;
         }
-        switch (predictionFieldType) {
-            case NUMBER:
+        return switch (predictionFieldType) {
+            case NUMBER ->
                 // C++ process uses int64_t type, so it is safe for the dependent variable to use long numbers.
-                return "int";
-            case STRING:
-                return "string";
-            case BOOLEAN:
-                return "bool";
-            default:
-                return null;
-        }
+                "int";
+            case STRING -> "string";
+            case BOOLEAN -> "bool";
+        };
     }
 
     public static PredictionFieldType getPredictionFieldType(Set<String> dependentVariableTypes) {

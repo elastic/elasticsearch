@@ -178,6 +178,13 @@ public final class MappingLookup {
         this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.objectMappers = Collections.unmodifiableMap(objects);
+
+        mapping.getRoot()
+            .runtimeFields()
+            .stream()
+            .flatMap(RuntimeField::asMappedFieldTypes)
+            .map(MappedFieldType::name)
+            .forEach(this::validateDoesNotShadow);
     }
 
     /**
@@ -427,7 +434,7 @@ public final class MappingLookup {
     public boolean hasTimestampField() {
         final MappedFieldType mappedFieldType = fieldTypesLookup().get(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
-            return mappedFieldType.isSearchable() && mappedFieldType.hasDocValues();
+            return mappedFieldType.isIndexed() && mappedFieldType.hasDocValues();
         } else {
             return false;
         }
@@ -480,5 +487,22 @@ public final class MappingLookup {
             }
         }
         return parents;
+    }
+
+    /**
+     * Check if the provided {@link MappedFieldType} shadows a dimension
+     * or metric field.
+     */
+    public void validateDoesNotShadow(String name) {
+        MappedFieldType shadowed = indexTimeLookup.get(name);
+        if (shadowed == null) {
+            return;
+        }
+        if (shadowed.isDimension()) {
+            throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_dimension");
+        }
+        if (shadowed.getMetricType() != null) {
+            throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_metric");
+        }
     }
 }

@@ -120,8 +120,7 @@ JDK 16 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 11 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 11.
 
-> Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
-and `JAVA11_HOME`, `JAVA12_HOME`, `JAVA13_HOME`, `JAVA14_HOME`, and `JAVA15_HOME`
+> Note: It is also required to have `JAVA8_HOME`, `JAVA11_HOME`, and `JAVA17_HOME`
 available so that the tests can pass.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
@@ -130,7 +129,7 @@ script on Windows in the root of the repository. The examples below show the
 usage on Unix.
 
 We support development in IntelliJ versions IntelliJ 2020.1 and
-onwards and Eclipse 2020-3 and onwards.
+onwards and Eclipse 2021-12 and onwards.
 
 [Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
 
@@ -197,6 +196,13 @@ need them.
    5. **IMPORTANT** - make sure "Optimize Imports" is **NOT** selected.
    6. Click "OK"
 
+Alternative manual steps for IntelliJ.
+
+   1. Open **File > Settings/Preferences > Code Style > Java**
+   2. Gear icon > Import Scheme > Eclipse XML Profile
+   3. Navigate to the file `build-conventions/formatterConfig.xml`
+   4. Click "OK"
+
 Note that only some sub-projects in the Elasticsearch project are currently
 fully-formatted. You can see a list of project that **are not**
 automatically formatted in
@@ -204,15 +210,8 @@ automatically formatted in
 
 ### Importing the project into Eclipse
 
-Elasticsearch builds using Gradle and Java 16. When importing into Eclipse you
-will either need to use an appropriate JDK to run Eclipse itself (e.g. by
-specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
-defining the JDK Gradle uses by setting **Preferences** > **Gradle** >
-**Advanced Options** > **Java home** to an appropriate version.
-
-IMPORTANT: If you have previously imported the project by running `./gradlew eclipse`
-           then you must build an entirely new workspace and `git clean -xdf` to
-           blow away *everything* that the gradle eclipse plugin made.
+Elasticsearch builds using Gradle and Java 17. You'll need to point
+[eclipse.ini](https://wiki.eclipse.org/Eclipse.ini)'s `-vm` to Java 17.
 
  - Select **File > Import...**
  - Select **Existing Gradle Project**
@@ -305,7 +304,7 @@ Please follow these formatting guidelines:
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause
   the build to fail.
 * If *absolutely* necessary, you can disable formatting for regions of code
-  with the `// @formatter:off` and `// @formatter:on` directives, but
+  with the `// tag::noformat` and `// end::noformat` directives, but
   only do this where the benefit clearly outweighs the decrease in formatting
   consistency.
 * Note that Javadoc and block comments i.e. `/* ... */` are not formatted,

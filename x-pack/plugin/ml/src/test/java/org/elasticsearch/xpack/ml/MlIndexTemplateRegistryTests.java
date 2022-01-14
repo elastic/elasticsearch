@@ -10,9 +10,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
@@ -39,7 +39,6 @@ import org.mockito.stubbing.Answer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -95,11 +94,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
-        verify(client, times(4)).execute(
-            same(PutComposableIndexTemplateAction.INSTANCE),
-            putIndexTemplateRequestCaptor.capture(),
-            anyObject()
-        );
+        verify(client, times(4)).execute(same(PutComposableIndexTemplateAction.INSTANCE), putIndexTemplateRequestCaptor.capture(), any());
 
         PutComposableIndexTemplateAction.Request req = putIndexTemplateRequestCaptor.getAllValues()
             .stream()
@@ -122,11 +117,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
-        verify(client, times(4)).execute(
-            same(PutComposableIndexTemplateAction.INSTANCE),
-            putIndexTemplateRequestCaptor.capture(),
-            anyObject()
-        );
+        verify(client, times(4)).execute(same(PutComposableIndexTemplateAction.INSTANCE), putIndexTemplateRequestCaptor.capture(), any());
 
         PutComposableIndexTemplateAction.Request req = putIndexTemplateRequestCaptor.getAllValues()
             .stream()

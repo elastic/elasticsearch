@@ -22,8 +22,10 @@ import java.util.Map;
 public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false).build(MapperBuilderContext.ROOT)
-            .fieldType();
+        boolean ignoreMalformed = randomBoolean();
+        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, ignoreMalformed).build(
+            MapperBuilderContext.ROOT
+        ).fieldType();
 
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
         Map<String, Object> otherJsonPoint = Map.of("type", "Point", "coordinates", List.of(30.0, 50.0));
@@ -58,6 +60,16 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
         // Test a malformed value
         sourceValue = "malformed";
         assertEquals(List.of(), fetchSourceValue(mapper, sourceValue, null));
+
+        // test normalize
+        sourceValue = "27.1,402.0";
+        if (ignoreMalformed) {
+            assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+            assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+        } else {
+            assertEquals(List.of(), fetchSourceValue(mapper, sourceValue, null));
+            assertEquals(List.of(), fetchSourceValue(mapper, sourceValue, "wkt"));
+        }
     }
 
     public void testFetchVectorTile() throws IOException {

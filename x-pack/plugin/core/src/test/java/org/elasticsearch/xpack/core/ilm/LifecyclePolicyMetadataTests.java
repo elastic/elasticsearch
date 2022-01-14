@@ -47,15 +47,15 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, WaitForSnapshotAction.NAME, WaitForSnapshotAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SearchableSnapshotAction.NAME, SearchableSnapshotAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, FreezeAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, in -> FreezeAction.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, MigrateAction.NAME, MigrateAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, UnfollowAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, MigrateAction.NAME, MigrateAction::readFrom),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, in -> UnfollowAction.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, RollupILMAction.NAME, RollupILMAction::new)
             )
         );
@@ -133,26 +133,19 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
         long version = instance.getVersion();
         long creationDate = instance.getModifiedDate();
         switch (between(0, 3)) {
-            case 0:
-                policy = new LifecyclePolicy(
-                    TimeseriesLifecycleType.INSTANCE,
-                    policy.getName() + randomAlphaOfLengthBetween(1, 5),
-                    policy.getPhases(),
-                    randomMeta()
-                );
-                break;
-            case 1:
+            case 0 -> policy = new LifecyclePolicy(
+                TimeseriesLifecycleType.INSTANCE,
+                policy.getName() + randomAlphaOfLengthBetween(1, 5),
+                policy.getPhases(),
+                randomMeta()
+            );
+            case 1 -> {
                 headers = new HashMap<>(headers);
                 headers.put(randomAlphaOfLength(11), randomAlphaOfLength(11));
-                break;
-            case 2:
-                version++;
-                break;
-            case 3:
-                creationDate++;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            case 2 -> version++;
+            case 3 -> creationDate++;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new LifecyclePolicyMetadata(policy, headers, version, creationDate);
     }

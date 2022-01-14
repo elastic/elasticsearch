@@ -21,7 +21,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -40,6 +40,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -398,7 +399,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 similarityService,
                 mapperRegistry,
                 () -> createShardContext(null),
-                () -> false,
+                IdFieldMapper.NO_FIELD_DATA,
                 ScriptCompiler.NONE
             );
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
@@ -462,20 +463,22 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     MapperService.MergeReason.MAPPING_UPDATE
                 );
                 // also add mappings for two inner field in the object field
-                mapperService.merge(
-                    "_doc",
-                    new CompressedXContent(
-                        "{\"properties\":{\""
-                            + OBJECT_FIELD_NAME
-                            + "\":{\"type\":\"object\","
-                            + "\"properties\":{\""
-                            + DATE_FIELD_NAME
-                            + "\":{\"type\":\"date\"},\""
-                            + INT_FIELD_NAME
-                            + "\":{\"type\":\"integer\"}}}}}"
-                    ),
-                    MapperService.MergeReason.MAPPING_UPDATE
-                );
+                mapperService.merge("_doc", new CompressedXContent("""
+                    {
+                      "properties": {
+                        "%s": {
+                          "type": "object",
+                          "properties": {
+                            "%s": {
+                              "type": "date"
+                            },
+                            "%s": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    }""".formatted(OBJECT_FIELD_NAME, DATE_FIELD_NAME, INT_FIELD_NAME)), MapperService.MergeReason.MAPPING_UPDATE);
                 testCase.initializeAdditionalMappings(mapperService);
             }
         }

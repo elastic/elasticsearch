@@ -20,7 +20,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -44,7 +45,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCountsTe
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
@@ -89,6 +90,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary;
@@ -107,6 +109,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
     private JobResultsProvider jobProvider;
     private ResultsPersisterService resultsPersisterService;
+    private JobResultsPersister jobResultsPersister;
     private AnomalyDetectionAuditor auditor;
 
     @Before
@@ -132,6 +135,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, builder.build());
+        jobResultsPersister = new JobResultsPersister(originSettingClient, resultsPersisterService);
         auditor = new AnomalyDetectionAuditor(client(), clusterService);
         waitForMlTemplates();
     }
@@ -336,9 +340,6 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     public void testUpdateCalendar() throws Exception {
-        MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
-        mlBuilder.putJob(createJob("foo").build(), false);
-        mlBuilder.putJob(createJob("bar").build(), false);
 
         String calendarId = "empty calendar";
         Calendar emptyCal = new Calendar(calendarId, Collections.emptyList(), null);
@@ -347,13 +348,13 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         Set<String> addedIds = new HashSet<>();
         addedIds.add("foo");
         addedIds.add("bar");
-        updateCalendar(calendarId, addedIds, Collections.emptySet(), mlBuilder.build());
+        updateCalendar(calendarId, addedIds, Collections.emptySet());
 
         Calendar updated = getCalendar(calendarId);
         assertEquals(calendarId, updated.getId());
         assertEquals(addedIds, new HashSet<>(updated.getJobIds()));
 
-        updateCalendar(calendarId, Collections.emptySet(), Collections.singleton("foo"), mlBuilder.build());
+        updateCalendar(calendarId, Collections.emptySet(), Collections.singleton("foo"));
 
         updated = getCalendar(calendarId);
         assertEquals(calendarId, updated.getId());
@@ -408,6 +409,96 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
             assertThat("bar", is(not(in(cal.getJobIds()))));
             assertThat("cat", is(not(in(cal.getJobIds()))));
         }
+    }
+
+    public void testGetDataCountsModelSizeAndTimingStatsWithNoDocs() throws Exception {
+        Job.Builder job = new Job.Builder("first_job");
+        job.setAnalysisConfig(createAnalysisConfig("by_field_1", Collections.emptyList()));
+        job.setDataDescription(new DataDescription.Builder());
+
+        // Put first job. This should create the results index as it's the first job.
+        client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job)).actionGet();
+        AtomicReference<DataCounts> dataCountsAtomicReference = new AtomicReference<>();
+        AtomicReference<ModelSizeStats> modelSizeStatsAtomicReference = new AtomicReference<>();
+        AtomicReference<TimingStats> timingStatsAtomicReference = new AtomicReference<>();
+        AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
+
+        getDataCountsModelSizeAndTimingStats(
+            job.getId(),
+            dataCountsAtomicReference::set,
+            modelSizeStatsAtomicReference::set,
+            timingStatsAtomicReference::set,
+            exceptionAtomicReference::set
+        );
+
+        if (exceptionAtomicReference.get() != null) {
+            throw exceptionAtomicReference.get();
+        }
+
+        assertThat(dataCountsAtomicReference.get().getJobId(), equalTo(job.getId()));
+        assertThat(modelSizeStatsAtomicReference.get().getJobId(), equalTo(job.getId()));
+        assertThat(timingStatsAtomicReference.get().getJobId(), equalTo(job.getId()));
+    }
+
+    public void testGetDataCountsModelSizeAndTimingStatsWithSomeDocs() throws Exception {
+        Job.Builder job = new Job.Builder("first_job");
+        job.setAnalysisConfig(createAnalysisConfig("by_field_1", Collections.emptyList()));
+        job.setDataDescription(new DataDescription.Builder());
+
+        // Put first job. This should create the results index as it's the first job.
+        client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job)).actionGet();
+        AtomicReference<DataCounts> dataCountsAtomicReference = new AtomicReference<>();
+        AtomicReference<ModelSizeStats> modelSizeStatsAtomicReference = new AtomicReference<>();
+        AtomicReference<TimingStats> timingStatsAtomicReference = new AtomicReference<>();
+        AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
+
+        CheckedSupplier<Void, Exception> setOrThrow = () -> {
+            getDataCountsModelSizeAndTimingStats(
+                job.getId(),
+                dataCountsAtomicReference::set,
+                modelSizeStatsAtomicReference::set,
+                timingStatsAtomicReference::set,
+                exceptionAtomicReference::set
+            );
+
+            if (exceptionAtomicReference.get() != null) {
+                throw exceptionAtomicReference.get();
+            }
+            return null;
+        };
+
+        ModelSizeStats storedModelSizeStats = new ModelSizeStats.Builder(job.getId()).setModelBytes(10L).build();
+        jobResultsPersister.persistModelSizeStats(storedModelSizeStats, () -> false);
+        jobResultsPersister.commitResultWrites(job.getId());
+
+        setOrThrow.get();
+        assertThat(dataCountsAtomicReference.get().getJobId(), equalTo(job.getId()));
+        assertThat(modelSizeStatsAtomicReference.get(), equalTo(storedModelSizeStats));
+        assertThat(timingStatsAtomicReference.get().getJobId(), equalTo(job.getId()));
+
+        TimingStats storedTimingStats = new TimingStats(job.getId());
+        storedTimingStats.updateStats(10);
+
+        jobResultsPersister.bulkPersisterBuilder(job.getId()).persistTimingStats(storedTimingStats).executeRequest();
+        jobResultsPersister.commitResultWrites(job.getId());
+
+        setOrThrow.get();
+
+        assertThat(dataCountsAtomicReference.get().getJobId(), equalTo(job.getId()));
+        assertThat(modelSizeStatsAtomicReference.get(), equalTo(storedModelSizeStats));
+        assertThat(timingStatsAtomicReference.get(), equalTo(storedTimingStats));
+
+        DataCounts storedDataCounts = new DataCounts(job.getId());
+        storedDataCounts.incrementInputBytes(1L);
+        storedDataCounts.incrementMissingFieldCount(1L);
+        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client(), resultsPersisterService, auditor);
+        jobDataCountsPersister.persistDataCounts(job.getId(), storedDataCounts);
+        jobResultsPersister.commitResultWrites(job.getId());
+
+        setOrThrow.get();
+        assertThat(dataCountsAtomicReference.get(), equalTo(storedDataCounts));
+        assertThat(modelSizeStatsAtomicReference.get(), equalTo(storedModelSizeStats));
+        assertThat(timingStatsAtomicReference.get(), equalTo(storedTimingStats));
     }
 
     private Map<String, Object> getIndexMappingProperties(String index) {
@@ -465,7 +556,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         return result.get().results();
     }
 
-    private void updateCalendar(String calendarId, Set<String> idsToAdd, Set<String> idsToRemove, MlMetadata mlMetadata) throws Exception {
+    private void updateCalendar(String calendarId, Set<String> idsToAdd, Set<String> idsToRemove) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         jobProvider.updateCalendar(calendarId, idsToAdd, idsToRemove, r -> latch.countDown(), e -> {
@@ -500,6 +591,26 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         }
 
         return calendarHolder.get();
+    }
+
+    private void getDataCountsModelSizeAndTimingStats(
+        String jobId,
+        Consumer<DataCounts> dataCountsConsumer,
+        Consumer<ModelSizeStats> modelSizeStatsConsumer,
+        Consumer<TimingStats> timingStatsConsumer,
+        Consumer<Exception> exceptionConsumer
+    ) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        jobProvider.getDataCountsModelSizeAndTimingStats(jobId, (dataCounts, modelSizeStats, timingStats) -> {
+            dataCountsConsumer.accept(dataCounts);
+            modelSizeStatsConsumer.accept(modelSizeStats);
+            timingStatsConsumer.accept(timingStats);
+            latch.countDown();
+        }, e -> {
+            exceptionConsumer.accept(e);
+            latch.countDown();
+        });
+        latch.await();
     }
 
     public void testScheduledEventsForJobs() throws Exception {
@@ -646,7 +757,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
     public void testGetSnapshots() {
         String jobId = "test_get_snapshots";
-        Job.Builder job = createJob(jobId);
+        createJob(jobId);
         indexModelSnapshot(
             new ModelSnapshot.Builder(jobId).setSnapshotId("snap_2")
                 .setTimestamp(Date.from(Instant.ofEpochMilli(10)))
@@ -679,10 +790,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         // Add a snapshot WITHOUT a min version.
         client().prepareIndex(AnomalyDetectorsIndex.jobResultsAliasedName("other_job"))
             .setId(ModelSnapshot.documentId("other_job", "11"))
-            .setSource(
-                "{\"job_id\":\"other_job\"," + "\"snapshot_id\":\"11\", \"snapshot_doc_count\":1,\"retain\":false}",
-                XContentType.JSON
-            )
+            .setSource("""
+                {"job_id":"other_job","snapshot_id":"11", "snapshot_doc_count":1,"retain":false}""", XContentType.JSON)
             .get();
 
         client().admin()

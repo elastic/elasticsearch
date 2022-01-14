@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.PerFieldKnnVectorsFormatFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -39,7 +40,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.vectors.query.KnnVectorFieldExistsQuery;
-import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
 import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 
 import java.io.IOException;
@@ -294,13 +294,13 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support queries");
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
         public KnnVectorQuery createKnnQuery(float[] queryVector, int numCands) {
-            if (isSearchable() == false) {
+            if (isIndexed() == false) {
                 throw new IllegalArgumentException(
-                    "[" + KnnVectorQueryBuilder.NAME + "] " + "queries are not supported if [index] is disabled"
+                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
             }
 
@@ -310,8 +310,8 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
                 );
             }
 
-            if (similarity == VectorSimilarity.dot_product) {
-                double squaredMagnitude = 0.0;
+            if (similarity == VectorSimilarity.dot_product || similarity == VectorSimilarity.cosine) {
+                float squaredMagnitude = 0.0f;
                 for (float e : queryVector) {
                     squaredMagnitude += e * e;
                 }
@@ -320,28 +320,32 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             return new KnnVectorQuery(name(), queryVector, numCands);
         }
 
-        private void checkVectorMagnitude(float[] vector, double squaredMagnitude) {
-            if (Math.abs(squaredMagnitude - 1.0f) > 1e-4) {
-                // Include the first five elements of the invalid vector in the error message
-                StringBuilder sb = new StringBuilder(
-                    "The ["
-                        + VectorSimilarity.dot_product.name()
-                        + "] similarity can "
-                        + "only be used with unit-length vectors. Preview of invalid vector: "
+        private void checkVectorMagnitude(float[] vector, float squaredMagnitude) {
+            StringBuilder errorBuilder = null;
+            if (similarity == VectorSimilarity.dot_product && Math.abs(squaredMagnitude - 1.0f) > 1e-4f) {
+                errorBuilder = new StringBuilder(
+                    "The [" + VectorSimilarity.dot_product.name() + "] similarity can " + "only be used with unit-length vectors."
                 );
-                sb.append("[");
+            } else if (similarity == VectorSimilarity.cosine && Math.sqrt(squaredMagnitude) == 0.0f) {
+                errorBuilder = new StringBuilder(
+                    "The [" + VectorSimilarity.cosine.name() + "] similarity does not support vectors with zero magnitude."
+                );
+            }
+
+            if (errorBuilder != null) {
+                // Include the first five elements of the invalid vector in the error message
+                errorBuilder.append(" Preview of invalid vector: [");
                 for (int i = 0; i < Math.min(5, vector.length); i++) {
                     if (i > 0) {
-                        sb.append(", ");
+                        errorBuilder.append(", ");
                     }
-                    sb.append(vector[i]);
+                    errorBuilder.append(vector[i]);
                 }
                 if (vector.length >= 5) {
-                    sb.append(", ...");
+                    errorBuilder.append(", ...");
                 }
-                sb.append("]");
-
-                throw new IllegalArgumentException(sb.toString());
+                errorBuilder.append("]");
+                throw new IllegalArgumentException(errorBuilder.toString());
             }
         }
     }
@@ -399,7 +403,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
 
     private Field parseKnnVector(DocumentParserContext context) throws IOException {
         float[] vector = new float[dims];
-        double squaredMagnitude = 0.0;
+        float squaredMagnitude = 0.0f;
         int index = 0;
         for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
             checkDimensionExceeded(index, context);
@@ -410,9 +414,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             squaredMagnitude += value * value;
         }
         checkDimensionMatches(index, context);
-        if (similarity == VectorSimilarity.dot_product) {
-            fieldType().checkVectorMagnitude(vector, squaredMagnitude);
-        }
+        fieldType().checkVectorMagnitude(vector, squaredMagnitude);
         return new KnnVectorField(fieldType().name(), vector, similarity.function);
     }
 
@@ -492,6 +494,13 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexCreatedVersion).init(this);
+    }
+
+    @Override
+    public void doValidate(MappingLookup mappers) {
+        if (indexed && mappers.getNestedParent(name()) != null) {
+            throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields cannot be indexed if they're" + " within [nested] mappings");
+        }
     }
 
     private static IndexOptions parseIndexOptions(String fieldName, Object propNode) {

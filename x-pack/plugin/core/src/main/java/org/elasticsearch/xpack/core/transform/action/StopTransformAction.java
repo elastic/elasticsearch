@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.transform.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -81,16 +80,8 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
             if (in.readBoolean()) {
                 expandedIds = new HashSet<>(Arrays.asList(in.readStringArray()));
             }
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                this.allowNoMatch = in.readBoolean();
-            } else {
-                this.allowNoMatch = true;
-            }
-            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-                this.waitForCheckpoint = in.readBoolean();
-            } else {
-                this.waitForCheckpoint = false;
-            }
+            this.allowNoMatch = in.readBoolean();
+            this.waitForCheckpoint = in.readBoolean();
         }
 
         public String getId() {
@@ -132,12 +123,8 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
             if (hasExpandedIds) {
                 out.writeStringArray(expandedIds.toArray(new String[0]));
             }
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                out.writeBoolean(allowNoMatch);
-            }
-            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-                out.writeBoolean(waitForCheckpoint);
-            }
+            out.writeBoolean(allowNoMatch);
+            out.writeBoolean(waitForCheckpoint);
         }
 
         @Override
@@ -188,9 +175,9 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
         @Override
         public boolean match(Task task) {
             if (task.getDescription().startsWith(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX)) {
-                String id = task.getDescription().substring(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX.length());
+                String taskId = task.getDescription().substring(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX.length());
                 if (expandedIds != null) {
-                    return expandedIds.contains(id);
+                    return expandedIds.contains(taskId);
                 }
             }
 

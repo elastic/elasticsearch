@@ -36,11 +36,6 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
     }
 
     @Override
-    public InferenceConfig toConfig() {
-        throw new UnsupportedOperationException("the empty config update cannot be rewritten");
-    }
-
-    @Override
     public boolean isSupported(InferenceConfig config) {
         return true;
     }

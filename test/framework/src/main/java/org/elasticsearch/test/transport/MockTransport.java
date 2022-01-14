@@ -74,7 +74,9 @@ public class MockTransport extends StubbableTransport {
 
     public MockTransport() {
         super(new FakeTransport());
-        setDefaultConnectBehavior((transport, discoveryNode, profile, listener) -> listener.onResponse(createConnection(discoveryNode)));
+        setDefaultConnectBehavior(
+            (transport, discoveryNode, profile, actionListener) -> actionListener.onResponse(createConnection(discoveryNode))
+        );
     }
 
     /**
@@ -172,12 +174,12 @@ public class MockTransport extends StubbableTransport {
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {}
 
     @Override
-    public void setMessageListener(TransportMessageListener listener) {
+    public void setMessageListener(TransportMessageListener messageListener) {
         if (this.listener != null) {
             throw new IllegalStateException("listener already set");
         }
-        this.listener = listener;
-        super.setMessageListener(listener);
+        this.listener = messageListener;
+        super.setMessageListener(messageListener);
     }
 
     protected NamedWriteableRegistry writeableRegistry() {

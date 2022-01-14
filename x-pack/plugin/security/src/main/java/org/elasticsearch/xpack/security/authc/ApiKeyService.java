@@ -33,7 +33,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -87,9 +87,9 @@ import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -136,9 +136,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
-import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 
@@ -146,13 +143,6 @@ public class ApiKeyService {
 
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ApiKeyService.class);
-    public static final String API_KEY_ID_KEY = "_security_api_key_id";
-    public static final String API_KEY_NAME_KEY = "_security_api_key_name";
-    public static final String API_KEY_METADATA_KEY = "_security_api_key_metadata";
-    public static final String API_KEY_REALM_NAME = "_es_api_key";
-    public static final String API_KEY_REALM_TYPE = "_es_api_key";
-    public static final String API_KEY_CREATOR_REALM_NAME = "_security_api_key_creator_realm_name";
-    public static final String API_KEY_CREATOR_REALM_TYPE = "_security_api_key_creator_realm_type";
 
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
         "xpack.security.authc.api_key.hashing.algorithm",
@@ -208,18 +198,6 @@ public class ApiKeyService {
         TimeValue.timeValueMinutes(0),
         TimeValue.timeValueMinutes(15),
         Property.NodeScope
-    );
-
-    // This following fixed role descriptor is for fleet-server BWC on and before 7.14.
-    // It is fixed and must NOT be updated when the fleet-server service account updates.
-    private static final BytesArray FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14 = new BytesArray(
-        "{\"elastic/fleet-server\":{\"cluster\":[\"monitor\",\"manage_own_api_key\"],"
-            + "\"indices\":[{\"names\":[\"logs-*\",\"metrics-*\",\"traces-*\",\"synthetics-*\","
-            + "\".logs-endpoint.diagnostic.collection-*\"],"
-            + "\"privileges\":[\"write\",\"create_index\",\"auto_configure\"],\"allow_restricted_indices\":false},"
-            + "{\"names\":[\".fleet-*\"],\"privileges\":[\"read\",\"write\",\"monitor\",\"create_index\",\"auto_configure\"],"
-            + "\"allow_restricted_indices\":false}],\"applications\":[],\"run_as\":[],\"metadata\":{},"
-            + "\"transient_metadata\":{\"enabled\":true}}}"
     );
 
     private final Clock clock;
@@ -457,7 +435,11 @@ public class ApiKeyService {
             throw new IllegalArgumentException("API Key authn result must be successful");
         }
         final User user = authResult.getValue();
-        final RealmRef authenticatedBy = new RealmRef(ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, nodeName);
+        final RealmRef authenticatedBy = new RealmRef(
+            AuthenticationField.API_KEY_REALM_NAME,
+            AuthenticationField.API_KEY_REALM_TYPE,
+            nodeName
+        );
         return new Authentication(
             user,
             authenticatedBy,
@@ -537,85 +519,7 @@ public class ApiKeyService {
         }), client::get);
     }
 
-    /**
-     * This method is kept for BWC and should only be used for authentication objects created before v7.9.0.
-     * For authentication of newer versions, use {@link #getApiKeyIdAndRoleBytes}
-     *
-     * The current request has been authenticated by an API key and this method enables the
-     * retrieval of role descriptors that are associated with the api key
-     */
-    public void getRoleForApiKey(Authentication authentication, ActionListener<ApiKeyRoleDescriptors> listener) {
-        if (authentication.getAuthenticationType() != AuthenticationType.API_KEY) {
-            throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
-        }
-        assert authentication.getVersion().before(VERSION_API_KEY_ROLES_AS_BYTES)
-            : "This method only applies to authentication objects created before v7.9.0";
-
-        final Map<String, Object> metadata = authentication.getMetadata();
-        final String apiKeyId = (String) metadata.get(API_KEY_ID_KEY);
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> roleDescriptors = (Map<String, Object>) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> authnRoleDescriptors = (Map<String, Object>) metadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
-
-        if (roleDescriptors == null && authnRoleDescriptors == null) {
-            listener.onFailure(new ElasticsearchSecurityException("no role descriptors found for API key"));
-        } else if (roleDescriptors == null || roleDescriptors.isEmpty()) {
-            final List<RoleDescriptor> authnRoleDescriptorsList = parseRoleDescriptors(apiKeyId, authnRoleDescriptors);
-            listener.onResponse(new ApiKeyRoleDescriptors(apiKeyId, authnRoleDescriptorsList, null));
-        } else {
-            final List<RoleDescriptor> roleDescriptorList = parseRoleDescriptors(apiKeyId, roleDescriptors);
-            final List<RoleDescriptor> authnRoleDescriptorsList = parseRoleDescriptors(apiKeyId, authnRoleDescriptors);
-            listener.onResponse(new ApiKeyRoleDescriptors(apiKeyId, roleDescriptorList, authnRoleDescriptorsList));
-        }
-    }
-
-    public Tuple<String, BytesReference> getApiKeyIdAndRoleBytes(Authentication authentication, boolean limitedBy) {
-        if (authentication.getAuthenticationType() != AuthenticationType.API_KEY) {
-            throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
-        }
-        assert authentication.getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
-            : "This method only applies to authentication objects created on or after v7.9.0";
-
-        final Map<String, Object> metadata = authentication.getMetadata();
-        final BytesReference bytesReference = (BytesReference) metadata.get(
-            limitedBy ? API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY : API_KEY_ROLE_DESCRIPTORS_KEY
-        );
-        if (limitedBy && bytesReference.length() == 2 && "{}".equals(bytesReference.utf8ToString())) {
-            if (ServiceAccountSettings.REALM_NAME.equals(metadata.get(API_KEY_CREATOR_REALM_NAME))
-                && "elastic/fleet-server".equals(authentication.getUser().principal())) {
-                return new Tuple<>((String) metadata.get(API_KEY_ID_KEY), FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14);
-            }
-        }
-        return new Tuple<>((String) metadata.get(API_KEY_ID_KEY), bytesReference);
-    }
-
-    public static class ApiKeyRoleDescriptors {
-
-        private final String apiKeyId;
-        private final List<RoleDescriptor> roleDescriptors;
-        private final List<RoleDescriptor> limitedByRoleDescriptors;
-
-        public ApiKeyRoleDescriptors(String apiKeyId, List<RoleDescriptor> roleDescriptors, List<RoleDescriptor> limitedByDescriptors) {
-            this.apiKeyId = apiKeyId;
-            this.roleDescriptors = roleDescriptors;
-            this.limitedByRoleDescriptors = limitedByDescriptors;
-        }
-
-        public String getApiKeyId() {
-            return apiKeyId;
-        }
-
-        public List<RoleDescriptor> getRoleDescriptors() {
-            return roleDescriptors;
-        }
-
-        public List<RoleDescriptor> getLimitedByRoleDescriptors() {
-            return limitedByRoleDescriptors;
-        }
-    }
-
-    private List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, final Map<String, Object> roleDescriptors) {
+    public List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, final Map<String, Object> roleDescriptors) {
         if (roleDescriptors == null) {
             return null;
         }
@@ -641,7 +545,7 @@ public class ApiKeyService {
         }).collect(Collectors.toList());
     }
 
-    public List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, BytesReference bytesReference) {
+    public List<RoleDescriptor> parseRoleDescriptorsBytes(final String apiKeyId, BytesReference bytesReference) {
         if (bytesReference == null) {
             return Collections.emptyList();
         }
@@ -785,14 +689,14 @@ public class ApiKeyService {
             Map<String, Object> metadata = (Map<String, Object>) apiKeyDoc.creator.get("metadata");
             final User apiKeyUser = new User(principal, Strings.EMPTY_ARRAY, fullName, email, metadata, true);
             final Map<String, Object> authResultMetadata = new HashMap<>();
-            authResultMetadata.put(API_KEY_CREATOR_REALM_NAME, apiKeyDoc.creator.get("realm"));
-            authResultMetadata.put(API_KEY_CREATOR_REALM_TYPE, apiKeyDoc.creator.get("realm_type"));
-            authResultMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, apiKeyDoc.roleDescriptorsBytes);
-            authResultMetadata.put(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, apiKeyDoc.limitedByRoleDescriptorsBytes);
-            authResultMetadata.put(API_KEY_ID_KEY, credentials.getId());
-            authResultMetadata.put(API_KEY_NAME_KEY, apiKeyDoc.name);
+            authResultMetadata.put(AuthenticationField.API_KEY_CREATOR_REALM_NAME, apiKeyDoc.creator.get("realm"));
+            authResultMetadata.put(AuthenticationField.API_KEY_CREATOR_REALM_TYPE, apiKeyDoc.creator.get("realm_type"));
+            authResultMetadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, apiKeyDoc.roleDescriptorsBytes);
+            authResultMetadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, apiKeyDoc.limitedByRoleDescriptorsBytes);
+            authResultMetadata.put(AuthenticationField.API_KEY_ID_KEY, credentials.getId());
+            authResultMetadata.put(AuthenticationField.API_KEY_NAME_KEY, apiKeyDoc.name);
             if (apiKeyDoc.metadataFlattened != null) {
-                authResultMetadata.put(API_KEY_METADATA_KEY, apiKeyDoc.metadataFlattened);
+                authResultMetadata.put(AuthenticationField.API_KEY_METADATA_KEY, apiKeyDoc.metadataFlattened);
             }
             listener.onResponse(AuthenticationResult.success(apiKeyUser, authResultMetadata));
         } else {
@@ -841,7 +745,7 @@ public class ApiKeyService {
     public static boolean isApiKeyAuthentication(Authentication authentication) {
         final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
         if (Authentication.AuthenticationType.API_KEY == authType) {
-            assert API_KEY_REALM_TYPE.equals(authentication.getAuthenticatedBy().getType())
+            assert AuthenticationField.API_KEY_REALM_TYPE.equals(authentication.getAuthenticatedBy().getType())
                 : "API key authentication must have API key realm type";
             return true;
         } else {
@@ -936,7 +840,7 @@ public class ApiKeyService {
         @Override
         public void logRenamedField(String parserName, Supplier<XContentLocation> location, String oldName, String currentName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.API,
                 "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], expected [{}] instead",
@@ -950,7 +854,7 @@ public class ApiKeyService {
         @Override
         public void logReplacedField(String parserName, Supplier<XContentLocation> location, String oldName, String replacedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.API,
                 "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], replaced by [{}]",
@@ -964,7 +868,7 @@ public class ApiKeyService {
         @Override
         public void logRemovedField(String parserName, Supplier<XContentLocation> location, String removedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.API,
                 "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely",
@@ -1397,14 +1301,15 @@ public class ApiKeyService {
 
     /**
      * Returns realm name for the authenticated user.
-     * If the user is authenticated by realm type {@value API_KEY_REALM_TYPE}
+     * If the user is authenticated by realm type {@value AuthenticationField#API_KEY_REALM_TYPE}
      * then it will return the realm name of user who created this API key.
+     *
      * @param authentication {@link Authentication}
      * @return realm name
      */
     public static String getCreatorRealmName(final Authentication authentication) {
         if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
-            return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_NAME);
+            return (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
         } else {
             return authentication.getSourceRealm().getName();
         }
@@ -1412,14 +1317,15 @@ public class ApiKeyService {
 
     /**
      * Returns realm type for the authenticated user.
-     * If the user is authenticated by realm type {@value API_KEY_REALM_TYPE}
+     * If the user is authenticated by realm type {@value AuthenticationField#API_KEY_REALM_TYPE}
      * then it will return the realm name of user who created this API key.
+     *
      * @param authentication {@link Authentication}
      * @return realm type
      */
     public static String getCreatorRealmType(final Authentication authentication) {
         if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
-            return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_TYPE);
+            return (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
         } else {
             return authentication.getSourceRealm().getType();
         }
@@ -1439,7 +1345,7 @@ public class ApiKeyService {
                     + "]"
             );
         }
-        final Object apiKeyMetadata = authentication.getMetadata().get(ApiKeyService.API_KEY_METADATA_KEY);
+        final Object apiKeyMetadata = authentication.getMetadata().get(AuthenticationField.API_KEY_METADATA_KEY);
         if (apiKeyMetadata != null) {
             final Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
                 (BytesReference) apiKeyMetadata,

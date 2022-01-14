@@ -8,7 +8,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -172,10 +172,13 @@ public class RestControllerTests extends ESTestCase {
 
     public void testTraceParentAndTraceId() throws Exception {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-        Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition(Task.TRACE_PARENT, false)));
+        Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition(Task.TRACE_PARENT_HTTP_HEADER, false)));
         final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
         Map<String, List<String>> restHeaders = new HashMap<>();
-        restHeaders.put(Task.TRACE_PARENT, Collections.singletonList("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"));
+        restHeaders.put(
+            Task.TRACE_PARENT_HTTP_HEADER,
+            Collections.singletonList("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+        );
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
         final RestController spyRestController = spy(restController);
         when(spyRestController.getAllHandlers(null, fakeRequest.rawPath())).thenReturn(new Iterator<>() {
@@ -188,7 +191,7 @@ public class RestControllerTests extends ESTestCase {
             public MethodHandlers next() {
                 return new MethodHandlers("/").addMethod(GET, RestApiVersion.current(), (request, channel, client) -> {
                     assertEquals("0af7651916cd43dd8448eb211c80319c", threadContext.getHeader(Task.TRACE_ID));
-                    assertNull(threadContext.getHeader(Task.TRACE_PARENT));
+                    assertNull(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER));
                 });
             }
         });
@@ -197,7 +200,7 @@ public class RestControllerTests extends ESTestCase {
         // the rest controller relies on the caller to stash the context, so we should expect these values here as we didn't stash the
         // context in this test
         assertEquals("0af7651916cd43dd8448eb211c80319c", threadContext.getHeader(Task.TRACE_ID));
-        assertNull(threadContext.getHeader(Task.TRACE_PARENT));
+        assertNull(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER));
     }
 
     public void testRequestWithDisallowedMultiValuedHeaderButSameValues() {
@@ -234,7 +237,8 @@ public class RestControllerTests extends ESTestCase {
 
         // don't want to test everything -- just that it actually wraps the handler
         doCallRealMethod().when(controller).registerHandler(route, handler);
-        doCallRealMethod().when(controller).registerAsDeprecatedHandler(method, path, deprecatedInVersion, handler, deprecationMessage);
+        doCallRealMethod().when(controller)
+            .registerAsDeprecatedHandler(method, path, deprecatedInVersion, handler, deprecationMessage, null);
 
         controller.registerHandler(route, handler);
 
@@ -615,7 +619,7 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchUnsupportedHttpMethod() {
         final boolean hasContent = randomBoolean();
-        final RestRequest request = RestRequest.request(xContentRegistry(), new HttpRequest() {
+        final RestRequest request = RestRequest.request(parserConfig(), new HttpRequest() {
             @Override
             public RestRequest.Method method() {
                 throw new IllegalArgumentException("test");

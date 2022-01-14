@@ -12,7 +12,7 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
@@ -191,17 +191,16 @@ public class RestMultiSearchAction extends BaseRestHandler {
         final XContent xContent = sourceTuple.v1().xContent();
         final BytesReference data = sourceTuple.v2();
         MultiSearchRequest.readMultiLineFormat(
-            data,
             xContent,
+            request.contentParserConfig(),
+            data,
             consumer,
             indices,
             indicesOptions,
             routing,
             searchType,
             ccsMinimizeRoundtrips,
-            request.getXContentRegistry(),
             allowExplicitIndex,
-            request.getRestApiVersion(),
             extraParamParser
         );
     }

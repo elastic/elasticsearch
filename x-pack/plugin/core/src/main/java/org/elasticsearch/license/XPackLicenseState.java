@@ -7,7 +7,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Nullable;
@@ -181,10 +180,11 @@ public class XPackLicenseState {
                     case ENTERPRISE:
                         return new String[] {
                             LoggerMessageFormat.format(
-                                "Multi-cluster support is disabled for clusters with [{}] license. If you are\n"
-                                    + "running multiple clusters, users won't be able to access the clusters with\n"
-                                    + "[{}] licenses from within a single X-Pack Kibana instance. You will have to deploy a\n"
-                                    + "separate and dedicated X-pack Kibana instance for each [{}] cluster you wish to monitor.",
+                                """
+                                    Multi-cluster support is disabled for clusters with [{}] license. If you are
+                                    running multiple clusters, users won't be able to access the clusters with
+                                    [{}] licenses from within a single X-Pack Kibana instance. You will have to deploy a
+                                    separate and dedicated X-pack Kibana instance for each [{}] cluster you wish to monitor.""",
                                 newMode,
                                 newMode,
                                 newMode
@@ -377,17 +377,19 @@ public class XPackLicenseState {
 
     /** Return the current license type. */
     public OperationMode getOperationMode() {
-        return executeAgainstStatus(status -> status.mode);
+        return executeAgainstStatus(statusToCheck -> statusToCheck.mode);
     }
 
     // Package private for tests
     /** Return true if the license is currently within its time boundaries, false otherwise. */
     public boolean isActive() {
-        return checkAgainstStatus(status -> status.active);
+        return checkAgainstStatus(statusToCheck -> statusToCheck.active);
     }
 
     public String statusDescription() {
-        return executeAgainstStatus(status -> (status.active ? "active" : "expired") + ' ' + status.mode.description() + " license");
+        return executeAgainstStatus(
+            statusToCheck -> (statusToCheck.active ? "active" : "expired") + ' ' + statusToCheck.mode.description() + " license"
+        );
     }
 
     void featureUsed(LicensedFeature feature) {
@@ -425,7 +427,7 @@ public class XPackLicenseState {
     void checkExpiry() {
         String warning = status.expiryWarning;
         if (warning != null) {
-            HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
+            HeaderWarning.addWarning(warning);
         }
     }
 
@@ -440,19 +442,11 @@ public class XPackLicenseState {
         return usage.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> timeConverter.apply(e.getValue())));
     }
 
-    public static boolean isMachineLearningAllowedForOperationMode(final OperationMode operationMode) {
-        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
-    }
-
     public static boolean isFipsAllowedForOperationMode(final OperationMode operationMode) {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
     }
 
-    public static boolean isCcrAllowedForOperationMode(final OperationMode operationMode) {
-        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
-    }
-
-    public static boolean isAllowedByOperationMode(final OperationMode operationMode, final OperationMode minimumMode) {
+    static boolean isAllowedByOperationMode(final OperationMode operationMode, final OperationMode minimumMode) {
         if (OperationMode.TRIAL == operationMode) {
             return true;
         }
@@ -467,7 +461,7 @@ public class XPackLicenseState {
      * is needed for multiple interactions with the license state.
      */
     public XPackLicenseState copyCurrentLicenseState() {
-        return executeAgainstStatus(status -> new XPackLicenseState(listeners, status, usage, epochMillisProvider));
+        return executeAgainstStatus(statusToCheck -> new XPackLicenseState(listeners, statusToCheck, usage, epochMillisProvider));
     }
 
     /**
@@ -480,11 +474,11 @@ public class XPackLicenseState {
      */
     @Deprecated
     public boolean isAllowedByLicense(OperationMode minimumMode, boolean needActive) {
-        return checkAgainstStatus(status -> {
-            if (needActive && false == status.active) {
+        return checkAgainstStatus(statusToCheck -> {
+            if (needActive && false == statusToCheck.active) {
                 return false;
             }
-            return isAllowedByOperationMode(status.mode, minimumMode);
+            return isAllowedByOperationMode(statusToCheck.mode, minimumMode);
         });
     }
 

@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class TextTemplateTests extends ESTestCase {
@@ -144,7 +144,7 @@ public class TextTemplateTests extends ESTestCase {
     private void assertNoCompilation(String input) {
         String output = engine.render(new TextTemplate(input), Collections.emptyMap());
         assertThat(input, is(output));
-        verifyZeroInteractions(service);
+        verifyNoMoreInteractions(service);
     }
 
     private void assertScriptServiceInvoked(final String input) {
@@ -175,11 +175,8 @@ public class TextTemplateTests extends ESTestCase {
         TextTemplate template = templateBuilder(type, "_template", singletonMap("param_key", "param_val"));
         XContentBuilder builder = jsonBuilder().startObject();
         switch (type) {
-            case INLINE:
-                builder.field("source", template.getTemplate());
-                break;
-            case STORED:
-                builder.field("id", template.getTemplate());
+            case INLINE -> builder.field("source", template.getTemplate());
+            case STORED -> builder.field("id", template.getTemplate());
         }
         builder.field("params", template.getParams());
         builder.endObject();

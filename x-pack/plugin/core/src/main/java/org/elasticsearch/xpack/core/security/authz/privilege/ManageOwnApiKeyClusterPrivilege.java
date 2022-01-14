@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
@@ -26,7 +27,6 @@ import java.util.Arrays;
 public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
     public static final ManageOwnApiKeyClusterPrivilege INSTANCE = new ManageOwnApiKeyClusterPrivilege();
     private static final String PRIVILEGE_NAME = "manage_own_api_key";
-    public static final String API_KEY_ID_KEY = "_security_api_key_id";
 
     private final ClusterPermission permission;
 
@@ -137,7 +137,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
         private boolean isCurrentAuthenticationUsingSameApiKeyIdFromRequest(Authentication authentication, String apiKeyId) {
             if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
                 // API key id from authentication must match the id from request
-                final String authenticatedApiKeyId = (String) authentication.getMetadata().get(API_KEY_ID_KEY);
+                final String authenticatedApiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
                 if (Strings.hasText(apiKeyId)) {
                     return apiKeyId.equals(authenticatedApiKeyId);
                 }

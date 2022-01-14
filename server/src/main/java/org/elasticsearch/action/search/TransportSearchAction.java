@@ -17,7 +17,7 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -45,14 +45,16 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -351,7 +353,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             @Override
                             public void run() {
                                 final AtomicArray<SearchPhaseResult> atomicArray = results.getAtomicArray();
-                                sendSearchResponse(InternalSearchResponse.empty(), atomicArray);
+                                sendSearchResponse(InternalSearchResponse.EMPTY_WITH_TOTAL_HITS, atomicArray);
                             }
                         };
                     }
@@ -507,7 +509,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         OriginalIndices localIndices,
         Map<String, OriginalIndices> remoteIndices,
         SearchTimeProvider timeProvider,
-        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
+        AggregationReduceContext.Builder aggReduceContextBuilder,
         RemoteClusterService remoteClusterService,
         ThreadPool threadPool,
         ActionListener<SearchResponse> listener,
@@ -632,7 +634,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     static SearchResponseMerger createSearchResponseMerger(
         SearchSourceBuilder source,
         SearchTimeProvider timeProvider,
-        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder
+        AggregationReduceContext.Builder aggReduceContextBuilder
     ) {
         final int from;
         final int size;
@@ -888,7 +890,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
         if (frozenIndices != null) {
-            DEPRECATION_LOGGER.critical(
+            DEPRECATION_LOGGER.warn(
                 DeprecationCategory.INDICES,
                 "search-frozen-indices",
                 FROZEN_INDICES_DEPRECATION_MESSAGE,
@@ -914,6 +916,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     ) {
 
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
+        if (searchRequest.allowPartialSearchResults() == null) {
+            // No user preference defined in search request - apply cluster service default
+            searchRequest.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());
+        }
 
         // TODO: I think startTime() should become part of ActionRequest and that should be used both for index name
         // date math expressions and $now in scripts. This way all apis will deal with now in the same way instead
@@ -931,7 +937,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 localIndices,
                 searchRequest.getLocalClusterAlias(),
                 searchContext,
-                searchRequest.pointInTimeBuilder().getKeepAlive()
+                searchRequest.pointInTimeBuilder().getKeepAlive(),
+                searchRequest.allowPartialSearchResults()
             );
         } else {
             final Index[] indices = resolveLocalIndices(localIndices, clusterState, timeProvider);
@@ -988,18 +995,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             // if we only have one group, then we always want Q_T_F, no need for DFS, and no need to do THEN since we hit one shard
             searchRequest.searchType(QUERY_THEN_FETCH);
         }
-        if (searchRequest.allowPartialSearchResults() == null) {
-            // No user preference defined in search request - apply cluster service default
-            searchRequest.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());
-        }
         if (searchRequest.isSuggestOnly()) {
             // disable request cache if we have only suggest
             searchRequest.requestCache(false);
             switch (searchRequest.searchType()) {
-                case DFS_QUERY_THEN_FETCH:
+                case DFS_QUERY_THEN_FETCH ->
                     // convert to Q_T_F if we have only suggest
                     searchRequest.searchType(QUERY_THEN_FETCH);
-                    break;
             }
         }
         final DiscoveryNodes nodes = clusterState.nodes();
@@ -1189,49 +1191,42 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 shardIterators.size(),
                 exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
             );
-            AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
-            switch (searchRequest.searchType()) {
-                case DFS_QUERY_THEN_FETCH:
-                    searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(
-                        logger,
-                        searchTransportService,
-                        connectionLookup,
-                        aliasFilter,
-                        concreteIndexBoosts,
-                        searchPhaseController,
-                        executor,
-                        queryResultConsumer,
-                        searchRequest,
-                        listener,
-                        shardIterators,
-                        timeProvider,
-                        clusterState,
-                        task,
-                        clusters
-                    );
-                    break;
-                case QUERY_THEN_FETCH:
-                    searchAsyncAction = new SearchQueryThenFetchAsyncAction(
-                        logger,
-                        searchTransportService,
-                        connectionLookup,
-                        aliasFilter,
-                        concreteIndexBoosts,
-                        searchPhaseController,
-                        executor,
-                        queryResultConsumer,
-                        searchRequest,
-                        listener,
-                        shardIterators,
-                        timeProvider,
-                        clusterState,
-                        task,
-                        clusters
-                    );
-                    break;
-                default:
-                    throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
-            }
+            AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction = switch (searchRequest.searchType()) {
+                case DFS_QUERY_THEN_FETCH -> new SearchDfsQueryThenFetchAsyncAction(
+                    logger,
+                    searchTransportService,
+                    connectionLookup,
+                    aliasFilter,
+                    concreteIndexBoosts,
+                    searchPhaseController,
+                    executor,
+                    queryResultConsumer,
+                    searchRequest,
+                    listener,
+                    shardIterators,
+                    timeProvider,
+                    clusterState,
+                    task,
+                    clusters
+                );
+                case QUERY_THEN_FETCH -> new SearchQueryThenFetchAsyncAction(
+                    logger,
+                    searchTransportService,
+                    connectionLookup,
+                    aliasFilter,
+                    concreteIndexBoosts,
+                    searchPhaseController,
+                    executor,
+                    queryResultConsumer,
+                    searchRequest,
+                    listener,
+                    shardIterators,
+                    timeProvider,
+                    clusterState,
+                    task,
+                    clusters
+                );
+            };
             return searchAsyncAction;
         }
     }
@@ -1413,21 +1408,34 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         OriginalIndices originalIndices,
         String localClusterAlias,
         SearchContextId searchContext,
-        TimeValue keepAlive
+        TimeValue keepAlive,
+        boolean allowPartialSearchResults
     ) {
         final List<SearchShardIterator> iterators = new ArrayList<>(searchContext.shards().size());
         for (Map.Entry<ShardId, SearchContextIdForNode> entry : searchContext.shards().entrySet()) {
             final SearchContextIdForNode perNode = entry.getValue();
             if (Strings.isEmpty(perNode.getClusterAlias())) {
                 final ShardId shardId = entry.getKey();
-                final ShardIterator shards = OperationRouting.getShards(clusterState, shardId);
-                final List<String> targetNodes = new ArrayList<>(shards.size());
-                targetNodes.add(perNode.getNode());
-                if (perNode.getSearchContextId().getSearcherId() != null) {
-                    for (ShardRouting shard : shards) {
-                        if (shard.currentNodeId().equals(perNode.getNode()) == false) {
-                            targetNodes.add(shard.currentNodeId());
+                final List<String> targetNodes = new ArrayList<>(2);
+                // Prefer executing shard requests on nodes that are part of PIT first.
+                if (clusterState.nodes().nodeExists(perNode.getNode())) {
+                    targetNodes.add(perNode.getNode());
+                }
+                try {
+                    final ShardIterator shards = OperationRouting.getShards(clusterState, shardId);
+                    if (perNode.getSearchContextId().getSearcherId() != null) {
+                        for (ShardRouting shard : shards) {
+                            if (shard.currentNodeId().equals(perNode.getNode()) == false) {
+                                targetNodes.add(shard.currentNodeId());
+                            }
                         }
+                    }
+                } catch (IndexNotFoundException | ShardNotFoundException e) {
+                    // We can hit these exceptions if the index was deleted after creating PIT or the cluster state on
+                    // this coordinating node is outdated. It's fine to ignore these extra "retry-able" target shards
+                    // when allowPartialSearchResults is false
+                    if (allowPartialSearchResults == false) {
+                        throw e;
                     }
                 }
                 OriginalIndices finalIndices = new OriginalIndices(

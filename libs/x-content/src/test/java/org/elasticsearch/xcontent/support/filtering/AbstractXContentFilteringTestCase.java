@@ -11,12 +11,11 @@ package org.elasticsearch.xcontent.support.filtering;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.support.AbstractFilteringTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -61,26 +60,19 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
              */
             return filterOnBuilder(sample, includes, excludes);
         }
-        FilterPath[] includesFilter = FilterPath.compile(includes);
-        return filterOnParser(sample, includesFilter, excludesFilter);
+        return filterOnParser(sample, includes, excludes);
     }
 
     private XContentBuilder filterOnBuilder(Builder sample, Set<String> includes, Set<String> excludes) throws IOException {
         return sample.apply(XContentBuilder.builder(getXContentType(), includes, excludes));
     }
 
-    private XContentBuilder filterOnParser(Builder sample, FilterPath[] includes, FilterPath[] excludes) throws IOException {
+    private XContentBuilder filterOnParser(Builder sample, Set<String> includes, Set<String> excludes) throws IOException {
         try (XContentBuilder builtSample = sample.apply(createBuilder())) {
             BytesReference sampleBytes = BytesReference.bytes(builtSample);
             try (
                 XContentParser parser = getXContentType().xContent()
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        sampleBytes.streamInput(),
-                        includes,
-                        excludes
-                    );
+                    .createParser(XContentParserConfiguration.EMPTY.withFiltering(includes, excludes), sampleBytes.streamInput())
             ) {
                 XContentBuilder result = createBuilder();
                 if (sampleBytes.get(sampleBytes.length() - 1) == '\n') {
@@ -116,15 +108,10 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         XContent xContent = XContentFactory.xContent(actual.contentType());
         try (
             XContentParser jsonParser = xContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                XContentParserConfiguration.EMPTY,
                 BytesReference.bytes(expected).streamInput()
             );
-            XContentParser testParser = xContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(actual).streamInput()
-            );
+            XContentParser testParser = xContent.createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(actual).streamInput())
         ) {
             while (true) {
                 XContentParser.Token token1 = jsonParser.nextToken();
@@ -135,18 +122,12 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
                 }
                 assertThat(token1, equalTo(token2));
                 switch (token1) {
-                    case FIELD_NAME:
-                        assertThat(jsonParser.currentName(), equalTo(testParser.currentName()));
-                        break;
-                    case VALUE_STRING:
-                        assertThat(jsonParser.text(), equalTo(testParser.text()));
-                        break;
-                    case VALUE_NUMBER:
+                    case FIELD_NAME -> assertThat(jsonParser.currentName(), equalTo(testParser.currentName()));
+                    case VALUE_STRING -> assertThat(jsonParser.text(), equalTo(testParser.text()));
+                    case VALUE_NUMBER -> {
                         assertThat(jsonParser.numberType(), equalTo(testParser.numberType()));
                         assertThat(jsonParser.numberValue(), equalTo(testParser.numberValue()));
-                        break;
-                    default:
-                        break;
+                    }
                 }
             }
         } catch (Exception e) {

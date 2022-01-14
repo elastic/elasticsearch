@@ -94,7 +94,8 @@ public class RestSearchActionTests extends RestActionTestCase {
     }
 
     public void testTypeParameter() {
-        Map<String, String> params = Collections.singletonMap("type", "some_type");
+        Map<String, String> params = new HashMap<>();
+        params.put("type", "some_type");
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
@@ -108,7 +109,8 @@ public class RestSearchActionTests extends RestActionTestCase {
      * The "enable_fields_emulation" flag on search requests is a no-op but should not raise an error
      */
     public void testEnableFieldsEmulationNoErrors() throws Exception {
-        Map<String, String> params = Collections.singletonMap("enable_fields_emulation", "true");
+        Map<String, String> params = new HashMap<>();
+        params.put("enable_fields_emulation", "true");
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
@@ -131,8 +133,9 @@ public class RestSearchActionTests extends RestActionTestCase {
         assertEquals("No search type for [some_search_type]", ex.getMessage());
     }
 
-    public void testCCSForceFailFlag() throws IOException {
-        Map<String, String> params = Collections.singletonMap("ccs_force_fail", "true");
+    public void testCCSCheckCompatibilityFlag() throws IOException {
+        Map<String, String> params = new HashMap<>();
+        params.put("check_ccs_compatibility", "true");
 
         String query = """
             { "query" : { "fail_before_current_version" : { }}}

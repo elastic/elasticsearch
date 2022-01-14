@@ -16,6 +16,11 @@ dependencies {
   javaRestTestImplementation project(":client:rest-high-level")
 }
 
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named('javaRestTest').configure {
+    systemProperty 'es.random_sampler_feature_flag_registered', 'true'
+  }
+}
 // location for keys and certificates
 File keystoreDir = new File(project.buildDir, 'keystore')
 File nodeKey = file("$keystoreDir/testnode.pem")

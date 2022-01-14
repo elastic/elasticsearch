@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -42,6 +43,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -629,6 +631,21 @@ public class MachineLearning extends Plugin
         Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    private static final Boolean RANDOM_SAMPLER_AGGREGATION_FLAG_REGISTERED;
+
+    static {
+        final String property = System.getProperty("es.random_sampler_feature_flag_registered");
+        if (Build.CURRENT.isSnapshot() && property != null) {
+            throw new IllegalArgumentException("es.random_sampler_feature_flag_registered is only supported in non-snapshot builds");
+        }
+        RANDOM_SAMPLER_AGGREGATION_FLAG_REGISTERED = Booleans.parseBoolean(property, null);
+    }
+
+    public static boolean randomSamplerAggEnabled() {
+        return Build.CURRENT.isSnapshot()
+            || (RANDOM_SAMPLER_AGGREGATION_FLAG_REGISTERED != null && RANDOM_SAMPLER_AGGREGATION_FLAG_REGISTERED);
+    }
 
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
 
@@ -1390,20 +1407,22 @@ public class MachineLearning extends Plugin
 
     @Override
     public List<AggregationSpec> getAggregations() {
-        return List.of(
-            new AggregationSpec(
-                CategorizeTextAggregationBuilder.NAME,
-                CategorizeTextAggregationBuilder::new,
-                CategorizeTextAggregationBuilder.PARSER
-            ).addResultReader(InternalCategorizationAggregation::new)
-                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME)),
-            new AggregationSpec(
+        List<AggregationSpec> specs = new ArrayList<>();
+        if (randomSamplerAggEnabled()) {
+            specs.add(new AggregationSpec(
                 RandomSamplerAggregationBuilder.NAME,
                 RandomSamplerAggregationBuilder::new,
                 RandomSamplerAggregationBuilder.PARSER
             ).addResultReader(InternalRandomSampler.NAME, InternalRandomSampler::new)
-                .setAggregatorRegistrar(s -> s.registerUsage(RandomSamplerAggregationBuilder.NAME))
-        );
+                .setAggregatorRegistrar(s -> s.registerUsage(RandomSamplerAggregationBuilder.NAME)));
+        }
+        specs.add(new AggregationSpec(
+            CategorizeTextAggregationBuilder.NAME,
+            CategorizeTextAggregationBuilder::new,
+            CategorizeTextAggregationBuilder.PARSER
+        ).addResultReader(InternalCategorizationAggregation::new)
+            .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME)));
+        return specs;
     }
 
     public static boolean criticalTemplatesInstalled(ClusterState clusterState) {

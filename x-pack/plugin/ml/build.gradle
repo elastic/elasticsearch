@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
@@ -10,6 +12,15 @@ esplugin {
   extendedPlugins = ['x-pack-autoscaling', 'lang-painless']
 }
 
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("test").configure {
+    systemProperty 'es.random_sampler_feature_flag_registered', 'true'
+  }
+  tasks.named("internalClusterTest").configure {
+    systemProperty 'es.random_sampler_feature_flag_registered', 'true'
+  }
+
+}
 
 repositories {
   exclusiveContent {

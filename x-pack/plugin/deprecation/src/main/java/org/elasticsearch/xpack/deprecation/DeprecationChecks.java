@@ -101,29 +101,33 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkImplicitlyDisabledBasicRealms,
                 NodeDeprecationChecks::checkReservedPrefixedRealmNames,
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks.checkThreadPoolListenerQueueSize(
-                    settings
+                    settings,
+                    clusterState
                 ),
-                (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks.checkThreadPoolListenerSize(settings),
+                (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks.checkThreadPoolListenerSize(
+                    settings,
+                    clusterState
+                ),
                 NodeDeprecationChecks::checkClusterRemoteConnectSetting,
                 NodeDeprecationChecks::checkNodeLocalStorageSetting,
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ENRICH_ENABLED_SETTING),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ENRICH_ENABLED_SETTING, clusterState),
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.FLATTENED_ENABLED),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.FLATTENED_ENABLED, clusterState),
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.INDEX_LIFECYCLE_ENABLED),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.INDEX_LIFECYCLE_ENABLED, clusterState),
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.MONITORING_ENABLED),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.MONITORING_ENABLED, clusterState),
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ROLLUP_ENABLED),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ROLLUP_ENABLED, clusterState),
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED, clusterState),
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.SQL_ENABLED),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.SQL_ENABLED, clusterState),
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.TRANSFORM_ENABLED),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.TRANSFORM_ENABLED, clusterState),
                 (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
-                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.VECTORS_ENABLED),
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.VECTORS_ENABLED, clusterState),
                 NodeDeprecationChecks::checkMultipleDataPaths,
                 NodeDeprecationChecks::checkDataPathsList,
                 NodeDeprecationChecks::checkBootstrapSystemCallFilterSetting,

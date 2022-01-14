@@ -659,6 +659,7 @@ public class ClusterDeprecationChecks {
     static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final ClusterState clusterState) {
         return checkRemovedSetting(
             clusterState.metadata().settings(),
+            null,
             CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
             "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
             "Relocating shards are always taken into account in 8.0.",

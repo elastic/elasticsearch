@@ -113,10 +113,10 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
             enableIndexBlock(INDEX_NAME, blockType.settingName());
 
             AcknowledgedResponse removeBlockResp = client().admin()
-                    .indices()
-                    .prepareUpdateSettings(INDEX_NAME)
-                    .setSettings(Settings.builder().put(blockType.settingName(), false))
-                    .get();
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME)
+                .setSettings(Settings.builder().put(blockType.settingName(), false))
+                .get();
             assertThat(removeBlockResp.isAcknowledged(), is(true));
         }
     }

@@ -14,11 +14,10 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
 /**
  * Deletes the index identified by the shrink index name stored in the lifecycle state of the managed index (if any was generated)
@@ -58,7 +57,7 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
             }
         }
 
-        LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         final String shrinkIndexName = lifecycleState.getShrinkIndexName();
         // if the shrink index was not generated there is nothing to delete so we move on
         if (Strings.hasText(shrinkIndexName) == false) {

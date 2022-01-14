@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -1463,7 +1464,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             logger.trace("successfully published: [{}]", newState);
                             taskListener.clusterStateProcessed(source, oldState, newState);
                         }
-                    });
+                    }, ClusterStateTaskExecutor.unbatched());
                 }).run();
                 return ackCollector;
             }

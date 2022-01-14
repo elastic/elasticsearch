@@ -1257,7 +1257,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
                     }
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -1433,7 +1434,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     public void onFailure(Exception e) {
                         clusterService.submitStateUpdateTask(
                             "fail repo tasks for [" + repoName + "]",
-                            new FailPendingRepoTasksTask(repoName, e)
+                            new FailPendingRepoTasksTask(repoName, e),
+                            ClusterStateTaskExecutor.unbatched()
                         );
                     }
                 });
@@ -1725,7 +1727,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     deleteSnapshotsFromRepository(deletionToRun, repositoryData, newState.nodes().getMinNodeVersion());
                 }
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     /**
@@ -1990,7 +1992,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     runNextQueuedOperation(repositoryData, snapshot.getRepository(), true);
                 }
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     /**
@@ -2366,7 +2368,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public void onFailure(Exception e) {
                 clusterService.submitStateUpdateTask(
                     "fail repo tasks for [" + deleteEntry.repository() + "]",
-                    new FailPendingRepoTasksTask(deleteEntry.repository(), e)
+                    new FailPendingRepoTasksTask(deleteEntry.repository(), e),
+                    ClusterStateTaskExecutor.unbatched()
                 );
             }
         });
@@ -2459,7 +2462,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             };
         }
-        clusterService.submitStateUpdateTask("remove snapshot deletion metadata", clusterStateUpdateTask);
+        clusterService.submitStateUpdateTask(
+            "remove snapshot deletion metadata",
+            clusterStateUpdateTask,
+            ClusterStateTaskExecutor.unbatched()
+        );
     }
 
     /**

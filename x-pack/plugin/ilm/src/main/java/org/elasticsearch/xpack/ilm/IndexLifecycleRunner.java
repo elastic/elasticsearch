@@ -331,7 +331,8 @@ class IndexLifecycleRunner {
                             }
                         }
                     }
-                }
+                },
+                ClusterStateTaskExecutor.unbatched()
             );
         } else {
             logger.debug("policy [{}] for index [{}] on an error step after a terminal error, skipping execution", policy, index);
@@ -535,7 +536,8 @@ class IndexLifecycleRunner {
             new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, clusterState -> {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
                 registerFailedOperation(indexMetadata, e);
-            })
+            }),
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -673,7 +675,8 @@ class IndexLifecycleRunner {
      * TODO: refactor ILM logic so that this is not required any longer. It is unreasonably expensive to only filter out duplicate tasks at
      *       this point given how these tasks are mostly set up on the cluster state applier thread.
      *
-     * @param source source string as used in {@link ClusterService#submitStateUpdateTask(String, ClusterStateTaskConfig)}
+     * @param source source string as used in {@link ClusterService#submitStateUpdateTask(String, ClusterStateTaskConfig,
+     *               ClusterStateTaskExecutor)}
      * @param task   task to submit unless already tracked in {@link #executingTasks}.
      */
     private void submitUnlessAlreadyQueued(String source, IndexLifecycleClusterStateUpdateTask task) {

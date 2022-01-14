@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -238,7 +239,8 @@ public class IndexLifecycleService
             if (safeToStop && OperationMode.STOPPING == currentMode) {
                 clusterService.submitStateUpdateTask(
                     "ilm_operation_mode_update[stopped]",
-                    OperationModeUpdateTask.ilmMode(OperationMode.STOPPED)
+                    OperationModeUpdateTask.ilmMode(OperationMode.STOPPED),
+                    ClusterStateTaskExecutor.unbatched()
                 );
             }
         }
@@ -441,7 +443,8 @@ public class IndexLifecycleService
         if (safeToStop && OperationMode.STOPPING == currentMode) {
             clusterService.submitStateUpdateTask(
                 "ilm_operation_mode_update[stopped]",
-                OperationModeUpdateTask.ilmMode(OperationMode.STOPPED)
+                OperationModeUpdateTask.ilmMode(OperationMode.STOPPED),
+                ClusterStateTaskExecutor.unbatched()
             );
         }
     }

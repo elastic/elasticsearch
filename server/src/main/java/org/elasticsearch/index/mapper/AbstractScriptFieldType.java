@@ -67,11 +67,6 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     }
 
     @Override
-    public boolean mayExistInIndex(SearchExecutionContext context) {
-        return true;
-    }
-
-    @Override
     public final Query rangeQuery(
         Object lowerTerm,
         Object upperTerm,

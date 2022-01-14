@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
@@ -456,7 +457,8 @@ public class RestoreService implements ClusterStateApplier {
                 updater,
                 repository.getMetadata(),
                 listener
-            )
+            ),
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -1079,7 +1081,7 @@ public class RestoreService implements ClusterStateApplier {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 cleanupInProgress = false;
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     @Override

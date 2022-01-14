@@ -156,11 +156,6 @@ public class SliceBuilderTests extends ESTestCase {
             }
 
             @Override
-            public boolean mayExistInIndex(SearchExecutionContext context) {
-                return false;
-            }
-
-            @Override
             public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
                 return null;
             }

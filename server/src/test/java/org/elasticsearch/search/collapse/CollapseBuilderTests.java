@@ -223,11 +223,6 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 }
 
                 @Override
-                public boolean mayExistInIndex(SearchExecutionContext context) {
-                    return false;
-                }
-
-                @Override
                 public Query termQuery(Object value, SearchExecutionContext context) {
                     return null;
                 }

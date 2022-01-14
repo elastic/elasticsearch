@@ -60,11 +60,6 @@ public final class TestRuntimeField implements RuntimeField {
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
-            return false;
-        }
-
-        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException();
         }

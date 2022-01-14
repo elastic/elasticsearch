@@ -191,9 +191,7 @@ public class SystemAliasIT extends ESRestTestCase {
                 "this request accesses system indices: ["
                     + indexName
                     + "], "
-                    + "but in a future major version, direct access to system indices will be prevented by default",
-                "this request accesses aliases with names reserved for system indices: [.internal-unmanaged-alias], "
-                    + "but in a future major version, direct access to system indices and their aliases will not be allowed"
+                    + "but in a future major version, direct access to system indices will be prevented by default"
             )
         );
         Response response = client().performRequest(request);

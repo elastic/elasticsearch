@@ -46,20 +46,25 @@ import javax.crypto.spec.SecretKeySpec;
  * Utilities for JWT JWS create, sign, and verify, as well as generate JWT JWS credential.
  */
 public class JwtUtil {
-    // All JWSAlgorithm values in Family.HMAC_SHA, Family.RSA, and Family.EC (Note: ES256K disabled in Java 11.0.9, 11.0.10, 17)
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
+    // Expect all JWSAlgorithm values to work in Family.HMAC_SHA, Family.RSA, and Family.EC (except ES256K)
+    // Non-FIPS: Expect ES256K to fail because it is deprecated and disabled by default in Java 11.0.9/11.0.10 and 17
+    // FIPS mode: Expect ES256K to succeed because it is still supported by BC-FIPS; not deprecated or disabled yet
+    private static final JWSAlgorithm.Family EC_NON_FIPS = new JWSAlgorithm.Family(
+        JWSAlgorithm.Family.EC.stream().filter(a -> (a.equals(JWSAlgorithm.ES256K) == false)).toArray(JWSAlgorithm[]::new)
+    );
+
     public static final JWSAlgorithm.Family SUPPORTED_JWS_ALGORITHMS = new JWSAlgorithm.Family(
         ArrayUtils.concat(
             JWSAlgorithm.Family.HMAC_SHA.toArray(new JWSAlgorithm[] {}),
             JWSAlgorithm.Family.RSA.toArray(new JWSAlgorithm[] {}),
-            JWSAlgorithm.Family.EC.stream().filter(a -> (a.equals(JWSAlgorithm.ES256K) == false)).toArray(JWSAlgorithm[]::new)
+            EC_NON_FIPS.toArray(new JWSAlgorithm[] {})
         )
     );
 
     public static final JWSAlgorithm.Family SUPPORTED_JWS_ALGORITHMS_PUBLIC_KEY = new JWSAlgorithm.Family(
-        ArrayUtils.concat(
-            JWSAlgorithm.Family.RSA.toArray(new JWSAlgorithm[] {}),
-            JWSAlgorithm.Family.EC.stream().filter(a -> (a.equals(JWSAlgorithm.ES256K) == false)).toArray(JWSAlgorithm[]::new)
-        )
+        ArrayUtils.concat(JWSAlgorithm.Family.RSA.toArray(new JWSAlgorithm[] {}), EC_NON_FIPS.toArray(new JWSAlgorithm[] {}))
     );
 
     public static SignedJWT signSignedJwt(final JWSSigner jwtSigner, final JWSHeader jwsHeader, final JWTClaimsSet jwtClaimsSet)
@@ -124,14 +129,14 @@ public class JwtUtil {
     // Nimbus JOSE+JWT requires HMAC keys to match or exceed digest strength.
     public static Secret generateSecret(final int hmacLengthBits) {
         final byte[] hmacKeyBytes = new byte[hmacLengthBits];
-        new SecureRandom().nextBytes(hmacKeyBytes);
+        SECURE_RANDOM.nextBytes(hmacKeyBytes);
         // Secret class in Nimbus JOSE JWT requires a UTF-8 String. Convert from random byte[] to a string.
         final String secretBytesAsString = Base64.getEncoder().encodeToString(hmacKeyBytes);
         return new Secret(secretBytesAsString);
     }
 
     // Nimbus JOSE+JWT requires HMAC keys to match or exceed digest strength.
-    public static SecretKey generateSecretKey(final int hmacLengthBits) throws JOSEException {
+    public static SecretKey generateSecretKey(final int hmacLengthBits) {
         final Secret secret = generateSecret(hmacLengthBits);
         return new SecretKeySpec(secret.getValueBytes(), "HMAC");
     }

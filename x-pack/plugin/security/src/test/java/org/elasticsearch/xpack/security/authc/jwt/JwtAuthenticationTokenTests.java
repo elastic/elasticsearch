@@ -30,13 +30,13 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
         final SecureString clientSharedSecret = randomBoolean() ? null : new SecureString(randomAlphaOfLengthBetween(10, 20).toCharArray());
 
         final JwtAuthenticationToken jwtAuthenticationToken = new JwtAuthenticationToken(jwt, clientSharedSecret);
-        Assert.assertEquals(serializedJWTOriginal, jwtAuthenticationToken.getSerializedJwt().toString());
+        Assert.assertEquals(serializedJWTOriginal, jwtAuthenticationToken.getEndUserSignedJwt().toString());
         Assert.assertEquals(serializedJWTOriginal, jwtAuthenticationToken.getSignedJwt().serialize());
         Assert.assertEquals(clientSharedSecret, jwtAuthenticationToken.getClientAuthorizationSharedSecret());
 
         jwtAuthenticationToken.clearCredentials();
 
-        final Exception exception = expectThrows(IllegalStateException.class, jwtAuthenticationToken.getSerializedJwt()::length);
+        final Exception exception = expectThrows(IllegalStateException.class, jwtAuthenticationToken.getEndUserSignedJwt()::length);
         assertThat(exception.getMessage(), equalTo("SecureString has already been closed"));
 
         assertThat(jwtAuthenticationToken.getSignedJwt(), is(nullValue()));

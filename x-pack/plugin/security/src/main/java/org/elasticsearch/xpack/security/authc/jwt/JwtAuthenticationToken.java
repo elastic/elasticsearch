@@ -7,12 +7,9 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
@@ -30,12 +27,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * An {@link AuthenticationToken} to hold JWT authentication related content.
  */
 public class JwtAuthenticationToken implements AuthenticationToken {
-    private static final Logger LOGGER = LogManager.getLogger(JwtAuthenticationToken.class);
-
     private static final List<String> CLAIMS_TO_REMOVE = List.of("iss", "aud", "exp", "iat", "nbf", "auth_time", "nonce", "jti");
 
     // Stored members
-    protected final SecureString endUserSecret; // required
+    protected final SecureString endUserSignedJwt; // required
     protected final SecureString clientAuthorizationSharedSecret; // optional, nullable
 
     // Parsed members
@@ -52,30 +47,25 @@ public class JwtAuthenticationToken implements AuthenticationToken {
     /**
      * Store a mandatory JWT and optional Shared Secret. Parse the JWT, and extract the header, claims set, and signature.
      * Throws IllegalArgumentException if bearerString is missing, or if JWT parsing fails.
-     * @param endUserSecret Base64Url-encoded JWT for End-user authorization. Required by all JWT realms.
+     * @param endUserSignedJwt Base64Url-encoded JWT for End-user authorization. Required by all JWT realms.
      * @param clientAuthorizationSharedSecret URL-safe Shared Secret for Client authorization. Required by some JWT realms.
      */
-    public JwtAuthenticationToken(final SecureString endUserSecret, @Nullable final SecureString clientAuthorizationSharedSecret) {
-        if (endUserSecret == null) {
+    public JwtAuthenticationToken(final SecureString endUserSignedJwt, @Nullable final SecureString clientAuthorizationSharedSecret) {
+        if (endUserSignedJwt == null) {
             throw new IllegalArgumentException("JWT bearer token must be non-null");
-        } else if (endUserSecret.isEmpty()) {
+        } else if (endUserSignedJwt.isEmpty()) {
             throw new IllegalArgumentException("JWT bearer token must be non-empty");
         } else if ((clientAuthorizationSharedSecret != null) && (clientAuthorizationSharedSecret.isEmpty())) {
             throw new IllegalArgumentException("Client shared secret must be non-empty");
         }
-        this.endUserSecret = endUserSecret; // required
+        this.endUserSignedJwt = endUserSignedJwt; // required
         this.clientAuthorizationSharedSecret = clientAuthorizationSharedSecret; // optional, nullable
-        // Parse JWT
         try {
-            final SignedJWT parsed = SignedJWT.parse(this.endUserSecret.toString());
-            final JWSHeader jwsHeader = parsed.getHeader();
-            final JWTClaimsSet jwtClaimsSet = parsed.getJWTClaimsSet();
-            final Base64URL base64Url = parsed.getSignature();
-            final byte[] signatureBytes = base64Url.decode();
+            final SignedJWT parsed = SignedJWT.parse(this.endUserSignedJwt.toString());
             this.signedJwt.set(parsed);
-            this.jwsHeader.set(jwsHeader);
-            this.jwtClaimsSet.set(jwtClaimsSet);
-            this.jwtSignature.set(signatureBytes);
+            this.jwsHeader.set(parsed.getHeader());
+            this.jwtClaimsSet.set(parsed.getJWTClaimsSet());
+            this.jwtSignature.set(parsed.getSignature().decode());
         } catch (ParseException e) {
             this.signedJwt.set(null);
             this.jwsHeader.set(null);
@@ -93,23 +83,23 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         } else if ((this.audiencesClaim == null) || (this.audiencesClaim.isEmpty())) {
             throw new IllegalArgumentException("Audiences claim is missing.");
         }
-        final String orderedAudiencesString = String.join(",", new TreeSet<>(this.audiencesClaim));
+        final String orderedAudiences = String.join(",", new TreeSet<>(this.audiencesClaim));
+        final String computedSubject;
         if (Strings.hasText(this.subjectClaim)) {
-            // Subject is present, so set principal to "issuer/audiences/subject"
-            this.principal = this.issuerClaim + "/" + orderedAudiencesString + "/" + this.subjectClaim;
+            computedSubject = this.subjectClaim; // principal = "iss/aud/sub"
         } else {
-            // Subject is absent, so set principal to "issuer/audiences/orderedClaims" (Note: remove unnecessary claims from orderedClaims)
-            final Map<String, Object> orderedClaimSet = new TreeMap<>(jwtClaimsSet.getClaims()); // ordered
+            final Map<String, Object> orderedClaimsSubset = new TreeMap<>(jwtClaimsSet.getClaims());
             for (final String claimToRemove : CLAIMS_TO_REMOVE) {
-                orderedClaimSet.remove(claimToRemove);
+                orderedClaimsSubset.remove(claimToRemove);
             }
-            if (orderedClaimSet.isEmpty()) {
+            if (orderedClaimsSubset.isEmpty()) {
                 throw new IllegalArgumentException(
-                    "Subject claim is missing, and no other claims found besides [" + String.join(",", CLAIMS_TO_REMOVE) + "]."
+                    "Claim [sub] is absent, and no other claims found besides [" + String.join(",", CLAIMS_TO_REMOVE) + "]."
                 );
             }
-            this.principal = this.issuerClaim + "/" + orderedAudiencesString + "/" + orderedClaimSet;
+            computedSubject = orderedClaimsSubset.toString(); // principal = "iss/aud/orderedClaimsSubset"
         }
+        this.principal = this.issuerClaim + "/" + orderedAudiences + "/" + computedSubject;
         this.credentials = new SecureString(this.principal.toCharArray());
     }
 
@@ -123,8 +113,8 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         return this.credentials;
     }
 
-    public SecureString getSerializedJwt() {
-        return this.endUserSecret;
+    public SecureString getEndUserSignedJwt() {
+        return this.endUserSignedJwt;
     }
 
     public SecureString getClientAuthorizationSharedSecret() {
@@ -159,8 +149,9 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         return this.subjectClaim;
     }
 
+    @Override
     public void clearCredentials() {
-        this.endUserSecret.close();
+        this.endUserSignedJwt.close();
         if (this.clientAuthorizationSharedSecret != null) {
             this.clientAuthorizationSharedSecret.close();
         }

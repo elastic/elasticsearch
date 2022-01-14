@@ -594,6 +594,15 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertEquals(queryBuilder, rewritten);
     }
 
+    public void testRewriteWithLeniency() throws IOException {
+        // If we've configured leniency then we can't rewrite to a term query
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "value");
+        queryBuilder.lenient(true);
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryBuilder rewritten = queryBuilder.rewrite(context);
+        assertEquals(queryBuilder, rewritten);
+    }
+
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         QueryBuilder query = new MatchQueryBuilder("_index", "does_not_exist");
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();

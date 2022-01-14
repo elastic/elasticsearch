@@ -93,6 +93,8 @@ public class InitialNodeSecurityAutoConfiguration {
                 // is now a system index), it's not a catastrophic position to be in either, because it only entails
                 // that new tokens and possibly credentials are generated anew
                 // TODO maybe we can improve the check that this is indeed the initial node
+                // a lot of stuff runs when a node just started, and the autoconfiguration is not time-critical
+                // and nothing else depends on it; be a good sport and wait a couple
                 threadPool.schedule(new AbstractRunnable() {
 
                     @Override
@@ -104,9 +106,6 @@ public class InitialNodeSecurityAutoConfiguration {
                     protected void doRun() throws Exception {
                         // the HTTP address is guaranteed to be bound only after the node started
                         nodeStartedSignal.await();
-                        // a lot of stuff runs when a node just started, and the autoconfiguration is not time-critical
-                        // and nothing else depends on it; be a good sport and wait a couple
-                        Thread.sleep(9000);
                         String fingerprint;
                         try {
                             fingerprint = enrollmentTokenGenerator.getHttpsCaFingerprint();

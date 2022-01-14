@@ -18,8 +18,8 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -359,7 +359,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                         originalDataStream.getTimeStampField(),
                         backingIndices,
                         originalDataStream.getGeneration(),
-                        originalDataStream.getMetadata()
+                        originalDataStream.getMetadata(),
+                        originalDataStream.isHidden(),
+                        originalDataStream.isReplicated(),
+                        originalDataStream.isSystem(),
+                        originalDataStream.isAllowCustomRouting()
                     );
                     metadataBuilder.put(dataStream);
                 }

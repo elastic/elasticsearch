@@ -22,7 +22,7 @@ import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -172,7 +172,15 @@ public class WatcherServiceTests extends ESTestCase {
         }).when(client).execute(eq(RefreshAction.INSTANCE), any(RefreshRequest.class), anyActionListener());
 
         // empty scroll response, no further scrolling needed
-        SearchResponseSections scrollSearchSections = new SearchResponseSections(SearchHits.empty(), null, null, false, false, null, 1);
+        SearchResponseSections scrollSearchSections = new SearchResponseSections(
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
+            null,
+            null,
+            false,
+            false,
+            null,
+            1
+        );
         SearchResponse scrollSearchResponse = new SearchResponse(
             scrollSearchSections,
             "scrollId",

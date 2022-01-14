@@ -348,14 +348,16 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     public void testDynamicRuntimeNoConflicts() {
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping("{\"_doc\":{\"dynamic\":\"runtime\"}}").get());
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("""
+            {"_doc":{"dynamic":"runtime"}}""").get());
 
         List<IndexRequest> docs = new ArrayList<>();
         // the root is mapped dynamic:runtime hence there are no type conflicts
         docs.add(new IndexRequest("test").source("one.two.three", new int[] { 1, 2, 3 }));
         docs.add(new IndexRequest("test").source("one.two", 3.5));
         docs.add(new IndexRequest("test").source("one", "one"));
-        docs.add(new IndexRequest("test").source("{\"one\":{\"two\": { \"three\": \"three\"}}}", XContentType.JSON));
+        docs.add(new IndexRequest("test").source("""
+            {"one":{"two": { "three": "three"}}}""", XContentType.JSON));
         Collections.shuffle(docs, random());
         BulkRequest bulkRequest = new BulkRequest();
         for (IndexRequest doc : docs) {
@@ -380,16 +382,21 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     public void testDynamicRuntimeObjectFields() {
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setMapping(
-                    "{\"_doc\":{\"properties\":{"
-                        + "\"obj\":{\"properties\":{\"runtime\":{\"type\":\"object\",\"dynamic\":\"runtime\"}}}}}}"
-                )
-                .get()
-        );
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("""
+            {
+              "_doc": {
+                "properties": {
+                  "obj": {
+                    "properties": {
+                      "runtime": {
+                        "type": "object",
+                        "dynamic": "runtime"
+                      }
+                    }
+                  }
+                }
+              }
+            }""").get());
 
         List<IndexRequest> docs = new ArrayList<>();
         docs.add(new IndexRequest("test").source("obj.one", 1));
@@ -397,7 +404,8 @@ public class DynamicMappingIT extends ESIntegTestCase {
         // obj.runtime is mapped dynamic:runtime hence there are no type conflicts
         docs.add(new IndexRequest("test").source("obj.runtime.one.two", "test"));
         docs.add(new IndexRequest("test").source("obj.runtime.one", "one"));
-        docs.add(new IndexRequest("test").source("{\"obj\":{\"runtime\":{\"one\":{\"two\": 1}}}}", XContentType.JSON));
+        docs.add(new IndexRequest("test").source("""
+            {"obj":{"runtime":{"one":{"two": 1}}}}""", XContentType.JSON));
         Collections.shuffle(docs, random());
         BulkRequest bulkRequest = new BulkRequest();
         for (IndexRequest doc : docs) {
@@ -435,16 +443,25 @@ public class DynamicMappingIT extends ESIntegTestCase {
             exception.getMessage()
         );
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .preparePutMapping("test")
-                .setSource(
-                    "{\"_doc\":{\"properties\":{\"obj\":{\"properties\":"
-                        + "{\"runtime\":{\"properties\":{\"dynamic\":{\"type\":\"object\", \"dynamic\":true}}}}}}}}",
-                    XContentType.JSON
-                )
-        );
+        assertAcked(client().admin().indices().preparePutMapping("test").setSource("""
+            {
+              "_doc": {
+                "properties": {
+                  "obj": {
+                    "properties": {
+                      "runtime": {
+                        "properties": {
+                          "dynamic": {
+                            "type": "object",
+                            "dynamic": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""", XContentType.JSON));
 
         // the parent object has been mapped dynamic:true, hence the field gets indexed
         // we use a fixed doc id here to make sure this document and the one we sent later with a conflicting type

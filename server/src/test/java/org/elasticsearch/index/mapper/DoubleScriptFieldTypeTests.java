@@ -241,34 +241,30 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     }
 
     private static DoubleFieldScript.Factory factory(Script script) {
-        switch (script.getIdOrCode()) {
-            case "read_foo":
-                return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                            emit(((Number) foo).doubleValue());
-                        }
+        return switch (script.getIdOrCode()) {
+            case "read_foo" -> (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                        emit(((Number) foo).doubleValue());
                     }
-                };
-            case "add_param":
-                return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                            emit(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
-                        }
+                }
+            };
+            case "add_param" -> (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                        emit(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
                     }
-                };
-            case "loop":
-                return (fieldName, params, lookup) -> {
-                    // Indicate that this script wants the field call "test", which *is* the name of this field
-                    lookup.forkAndTrackFieldReferences("test");
-                    throw new IllegalStateException("shoud have thrown on the line above");
-                };
-            default:
-                throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
-        }
+                }
+            };
+            case "loop" -> (fieldName, params, lookup) -> {
+                // Indicate that this script wants the field call "test", which *is* the name of this field
+                lookup.forkAndTrackFieldReferences("test");
+                throw new IllegalStateException("shoud have thrown on the line above");
+            };
+            default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
+        };
     }
 
     private static DoubleScriptFieldType build(Script script) {

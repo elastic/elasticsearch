@@ -17,7 +17,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -1321,7 +1321,8 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testBuildUserPrivilegeResponse() {
         final ManageApplicationPrivileges manageApplicationPrivileges = new ManageApplicationPrivileges(Sets.newHashSet("app01", "app02"));
-        final BytesArray query = new BytesArray("{\"term\":{\"public\":true}}");
+        final BytesArray query = new BytesArray("""
+            {"term":{"public":true}}""");
         final Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "test", "role")
             .cluster(Sets.newHashSet("monitor", "manage_watcher"), Collections.singleton(manageApplicationPrivileges))
             .add(IndexPrivilege.get(Sets.newHashSet("read", "write")), "index-1")
@@ -1389,7 +1390,7 @@ public class RBACEngineTests extends ESTestCase {
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices.add(DataStreamTestHelper.createBackingIndex(dataStreamName, k + 1).build());
         }
-        DataStream ds = new DataStream(
+        DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
             null,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
@@ -1430,7 +1431,7 @@ public class RBACEngineTests extends ESTestCase {
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices.add(DataStreamTestHelper.createBackingIndex(dataStreamName, k + 1).build());
         }
-        DataStream ds = new DataStream(
+        DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
             null,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())

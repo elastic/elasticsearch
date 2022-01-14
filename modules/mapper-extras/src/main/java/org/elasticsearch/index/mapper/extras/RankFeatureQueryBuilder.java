@@ -290,18 +290,13 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
 
     private static ScoreFunction readScoreFunction(StreamInput in) throws IOException {
         byte b = in.readByte();
-        switch (b) {
-            case 0:
-                return new ScoreFunction.Log(in);
-            case 1:
-                return new ScoreFunction.Saturation(in);
-            case 2:
-                return new ScoreFunction.Sigmoid(in);
-            case 3:
-                return new ScoreFunction.Linear(in);
-            default:
-                throw new IOException("Illegal score function id: " + b);
-        }
+        return switch (b) {
+            case 0 -> new ScoreFunction.Log(in);
+            case 1 -> new ScoreFunction.Saturation(in);
+            case 2 -> new ScoreFunction.Sigmoid(in);
+            case 3 -> new ScoreFunction.Linear(in);
+            default -> throw new IOException("Illegal score function id: " + b);
+        };
     }
 
     public static final ConstructingObjectParser<RankFeatureQueryBuilder, Void> PARSER = new ConstructingObjectParser<>("feature", args -> {
@@ -381,8 +376,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         final MappedFieldType ft = context.getFieldType(field);
 
-        if (ft instanceof RankFeatureFieldType) {
-            final RankFeatureFieldType fft = (RankFeatureFieldType) ft;
+        if (ft instanceof final RankFeatureFieldType fft) {
             return scoreFunction.toQuery(RankFeatureMetaFieldMapper.NAME, field, fft.positiveScoreImpact());
         } else if (ft == null) {
             final int lastDotIndex = field.lastIndexOf('.');

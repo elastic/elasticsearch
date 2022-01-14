@@ -180,13 +180,11 @@ public final class DLSRoleQueryValidator {
      */
     // pkg protected for testing
     static void verifyRoleQuery(QueryBuilder queryBuilder) {
-        if (queryBuilder instanceof TermsQueryBuilder) {
-            TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) queryBuilder;
+        if (queryBuilder instanceof TermsQueryBuilder termsQueryBuilder) {
             if (termsQueryBuilder.termsLookup() != null) {
                 throw new IllegalArgumentException("terms query with terms lookup isn't supported as part of a role query");
             }
-        } else if (queryBuilder instanceof GeoShapeQueryBuilder) {
-            GeoShapeQueryBuilder geoShapeQueryBuilder = (GeoShapeQueryBuilder) queryBuilder;
+        } else if (queryBuilder instanceof GeoShapeQueryBuilder geoShapeQueryBuilder) {
             if (geoShapeQueryBuilder.shape() == null) {
                 throw new IllegalArgumentException("geoshape query referring to indexed shapes isn't supported as part of a role query");
             }
@@ -200,8 +198,7 @@ public final class DLSRoleQueryValidator {
             throw new IllegalArgumentException("has_child query isn't supported as part of a role query");
         } else if (queryBuilder.getName().equals("has_parent")) {
             throw new IllegalArgumentException("has_parent query isn't supported as part of a role query");
-        } else if (queryBuilder instanceof BoolQueryBuilder) {
-            BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) queryBuilder;
+        } else if (queryBuilder instanceof BoolQueryBuilder boolQueryBuilder) {
             List<QueryBuilder> clauses = new ArrayList<>();
             clauses.addAll(boolQueryBuilder.filter());
             clauses.addAll(boolQueryBuilder.must());

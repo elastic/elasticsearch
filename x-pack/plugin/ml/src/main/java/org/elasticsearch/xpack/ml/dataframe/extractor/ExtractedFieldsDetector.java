@@ -439,10 +439,11 @@ public class ExtractedFieldsDetector {
     }
 
     private List<PreProcessor> extractFeatureProcessors() {
-        if (config.getAnalysis() instanceof Classification) {
-            return ((Classification) config.getAnalysis()).getFeatureProcessors();
-        } else if (config.getAnalysis() instanceof Regression) {
-            return ((Regression) config.getAnalysis()).getFeatureProcessors();
+        final DataFrameAnalysis analysis = config.getAnalysis();
+        if (analysis instanceof Classification classification) {
+            return classification.getFeatureProcessors();
+        } else if (analysis instanceof Regression regression) {
+            return regression.getFeatureProcessors();
         }
         return Collections.emptyList();
     }

@@ -59,15 +59,16 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"script_score\" : {\n"
-            + "    \"query\" : { \"match_all\" : {} },\n"
-            + "    \"script\" : {\n"
-            + "      \"source\" : \"doc['field'].value\" \n"
-            + "    },\n"
-            + "    \"min_score\" : 2.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "script_score" : {
+                "query" : { "match_all" : {} },
+                "script" : {
+                  "source" : "doc['field'].value"
+                },
+                "min_score" : 2.0
+              }
+            }""";
 
         ScriptScoreQueryBuilder parsed = (ScriptScoreQueryBuilder) parseQuery(json);
         assertEquals(json, 2, parsed.getMinScore(), 0.0001);

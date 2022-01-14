@@ -169,6 +169,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
   task.replaceKeyInDo("ml.validate", "xpack-ml.validate")
   task.replaceKeyInDo("ml.validate_detector", "xpack-ml.validate_detector")
   task.addAllowedWarningRegex(".*_xpack/ml.* is deprecated.*")
+  task.addAllowedWarningRegex("bucket_span .* is not an integral .* of the number of sconds in 1d.* This is now deprecated.*")
 
   task.replaceKeyInDo("ssl.certificates", "xpack-ssl.certificates", "Test get SSL certificates")
   task.addAllowedWarningRegexForTest(".*_xpack/ssl.* is deprecated.*", "Test get SSL certificates")

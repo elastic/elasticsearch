@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.LocalClusterUpdateTask;
+import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -109,12 +109,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     ) {
         assert request.waitForEvents() != null;
         if (request.local()) {
-            var updateTask = new LocalClusterUpdateTask(request.waitForEvents()) {
-                @Override
-                public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
-                    return unchanged();
-                }
-
+            new LocalMasterServiceTask(request.waitForEvents()) {
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     final long timeoutInMillis = Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis());
@@ -134,12 +129,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                     logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                     listener.onFailure(e);
                 }
-            };
-            clusterService.submitStateUpdateTask(
-                "cluster_health (wait_for_events [" + request.waitForEvents() + "])",
-                updateTask,
-                updateTask
-            );
+            }.submit(clusterService.getMasterService(), "cluster_health (wait_for_events [" + request.waitForEvents() + "])");
         } else {
             final TimeValue taskTimeout = TimeValue.timeValueMillis(Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis()));
             clusterService.submitStateUpdateTask(

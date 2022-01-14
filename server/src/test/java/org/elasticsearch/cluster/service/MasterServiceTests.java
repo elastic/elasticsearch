@@ -22,7 +22,7 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.LocalClusterUpdateTask;
+import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
@@ -158,12 +158,11 @@ public class MasterServiceTests extends ESTestCase {
         assertTrue("cluster state update task was executed on a non-master", taskFailed[0]);
 
         final CountDownLatch latch2 = new CountDownLatch(1);
-        final LocalClusterUpdateTask updateTask = new LocalClusterUpdateTask() {
+        new LocalMasterServiceTask(Priority.NORMAL) {
             @Override
-            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
+            public void execute(ClusterState currentState) {
                 taskFailed[0] = false;
                 latch2.countDown();
-                return unchanged();
             }
 
             @Override
@@ -171,8 +170,7 @@ public class MasterServiceTests extends ESTestCase {
                 taskFailed[0] = true;
                 latch2.countDown();
             }
-        };
-        nonMaster.submitStateUpdateTask("test", updateTask, updateTask);
+        }.submit(nonMaster, "test");
         latch2.await();
         assertFalse("non-master cluster state update task was not executed", taskFailed[0]);
 

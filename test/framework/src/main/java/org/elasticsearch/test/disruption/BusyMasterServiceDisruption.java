@@ -8,6 +8,7 @@
 package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -56,7 +57,7 @@ public class BusyMasterServiceDisruption extends SingleNodeDisruption {
             public void onFailure(String source, Exception e) {
                 logger.error("unexpected error during disruption", e);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     @Override

@@ -13,6 +13,8 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -146,6 +148,29 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
+    }
+
+    @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        SearchExecutionContext sec = queryRewriteContext.convertToSearchExecutionContext();
+        // If we're using the default keyword analyzer then we can rewrite this to a TermQueryBuilder
+        // and possibly shortcut
+        if (analyzer != null) {
+            if (sec.getIndexAnalyzers().get(analyzer) == Lucene.KEYWORD_ANALYZER) {
+                TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
+                return termQueryBuilder.rewrite(queryRewriteContext);
+            }
+        } else {
+            MappedFieldType mft = sec.getFieldType(fieldName);
+            if (mft == null) {
+                return new MatchNoneQueryBuilder();
+            }
+            if (mft.getTextSearchInfo().getSearchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
+                TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
+                return termQueryBuilder.rewrite(queryRewriteContext);
+            }
+        }
+        return this;
     }
 
     @Override

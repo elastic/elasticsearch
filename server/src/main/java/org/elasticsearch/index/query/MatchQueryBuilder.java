@@ -14,10 +14,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -348,6 +350,32 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
+    }
+
+    @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (fuzziness != null) {
+            return this;
+        }
+        SearchExecutionContext sec = queryRewriteContext.convertToSearchExecutionContext();
+        // If we're using the default keyword analyzer then we can rewrite this to a TermQueryBuilder
+        // and possibly shortcut
+        if (analyzer != null) {
+            if (sec.getIndexAnalyzers().get(analyzer) == Lucene.KEYWORD_ANALYZER) {
+                TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
+                return termQueryBuilder.rewrite(queryRewriteContext);
+            }
+        } else {
+            MappedFieldType mft = sec.getFieldType(fieldName);
+            if (mft == null) {
+                return new MatchNoneQueryBuilder();
+            }
+            if (mft.getTextSearchInfo().getSearchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
+                TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
+                return termQueryBuilder.rewrite(queryRewriteContext);
+            }
+        }
+        return this;
     }
 
     @Override

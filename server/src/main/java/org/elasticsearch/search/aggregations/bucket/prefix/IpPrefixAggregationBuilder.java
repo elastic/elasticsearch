@@ -79,7 +79,7 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
         IpPrefixAggregatorFactory.registerAggregators(builder);
     }
 
-    private long minDocCount = 0;
+    private long minDocCount = 1;
     private int prefixLength = -1;
     private boolean isIpv6 = false;
     private boolean appendPrefixLength = false;
@@ -87,6 +87,9 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
 
     /** Set the minDocCount on this builder, and return the builder so that calls can be chained. */
     public IpPrefixAggregationBuilder minDocCount(long minDocCount) {
+        if (minDocCount < 1) {
+            throw new IllegalArgumentException("[min_doc_count] must not be less than 1: [" + name + "]");
+        }
         this.minDocCount = minDocCount;
         return this;
     }

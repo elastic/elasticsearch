@@ -134,7 +134,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .isIpv6(false)
             .keyed(randomBoolean())
             .appendPrefixLength(false)
-            .minDocCount(0)
+            .minDocCount(1)
             .prefixLength(prefixLength);
         final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
         final List<TestIpDataHolder> ipAddresses = Collections.emptyList();
@@ -171,7 +171,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .isIpv6(false)
             .keyed(randomBoolean())
             .appendPrefixLength(false)
-            .minDocCount(0)
+            .minDocCount(1)
             .prefixLength(prefixLength);
         final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
         final List<TestIpDataHolder> ipAddresses = List.of(
@@ -222,7 +222,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .isIpv6(true)
             .keyed(randomBoolean())
             .appendPrefixLength(false)
-            .minDocCount(0)
+            .minDocCount(1)
             .prefixLength(prefixLength);
         final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
         final List<TestIpDataHolder> ipAddresses = List.of(
@@ -270,7 +270,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .isIpv6(false)
             .keyed(randomBoolean())
             .appendPrefixLength(false)
-            .minDocCount(0)
+            .minDocCount(1)
             .prefixLength(prefixLength);
         final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
         final List<TestIpDataHolder> ipAddresses = List.of(
@@ -321,7 +321,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .isIpv6(false)
             .keyed(randomBoolean())
             .appendPrefixLength(false)
-            .minDocCount(0)
+            .minDocCount(1)
             .prefixLength(prefixLength);
         final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
         final List<TestIpDataHolder> ipAddresses = List.of(
@@ -372,7 +372,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .isIpv6(true)
             .keyed(randomBoolean())
             .appendPrefixLength(false)
-            .minDocCount(0)
+            .minDocCount(1)
             .prefixLength(prefixLength);
         final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
         final List<TestIpDataHolder> ipAddresses = List.of(
@@ -421,7 +421,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .isIpv6(false)
             .keyed(randomBoolean())
             .appendPrefixLength(false)
-            .minDocCount(0)
+            .minDocCount(1)
             .prefixLength(prefixLength);
         final MappedFieldType[] fieldTypes = { new IpFieldMapper.IpFieldType(ipv4FieldName), new IpFieldMapper.IpFieldType(ipv6FieldName) };
         final List<TestIpDataHolder> ipAddresses = List.of(
@@ -477,7 +477,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .isIpv6(true)
             .keyed(randomBoolean())
             .appendPrefixLength(false)
-            .minDocCount(0)
+            .minDocCount(1)
             .prefixLength(prefixLength);
         final MappedFieldType[] fieldTypes = { new IpFieldMapper.IpFieldType(ipv4FieldName), new IpFieldMapper.IpFieldType(ipv6FieldName) };
         final List<TestIpDataHolder> ipAddresses = List.of(
@@ -537,7 +537,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                     .isIpv6(false)
                     .keyed(randomBoolean())
                     .appendPrefixLength(false)
-                    .minDocCount(0)
+                    .minDocCount(1)
                     .prefixLength(prefixLength)
             );
         final DateFieldMapper.DateFieldType dateFieldType = new DateFieldMapper.DateFieldType(datetimeFieldName);
@@ -627,7 +627,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                     .isIpv6(true)
                     .keyed(randomBoolean())
                     .appendPrefixLength(false)
-                    .minDocCount(0)
+                    .minDocCount(1)
                     .prefixLength(prefixLength)
             );
         final DateFieldMapper.DateFieldType dateFieldType = new DateFieldMapper.DateFieldType(datetimeFieldName);
@@ -709,14 +709,14 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .isIpv6(false)
             .keyed(randomBoolean())
             .appendPrefixLength(false)
-            .minDocCount(0)
+            .minDocCount(1)
             .prefixLength(topPrefixLength)
             .subAggregation(
                 new IpPrefixAggregationBuilder(subIpPrefixAggregation).field(ipv4FieldName)
                     .isIpv6(false)
                     .keyed(randomBoolean())
                     .appendPrefixLength(false)
-                    .minDocCount(0)
+                    .minDocCount(1)
                     .prefixLength(subPrefixLength)
             );
         final IpFieldMapper.IpFieldType ipFieldType = new IpFieldMapper.IpFieldType(ipv4FieldName);
@@ -790,7 +790,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .isIpv6(false)
             .keyed(randomBoolean())
             .appendPrefixLength(true)
-            .minDocCount(0)
+            .minDocCount(1)
             .prefixLength(prefixLength);
         final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
         final List<TestIpDataHolder> ipAddresses = List.of(
@@ -843,7 +843,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .isIpv6(true)
             .keyed(randomBoolean())
             .appendPrefixLength(false)
-            .minDocCount(0)
+            .minDocCount(1)
             .prefixLength(prefixLength);
         final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
         final List<TestIpDataHolder> ipAddresses = List.of(
@@ -942,7 +942,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .isIpv6(false)
             .keyed(randomBoolean())
             .appendPrefixLength(false)
-            .minDocCount(0)
+            .minDocCount(1)
             .prefixLength(prefixLength);
         final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
         final List<TestIpDataHolder> ipAddresses = List.of(
@@ -1005,7 +1005,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .isIpv6(true)
             .keyed(randomBoolean())
             .appendPrefixLength(false)
-            .minDocCount(0)
+            .minDocCount(1)
             .prefixLength(prefixLength)
             .subAggregation(new SumAggregationBuilder(subAggregationName).field(timeField));
         final MappedFieldType[] fieldTypes = {

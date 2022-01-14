@@ -486,6 +486,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final int shardsPerNodeLimit;
 
+    private final LifecycleExecutionState lifecycleExecutionState;
+
     private IndexMetadata(
         final Index index,
         final long version,
@@ -518,9 +520,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final long creationDate,
         final boolean ignoreDiskWatermarks,
         @Nullable final List<String> tierPreference,
-        final int shardsPerNodeLimit
+        final int shardsPerNodeLimit,
+        final LifecycleExecutionState lifecycleExecutionState
     ) {
-
         this.index = index;
         this.version = version;
         assert mappingVersion >= 0 : mappingVersion;
@@ -560,6 +562,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.ignoreDiskWatermarks = ignoreDiskWatermarks;
         this.tierPreference = tierPreference;
         this.shardsPerNodeLimit = shardsPerNodeLimit;
+        this.lifecycleExecutionState = lifecycleExecutionState;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -599,7 +602,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.creationDate,
             this.ignoreDiskWatermarks,
             this.tierPreference,
-            this.shardsPerNodeLimit
+            this.shardsPerNodeLimit,
+            this.lifecycleExecutionState
         );
     }
 
@@ -721,6 +725,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return parsed;
         }
         return tierPreference;
+    }
+
+    public LifecycleExecutionState getLifecycleExecutionState() {
+        return lifecycleExecutionState;
     }
 
     /**
@@ -1162,6 +1170,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private Integer routingNumShards;
         private boolean isSystem;
         private IndexLongFieldRange timestampRange = IndexLongFieldRange.NO_SHARDS;
+        private LifecycleExecutionState lifecycleExecutionState = LifecycleExecutionState.EMPTY_STATE;
 
         public Builder(String index) {
             this.index = index;
@@ -1189,6 +1198,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.rolloverInfos = ImmutableOpenMap.builder(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
             this.timestampRange = indexMetadata.timestampRange;
+            this.lifecycleExecutionState = indexMetadata.lifecycleExecutionState;
         }
 
         public Builder index(String index) {
@@ -1520,6 +1530,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 tierPreference = null;
             }
 
+            ImmutableOpenMap<String, DiffableStringMap> newCustomMetadata = customMetadata.build();
+            Map<String, String> custom = newCustomMetadata.get(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY);
+            if (custom != null && custom.isEmpty() == false) {
+                lifecycleExecutionState = LifecycleExecutionState.fromCustomMetadata(custom);
+            } else {
+                lifecycleExecutionState = LifecycleExecutionState.EMPTY_STATE;
+            }
+
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -1533,7 +1551,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 settings,
                 mapping,
                 aliases.build(),
-                customMetadata.build(),
+                newCustomMetadata,
                 filledInSyncAllocationIds.build(),
                 requireFilters,
                 initialRecoveryFilters,
@@ -1552,7 +1570,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 settings.getAsLong(SETTING_CREATION_DATE, -1L),
                 DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings),
                 tierPreference,
-                ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings)
+                ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings),
+                lifecycleExecutionState
             );
         }
 

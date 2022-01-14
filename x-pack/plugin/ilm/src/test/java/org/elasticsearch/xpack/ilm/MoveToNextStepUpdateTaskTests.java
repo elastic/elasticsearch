@@ -11,13 +11,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests;
@@ -31,7 +31,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MoveToNextStepUpdateTaskTests extends ESTestCase {
@@ -85,8 +85,8 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
             state -> changed.set(true)
         );
         ClusterState newState = task.execute(clusterState);
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetadata().index(index));
-        StepKey actualKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+        LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
+        StepKey actualKey = Step.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(nextStepKey));
         assertThat(lifecycleState.getPhaseTime(), equalTo(now));
         assertThat(lifecycleState.getActionTime(), equalTo(now));
@@ -150,8 +150,8 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
             s -> changed.set(true)
         );
         ClusterState newState = task.execute(clusterState);
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetadata().index(index));
-        StepKey actualKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+        LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
+        StepKey actualKey = Step.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(invalidNextStep));
         assertThat(lifecycleState.getPhaseTime(), equalTo(now));
         assertThat(lifecycleState.getActionTime(), equalTo(now));
@@ -207,7 +207,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
 
     private void setStateToKey(StepKey stepKey, long now) {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
-            LifecycleExecutionState.fromIndexMetadata(clusterState.metadata().index(index))
+            clusterState.metadata().index(index).getLifecycleExecutionState()
         );
         lifecycleState.setPhase(stepKey.getPhase());
         lifecycleState.setPhaseTime(now);

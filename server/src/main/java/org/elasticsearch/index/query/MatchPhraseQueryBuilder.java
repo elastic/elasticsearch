@@ -165,10 +165,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
             }
         } else {
             MappedFieldType mft = sec.getFieldType(fieldName);
-            if (mft == null) {
-                return new MatchNoneQueryBuilder();
-            }
-            if (mft.getTextSearchInfo().getSearchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
+            if (mft != null && mft.getTextSearchInfo().getSearchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
                 TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
                 return termQueryBuilder.rewrite(queryRewriteContext);
             }

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -31,7 +32,6 @@ import org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutin
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -51,6 +51,7 @@ import java.util.Map;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE;
 import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.allocateActionDefinesRoutingRules;
@@ -58,7 +59,6 @@ import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTier
 import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.migrateIlmPolicies;
 import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.migrateIndices;
 import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.migrateToDataTiersRouting;
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
@@ -255,7 +255,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+            LifecycleExecutionState newLifecycleState = newState.metadata().index(indexName).getLifecycleExecutionState();
 
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
 
@@ -314,7 +314,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+            LifecycleExecutionState newLifecycleState = newState.metadata().index(indexName).getLifecycleExecutionState();
 
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
 
@@ -362,7 +362,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+            LifecycleExecutionState newLifecycleState = newState.metadata().index(indexName).getLifecycleExecutionState();
 
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
 
@@ -416,7 +416,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+            LifecycleExecutionState newLifecycleState = newState.metadata().index(indexName).getLifecycleExecutionState();
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
 
             // expecting the phase definition to be refreshed with the index being in the set_priority action
@@ -466,7 +466,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+            LifecycleExecutionState newLifecycleState = newState.metadata().index(indexName).getLifecycleExecutionState();
 
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
 

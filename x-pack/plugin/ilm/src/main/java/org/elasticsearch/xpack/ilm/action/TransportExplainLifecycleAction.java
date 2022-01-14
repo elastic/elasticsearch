@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -31,7 +32,6 @@ import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
@@ -113,7 +113,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         NamedXContentRegistry xContentRegistry
     ) throws IOException {
         Settings idxSettings = indexMetadata.getSettings();
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
         String currentPhase = lifecycleState.getPhase();
         String stepInfo = lifecycleState.getStepInfo();

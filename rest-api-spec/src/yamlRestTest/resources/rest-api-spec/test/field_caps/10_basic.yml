@@ -223,7 +223,7 @@ setup:
         index: 'test1,test2,test3'
         fields: non_indexed_date
 
-  - match: {fields.non_indexed_date.searchable:                       true}
+  - match: {fields.non_indexed_date.date.searchable:                       true}
 
 ---
 "Get object and nested field caps":

@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -246,13 +247,30 @@ public final class IndexLifecycleTransition {
 
             LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas()
                 .get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()));
-            LifecycleExecutionState nextStepState = IndexLifecycleTransition.updateExecutionStateToStep(
-                policyMetadata,
-                lifecycleState,
-                nextStepKey,
-                nowSupplier,
-                true
-            );
+
+            Map<String, Phase> policyPhases = policyMetadata.getPolicy().getPhases();
+            final LifecycleExecutionState nextStepState;
+            if (policyPhases.get(nextStepKey.getPhase()) == null
+                || policyPhases.get(nextStepKey.getPhase()).getActions().get(nextStepKey.getAction()) == null) {
+                // the failed step's phase or action doesn't exist in the "real" policy anymore so don't refresh the cached phase as that
+                // would block due to not recognizing the new step as part of the policy. we'll honour the cached phase in this case.
+                nextStepState = IndexLifecycleTransition.updateExecutionStateToStep(
+                    policyMetadata,
+                    lifecycleState,
+                    nextStepKey,
+                    nowSupplier,
+                    false
+                );
+            } else {
+                nextStepState = IndexLifecycleTransition.updateExecutionStateToStep(
+                    policyMetadata,
+                    lifecycleState,
+                    nextStepKey,
+                    nowSupplier,
+                    true
+                );
+            }
+
             LifecycleExecutionState.Builder retryStepState = LifecycleExecutionState.builder(nextStepState);
             retryStepState.setIsAutoRetryableError(lifecycleState.isAutoRetryableError());
             Integer currentRetryCount = lifecycleState.getFailedStepRetryCount();

@@ -1409,19 +1409,23 @@ public class MachineLearning extends Plugin
     public List<AggregationSpec> getAggregations() {
         List<AggregationSpec> specs = new ArrayList<>();
         if (randomSamplerAggEnabled()) {
-            specs.add(new AggregationSpec(
-                RandomSamplerAggregationBuilder.NAME,
-                RandomSamplerAggregationBuilder::new,
-                RandomSamplerAggregationBuilder.PARSER
-            ).addResultReader(InternalRandomSampler.NAME, InternalRandomSampler::new)
-                .setAggregatorRegistrar(s -> s.registerUsage(RandomSamplerAggregationBuilder.NAME)));
+            specs.add(
+                new AggregationSpec(
+                    RandomSamplerAggregationBuilder.NAME,
+                    RandomSamplerAggregationBuilder::new,
+                    RandomSamplerAggregationBuilder.PARSER
+                ).addResultReader(InternalRandomSampler.NAME, InternalRandomSampler::new)
+                    .setAggregatorRegistrar(s -> s.registerUsage(RandomSamplerAggregationBuilder.NAME))
+            );
         }
-        specs.add(new AggregationSpec(
-            CategorizeTextAggregationBuilder.NAME,
-            CategorizeTextAggregationBuilder::new,
-            CategorizeTextAggregationBuilder.PARSER
-        ).addResultReader(InternalCategorizationAggregation::new)
-            .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME)));
+        specs.add(
+            new AggregationSpec(
+                CategorizeTextAggregationBuilder.NAME,
+                CategorizeTextAggregationBuilder::new,
+                CategorizeTextAggregationBuilder.PARSER
+            ).addResultReader(InternalCategorizationAggregation::new)
+                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME))
+        );
         return specs;
     }
 

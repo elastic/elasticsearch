@@ -83,16 +83,16 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        String policyName = request.getName();
-        EnrichPolicy policy = EnrichStore.getPolicy(policyName, state); // ensure the policy exists first
+        final String policyName = request.getName();
+        final EnrichPolicy policy = EnrichStore.getPolicy(policyName, state); // ensure the policy exists first
         if (policy == null) {
             throw new ResourceNotFoundException("policy [{}] not found", policyName);
         }
 
         enrichPolicyLocks.lockPolicy(policyName);
         try {
-            List<PipelineConfiguration> pipelines = IngestService.getPipelines(state);
-            List<String> pipelinesWithProcessors = new ArrayList<>();
+            final List<PipelineConfiguration> pipelines = IngestService.getPipelines(state);
+            final List<String> pipelinesWithProcessors = new ArrayList<>();
 
             for (PipelineConfiguration pipelineConfiguration : pipelines) {
                 List<AbstractEnrichProcessor> enrichProcessors = ingestService.getProcessorsInPipeline(
@@ -120,7 +120,7 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
             return;
         }
 
-        GetIndexRequest indices = new GetIndexRequest().indices(EnrichPolicy.getBaseName(policyName) + "-*")
+        final GetIndexRequest indices = new GetIndexRequest().indices(EnrichPolicy.getBaseName(policyName) + "-*")
             .indicesOptions(IndicesOptions.lenientExpand());
 
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, indices);

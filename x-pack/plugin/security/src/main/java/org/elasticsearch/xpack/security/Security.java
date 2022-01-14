@@ -40,6 +40,7 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -325,7 +326,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -441,8 +441,7 @@ public class Security extends Plugin
     private final Settings settings;
     private final boolean enabled;
     private final SecuritySystemIndices systemIndices;
-
-    private final CountDownLatch nodeStartedSignal;
+    private final ListenableFuture<Void> nodeStartedListenable;
 
     /* what a PITA that we need an extra indirection to initialize this. Yet, once we got rid of guice we can thing about how
      * to fix this or make it simpler. Today we need several service that are created in createComponents but we need to register
@@ -475,7 +474,7 @@ public class Security extends Plugin
         // TODO this is wrong, we should only use the environment that is provided to createComponents
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         this.systemIndices = new SecuritySystemIndices();
-        this.nodeStartedSignal = new CountDownLatch(1);
+        this.nodeStartedListenable = new ListenableFuture<>();
         if (enabled) {
             runStartupChecks(settings);
             Automatons.updateConfiguration(settings);
@@ -767,7 +766,7 @@ public class Security extends Plugin
             getSslService(),
             client,
             environment,
-            nodeStartedSignal,
+            (runnable -> nodeStartedListenable.addListener(ActionListener.wrap(runnable))),
             threadPool
         );
 
@@ -1290,7 +1289,7 @@ public class Security extends Plugin
 
     @Override
     public void onNodeStarted() {
-        this.nodeStartedSignal.countDown();
+        this.nodeStartedListenable.onResponse(null);
     }
 
     /**

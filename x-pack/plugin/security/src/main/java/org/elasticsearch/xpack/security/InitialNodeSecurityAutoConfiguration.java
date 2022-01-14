@@ -29,7 +29,6 @@ import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.xpack.core.XPackSettings.ENROLLMENT_ENABLED;
 import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.AUTOCONFIG_ELASTIC_PASSWORD_HASH;
@@ -55,7 +54,7 @@ public class InitialNodeSecurityAutoConfiguration {
         SSLService sslService,
         Client client,
         Environment environment,
-        CountDownLatch nodeStartedSignal,
+        OnNodeStartedListener onNodeStartedListener,
         ThreadPool threadPool
     ) {
         // Assume the following auto-configuration must NOT run if enrollment is disabled when the node starts,
@@ -95,7 +94,7 @@ public class InitialNodeSecurityAutoConfiguration {
                 // TODO maybe we can improve the check that this is indeed the initial node
                 // a lot of stuff runs when a node just started, and the autoconfiguration is not time-critical
                 // and nothing else depends on it; be a good sport and wait a couple
-                threadPool.schedule(new AbstractRunnable() {
+                onNodeStartedListener.run(() -> threadPool.schedule(new AbstractRunnable() {
 
                     @Override
                     public void onFailure(Exception e) {
@@ -103,9 +102,8 @@ public class InitialNodeSecurityAutoConfiguration {
                     }
 
                     @Override
-                    protected void doRun() throws Exception {
+                    protected void doRun() {
                         // the HTTP address is guaranteed to be bound only after the node started
-                        nodeStartedSignal.await();
                         String fingerprint;
                         try {
                             fingerprint = enrollmentTokenGenerator.getHttpsCaFingerprint();
@@ -136,7 +134,7 @@ public class InitialNodeSecurityAutoConfiguration {
                                     httpsCaFingerprint,
                                     out
                                 );
-                            }, e -> { LOGGER.error("Unexpected exception during security auto-configuration", e); }),
+                            }, e -> LOGGER.error("Unexpected exception during security auto-configuration", e)),
                             3
                         );
                         // we only generate the elastic user password if the node has been auto-configured in a specific way, such that the
@@ -188,7 +186,7 @@ public class InitialNodeSecurityAutoConfiguration {
                             }
                         }, backoff);
                     }
-                }, TimeValue.timeValueSeconds(9), ThreadPool.Names.GENERIC);
+                }, TimeValue.timeValueSeconds(9), ThreadPool.Names.GENERIC));
             }
         });
     }
@@ -278,5 +276,9 @@ public class InitialNodeSecurityAutoConfiguration {
         builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());
         out.println(builder);
+    }
+
+    interface OnNodeStartedListener {
+        void run(Runnable runnable);
     }
 }

@@ -11,7 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -56,6 +58,10 @@ public abstract class Realm implements Comparable<Realm> {
         return config.order;
     }
 
+    /**
+     * The domain of this realm, if set, or {@code null} otherwise. Identical usernames under different
+     * realms are considered to be the same end-user person iff the realms are under the same domain.
+     */
     public String domain() {
         return config.domain();
     }
@@ -144,9 +150,18 @@ public abstract class Realm implements Comparable<Realm> {
         listener.onResponse(stats);
     }
 
+    public RealmRef getRealmRef() {
+        final String nodeName = Node.NODE_NAME_SETTING.get(config.settings());
+        return new RealmRef(config.name(), type(), nodeName, domain());
+    }
+
     @Override
     public String toString() {
-        return config.type() + "/" + config.name();
+        if (domain() != null) {
+            return config.type() + "/" + config.name() + "/" + config.domain();
+        } else {
+            return config.type() + "/" + config.name();
+        }
     }
 
     /**

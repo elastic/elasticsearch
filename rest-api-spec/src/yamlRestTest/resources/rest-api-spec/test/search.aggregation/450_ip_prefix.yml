@@ -11,6 +11,8 @@ setup:
                 type: ip
               ipv6:
                 type: ip
+              ip:
+                type: ip
               value:
                 type: long
 
@@ -20,25 +22,25 @@ setup:
         refresh: true
         body:
           - { "index": { } }
-          - { "ipv4": "192.168.1.10", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f10", "value": 10 }
+          - { "ipv4": "192.168.1.10", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f10", "value": 10, ip: "192.168.1.10" }
           - { "index": { } }
-          - { "ipv4": "192.168.1.12", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f12", "value": 20 }
+          - { "ipv4": "192.168.1.12", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f12", "value": 20, ip: "2001:db8:a4f8:112a:6001:0:12:7f12" }
           - { "index": { } }
-          - { "ipv4": "192.168.1.33", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f33", "value": 40 }
+          - { "ipv4": "192.168.1.33", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f33", "value": 40, ip: "192.168.1.33" }
           - { "index": { } }
-          - { "ipv4": "192.168.1.10", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f10", "value": 20 }
+          - { "ipv4": "192.168.1.10", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f10", "value": 20, ip: "2001:db8:a4f8:112a:6001:0:12:7f10" }
           - { "index": { } }
-          - { "ipv4": "192.168.1.33", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f33", "value": 70 }
+          - { "ipv4": "192.168.1.33", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f33", "value": 70, ip: "192.168.1.33" }
           - { "index": { } }
-          - { "ipv4": "192.168.2.41", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f41", "value": 20 }
+          - { "ipv4": "192.168.2.41", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f41", "value": 20, ip: "2001:db8:a4f8:112c:6001:0:12:7f41" }
           - { "index": { } }
-          - { "ipv4": "192.168.2.10", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f10", "value": 30 }
+          - { "ipv4": "192.168.2.10", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f10", "value": 30, ip: "192.168.2.10" }
           - { "index": { } }
-          - { "ipv4": "192.168.2.23", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f23", "value": 50 }
+          - { "ipv4": "192.168.2.23", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f23", "value": 50, ip: "2001:db8:a4f8:112c:6001:0:12:7f23" }
           - { "index": { } }
-          - { "ipv4": "192.168.2.41", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f41", "value": 60 }
+          - { "ipv4": "192.168.2.41", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f41", "value": 60, ip: "192.168.2.41" }
           - { "index": { } }
-          - { "ipv4": "192.168.2.10", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f10", "value": 10 }
+          - { "ipv4": "192.168.2.10", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f10", "value": 10, ip: "2001:db8:a4f8:112c:6001:0:12:7f10" }
 
 ---
 "IPv4 prefix":
@@ -414,3 +416,70 @@ setup:
   - is_true: aggregations.ip_prefix.buckets.1.is_ipv6
   - match: { aggregations.ip_prefix.buckets.1.prefix_len: 64 }
   - match: { aggregations.ip_prefix.buckets.1.netmask: null }
+
+---
+"Mixed IPv4 and IPv6 with is_ipv6 false":
+  - skip:
+      version: " - 8.0.99"
+      reason: "added in 8.1.0"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            ip_prefix:
+              ip_prefix:
+                field: "ip"
+                is_ipv6: false
+                prefix_len: 16
+
+
+  - match: { hits.total.value: 10 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.ip_prefix.buckets: 2 }
+  - match: { aggregations.ip_prefix.buckets.0.key: "0.18.0.0" }
+  - match: { aggregations.ip_prefix.buckets.0.doc_count: 5 }
+  - is_false: aggregations.ip_prefix.buckets.0.is_ipv6
+  - match: { aggregations.ip_prefix.buckets.0.prefix_len: 16 }
+  - match: { aggregations.ip_prefix.buckets.0.netmask: "255.255.0.0" }
+  - match: { aggregations.ip_prefix.buckets.1.key: "192.168.0.0" }
+  - match: { aggregations.ip_prefix.buckets.1.doc_count: 5 }
+  - is_false: aggregations.ip_prefix.buckets.1.is_ipv6
+  - match: { aggregations.ip_prefix.buckets.1.prefix_len: 16 }
+  - match: { aggregations.ip_prefix.buckets.1.netmask: "255.255.0.0" }
+
+---
+"Mixed IPv4 and IPv6 with is_ipv6 true":
+  - skip:
+      version: " - 8.0.99"
+      reason: "added in 8.1.0"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            ip_prefix:
+              ip_prefix:
+                field: "ip"
+                is_ipv6: true
+                prefix_len: 64
+
+
+  - match: { hits.total.value: 10 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.ip_prefix.buckets: 3 }
+  - match: { aggregations.ip_prefix.buckets.0.key: "::" }
+  - match: { aggregations.ip_prefix.buckets.0.doc_count: 5 }
+  - is_true: aggregations.ip_prefix.buckets.0.is_ipv6
+  - match: { aggregations.ip_prefix.buckets.0.prefix_len: 64 }
+  - match: { aggregations.ip_prefix.buckets.0.netmask: null }
+  - match: { aggregations.ip_prefix.buckets.1.key: "2001:db8:a4f8:112a::" }
+  - match: { aggregations.ip_prefix.buckets.1.doc_count: 2 }
+  - is_true: aggregations.ip_prefix.buckets.1.is_ipv6
+  - match: { aggregations.ip_prefix.buckets.1.prefix_len: 64 }
+  - match: { aggregations.ip_prefix.buckets.1.netmask: null }
+  - match: { aggregations.ip_prefix.buckets.2.key: "2001:db8:a4f8:112c::" }
+  - match: { aggregations.ip_prefix.buckets.2.doc_count: 3 }
+  - is_true: aggregations.ip_prefix.buckets.2.is_ipv6
+  - match: { aggregations.ip_prefix.buckets.2.prefix_len: 64 }
+  - match: { aggregations.ip_prefix.buckets.2.netmask: null }

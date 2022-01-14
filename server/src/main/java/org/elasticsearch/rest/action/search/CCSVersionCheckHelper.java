@@ -18,7 +18,7 @@ import java.util.List;
 
 public class CCSVersionCheckHelper {
 
-    public static String CCS_VERSION_CHECK_FLAG = "ccs_force_fail";
+    public static String CCS_VERSION_CHECK_FLAG = "check_ccs_compatibility";
     private static Version previousMinor;
 
     static {
@@ -32,14 +32,11 @@ public class CCSVersionCheckHelper {
         }
     }
 
-    public static void checkCCSVersionCompatibility(
-        RestRequest request,
-        Writeable searchRequest
-    ) {
+    public static void checkCCSVersionCompatibility(RestRequest request, Writeable writeableRequest) {
         if (request.paramAsBoolean(CCS_VERSION_CHECK_FLAG, false)) {
             // try serializing this request to a stream with previous minor version
             try {
-                searchRequest.writeTo(new VersionCheckingStreamOutput(previousMinor));
+                writeableRequest.writeTo(new VersionCheckingStreamOutput(previousMinor));
             } catch (Exception e) {
                 // if we cannot serialize, raise this as an error to indicate to the caller that CCS has problems with this request
                 throw new IllegalArgumentException(

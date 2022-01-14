@@ -14,7 +14,7 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 
 /**
- * This @link {@link StreamOutput} writes nowhere. It can be used to check if serialization would
+ * This {@link StreamOutput} writes nowhere. It can be used to check if serialization would
  * be successful writing to a specific version.
  */
 public class VersionCheckingStreamOutput extends StreamOutput {
@@ -67,9 +67,12 @@ public class VersionCheckingStreamOutput extends StreamOutput {
     private void checkVersionCompatibility(NamedWriteable namedWriteable) {
         if (namedWriteable.getReleasedVersion().after(getVersion())) {
             throw new IllegalArgumentException(
-                "NamedWritable [" + namedWriteable.getClass().getName() + "] was released in version "
+                "NamedWritable ["
+                    + namedWriteable.getClass().getName()
+                    + "] was released in version "
                     + namedWriteable.getReleasedVersion()
-                    + " which is after current OutputStream version " + getVersion()
+                    + " which is after current OutputStream version "
+                    + getVersion()
             );
         }
     }

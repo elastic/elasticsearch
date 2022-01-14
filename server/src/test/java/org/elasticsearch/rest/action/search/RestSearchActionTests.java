@@ -94,8 +94,7 @@ public class RestSearchActionTests extends RestActionTestCase {
     }
 
     public void testTypeParameter() {
-        Map<String, String> params = new HashMap<>();
-        params.put("type", "some_type");
+        Map<String, String> params = Collections.singletonMap("type", "some_type");
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
@@ -109,8 +108,7 @@ public class RestSearchActionTests extends RestActionTestCase {
      * The "enable_fields_emulation" flag on search requests is a no-op but should not raise an error
      */
     public void testEnableFieldsEmulationNoErrors() throws Exception {
-        Map<String, String> params = new HashMap<>();
-        params.put("enable_fields_emulation", "true");
+        Map<String, String> params = Collections.singletonMap("enable_fields_emulation", "true");
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
@@ -123,8 +121,7 @@ public class RestSearchActionTests extends RestActionTestCase {
      * Using an illegal search type on the request should throw an error
      */
     public void testIllegalSearchType() {
-        Map<String, String> params = new HashMap<>();
-        params.put("search_type", "some_search_type");
+        Map<String, String> params = Collections.singletonMap("search_type", "some_search_type");
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
@@ -135,8 +132,7 @@ public class RestSearchActionTests extends RestActionTestCase {
     }
 
     public void testCCSForceFailFlag() throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put("ccs_force_fail", "true");
+        Map<String, String> params = Collections.singletonMap("ccs_force_fail", "true");
 
         String query = """
             { "query" : { "fail_before_current_version" : { }}}
@@ -154,10 +150,7 @@ public class RestSearchActionTests extends RestActionTestCase {
                 "request [POST /some_index/_search] not serializable to previous minor and 'ccs_force_fail' enabled.",
                 ex.getMessage()
             );
-            assertEquals(
-                "This query isn't serializable to nodes on or before 8.0.0",
-                ex.getCause().getMessage()
-            );
+            assertEquals("This query isn't serializable to nodes on or before 8.0.0", ex.getCause().getMessage());
         }
 
         String newQueryBuilderInside = """
@@ -226,9 +219,7 @@ public class RestSearchActionTests extends RestActionTestCase {
         @Override
         protected void doWriteTo(StreamOutput out) {
             if (out.getVersion().onOrBefore(previousMinor)) {
-                throw new IllegalArgumentException(
-                    "This query isn't serializable to nodes on or before " + previousMinor
-                );
+                throw new IllegalArgumentException("This query isn't serializable to nodes on or before " + previousMinor);
             }
         }
 

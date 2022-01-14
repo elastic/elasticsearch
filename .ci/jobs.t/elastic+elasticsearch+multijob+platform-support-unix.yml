@@ -13,6 +13,7 @@
           type: label-expression
           name: os
           values:
+            - amazon
             - "centos-6&&immutable"
             - "centos-7&&immutable"
             - "centos-8&&immutable"

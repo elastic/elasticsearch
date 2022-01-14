@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.LocalClusterUpdateTask;
+import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
@@ -800,7 +800,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     private void cleanMasterService() {
-        new LocalClusterUpdateTask(Priority.NORMAL) {
+        new LocalMasterServiceTask(Priority.NORMAL) {
             @Override
             public void onFailure(String source, Exception e) {
                 // ignore

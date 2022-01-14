@@ -15,11 +15,11 @@ import java.util.List;
 /**
  * Used to execute things on the master service thread on nodes that are not necessarily master
  */
-public abstract class LocalClusterUpdateTask implements ClusterStateTaskListener {
+public abstract class LocalMasterServiceTask implements ClusterStateTaskListener {
 
     private final Priority priority;
 
-    public LocalClusterUpdateTask(Priority priority) {
+    public LocalMasterServiceTask(Priority priority) {
         this.priority = priority;
     }
 
@@ -40,17 +40,17 @@ public abstract class LocalClusterUpdateTask implements ClusterStateTaskListener
                 }
 
                 @Override
-                public String describeTasks(List<LocalClusterUpdateTask> tasks) {
+                public String describeTasks(List<LocalMasterServiceTask> tasks) {
                     return ""; // only one task in the batch so the source is enough
                 }
 
                 @Override
-                public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState, List<LocalClusterUpdateTask> tasks)
+                public ClusterTasksResult<LocalMasterServiceTask> execute(ClusterState currentState, List<LocalMasterServiceTask> tasks)
                     throws Exception {
-                    assert tasks.size() == 1 && tasks.get(0) == LocalClusterUpdateTask.this
+                    assert tasks.size() == 1 && tasks.get(0) == LocalMasterServiceTask.this
                         : "expected one-element task list containing current object but was " + tasks;
-                    LocalClusterUpdateTask.this.execute(currentState);
-                    return ClusterTasksResult.<LocalClusterUpdateTask>builder().successes(tasks).build(currentState);
+                    LocalMasterServiceTask.this.execute(currentState);
+                    return ClusterTasksResult.<LocalMasterServiceTask>builder().successes(tasks).build(currentState);
                 }
             },
             this

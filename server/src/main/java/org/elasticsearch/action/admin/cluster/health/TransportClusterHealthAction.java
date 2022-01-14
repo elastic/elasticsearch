@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.LocalClusterUpdateTask;
+import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -109,7 +109,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     ) {
         assert request.waitForEvents() != null;
         if (request.local()) {
-            new LocalClusterUpdateTask(request.waitForEvents()) {
+            new LocalMasterServiceTask(request.waitForEvents()) {
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     final long timeoutInMillis = Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis());

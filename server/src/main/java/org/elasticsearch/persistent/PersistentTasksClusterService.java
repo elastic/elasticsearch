@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -142,7 +143,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                     listener.onResponse(null);
                 }
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     /**
@@ -193,7 +194,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 // Using old state since in the new state the task is already gone
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(oldState, id));
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     /**
@@ -224,7 +225,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 // Using old state since in the new state the task is already gone
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(oldState, id));
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     /**
@@ -266,7 +267,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(newState, taskId));
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     /**
@@ -307,7 +308,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(newState, taskId));
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     /**
@@ -411,7 +412,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                     periodicRechecker.rescheduleIfNecessary();
                 }
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     /**

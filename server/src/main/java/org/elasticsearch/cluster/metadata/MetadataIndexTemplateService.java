@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -179,7 +180,8 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -213,7 +215,8 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -282,7 +285,7 @@ public class MetadataIndexTemplateService {
             return currentState;
         }
 
-        validateTemplate(finalSettings, wrappedMappings, indicesService, xContentRegistry);
+        validateTemplate(finalSettings, wrappedMappings, indicesService);
         validate(name, finalComponentTemplate);
 
         // Validate all composable index templates that use this component template
@@ -384,7 +387,8 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -500,7 +504,8 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -839,7 +844,8 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -959,7 +965,7 @@ public class MetadataIndexTemplateService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    validateTemplate(request.settings, request.mappings, indicesService, xContentRegistry);
+                    validateTemplate(request.settings, request.mappings, indicesService);
                     return innerPutTemplate(currentState, request, templateBuilder);
                 }
 
@@ -967,7 +973,8 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     listener.onResponse(new PutResponse(true));
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -1429,12 +1436,8 @@ public class MetadataIndexTemplateService {
         });
     }
 
-    private static void validateTemplate(
-        Settings validateSettings,
-        CompressedXContent mappings,
-        IndicesService indicesService,
-        NamedXContentRegistry xContentRegistry
-    ) throws Exception {
+    private static void validateTemplate(Settings validateSettings, CompressedXContent mappings, IndicesService indicesService)
+        throws Exception {
         // Hard to validate settings if they're non-existent, so used empty ones if none were provided
         Settings settings = validateSettings;
         if (settings == null) {
@@ -1466,12 +1469,7 @@ public class MetadataIndexTemplateService {
             createdIndex = dummyIndexService.index();
 
             if (mappings != null) {
-                dummyIndexService.mapperService()
-                    .merge(
-                        MapperService.SINGLE_MAPPING_NAME,
-                        MapperService.parseMapping(xContentRegistry, mappings),
-                        MergeReason.MAPPING_UPDATE
-                    );
+                dummyIndexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.MAPPING_UPDATE);
             }
 
         } finally {

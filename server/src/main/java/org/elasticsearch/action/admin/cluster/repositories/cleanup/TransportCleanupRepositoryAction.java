@@ -16,6 +16,7 @@ import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
@@ -120,7 +121,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                         public void onFailure(String source, Exception e) {
                             logger.warn("Failed to remove repository cleanup task [{}] from cluster state", repositoryCleanupInProgress);
                         }
-                    }
+                    },
+                    ClusterStateTaskExecutor.unbatched()
                 );
             }
         });
@@ -299,10 +301,12 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                         listener.onFailure(failure);
                                     }
                                 }
-                            }
+                            },
+                            ClusterStateTaskExecutor.unbatched()
                         );
                     }
-                }
+                },
+                ClusterStateTaskExecutor.unbatched()
             );
         }, listener::onFailure);
     }

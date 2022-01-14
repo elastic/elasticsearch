@@ -92,7 +92,83 @@ setup:
   - match: { aggregations.double_range.buckets.1.doc_count: 2 }
 
 ---
+"Float range":
+  - skip:
+      version: " - 7.16.99"
+      reason: Bug fixed in 8.1.0 and backported to 7.17.0
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            float_range:
+              range:
+                field: "float"
+                ranges:
+                  -
+                    to: 6.0
+                  -
+                    from: 6.0
+                    to: 10.6
+                  -
+                    from: 10.6
+
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.float_range.buckets: 3 }
+  - match: { aggregations.float_range.buckets.0.key: "*-6.0" }
+  - is_false: aggregations.float_range.buckets.0.from
+  - match: { aggregations.float_range.buckets.0.to: 6.0 }
+  - match: { aggregations.float_range.buckets.0.doc_count: 3 }
+  - match: { aggregations.float_range.buckets.1.key: "6.0-10.6" }
+  - match: { aggregations.float_range.buckets.1.from: 6.0 }
+  - match: { aggregations.float_range.buckets.1.to: 10.6 }
+  - match: { aggregations.float_range.buckets.1.doc_count: 0 }
+  - match: { aggregations.float_range.buckets.2.key: "10.6-*" }
+  - match: { aggregations.float_range.buckets.2.from: 10.6 }
+  - is_false:  aggregations.float_range.buckets.2.to
+  - match: { aggregations.float_range.buckets.2.doc_count: 0 }
+
+---
 "Double range":
+  - skip:
+      version: " - 7.16.99"
+      reason: Bug fixed in 8.1.0 and backported to 7.17.0
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            float_range:
+              range:
+                field: "double"
+                ranges:
+                  -
+                    to: 6.0
+                  -
+                    from: 6.0
+                    to: 10.6
+                  -
+                    from: 10.6
+
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.float_range.buckets: 3 }
+  - match: { aggregations.float_range.buckets.0.key: "*-6.0" }
+  - is_false: aggregations.float_range.buckets.0.from
+  - match: { aggregations.float_range.buckets.0.to: 6.0 }
+  - match: { aggregations.float_range.buckets.0.doc_count: 0 }
+  - match: { aggregations.float_range.buckets.1.key: "6.0-10.6" }
+  - match: { aggregations.float_range.buckets.1.from: 6.0 }
+  - match: { aggregations.float_range.buckets.1.to: 10.6 }
+  - match: { aggregations.float_range.buckets.1.doc_count: 0 }
+  - match: { aggregations.float_range.buckets.2.key: "10.6-*" }
+  - match: { aggregations.float_range.buckets.2.from: 10.6 }
+  - is_false:  aggregations.float_range.buckets.2.to
+  - match: { aggregations.float_range.buckets.2.doc_count: 3 }
+
+---
+"Double range no decimal":
   - do:
       search:
         body:

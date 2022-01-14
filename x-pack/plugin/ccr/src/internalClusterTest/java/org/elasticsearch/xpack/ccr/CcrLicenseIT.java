@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -200,7 +201,7 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
                     latch.countDown();
                     fail("unexpected error [" + e.getMessage() + "]");
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
             latch.await();
             appender.assertAllExpectationsMatched();
         } finally {

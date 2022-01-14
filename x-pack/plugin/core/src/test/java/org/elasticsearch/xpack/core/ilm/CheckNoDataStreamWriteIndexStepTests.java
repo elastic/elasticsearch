@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -82,7 +83,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
             .metadata(
                 Metadata.builder()
                     .put(indexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), Arrays.asList(indexMetadata.getIndex())))
+                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), Arrays.asList(indexMetadata.getIndex())))
                     .build()
             )
             .build();
@@ -129,7 +130,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
                 Metadata.builder()
                     .put(indexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices))
                     .build()
             )
             .build();

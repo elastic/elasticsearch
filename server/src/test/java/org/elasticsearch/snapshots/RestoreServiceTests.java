@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -50,7 +51,7 @@ public class RestoreServiceTests extends ESTestCase {
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
 
-        DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
+        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), indices);
 
         Metadata.Builder metadata = mock(Metadata.Builder.class);
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
@@ -73,7 +74,7 @@ public class RestoreServiceTests extends ESTestCase {
         String renamedBackingIndexName = DataStream.getDefaultBackingIndexName(renamedDataStreamName, 1);
         List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
 
-        DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
+        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), indices);
 
         Metadata.Builder metadata = mock(Metadata.Builder.class);
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
@@ -96,7 +97,7 @@ public class RestoreServiceTests extends ESTestCase {
         String renamedBackingIndexName = DataStream.getDefaultBackingIndexName(renamedDataStreamName, 1);
         List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
 
-        DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
+        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), indices);
 
         Metadata.Builder metadata = mock(Metadata.Builder.class);
         IndexMetadata indexMetadata = mock(IndexMetadata.class);

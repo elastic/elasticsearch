@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -192,7 +193,7 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             .metadata(
                 Metadata.builder()
                     .put(
-                        new DataStream(
+                        DataStreamTestHelper.newInstance(
                             dataStreamName,
                             createTimestampField("@timestamp"),
                             List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex())

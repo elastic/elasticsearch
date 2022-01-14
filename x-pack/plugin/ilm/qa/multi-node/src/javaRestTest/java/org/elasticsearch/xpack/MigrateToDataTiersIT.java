@@ -18,6 +18,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -191,6 +192,14 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         );
         assertThat(migrateResponseAsMap.get(MigrateToDataTiersResponse.REMOVED_LEGACY_TEMPLATE.getPreferredName()), is(templateName));
 
+        // let's verify no index template was migrated
+        assertThat(migrateResponseAsMap.containsKey(MigrateToDataTiersResponse.MIGRATED_LEGACY_TEMPLATES.getPreferredName()), is(false));
+        assertThat(
+            migrateResponseAsMap.containsKey(MigrateToDataTiersResponse.MIGRATED_COMPOSABLE_TEMPLATES.getPreferredName()),
+            is(false)
+        );
+        assertThat(migrateResponseAsMap.containsKey(MigrateToDataTiersResponse.MIGRATED_COMPONENT_TEMPLATES.getPreferredName()), is(false));
+
         // let's verify the legacy template doesn't exist anymore
         Request getTemplateRequest = new Request("HEAD", "_template/" + templateName);
         assertThat(client().performRequest(getTemplateRequest).getStatusLine().getStatusCode(), is(RestStatus.NOT_FOUND.getStatus()));
@@ -236,6 +245,114 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         ObjectMapper mapper = new ObjectMapper();
         JsonNode json = mapper.readTree(getSettingsResponse.getEntity().getContent());
         assertTrue(json.at("/persistent/cluster/routing/allocation/enforce_default_tier_preference").asBoolean());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testIndexTemplatesMigration() throws Exception {
+        // legacy template to migrate
+        String legacyTemplateToMigrate = "legacy_to_migrate";
+        {
+            Request legacyTemplateToMigrateReq = new Request("PUT", "/_template/" + legacyTemplateToMigrate);
+            Settings indexSettings = Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.routing.allocation.require.data", "hot")
+                .build();
+            legacyTemplateToMigrateReq.setJsonEntity(
+                "{\"index_patterns\":  [\"legacynotreallyimportant-*\"], \"settings\":  " + Strings.toString(indexSettings) + "}"
+            );
+            legacyTemplateToMigrateReq.setOptions(
+                expectWarnings("Legacy index templates are deprecated in favor of composable templates" + ".")
+            );
+            assertOK(client().performRequest(legacyTemplateToMigrateReq));
+        }
+
+        // legacy template that doesn't need migrating
+        String legacyTemplate = "legacy_template";
+        {
+            Request legacyTemplateRequest = new Request("PUT", "/_template/" + legacyTemplate);
+            Settings indexSettings = Settings.builder().put("index.number_of_shards", 1).build();
+            legacyTemplateRequest.setJsonEntity(
+                "{\"index_patterns\":  [\"legacynotreallyimportant-*\"], \"settings\":  " + Strings.toString(indexSettings) + "}"
+            );
+            legacyTemplateRequest.setOptions(expectWarnings("Legacy index templates are deprecated in favor of composable templates."));
+            assertOK(client().performRequest(legacyTemplateRequest));
+        }
+
+        // put a composable template that needs migrating
+        String composableTemplateToMigrate = "to_migrate_composable_template";
+        {
+            Request toMigrateComposableTemplateReq = new Request("PUT", "/_index_template/" + composableTemplateToMigrate);
+            Settings indexSettings = Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.routing.allocation.require.data", "hot")
+                .build();
+            toMigrateComposableTemplateReq.setJsonEntity(
+                "{\"index_patterns\":  [\"0notreallyimportant-*\"], \"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}"
+            );
+            assertOK(client().performRequest(toMigrateComposableTemplateReq));
+        }
+
+        // put a composable template that doesn't need migrating
+        String composableTemplate = "no_need_to_migrate_composable_template";
+        {
+            Request composableTemplateRequest = new Request("PUT", "/_index_template/" + composableTemplate);
+            Settings indexSettings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build();
+            composableTemplateRequest.setJsonEntity(
+                "{\"index_patterns\":  [\"1notreallyimportant-*\"], \"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}"
+            );
+            assertOK(client().performRequest(composableTemplateRequest));
+        }
+
+        // put a component template that needs migrating
+        String componentTemplateToMigrate = "to_migrate_component_template";
+        {
+            Request componentTemplateRequest = new Request("PUT", "/_component_template/" + componentTemplateToMigrate);
+            Settings indexSettings = Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.routing.allocation.require.data", "hot")
+                .build();
+            componentTemplateRequest.setJsonEntity("{\"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}");
+            assertOK(client().performRequest(componentTemplateRequest));
+        }
+
+        // put a component template that doesn't need migrating
+        String componentTemplate = "no_need_to_migrate_component_template";
+        {
+            Request componentTemplateRequest = new Request("PUT", "/_component_template/" + componentTemplate);
+            Settings indexSettings = Settings.builder().put("index.number_of_shards", 1).build();
+            componentTemplateRequest.setJsonEntity("{\"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}");
+            assertOK(client().performRequest(componentTemplateRequest));
+        }
+
+        boolean dryRun = randomBoolean();
+        if (dryRun == false) {
+            client().performRequest(new Request("POST", "_ilm/stop"));
+            assertBusy(() -> {
+                Response response = client().performRequest(new Request("GET", "_ilm/status"));
+                assertThat(EntityUtils.toString(response.getEntity()), containsString(OperationMode.STOPPED.toString()));
+            });
+        }
+
+        Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
+        migrateRequest.addParameter("dry_run", String.valueOf(dryRun));
+        migrateRequest.setJsonEntity("{ \"node_attribute\": \"data\"} ");
+        Response migrateDeploymentResponse = client().performRequest(migrateRequest);
+        assertOK(migrateDeploymentResponse);
+
+        Map<String, Object> migrateResponseAsMap = responseAsMap(migrateDeploymentResponse);
+        assertThat(
+            (List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_LEGACY_TEMPLATES.getPreferredName()),
+            is(org.elasticsearch.core.List.of(legacyTemplateToMigrate))
+        );
+        assertThat(
+            (List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_COMPOSABLE_TEMPLATES.getPreferredName()),
+            is(org.elasticsearch.core.List.of(composableTemplateToMigrate))
+        );
+        assertThat(
+            (List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_COMPONENT_TEMPLATES.getPreferredName()),
+            is(org.elasticsearch.core.List.of(componentTemplateToMigrate))
+        );
+        assertThat(migrateResponseAsMap.get(MigrateToDataTiersResponse.DRY_RUN.getPreferredName()), is(dryRun));
     }
 
     @SuppressWarnings("unchecked")

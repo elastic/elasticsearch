@@ -31,6 +31,7 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -583,7 +584,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             .metadata(
                 Metadata.builder()
                     .put(indexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), singletonList(indexMetadata.getIndex())))
+                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), singletonList(indexMetadata.getIndex())))
             )
             .build();
 

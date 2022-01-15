@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -78,6 +77,7 @@ public class Authentication implements ToXContentObject {
         this.metadata = metadata;
         this.domainRealms = domainRealms;
         this.assertApiKeyMetadata();
+        this.assertDomainAssignment();
     }
 
     public Authentication(StreamInput in) throws IOException {
@@ -97,6 +97,7 @@ public class Authentication implements ToXContentObject {
             this.domainRealms = Set.of();
         }
         this.assertApiKeyMetadata();
+        this.assertDomainAssignment();
     }
 
     public User getUser() {
@@ -119,6 +120,12 @@ public class Authentication implements ToXContentObject {
         return lookedUpBy == null ? authenticatedBy : lookedUpBy;
     }
 
+    /**
+     * Returns the version of the node that performed the authentication.
+     * Authentication is serialized and travels across the cluster nodes as the sub-requests are handled,
+     * and can also be cached by long-running jobs that continue to act on behalf of the user, beyond
+     * the lifetime of the original request.
+     */
     public Version getVersion() {
         return version;
     }
@@ -131,13 +138,21 @@ public class Authentication implements ToXContentObject {
         return metadata;
     }
 
+    /**
+     * Returns {@code true} if the effective user comes from a realm under a domain.
+     * The same username can be authenticated by different realms (eg with different credential types),
+     * but resources created across realms cannot be accessed unless the realms are also part of the same domain.
+     */
     public boolean isAssignedToDomain() {
-        return false == Strings.isEmpty(getSourceRealm().getDomain());
+        return getSourceRealm().getDomain() != null;
     }
 
-    // TODO javadoc about domainless vs empty domain for realm
+    /**
+     * Returns the set of realm identifiers under the domain of the effective user's own realm.
+     * The same resources are accessible, when the same username is authenticated by any of these realms.
+     * The returned set does NOT include the current effective user's realm.
+     */
     public Set<RealmRef> getDomainRealms() {
-        assert isAssignedToDomain() || false == domainRealms.isEmpty();
         return domainRealms;
     }
 
@@ -314,10 +329,9 @@ public class Authentication implements ToXContentObject {
     }
 
     private void assertDomainAssignment() {
-
+        assert isAssignedToDomain() || domainRealms.isEmpty()
+            : "the set of realms under the same domain must be empty if realm is not assigned to any domain";
     }
-
-    //TODO assert domain realm authentication
 
     @Override
     public String toString() {

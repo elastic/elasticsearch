@@ -11,6 +11,7 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -254,7 +255,7 @@ public final class ConsistentSettingsService {
                     logger.error("unable to publish secure settings hashes", e);
                 }
 
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         }
 
         @Override

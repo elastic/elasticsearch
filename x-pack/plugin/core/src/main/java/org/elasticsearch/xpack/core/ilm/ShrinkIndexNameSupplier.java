@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+
 public final class ShrinkIndexNameSupplier {
 
     public static final String SHRUNKEN_INDEX_PREFIX = "shrink-";

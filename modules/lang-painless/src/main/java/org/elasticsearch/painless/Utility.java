@@ -34,5 +34,31 @@ public class Utility {
         return value.charAt(0);
     }
 
+    public static String toOrdinal(int number) {
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append(number);
+        int hundredModule = number % 100;
+        int decimalModule = number % 10;
+        if (11 <= hundredModule && hundredModule <= 13) {
+            stringBuilder.append("th");
+        } else {
+            switch (decimalModule) {
+                case 1:
+                    stringBuilder.append("st");
+                    break;
+                case 2:
+                    stringBuilder.append("nd");
+                    break;
+                case 3:
+                    stringBuilder.append("rd");
+                    break;
+                default:
+                    stringBuilder.append("th");
+                    break;
+            }
+        }
+        return stringBuilder.toString();
+    }
+
     private Utility() {}
 }

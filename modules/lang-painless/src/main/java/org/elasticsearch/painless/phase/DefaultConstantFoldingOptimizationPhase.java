@@ -10,6 +10,7 @@ package org.elasticsearch.painless.phase;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.Utility;
 import org.elasticsearch.painless.ir.BinaryImplNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BooleanNode;
@@ -66,9 +67,11 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDInstanceBinding;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDMethod;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDOperation;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDName;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Locale;
 import java.util.function.Consumer;
 
 /**
@@ -1107,13 +1110,19 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
             ExpressionNode argNode = irInvokeCallMemberNode.getArgumentNodes().get(i);
             IRDConstant constantDecoration = argNode.getDecoration(IRDConstant.class);
             if (constantDecoration == null) {
-                // TODO find a better string to output
-                throw irInvokeCallMemberNode.getLocation()
-                    .createError(
-                        new IllegalArgumentException(
-                            "all arguments to [" + javaMethod.getName() + "] must be constant but the [" + (i + 1) + "] argument isn't"
-                        )
-                    );
+                // offering the symbol name in error message (CastNode was evolved from ESymbol)
+                String argumentName = argNode instanceof CastNode
+                    ? ((CastNode) argNode).getChildNode().getDecoration(IRDName.class).getValue()
+                    : "";
+                throw irInvokeCallMemberNode
+                    .getLocation()
+                    .createError(new IllegalArgumentException(String.format(
+                        Locale.ROOT,
+                        "All arguments of the [%s] method must be constants, but the [%s] argument [%s] is not",
+                        javaMethod.getName(),
+                        Utility.toOrdinal(i+1),
+                        argumentName
+                    )));
             }
             args[i] = constantDecoration.getValue();
         }

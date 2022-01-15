@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -166,7 +167,8 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                     response.getExplanations().getYesDecisionMessages().forEach(logger::info);
                 }
                 return response;
-            }))
+            })),
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

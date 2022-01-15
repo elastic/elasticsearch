@@ -13,6 +13,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -101,7 +102,7 @@ public class NodeSeenService implements ClusterStateListener {
                 public void onFailure(String source, Exception e) {
                     logger.warn(new ParameterizedMessage("failed to mark shutting down nodes as seen: {}", nodesNotPreviouslySeen), e);
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         }
     }
 }

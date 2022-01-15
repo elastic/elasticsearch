@@ -22,7 +22,7 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.LocalClusterUpdateTask;
+import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
@@ -152,18 +152,17 @@ public class MasterServiceTests extends ESTestCase {
                 taskFailed[0] = true;
                 latch1.countDown();
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
 
         latch1.await();
         assertTrue("cluster state update task was executed on a non-master", taskFailed[0]);
 
         final CountDownLatch latch2 = new CountDownLatch(1);
-        nonMaster.submitStateUpdateTask("test", new LocalClusterUpdateTask() {
+        new LocalMasterServiceTask(Priority.NORMAL) {
             @Override
-            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
+            public void execute(ClusterState currentState) {
                 taskFailed[0] = false;
                 latch2.countDown();
-                return unchanged();
             }
 
             @Override
@@ -171,7 +170,7 @@ public class MasterServiceTests extends ESTestCase {
                 taskFailed[0] = true;
                 latch2.countDown();
             }
-        });
+        }.submit(nonMaster, "test");
         latch2.await();
         assertFalse("non-master cluster state update task was not executed", taskFailed[0]);
 
@@ -242,7 +241,7 @@ public class MasterServiceTests extends ESTestCase {
                     latch.countDown();
                 }
 
-            });
+            }, ClusterStateTaskExecutor.unbatched());
 
             assertFalse(threadPool.getThreadContext().isSystemContext());
             assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
@@ -410,7 +409,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onFailure(String source, Exception e) {
                     fail();
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
             masterService.submitStateUpdateTask("test2", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -425,7 +424,7 @@ public class MasterServiceTests extends ESTestCase {
 
                 @Override
                 public void onFailure(String source, Exception e) {}
-            });
+            }, ClusterStateTaskExecutor.unbatched());
             masterService.submitStateUpdateTask("test3", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -442,7 +441,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onFailure(String source, Exception e) {
                     fail();
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
             masterService.submitStateUpdateTask("test4", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -456,7 +455,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onFailure(String source, Exception e) {
                     fail();
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
             assertBusy(mockAppender::assertAllExpectationsMatched);
         } finally {
             Loggers.removeAppender(clusterLogger, mockAppender);
@@ -828,7 +827,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onFailure(String source, Exception e) {
                     fail();
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
 
             processedFirstTask.await();
             masterService.submitStateUpdateTask("test2", new ClusterStateUpdateTask() {
@@ -848,7 +847,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onFailure(String source, Exception e) {
                     latch.countDown();
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
             masterService.submitStateUpdateTask("test3", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -866,7 +865,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onFailure(String source, Exception e) {
                     fail();
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
             masterService.submitStateUpdateTask("test4", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -884,7 +883,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onFailure(String source, Exception e) {
                     fail();
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
             masterService.submitStateUpdateTask("test5", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -900,7 +899,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onFailure(String source, Exception e) {
                     fail();
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
             masterService.submitStateUpdateTask("test6", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -916,7 +915,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onFailure(String source, Exception e) {
                     fail(); // maybe we should notify here?
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
             // Additional update task to make sure all previous logging made it to the loggerName
             // We don't check logging for this on since there is no guarantee that it will occur before our check
             masterService.submitStateUpdateTask("test7", new ClusterStateUpdateTask() {
@@ -934,7 +933,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onFailure(String source, Exception e) {
                     fail();
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
             latch.await();
         } finally {
             Loggers.removeAppender(clusterLogger, mockAppender);
@@ -1006,7 +1005,7 @@ public class MasterServiceTests extends ESTestCase {
                     public void onAckTimeout() {
                         fail();
                     }
-                });
+                }, ClusterStateTaskExecutor.unbatched());
 
                 latch.await();
             }
@@ -1051,7 +1050,7 @@ public class MasterServiceTests extends ESTestCase {
                     public void onAckTimeout() {
                         latch.countDown();
                     }
-                });
+                }, ClusterStateTaskExecutor.unbatched());
 
                 latch.await();
             }
@@ -1096,7 +1095,7 @@ public class MasterServiceTests extends ESTestCase {
                     await.run();
                     relativeTimeInMillis += taskDurationMillis;
                     if (keepRunning.get()) {
-                        masterService.submitStateUpdateTask("starvation-causing task", this);
+                        masterService.submitStateUpdateTask("starvation-causing task", this, ClusterStateTaskExecutor.unbatched());
                     }
                     await.run();
                     return currentState;
@@ -1107,7 +1106,7 @@ public class MasterServiceTests extends ESTestCase {
                     fail();
                 }
             };
-            masterService.submitStateUpdateTask("starvation-causing task", starvationCausingTask);
+            masterService.submitStateUpdateTask("starvation-causing task", starvationCausingTask, ClusterStateTaskExecutor.unbatched());
 
             final CountDownLatch starvedTaskExecuted = new CountDownLatch(1);
             masterService.submitStateUpdateTask("starved task", new ClusterStateUpdateTask(Priority.NORMAL) {
@@ -1122,7 +1121,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onFailure(String source, Exception e) {
                     fail();
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
 
             // check that a warning is logged after 5m
             final MockLogAppender.EventuallySeenEventExpectation expectation1 = new MockLogAppender.EventuallySeenEventExpectation(

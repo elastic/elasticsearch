@@ -99,13 +99,15 @@ RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
 <% if (docker_base == "iron_bank") {
-  // Iron Bank always copies the local artifact
+  // Iron Bank always copies the local artifact. It uses `arch` from the
+  // template context variables.
 %>
-COPY elasticsearch-${version}-linux-x86_64.tar.gz /tmp/elasticsearch.tar.gz
+COPY elasticsearch-${version}-linux-${arch}.tar.gz /tmp/elasticsearch.tar.gz
 <% } else {
   // Fetch the appropriate Elasticsearch distribution for this architecture.
   // Keep this command on one line - it is replaced with a `COPY` during local builds.
-  // It uses the `arch` command to fetch the correct distro for the build machine.
+  // It uses the `arch` shell command to fetch the correct distro for the build machine,
+  // which is needed for Docker Hub builds.
 %>
 RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
 <% } %>

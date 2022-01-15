@@ -201,4 +201,4 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 
-The code in this directory is based on a modification of https://github.com/uber/h3, which is licensed under the Apache 2.0 License.
+This project is based on a modification of https://github.com/uber/h3 which is licensed under the Apache 2.0 License.

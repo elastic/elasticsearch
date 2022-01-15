@@ -331,6 +331,11 @@ public class Authentication implements ToXContentObject {
     private void assertDomainAssignment() {
         assert isAssignedToDomain() || domainRealms.isEmpty()
             : "the set of realms under the same domain must be empty if realm is not assigned to any domain";
+        final RealmRef sourceRealmRef = getSourceRealm();
+        for (RealmRef domainRealmRef : domainRealms) {
+            assert Objects.equals(domainRealmRef.nodeName, sourceRealmRef.nodeName);
+            assert Objects.equals(domainRealmRef.domain, sourceRealmRef.domain);
+        }
     }
 
     @Override
@@ -398,6 +403,10 @@ public class Authentication implements ToXContentObject {
             return type;
         }
 
+        /**
+         * Returns the domain assignment for the realm, if one assigned, or {@code null} otherwise, as per the
+         * {@code RealmSettings#DOMAIN_TO_REALM_ASSOC_SETTING} setting.
+         */
         public @Nullable String getDomain() {
             return domain;
         }

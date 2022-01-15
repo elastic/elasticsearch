@@ -118,8 +118,11 @@ the {dfeed} is now running on "real-time" data.
 +
 [%collapsible%open]
 =====
-`start_ms`: The start time as an epoch in milliseconds.
-`end_ms`: The end time as an epoch in milliseconds.
+`start_ms`::::
+The start time as an epoch in milliseconds.
+
+`end_ms`::::
+ The end time as an epoch in milliseconds.
 =====
 
 ====

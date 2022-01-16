@@ -283,7 +283,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         long now = randomNonNegativeLong();
         ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, null, () -> now);
         Exception expectedException = new RuntimeException();
-        task.onFailure(randomAlphaOfLength(10), expectedException);
+        task.onFailure(expectedException);
     }
 
     public void testClusterActionStepThrowsException() throws Exception {

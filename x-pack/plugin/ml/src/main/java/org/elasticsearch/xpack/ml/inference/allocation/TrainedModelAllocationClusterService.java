@@ -106,7 +106,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     logger.warn("failed to allocate models", e);
                 }
 
@@ -134,7 +134,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
@@ -156,7 +156,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
@@ -175,7 +175,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
@@ -194,7 +194,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
@@ -214,7 +214,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 

@@ -904,7 +904,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 latch.countDown();
             }
 

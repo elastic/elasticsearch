@@ -351,7 +351,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 failure.set(e);
                 latch.countDown();
             }

@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -159,7 +160,13 @@ public class JoinTaskExecutorTests extends ESTestCase {
 
         final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
             clusterState,
-            List.of(new JoinTaskExecutor.Task(actualNode, "test"))
+            List.of(
+                new JoinTaskExecutor.Task(
+                    actualNode,
+                    "test",
+                    ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
+                )
+            )
         );
         assertThat(result.executionResults.entrySet(), hasSize(1));
         final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();

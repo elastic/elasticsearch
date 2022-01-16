@@ -446,7 +446,8 @@ public class ApiKeyService {
             null,
             Version.CURRENT,
             Authentication.AuthenticationType.API_KEY,
-            authResult.getMetadata()
+            authResult.getMetadata(),
+            Set.of()
         );
     }
 

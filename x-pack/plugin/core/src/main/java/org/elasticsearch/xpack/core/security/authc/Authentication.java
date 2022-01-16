@@ -13,11 +13,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
@@ -26,9 +28,11 @@ import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelpe
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -36,6 +40,8 @@ import java.util.Set;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
@@ -53,11 +59,38 @@ public class Authentication implements ToXContentObject {
     private final Set<RealmRef> domainRealms;
 
     public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy) {
-        this(user, authenticatedBy, lookedUpBy, Version.CURRENT);
+        this(user, authenticatedBy, lookedUpBy, Version.CURRENT, AuthenticationType.REALM, Collections.emptyMap(), Collections.emptySet());
     }
 
     public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy, Version version) {
         this(user, authenticatedBy, lookedUpBy, version, AuthenticationType.REALM, Collections.emptyMap(), Collections.emptySet());
+    }
+
+    public Authentication(
+        User user,
+        RealmRef authenticatedBy,
+        RealmRef lookedUpBy,
+        Version version,
+        AuthenticationType authenticationType,
+        Map<String, Object> metadata
+    ) {
+        this(user, authenticatedBy, lookedUpBy, version, authenticationType, metadata, Collections.emptySet());
+    }
+
+    public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy, Version version, Map<String, Object> metadata) {
+        this(user, authenticatedBy, lookedUpBy, version, AuthenticationType.REALM, metadata, Collections.emptySet());
+    }
+
+    public Authentication(Authentication copy, Version version) {
+        this(
+            copy.getUser(),
+            rewriteRealmRef(version, copy.getAuthenticatedBy()),
+            rewriteRealmRef(version, copy.getLookedUpBy()),
+            version,
+            copy.getAuthenticationType(),
+            rewriteMetadataForApiKeyRoleDescriptors(version, copy),
+            version.before(VERSION_REALM_DOMAINS) ? Set.of() : copy.getDomainRealms() // security domain erasure
+        );
     }
 
     public Authentication(
@@ -191,7 +224,9 @@ public class Authentication implements ToXContentObject {
         }
         out.writeVInt(type.ordinal());
         out.writeMap(metadata);
-        out.writeCollection(domainRealms);
+        if (out.getVersion().onOrAfter(VERSION_REALM_DOMAINS)) {
+            out.writeCollection(domainRealms);
+        }
     }
 
     /**
@@ -441,6 +476,100 @@ public class Authentication implements ToXContentObject {
             } else {
                 return "{Realm[" + type + "." + name + "] on Node[" + nodeName + "]}";
             }
+        }
+
+        public static RealmRef newInternalRealmRef(String nodeName) {
+            // the "attach" internal realm is not part of any realm domain
+            return new Authentication.RealmRef(ATTACH_REALM_NAME, ATTACH_REALM_TYPE, nodeName, null);
+        }
+    }
+
+    public static Authentication newInternalAuthentication(User user, Version version, String nodeName) {
+        if (false == User.isInternal(user)) {
+            throw new IllegalArgumentException("Expected internal user, but provided [" + user + "]");
+        }
+        final Authentication.RealmRef authenticatedBy = Authentication.RealmRef.newInternalRealmRef(nodeName);
+        return new Authentication(
+            user,
+            authenticatedBy,
+            null,
+            version,
+            AuthenticationType.INTERNAL,
+            Collections.emptyMap(),
+            Collections.emptySet()
+        );
+    }
+
+    public static Authentication newRealmAuthentication(User user, Realm realm) {
+        if (user.isRunAs()) {
+            throw new IllegalStateException("Realm authentication must not be run-as");
+        }
+        return new Authentication(
+            user,
+            realm.getRealmRef(),
+            null,
+            Version.CURRENT,
+            AuthenticationType.REALM,
+            Map.of(),
+            realm.getDomainRealmRef()
+        );
+    }
+
+    private static RealmRef rewriteRealmRef(Version streamVersion, RealmRef realmRef) {
+        if (realmRef != null && realmRef.getDomain() != null && streamVersion.before(VERSION_REALM_DOMAINS)) {
+            // security domain erasure
+            new RealmRef(realmRef.getName(), realmRef.getType(), realmRef.getNodeName(), null);
+        }
+        return realmRef;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> rewriteMetadataForApiKeyRoleDescriptors(Version streamVersion, Authentication authentication) {
+        Map<String, Object> metadata = authentication.getMetadata();
+        if (authentication.getAuthenticationType() == AuthenticationType.API_KEY) {
+            if (authentication.getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
+                && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
+                metadata = new HashMap<>(metadata);
+                metadata.put(
+                    AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                    convertRoleDescriptorsBytesToMap((BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY))
+                );
+                metadata.put(
+                    AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                    convertRoleDescriptorsBytesToMap(
+                        (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                    )
+                );
+            } else if (authentication.getVersion().before(VERSION_API_KEY_ROLES_AS_BYTES)
+                && streamVersion.onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)) {
+                    metadata = new HashMap<>(metadata);
+                    metadata.put(
+                        AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                        convertRoleDescriptorsMapToBytes(
+                            (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
+                        )
+                    );
+                    metadata.put(
+                        AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                        convertRoleDescriptorsMapToBytes(
+                            (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                        )
+                    );
+                }
+        }
+        return metadata;
+    }
+
+    private static Map<String, Object> convertRoleDescriptorsBytesToMap(BytesReference roleDescriptorsBytes) {
+        return XContentHelper.convertToMap(roleDescriptorsBytes, false, XContentType.JSON).v2();
+    }
+
+    private static BytesReference convertRoleDescriptorsMapToBytes(Map<String, Object> roleDescriptorsMap) {
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.map(roleDescriptorsMap);
+            return BytesReference.bytes(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

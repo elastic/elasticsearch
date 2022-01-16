@@ -52,7 +52,7 @@ public class SecondaryAuthenticationTests extends ESTestCase {
 
     public void testSynchronousExecuteInSecondaryContext() {
         final User user1 = new User("u1", "role1");
-        securityContext.setUser(user1, Version.CURRENT);
+        securityContext.setInternalUser(user1, Version.CURRENT);
         assertThat(securityContext.getUser().principal(), equalTo("u1"));
 
         final Authentication authentication2 = new Authentication(new User("u2", "role2"), realm(), realm());
@@ -70,7 +70,7 @@ public class SecondaryAuthenticationTests extends ESTestCase {
 
     public void testSecondaryContextCanBeRestored() {
         final User user1 = new User("u1", "role1");
-        securityContext.setUser(user1, Version.CURRENT);
+        securityContext.setInternalUser(user1, Version.CURRENT);
         assertThat(securityContext.getUser().principal(), equalTo("u1"));
 
         final Authentication authentication2 = new Authentication(new User("u2", "role2"), realm(), realm());
@@ -93,7 +93,7 @@ public class SecondaryAuthenticationTests extends ESTestCase {
 
     public void testWrapRunnable() throws Exception {
         final User user1 = new User("u1", "role1");
-        securityContext.setUser(user1, Version.CURRENT);
+        securityContext.setInternalUser(user1, Version.CURRENT);
         assertThat(securityContext.getUser().principal(), equalTo("u1"));
 
         final Authentication authentication2 = new Authentication(new User("u2", "role2"), realm(), realm());
@@ -125,7 +125,7 @@ public class SecondaryAuthenticationTests extends ESTestCase {
 
     public void testPreserveSecondaryContextAcrossThreads() throws Exception {
         final User user1 = new User("u1", "role1");
-        securityContext.setUser(user1, Version.CURRENT);
+        securityContext.setInternalUser(user1, Version.CURRENT);
         assertThat(securityContext.getUser().principal(), equalTo("u1"));
 
         final Authentication authentication2 = new Authentication(new User("u2", "role2"), realm(), realm());

@@ -19,8 +19,10 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * An authentication mechanism to which the default authentication org.elasticsearch.xpack.security.authc.AuthenticationService
@@ -32,9 +34,14 @@ public abstract class Realm implements Comparable<Realm> {
     protected final Logger logger = LogManager.getLogger(getClass());
 
     protected RealmConfig config;
+    private final RealmRef realmRef;
+    private Set<RealmRef> domainRealmRef;
 
     public Realm(RealmConfig config) {
         this.config = config;
+        final String nodeName = Node.NODE_NAME_SETTING.get(config.settings());
+        this.realmRef = new RealmRef(config.name(), config.type(), nodeName, config.domain());
+        // {@code #domainRealmRef} is populated in the {@code #initialize} method
     }
 
     /**
@@ -151,8 +158,14 @@ public abstract class Realm implements Comparable<Realm> {
     }
 
     public RealmRef getRealmRef() {
-        final String nodeName = Node.NODE_NAME_SETTING.get(config.settings());
-        return new RealmRef(config.name(), type(), nodeName, domain());
+        return realmRef;
+    }
+
+    public Set<RealmRef> getDomainRealmRef() {
+        if (null == domainRealmRef) {
+            throw new IllegalStateException("Realm has not been initialized");
+        }
+        return domainRealmRef;
     }
 
     @Override
@@ -165,11 +178,24 @@ public abstract class Realm implements Comparable<Realm> {
     }
 
     /**
-     * This is no-op in the base class, but allows realms to be aware of what other realms are configured
+     * This allows realms to be aware of what other realms are configured
      *
      * @see DelegatedAuthorizationSettings
      */
-    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {}
+    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
+        final String domainName = getRealmRef().getDomain();
+        if (null == domainName) {
+            this.domainRealmRef = Set.of();
+            return;
+        }
+        final Set<RealmRef> domainRealmRefBuilder = new HashSet<>();
+        for (Realm otherRealm : realms) {
+            if (false == getRealmRef().equals(otherRealm.getRealmRef()) && domainName.equals(otherRealm.getRealmRef().getDomain())) {
+                domainRealmRefBuilder.add(otherRealm.getRealmRef());
+            }
+        }
+        this.domainRealmRef = Set.copyOf(domainRealmRefBuilder);
+    }
 
     /**
      * A factory interface to construct a security realm.

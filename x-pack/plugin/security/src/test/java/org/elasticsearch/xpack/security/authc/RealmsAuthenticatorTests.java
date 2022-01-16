@@ -62,20 +62,24 @@ public class RealmsAuthenticatorTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         threadContext = new ThreadContext(Settings.EMPTY);
+        nodeName = randomAlphaOfLength(8);
 
         realms = mock(Realms.class);
         realm1 = mock(Realm.class);
         when(realm1.name()).thenReturn("realm1");
         when(realm1.type()).thenReturn("realm1");
         when(realm1.toString()).thenReturn("realm1/realm1");
+        when(realm1.getRealmRef()).thenReturn(new Authentication.RealmRef("realm1", "realm1", nodeName, null));
         realm2 = mock(Realm.class);
         when(realm2.name()).thenReturn("realm2");
         when(realm2.type()).thenReturn("realm2");
         when(realm2.toString()).thenReturn("realm2/realm2");
+        when(realm2.getRealmRef()).thenReturn(new Authentication.RealmRef("realm2", "realm2", nodeName, null));
         realm3 = mock(Realm.class);
         when(realm3.toString()).thenReturn("realm3/realm3");
         when(realms.getActiveRealms()).thenReturn(List.of(realm1, realm2));
         when(realms.getUnlicensedRealms()).thenReturn(List.of(realm3));
+        when(realm3.getRealmRef()).thenReturn(new Authentication.RealmRef("realm3", "realm3", nodeName, null));
 
         request = randomBoolean()
             ? mock(AuthenticationService.AuditableRestRequest.class)
@@ -85,10 +89,9 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         when(authenticationToken.principal()).thenReturn(username);
         user = new User(username);
 
-        nodeName = randomAlphaOfLength(8);
         numInvalidation = new AtomicLong();
         lastSuccessfulAuthCache = mock(Cache.class);
-        realmsAuthenticator = new RealmsAuthenticator(nodeName, numInvalidation, lastSuccessfulAuthCache);
+        realmsAuthenticator = new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache);
     }
 
     public void testExtractCredentials() {
@@ -216,15 +219,15 @@ public class RealmsAuthenticatorTests extends ESTestCase {
             new Authentication.RealmRef(authRealm.name(), authRealm.type(), nodeName),
             null
         );
-        final PlainActionFuture<Tuple<User, Authentication.RealmRef>> future = new PlainActionFuture<>();
+        final PlainActionFuture<Tuple<User, Realm>> future = new PlainActionFuture<>();
         realmsAuthenticator.lookupRunAsUser(createAuthenticatorContext(), authentication, future);
-        final Tuple<User, Authentication.RealmRef> tuple = future.actionGet();
+        final Tuple<User, Realm> tuple = future.actionGet();
         assertThat(tuple.v1(), equalTo(new User(runAsUsername)));
-        assertThat(tuple.v2().getName(), is(lookupByRealm1 ? realm1.name() : realm2.name()));
+        assertThat(tuple.v2().name(), is(lookupByRealm1 ? realm1.name() : realm2.name()));
     }
 
     public void testNullRunAsUser() {
-        final PlainActionFuture<Tuple<User, Authentication.RealmRef>> future = new PlainActionFuture<>();
+        final PlainActionFuture<Tuple<User, Realm>> future = new PlainActionFuture<>();
         realmsAuthenticator.lookupRunAsUser(createAuthenticatorContext(), mock(Authentication.class), future);
         assertThat(future.actionGet(), nullValue());
     }
@@ -237,7 +240,7 @@ public class RealmsAuthenticatorTests extends ESTestCase {
             new Authentication.RealmRef(authRealm.name(), authRealm.type(), nodeName),
             null
         );
-        final PlainActionFuture<Tuple<User, Authentication.RealmRef>> future = new PlainActionFuture<>();
+        final PlainActionFuture<Tuple<User, Realm>> future = new PlainActionFuture<>();
         final ElasticsearchSecurityException e = new ElasticsearchSecurityException("fail");
         when(request.runAsDenied(any(), any())).thenReturn(e);
         realmsAuthenticator.lookupRunAsUser(createAuthenticatorContext(), authentication, future);

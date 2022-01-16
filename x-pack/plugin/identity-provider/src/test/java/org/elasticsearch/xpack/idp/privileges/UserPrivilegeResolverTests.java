@@ -199,7 +199,7 @@ public class UserPrivilegeResolverTests extends ESTestCase {
 
     private void setupUser(String principal) {
         final User user = new User(principal, randomAlphaOfLengthBetween(6, 12));
-        securityContext.setUser(user, Version.CURRENT);
+        securityContext.setInternalUser(user, Version.CURRENT);
     }
 
 }

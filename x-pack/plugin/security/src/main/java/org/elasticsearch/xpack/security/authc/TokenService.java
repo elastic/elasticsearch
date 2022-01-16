@@ -373,7 +373,8 @@ public final class TokenService {
                 authentication.getLookedUpBy(),
                 tokenVersion,
                 AuthenticationType.TOKEN,
-                authentication.getMetadata()
+                authentication.getMetadata(),
+                authentication.getDomainRealms()
             );
             final String storedAccessToken;
             final String storedRefreshToken;

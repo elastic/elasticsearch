@@ -20,8 +20,11 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.junit.Before;
 
 import java.io.EOFException;
@@ -30,6 +33,7 @@ import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
@@ -75,13 +79,13 @@ public class SecurityContextTests extends ESTestCase {
         final User user = new User("test");
         assertNull(securityContext.getAuthentication());
         assertNull(securityContext.getUser());
-        securityContext.setUser(user, Version.CURRENT);
+        securityContext.setInternalUser(user, Version.CURRENT);
         assertEquals(user, securityContext.getUser());
         assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
 
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> securityContext.setUser(randomFrom(user, SystemUser.INSTANCE), Version.CURRENT)
+            () -> securityContext.setInternalUser(randomFrom(user, SystemUser.INSTANCE), Version.CURRENT)
         );
         assertEquals("authentication ([_xpack_security_authentication]) is already present in the context", e.getMessage());
     }
@@ -96,13 +100,18 @@ public class SecurityContextTests extends ESTestCase {
             original = null;
         }
 
-        final User executionUser = new User("executor");
+        final User executionUser = randomFrom(
+            SystemUser.INSTANCE,
+            XPackUser.INSTANCE,
+            XPackSecurityUser.INSTANCE,
+            AsyncSearchUser.INSTANCE
+        );
         final AtomicReference<StoredContext> contextAtomicReference = new AtomicReference<>();
-        securityContext.executeAsUser(executionUser, (originalCtx) -> {
+        securityContext.executeAsInternalUser(executionUser, Version.CURRENT, (originalCtx) -> {
             assertEquals(executionUser, securityContext.getUser());
             assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
-        }, Version.CURRENT);
+        });
 
         final User userAfterExecution = securityContext.getUser();
         assertEquals(original, userAfterExecution);
@@ -164,7 +173,15 @@ public class SecurityContextTests extends ESTestCase {
             AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
             new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
         );
-        final Authentication original = new Authentication(user, authBy, authBy, Version.V_8_0_0, AuthenticationType.API_KEY, metadata);
+        final Authentication original = new Authentication(
+            user,
+            authBy,
+            authBy,
+            Version.V_8_0_0,
+            AuthenticationType.API_KEY,
+            metadata,
+            Set.of()
+        );
         original.writeToContext(threadContext);
 
         // If target is old node, rewrite new style API key metadata to old format
@@ -195,7 +212,15 @@ public class SecurityContextTests extends ESTestCase {
         metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10));
         metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, Map.of("a role", Map.of("cluster", List.of("all"))));
         metadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Map.of("limitedBy role", Map.of("cluster", List.of("all"))));
-        final Authentication original = new Authentication(user, authBy, authBy, Version.V_7_8_0, AuthenticationType.API_KEY, metadata);
+        final Authentication original = new Authentication(
+            user,
+            authBy,
+            authBy,
+            Version.V_7_8_0,
+            AuthenticationType.API_KEY,
+            metadata,
+            Set.of()
+        );
         original.writeToContext(threadContext);
 
         // If target is old node, no need to rewrite old style API key metadata

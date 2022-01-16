@@ -115,7 +115,7 @@ public final class AuthorizationUtils {
 
         switch (actionOrigin) {
             case SECURITY_ORIGIN:
-                securityContext.executeAsUser(XPackSecurityUser.INSTANCE, consumer, Version.CURRENT);
+                securityContext.executeAsInternalUser(XPackSecurityUser.INSTANCE, Version.CURRENT, consumer);
                 break;
             case WATCHER_ORIGIN:
             case ML_ORIGIN:
@@ -133,10 +133,10 @@ public final class AuthorizationUtils {
             case LOGSTASH_MANAGEMENT_ORIGIN:
             case FLEET_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
-                securityContext.executeAsUser(XPackUser.INSTANCE, consumer, Version.CURRENT);
+                securityContext.executeAsInternalUser(XPackUser.INSTANCE, Version.CURRENT, consumer);
                 break;
             case ASYNC_SEARCH_ORIGIN:
-                securityContext.executeAsUser(AsyncSearchUser.INSTANCE, consumer, Version.CURRENT);
+                securityContext.executeAsInternalUser(AsyncSearchUser.INSTANCE, Version.CURRENT, consumer);
                 break;
             default:
                 assert false : "action.origin [" + actionOrigin + "] is unknown!";

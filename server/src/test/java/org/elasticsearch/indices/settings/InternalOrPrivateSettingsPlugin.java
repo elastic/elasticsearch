@@ -169,7 +169,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                 }
 
                 @Override
-                public void onFailure(final String source, final Exception e) {
+                public void onFailure(final Exception e) {
                     listener.onFailure(e);
                 }
 

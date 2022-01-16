@@ -159,9 +159,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         );
     }
 
+    private static final String TASK_SOURCE = "cluster_reroute (api)";
+
     private void submitStateUpdate(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
         clusterService.submitStateUpdateTask(
-            "cluster_reroute (api)",
+            TASK_SOURCE,
             new ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, request, listener.map(response -> {
                 if (request.dryRun() == false) {
                     response.getExplanations().getYesDecisionMessages().forEach(logger::info);
@@ -205,9 +207,9 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
-            logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", source), e);
-            super.onFailure(source, e);
+        public void onFailure(Exception e) {
+            logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", TASK_SOURCE), e);
+            super.onFailure(e);
         }
 
         @Override

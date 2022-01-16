@@ -1066,13 +1066,13 @@ public class RestoreService implements ClusterStateApplier {
             }
 
             @Override
-            public void onFailure(final String source, final Exception e) {
+            public void onFailure(final Exception e) {
                 cleanupInProgress = false;
                 logger.warn(() -> new ParameterizedMessage("failed to remove completed restores from cluster state"), e);
             }
 
             @Override
-            public void onNoLongerMaster(String source) {
+            public void onNoLongerMaster() {
                 cleanupInProgress = false;
                 logger.debug("no longer master while removing completed restores from cluster state");
             }
@@ -1565,7 +1565,7 @@ public class RestoreService implements ClusterStateApplier {
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
+        public void onFailure(Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] failed to restore snapshot", snapshot), e);
             listener.onFailure(e);
         }

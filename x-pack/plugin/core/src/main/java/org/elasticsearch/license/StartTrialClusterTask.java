@@ -33,6 +33,8 @@ public class StartTrialClusterTask extends ClusterStateUpdateTask {
         new String[] { "With a trial license, X-Pack security features are available, but are not enabled by default." }
     );
 
+    static final String TASK_SOURCE = "started trial license";
+
     private final Logger logger;
     private final String clusterName;
     private final PostStartTrialRequest request;
@@ -102,8 +104,8 @@ public class StartTrialClusterTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void onFailure(String source, @Nullable Exception e) {
-        logger.error(new ParameterizedMessage("unexpected failure during [{}]", source), e);
+    public void onFailure(@Nullable Exception e) {
+        logger.error(new ParameterizedMessage("unexpected failure during [{}]", TASK_SOURCE), e);
         listener.onFailure(e);
     }
 }

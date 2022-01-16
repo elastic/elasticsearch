@@ -233,7 +233,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
     }
 
     @Override
-    public void handleFailure(String source, Exception e) {
+    public void handleFailure(Exception e) {
         logger.warn(new ParameterizedMessage("policy [{}] for index [{}] failed on step [{}].", policy, index, startStep.getKey()), e);
     }
 

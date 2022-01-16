@@ -192,7 +192,7 @@ public class MetadataIndexStateService {
                                                 }
 
                                                 @Override
-                                                public void onFailure(final String source, final Exception e) {
+                                                public void onFailure(final Exception e) {
                                                     listener.onFailure(e);
                                                 }
 
@@ -250,7 +250,7 @@ public class MetadataIndexStateService {
                 }
 
                 @Override
-                public void onFailure(final String source, final Exception e) {
+                public void onFailure(final Exception e) {
                     listener.onFailure(e);
                 }
             },
@@ -500,7 +500,7 @@ public class MetadataIndexStateService {
                                                 }
 
                                                 @Override
-                                                public void onFailure(final String source, final Exception e) {
+                                                public void onFailure(final Exception e) {
                                                     listener.onFailure(e);
                                                 }
 
@@ -525,7 +525,7 @@ public class MetadataIndexStateService {
                 }
 
                 @Override
-                public void onFailure(final String source, final Exception e) {
+                public void onFailure(final Exception e) {
                     listener.onFailure(e);
                 }
             },

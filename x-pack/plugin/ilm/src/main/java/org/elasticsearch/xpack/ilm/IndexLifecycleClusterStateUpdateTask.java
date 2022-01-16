@@ -60,9 +60,10 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
 
     @Override
     public final void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-        assert executed;
         listener.onResponse(null);
-        onClusterStateProcessed(source, newState);
+        if (executed) {
+            onClusterStateProcessed(source, newState);
+        } // else this update was a no-op but was batched with some other nontrivial updates
     }
 
     @Override

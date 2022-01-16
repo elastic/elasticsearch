@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -303,15 +304,16 @@ public class MetadataCreateIndexService {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     if (e instanceof ResourceAlreadyExistsException) {
                         logger.trace(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
                     } else {
                         logger.debug(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
                     }
-                    super.onFailure(source, e);
+                    super.onFailure(e);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

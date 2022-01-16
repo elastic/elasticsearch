@@ -61,14 +61,14 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
     }
 
     @Override
-    public final void onFailure(String source, Exception e) {
+    public final void onFailure(Exception e) {
         listener.onFailure(e);
-        handleFailure(source, e);
+        handleFailure(e);
     }
 
     /**
      * Add a listener that is resolved once this update has been processed or failed and before either the
-     * {@link #onClusterStateProcessed(String, ClusterState, ClusterState)} or the {@link #handleFailure(String, Exception)} hooks are
+     * {@link #onClusterStateProcessed(String, ClusterState, ClusterState)} or the {@link #handleFailure(Exception)} hooks are
      * executed.
      */
     public final void addListener(ActionListener<Void> actionListener) {
@@ -91,8 +91,8 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
     public abstract int hashCode();
 
     /**
-     * This method is functionally the same as {@link ClusterStateTaskListener#onFailure(String, Exception)} and implementations can
+     * This method is functionally the same as {@link ClusterStateTaskListener#onFailure(Exception)} and implementations can
      * override it as they would override {@code ClusterStateUpdateTask#onFailure}.
      */
-    protected abstract void handleFailure(String source, Exception e);
+    protected abstract void handleFailure(Exception e);
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -46,6 +47,7 @@ import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -76,6 +78,20 @@ public final class DataStreamTestHelper {
     private static final Settings.Builder SETTINGS = ESTestCase.settings(Version.CURRENT).put("index.hidden", true);
     private static final int NUMBER_OF_SHARDS = 1;
     private static final int NUMBER_OF_REPLICAS = 1;
+
+    public static DataStream newInstance(String name, DataStream.TimestampField timeStampField, List<Index> indices) {
+        return newInstance(name, timeStampField, indices, indices.size(), null);
+    }
+
+    public static DataStream newInstance(
+        String name,
+        DataStream.TimestampField timeStampField,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata
+    ) {
+        return new DataStream(name, timeStampField, indices, generation, metadata, false, false, false, false);
+    }
 
     public static String getLegacyDefaultBackingIndexName(
         String dataStreamName,
@@ -260,7 +276,7 @@ public final class DataStreamTestHelper {
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = new DataStream(
+            DataStream ds = DataStreamTestHelper.newInstance(
                 dsTuple.v1(),
                 createTimestampField("@timestamp"),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
@@ -277,6 +293,35 @@ public final class DataStreamTestHelper {
         for (IndexMetadata index : allIndices) {
             builder.put(index, false);
         }
+
+        return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
+    }
+
+    public static ClusterState getClusterStateWithDataStream(String dataStream, List<Tuple<Instant, Instant>> timeSlices) {
+        Metadata.Builder builder = Metadata.builder();
+
+        List<IndexMetadata> backingIndices = new ArrayList<>();
+        int generation = 1;
+        for (Tuple<Instant, Instant> tuple : timeSlices) {
+            Instant start = tuple.v1();
+            Instant end = tuple.v2();
+            Settings settings = Settings.builder()
+                .put("index.mode", "time_series")
+                .put("index.routing_path", "uid")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start))
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end))
+                .build();
+            var im = createIndexMetadata(getDefaultBackingIndexName(dataStream, generation, start.toEpochMilli()), true, settings, 0);
+            builder.put(im, true);
+            backingIndices.add(im);
+            generation++;
+        }
+        DataStream ds = newInstance(
+            dataStream,
+            createTimestampField("@timestamp"),
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+        );
+        builder.put(ds);
 
         return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
     }

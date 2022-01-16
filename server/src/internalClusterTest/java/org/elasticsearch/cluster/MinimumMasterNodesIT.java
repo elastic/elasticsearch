@@ -355,7 +355,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
                 failure.set(e);
                 latch.countDown();
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
 
         logger.debug("--> waiting for cluster state to be processed/rejected");
         latch.await();

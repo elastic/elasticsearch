@@ -178,7 +178,6 @@ setup:
         index: 'test1,test2,test3'
         fields: object*
 
-  - match: {fields.object\.nested1.long.searchable:                       false}
   - match: {fields.object\.nested1.long.aggregatable:                     true}
   - match: {fields.object\.nested1.long.indices:                          ["test3"]}
   - is_false: fields.object\.nested1.long.non_searchable_indices
@@ -198,6 +197,19 @@ setup:
   - match: {fields.object\.nested2.keyword.indices:                       ["test3"]}
   - is_false: fields.object\.nested2.keyword.non_aggregatable_indices
   - is_false: fields.object\.nested2.keyword.non_searchable_indices
+
+---
+"Field caps for number field with only doc values":
+  - skip:
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: object*
+
+  - match: {fields.object\.nested1.long.searchable:                       true}
+
 ---
 "Get object and nested field caps":
 

@@ -434,7 +434,7 @@ public final class MappingLookup {
     public boolean hasTimestampField() {
         final MappedFieldType mappedFieldType = fieldTypesLookup().get(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
-            return mappedFieldType.isSearchable() && mappedFieldType.hasDocValues();
+            return mappedFieldType.isIndexed() && mappedFieldType.hasDocValues();
         } else {
             return false;
         }

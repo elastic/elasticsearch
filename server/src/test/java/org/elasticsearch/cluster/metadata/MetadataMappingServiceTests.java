@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -57,22 +56,25 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testClusterStateIsNotChangedWithIdenticalMappings() throws Exception {
-        createIndex("test", client().admin().indices().prepareCreate("test"));
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
 
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
-            { "properties" { "field": { "type": "text" }}}""");
-        ClusterState result = mappingService.putMappingExecutor.execute(
+            { "properties": { "field": { "type": "text" }}}""").indices(new Index[] { indexService.index() });
+        ClusterStateTaskExecutor.ClusterTasksResult<?> result = mappingService.putMappingExecutor.execute(
             clusterService.state(),
             Collections.singletonList(request)
-        ).resultingState;
+        );
+        assertTrue(result.executionResults.values().stream().noneMatch(res -> res.isSuccess() == false));
 
-        assertFalse(result != clusterService.state());
+        ClusterStateTaskExecutor.ClusterTasksResult<?> result2 = mappingService.putMappingExecutor.execute(
+            result.resultingState,
+            Collections.singletonList(request)
+        );
+        assertTrue(result.executionResults.values().stream().noneMatch(res -> res.isSuccess() == false));
 
-        ClusterState result2 = mappingService.putMappingExecutor.execute(result, Collections.singletonList(request)).resultingState;
-
-        assertSame(result, result2);
+        assertSame(result2.resultingState, result.resultingState);
     }
 
     public void testMappingVersion() throws Exception {

@@ -29,6 +29,7 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -910,7 +911,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 latch.countDown();
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
         latch.await();
     }
 

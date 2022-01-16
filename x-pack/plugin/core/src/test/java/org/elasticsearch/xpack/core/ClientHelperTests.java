@@ -237,7 +237,7 @@ public class ClientHelperTests extends ESTestCase {
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         searchFuture.onResponse(
             new SearchResponse(
-                InternalSearchResponse.empty(),
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                 null,
                 0,
                 0,
@@ -261,7 +261,7 @@ public class ClientHelperTests extends ESTestCase {
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         searchFuture.onResponse(
             new SearchResponse(
-                InternalSearchResponse.empty(),
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                 null,
                 0,
                 0,
@@ -294,7 +294,7 @@ public class ClientHelperTests extends ESTestCase {
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         searchFuture.onResponse(
             new SearchResponse(
-                InternalSearchResponse.empty(),
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                 null,
                 0,
                 0,

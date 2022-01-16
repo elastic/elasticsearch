@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -234,7 +235,7 @@ public class LocalAllocateDangledIndices {
                         logger.warn("failed send response for allocating dangled", e);
                     }
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         }
     }
 

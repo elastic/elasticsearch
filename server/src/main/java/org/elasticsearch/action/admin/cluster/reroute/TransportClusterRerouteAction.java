@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -208,7 +207,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
 
         @Override
         public void onFailure(Exception e) {
-            logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", TASK_SOURCE), e);
+            logger.debug("failed to perform [" + TASK_SOURCE + "]", e);
             super.onFailure(e);
         }
 

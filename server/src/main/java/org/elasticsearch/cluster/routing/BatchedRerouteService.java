@@ -14,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -153,7 +154,7 @@ public class BatchedRerouteService implements RerouteService {
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     ActionListener.onResponse(currentListeners, newState);
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         } catch (Exception e) {
             synchronized (mutex) {
                 assert currentListeners.isEmpty() == (pendingRerouteListeners != currentListeners);

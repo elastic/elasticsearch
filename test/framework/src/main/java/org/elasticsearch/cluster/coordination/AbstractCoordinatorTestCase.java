@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -49,6 +50,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -868,7 +870,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     if (rarely()) {
                         nodeEnvironment = newNodeEnvironment();
                         nodeEnvironments.add(nodeEnvironment);
-                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(localNode, bigArrays);
+                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(localNode);
                         gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
                         delegate = gatewayMetaState.getPersistedState();
                     } else {
@@ -896,13 +898,21 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         nodeEnvironment = oldState.nodeEnvironment;
                         final Metadata updatedMetadata = adaptGlobalMetadata.apply(oldState.getLastAcceptedState().metadata());
                         final long updatedTerm = adaptCurrentTerm.apply(oldState.getCurrentTerm());
+
+                        final Settings.Builder writerSettings = Settings.builder();
+                        if (randomBoolean()) {
+                            writerSettings.put(
+                                PersistedClusterStateService.DOCUMENT_PAGE_SIZE.getKey(),
+                                ByteSizeValue.ofBytes(randomLongBetween(1, 1024))
+                            );
+                        }
+
                         if (updatedMetadata != oldState.getLastAcceptedState().metadata() || updatedTerm != oldState.getCurrentTerm()) {
                             try (
                                 PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
                                     nodeEnvironment,
                                     xContentRegistry(),
-                                    bigArrays,
-                                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                                    new ClusterSettings(writerSettings.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                                     deterministicTaskQueue::getCurrentTimeMillis
                                 ).createWriter()
                             ) {
@@ -912,7 +922,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                                 );
                             }
                         }
-                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode, bigArrays);
+                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode);
                         gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
                         delegate = gatewayMetaState.getPersistedState();
                     } else {
@@ -1130,22 +1140,26 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     ) {
                         final TransportRequestOptions.Type chanType = options.type();
                         switch (action) {
-                            case JoinHelper.JOIN_ACTION_NAME:
-                            case FollowersChecker.FOLLOWER_CHECK_ACTION_NAME:
-                            case LeaderChecker.LEADER_CHECK_ACTION_NAME:
-                                assertThat(action, chanType, equalTo(TransportRequestOptions.Type.PING));
-                                break;
-                            case JoinHelper.JOIN_VALIDATE_ACTION_NAME:
-                            case PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME:
-                            case PublicationTransportHandler.COMMIT_STATE_ACTION_NAME:
-                                assertThat(action, chanType, equalTo(TransportRequestOptions.Type.STATE));
-                                break;
-                            case JoinHelper.JOIN_PING_ACTION_NAME:
-                                assertThat(action, chanType, oneOf(TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.PING));
-                                break;
-                            default:
-                                assertThat(action, chanType, equalTo(TransportRequestOptions.Type.REG));
-                                break;
+                            // tag::noformat
+                            case JoinHelper.JOIN_ACTION_NAME, FollowersChecker.FOLLOWER_CHECK_ACTION_NAME,
+                                 LeaderChecker.LEADER_CHECK_ACTION_NAME -> assertThat(
+                                action,
+                                chanType,
+                                equalTo(TransportRequestOptions.Type.PING)
+                            );
+                            case JoinHelper.JOIN_VALIDATE_ACTION_NAME, PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
+                                 PublicationTransportHandler.COMMIT_STATE_ACTION_NAME -> assertThat(
+                                action,
+                                chanType,
+                                equalTo(TransportRequestOptions.Type.STATE)
+                            );
+                            // end::noformat
+                            case JoinHelper.JOIN_PING_ACTION_NAME -> assertThat(
+                                action,
+                                chanType,
+                                oneOf(TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.PING)
+                            );
+                            default -> assertThat(action, chanType, equalTo(TransportRequestOptions.Type.REG));
                         }
 
                         super.onSendRequest(requestId, action, request, options, destinationTransport);
@@ -1450,7 +1464,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             logger.trace("successfully published: [{}]", newState);
                             taskListener.clusterStateProcessed(source, oldState, newState);
                         }
-                    });
+                    }, ClusterStateTaskExecutor.unbatched());
                 }).run();
                 return ackCollector;
             }
@@ -1649,8 +1663,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             this.threadPool = threadPool;
             addStateApplier(event -> {
                 switch (clusterStateApplyResponse) {
-                    case SUCCEED:
-                    case HANG:
+                    case SUCCEED, HANG -> {
                         final ClusterState oldClusterState = event.previousState();
                         final ClusterState newClusterState = event.state();
                         assert oldClusterState.version() <= newClusterState.version()
@@ -1658,9 +1671,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                                 + oldClusterState.version()
                                 + " to stale version "
                                 + newClusterState.version();
-                        break;
-                    case FAIL:
-                        throw new ElasticsearchException("simulated cluster state applier failure");
+                    }
+                    case FAIL -> throw new ElasticsearchException("simulated cluster state applier failure");
                 }
             });
         }

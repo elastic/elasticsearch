@@ -6,26 +6,16 @@ functionality in Elasticsearch by adding repositories backed by the cloud or
 by distributed file systems:
 
 [discrete]
-==== Core repository plugins
+==== Offical repository plugins
 
-The core repository plugins are:
+NOTE: Support for S3, GCS and Azure repositories is now bundled in {es} by
+default.
 
-<<repository-s3,S3 Repository>>::
-
-The S3 repository plugin adds support for using S3 as a repository.
-
-<<repository-azure,Azure Repository>>::
-
-The Azure repository plugin adds support for using Azure as a repository.
+The official repository plugins are:
 
 <<repository-hdfs,HDFS Repository>>::
 
 The Hadoop HDFS Repository plugin adds support for using HDFS as a repository.
-
-<<repository-gcs,Google Cloud Storage Repository>>::
-
-The GCS repository plugin adds support for using Google Cloud Storage service as a repository.
-
 
 [discrete]
 === Community contributed repository plugins
@@ -34,11 +24,4 @@ The following plugin has been contributed by our community:
 
 * https://github.com/BigDataBoutique/elasticsearch-repository-swift[Openstack Swift] (by Wikimedia Foundation and BigData Boutique)
 
-
-include::repository-azure.asciidoc[]
-
-include::repository-s3.asciidoc[]
-
 include::repository-hdfs.asciidoc[]
-
-include::repository-gcs.asciidoc[]

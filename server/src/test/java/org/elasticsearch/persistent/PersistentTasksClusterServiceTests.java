@@ -261,18 +261,13 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         int numberOfTasks = randomIntBetween(0, 40);
         for (int i = 0; i < numberOfTasks; i++) {
             switch (randomInt(2)) {
-                case 0:
+                case 0 ->
                     // add an unassigned task that should get assigned because it's assigned to a non-existing node or unassigned
                     addTask(tasks, "assign_me", randomBoolean() ? null : "no_longer_exists");
-                    break;
-                case 1:
+                case 1 ->
                     // add a task assigned to non-existing node that should not get assigned
                     addTask(tasks, "dont_assign_me", randomBoolean() ? null : "no_longer_exists");
-                    break;
-                case 2:
-                    addTask(tasks, "assign_one", randomBoolean() ? null : "no_longer_exists");
-                    break;
-
+                case 2 -> addTask(tasks, "assign_one", randomBoolean() ? null : "no_longer_exists");
             }
         }
         Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
@@ -703,7 +698,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             t1.start();
             // Make sure we have at least one reassign check before we count down the latch
             assertBusy(
-                () -> verify(recheckTestClusterService, atLeastOnce()).submitStateUpdateTask(eq("reassign persistent tasks"), any())
+                () -> verify(recheckTestClusterService, atLeastOnce()).submitStateUpdateTask(eq("reassign persistent tasks"), any(), any())
             );
             t2.start();
         } finally {
@@ -714,7 +709,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         }
         // verify that our reassignment is possible again, here we have once from the previous reassignment in the `try` block
         // And one from the line above once the other threads have joined
-        assertBusy(() -> verify(recheckTestClusterService, times(2)).submitStateUpdateTask(eq("reassign persistent tasks"), any()));
+        assertBusy(() -> verify(recheckTestClusterService, times(2)).submitStateUpdateTask(eq("reassign persistent tasks"), any(), any()));
         verifyNoMoreInteractions(recheckTestClusterService);
     }
 
@@ -744,7 +739,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 task.clusterStateProcessed("test", before, after);
             }
             return null;
-        }).when(recheckTestClusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        }).when(recheckTestClusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
 
         return recheckTestClusterService;
     }
@@ -759,7 +754,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         PersistentTasksClusterService service = createService((params, candidateNodes, currentState) -> {
             TestParams testParams = (TestParams) params;
             switch (testParams.getTestParam()) {
-                case "assign_me":
+                case "assign_me" -> {
                     logger.info(
                         "--> assigning task randomly from candidates [{}]",
                         candidateNodes.stream().map(DiscoveryNode::getId).collect(Collectors.joining(","))
@@ -767,21 +762,25 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                     Assignment assignment = randomNodeAssignment(candidateNodes);
                     logger.info("--> assigned task to {}", assignment);
                     return assignment;
-                case "dont_assign_me":
+                }
+                case "dont_assign_me" -> {
                     logger.info("--> not assigning task");
                     return NO_NODE_FOUND;
-                case "fail_me_if_called":
+                }
+                case "fail_me_if_called" -> {
                     logger.info("--> failing test from task assignment");
                     fail("the decision decider shouldn't be called on this task");
                     return null;
-                case "assign_one":
+                }
+                case "assign_one" -> {
                     logger.info("--> assigning only a single task");
                     return assignOnlyOneTaskAtATime(candidateNodes, currentState);
-                case "assign_based_on_non_cluster_state_condition":
+                }
+                case "assign_based_on_non_cluster_state_condition" -> {
                     logger.info("--> assigning based on non cluster state condition: {}", nonClusterStateCondition);
                     return assignBasedOnNonClusterStateCondition(candidateNodes);
-                default:
-                    fail("unknown param " + testParams.getTestParam());
+                }
+                default -> fail("unknown param " + testParams.getTestParam());
             }
             return NO_NODE_FOUND;
         });

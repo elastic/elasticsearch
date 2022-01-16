@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
@@ -101,12 +100,6 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), cursor);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // This is needed just to test round-trip compatibility with proto.SqlClearCursorRequest
-        return new org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest(cursor, requestInfo()).toXContent(builder, params);
     }
 
     public static SqlClearCursorRequest fromXContent(XContentParser parser) {

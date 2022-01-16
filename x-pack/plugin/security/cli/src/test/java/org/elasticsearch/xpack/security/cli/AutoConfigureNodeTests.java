@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -25,7 +24,6 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
@@ -231,17 +229,15 @@ public class AutoConfigureNodeTests extends ESTestCase {
 
         SecureString httpKeystorePassword = nodeKeystore.getString("xpack.security.http.ssl.keystore.secure_password");
 
-        List<String> generatedConfigLines = Files.readAllLines(env.configFile().resolve("elasticsearch.yml"), StandardCharsets.UTF_8);
-        String httpKeystorePath = null;
-        for (String generatedConfigLine : generatedConfigLines) {
-            if (generatedConfigLine.startsWith("xpack.security.http.ssl.keystore.path")) {
-                httpKeystorePath = generatedConfigLine.substring(39);
-                break;
-            }
-        }
+        final Settings newSettings = Settings.builder().loadFromPath(env.configFile().resolve("elasticsearch.yml")).build();
+        final String httpKeystorePath = newSettings.get("xpack.security.http.ssl.keystore.path");
 
-        KeyStore httpKeystore = KeyStoreUtil.readKeyStore(PathUtils.get(httpKeystorePath), "PKCS12", httpKeystorePassword.getChars());
-        return (X509Certificate) httpKeystore.getCertificate("http_local_node_key");
+        KeyStore httpKeystore = KeyStoreUtil.readKeyStore(
+            configDir.resolve("config").resolve(httpKeystorePath),
+            "PKCS12",
+            httpKeystorePassword.getChars()
+        );
+        return (X509Certificate) httpKeystore.getCertificate("http");
     }
 
     @SuppressForbidden(reason = "Uses File API because the commons io library does, which is useful for file manipulation")

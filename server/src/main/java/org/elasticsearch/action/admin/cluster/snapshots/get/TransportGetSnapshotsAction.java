@@ -577,32 +577,15 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         int size,
         SortOrder order
     ) {
-        final Comparator<SnapshotInfo> comparator;
-        switch (sortBy) {
-            case START_TIME:
-                comparator = BY_START_TIME;
-                break;
-            case NAME:
-                comparator = BY_NAME;
-                break;
-            case DURATION:
-                comparator = BY_DURATION;
-                break;
-            case INDICES:
-                comparator = BY_INDICES_COUNT;
-                break;
-            case SHARDS:
-                comparator = BY_SHARDS_COUNT;
-                break;
-            case FAILED_SHARDS:
-                comparator = BY_FAILED_SHARDS_COUNT;
-                break;
-            case REPOSITORY:
-                comparator = BY_REPOSITORY;
-                break;
-            default:
-                throw new AssertionError("unexpected sort column [" + sortBy + "]");
-        }
+        final Comparator<SnapshotInfo> comparator = switch (sortBy) {
+            case START_TIME -> BY_START_TIME;
+            case NAME -> BY_NAME;
+            case DURATION -> BY_DURATION;
+            case INDICES -> BY_INDICES_COUNT;
+            case SHARDS -> BY_SHARDS_COUNT;
+            case FAILED_SHARDS -> BY_FAILED_SHARDS_COUNT;
+            case REPOSITORY -> BY_REPOSITORY;
+        };
 
         Stream<SnapshotInfo> infos = snapshotInfos.stream();
 
@@ -632,31 +615,31 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final String snapshotName = after.snapshotName();
         final String repoName = after.repoName();
         final String value = after.value();
-        switch (sortBy) {
-            case START_TIME:
-                return filterByLongOffset(SnapshotInfo::startTime, Long.parseLong(value), snapshotName, repoName, order);
-            case NAME:
+        return switch (sortBy) {
+            case START_TIME -> filterByLongOffset(SnapshotInfo::startTime, Long.parseLong(value), snapshotName, repoName, order);
+            case NAME ->
                 // TODO: cover via pre-flight predicate
-                return order == SortOrder.ASC
+                order == SortOrder.ASC
                     ? (info -> compareName(snapshotName, repoName, info) < 0)
                     : (info -> compareName(snapshotName, repoName, info) > 0);
-            case DURATION:
-                return filterByLongOffset(info -> info.endTime() - info.startTime(), Long.parseLong(value), snapshotName, repoName, order);
-            case INDICES:
+            case DURATION -> filterByLongOffset(
+                info -> info.endTime() - info.startTime(),
+                Long.parseLong(value),
+                snapshotName,
+                repoName,
+                order
+            );
+            case INDICES ->
                 // TODO: cover via pre-flight predicate
-                return filterByLongOffset(info -> info.indices().size(), Integer.parseInt(value), snapshotName, repoName, order);
-            case SHARDS:
-                return filterByLongOffset(SnapshotInfo::totalShards, Integer.parseInt(value), snapshotName, repoName, order);
-            case FAILED_SHARDS:
-                return filterByLongOffset(SnapshotInfo::failedShards, Integer.parseInt(value), snapshotName, repoName, order);
-            case REPOSITORY:
+                filterByLongOffset(info -> info.indices().size(), Integer.parseInt(value), snapshotName, repoName, order);
+            case SHARDS -> filterByLongOffset(SnapshotInfo::totalShards, Integer.parseInt(value), snapshotName, repoName, order);
+            case FAILED_SHARDS -> filterByLongOffset(SnapshotInfo::failedShards, Integer.parseInt(value), snapshotName, repoName, order);
+            case REPOSITORY ->
                 // TODO: cover via pre-flight predicate
-                return order == SortOrder.ASC
+                order == SortOrder.ASC
                     ? (info -> compareRepositoryName(snapshotName, repoName, info) < 0)
                     : (info -> compareRepositoryName(snapshotName, repoName, info) > 0);
-            default:
-                throw new AssertionError("unexpected sort column [" + sortBy + "]");
-        }
+        };
     }
 
     private static Predicate<SnapshotInfo> filterByLongOffset(

@@ -644,8 +644,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         networkDisruption.stopDisrupting();
 
         logger.info("--> make sure all failing requests get a response");
-        assertAcked(firstDeleteFuture.actionGet());
-        assertAcked(secondDeleteFuture.actionGet());
+        assertAcked(firstDeleteFuture.get());
+        assertAcked(secondDeleteFuture.get());
         expectThrows(SnapshotException.class, createThirdSnapshot::actionGet);
 
         awaitNoMoreRunningOperations();
@@ -675,7 +675,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
         awaitNumberOfSnapshotsInProgress(2);
 
-        final ActionFuture<AcknowledgedResponse> failedDeleteFuture = client(masterNode).admin()
+        final ActionFuture<AcknowledgedResponse> deleteFuture = client(masterNode).admin()
             .cluster()
             .prepareDeleteSnapshot(repoName, "*")
             .execute();
@@ -689,7 +689,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> make sure all failing requests get a response");
         expectThrows(SnapshotException.class, firstFailedSnapshotFuture::actionGet);
         expectThrows(SnapshotException.class, secondFailedSnapshotFuture::actionGet);
-        assertAcked(failedDeleteFuture.get());
+        assertAcked(deleteFuture.get());
 
         awaitNoMoreRunningOperations();
     }

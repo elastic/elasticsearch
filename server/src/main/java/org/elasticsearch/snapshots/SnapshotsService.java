@@ -151,7 +151,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /**
      * Listeners for snapshot deletion keyed by delete uuid as returned from {@link SnapshotDeletionsInProgress.Entry#uuid()}
      */
-    private final Map<String, List<ActionListener<Void>>> snapshotDeletionListeners = new ConcurrentHashMap<>();
+    private final Map<String, List<ActionListener<Void>>> snapshotDeletionListeners = new HashMap<>();
 
     // Set of repositories currently running either a snapshot finalization or a snapshot delete.
     private final Set<String> currentlyFinalizing = Collections.synchronizedSet(new HashSet<>());
@@ -980,7 +980,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     final Exception e = new NotMasterException("no longer master");
                     for (String delete : Set.copyOf(snapshotDeletionListeners.keySet())) {
                         failListenersIgnoringException(snapshotDeletionListeners.remove(delete), e);
-                        repositoryOperations.finishDeletion(delete);
                     }
                 }
             }

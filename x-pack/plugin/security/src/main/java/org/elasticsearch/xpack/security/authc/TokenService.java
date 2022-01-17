@@ -2526,7 +2526,7 @@ public final class TokenService {
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
+                    public void onFailure(Exception e) {
                         installTokenMetadataInProgress.set(false);
                         logger.error("unable to install token metadata", e);
                     }

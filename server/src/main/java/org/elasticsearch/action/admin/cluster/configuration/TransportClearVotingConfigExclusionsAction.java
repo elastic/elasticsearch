@@ -145,7 +145,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
 

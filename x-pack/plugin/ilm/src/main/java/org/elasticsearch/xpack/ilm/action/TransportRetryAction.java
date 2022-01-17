@@ -20,12 +20,12 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.action.RetryAction;
 import org.elasticsearch.xpack.core.ilm.action.RetryAction.Request;
@@ -72,7 +72,7 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Ack
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 for (String index : request.indices()) {
                     IndexMetadata idxMeta = newState.metadata().index(index);
-                    LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
+                    LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                     StepKey retryStep = new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(), lifecycleState.getStep());
                     if (idxMeta == null) {
                         // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.

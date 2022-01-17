@@ -47,30 +47,32 @@ public class ProfileServiceTests extends ESTestCase {
 
     public static final String SAMPLE_PROFILE_DOCUMENT_TEMPLATE = """
         {
-          "uid": "%s",
-          "enabled": true,
-          "user": {
-            "username": "foo",
-            "realm": {
-              "name": "realm_name",
-              "type": "realm_type",
-              "node_name": "node1"
+          "user_profile":  {
+            "uid": "%s",
+            "enabled": true,
+            "user": {
+              "username": "foo",
+              "realm": {
+                "name": "realm_name",
+                "type": "realm_type",
+                "node_name": "node1"
+              },
+              "email": "foo@example.com",
+              "full_name": "User Foo",
+              "display_name": "Curious Foo"
             },
-            "email": "foo@example.com",
-            "full_name": "User Foo",
-            "display_name": "Curious Foo"
-          },
-          "last_synchronized": %s,
-          "access": {
-            "roles": [
-              "role1",
-              "role2"
-            ],
-            "applications": {}
-          },
-          "application_data": {
-            "app1": { "name": "app1" },
-            "app2": { "name": "app2" }
+            "last_synchronized": %s,
+            "access": {
+              "roles": [
+                "role1",
+                "role2"
+              ],
+              "applications": {}
+            },
+            "application_data": {
+              "app1": { "name": "app1" },
+              "app2": { "name": "app2" }
+            }
           }
         }
         """;

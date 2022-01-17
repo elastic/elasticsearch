@@ -80,8 +80,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
 
         UpdateRolloverLifecycleDateStep step = createRandomInstance();
         ClusterState newState = step.performAction(indexMetadata.getIndex(), clusterState);
-        long actualRolloverTime = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexMetadata.getIndex()))
-            .getLifecycleDate();
+        long actualRolloverTime = newState.metadata().index(indexMetadata.getIndex()).getLifecycleExecutionState().getLifecycleDate();
         assertThat(actualRolloverTime, equalTo(rolloverTime));
     }
 
@@ -119,8 +118,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
 
         UpdateRolloverLifecycleDateStep step = createRandomInstance();
         ClusterState newState = step.performAction(originalIndexMeta.getIndex(), clusterState);
-        long actualRolloverTime = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(originalIndexMeta.getIndex()))
-            .getLifecycleDate();
+        long actualRolloverTime = newState.metadata().index(originalIndexMeta.getIndex()).getLifecycleExecutionState().getLifecycleDate();
         assertThat(actualRolloverTime, equalTo(rolloverTime));
     }
 
@@ -198,8 +196,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
 
         UpdateRolloverLifecycleDateStep step = createRandomInstanceWithFallbackTime(() -> rolloverTime);
         ClusterState newState = step.performAction(indexMetadata.getIndex(), clusterState);
-        long actualRolloverTime = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexMetadata.getIndex()))
-            .getLifecycleDate();
+        long actualRolloverTime = newState.metadata().index(indexMetadata.getIndex()).getLifecycleExecutionState().getLifecycleDate();
         assertThat(actualRolloverTime, equalTo(rolloverTime));
     }
 }

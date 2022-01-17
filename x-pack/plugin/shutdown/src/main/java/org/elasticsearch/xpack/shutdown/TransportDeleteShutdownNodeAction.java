@@ -84,7 +84,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 logger.error(new ParameterizedMessage("failed to delete shutdown for node [{}]", request.getNodeId()), e);
                 listener.onFailure(e);
             }

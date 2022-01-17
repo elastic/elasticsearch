@@ -92,6 +92,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
@@ -588,11 +590,19 @@ public class ApiKeyService {
         if (roleDescriptors == null && authnRoleDescriptors == null) {
             listener.onFailure(new ElasticsearchSecurityException("no role descriptors found for API key"));
         } else if (roleDescriptors == null || roleDescriptors.isEmpty()) {
-            final List<RoleDescriptor> authnRoleDescriptorsList = parseRoleDescriptors(apiKeyId, authnRoleDescriptors);
+            final List<RoleDescriptor> authnRoleDescriptorsList = parseRoleDescriptors(
+                apiKeyId,
+                authnRoleDescriptors,
+                ApiKeyRoleType.LIMITED_BY
+            );
             listener.onResponse(new ApiKeyRoleDescriptors(apiKeyId, authnRoleDescriptorsList, null));
         } else {
-            final List<RoleDescriptor> roleDescriptorList = parseRoleDescriptors(apiKeyId, roleDescriptors);
-            final List<RoleDescriptor> authnRoleDescriptorsList = parseRoleDescriptors(apiKeyId, authnRoleDescriptors);
+            final List<RoleDescriptor> roleDescriptorList = parseRoleDescriptors(apiKeyId, roleDescriptors, ApiKeyRoleType.ASSIGNED);
+            final List<RoleDescriptor> authnRoleDescriptorsList = parseRoleDescriptors(
+                apiKeyId,
+                authnRoleDescriptors,
+                ApiKeyRoleType.LIMITED_BY
+            );
             listener.onResponse(new ApiKeyRoleDescriptors(apiKeyId, roleDescriptorList, authnRoleDescriptorsList));
         }
     }
@@ -642,11 +652,15 @@ public class ApiKeyService {
         }
     }
 
-    private List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, final Map<String, Object> roleDescriptors) {
-        if (roleDescriptors == null) {
+    private List<RoleDescriptor> parseRoleDescriptors(
+        final String apiKeyId,
+        final Map<String, Object> roleDescriptorsMap,
+        ApiKeyRoleType roleType
+    ) {
+        if (roleDescriptorsMap == null) {
             return null;
         }
-        return roleDescriptors.entrySet().stream().map(entry -> {
+        final List<RoleDescriptor> roleDescriptors = roleDescriptorsMap.entrySet().stream().map(entry -> {
             final String name = entry.getKey();
             @SuppressWarnings("unchecked")
             final Map<String, Object> rdMap = (Map<String, Object>) entry.getValue();
@@ -666,9 +680,10 @@ public class ApiKeyService {
                 throw new UncheckedIOException(e);
             }
         }).collect(Collectors.toList());
+        return roleType == ApiKeyRoleType.LIMITED_BY ? maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors) : roleDescriptors;
     }
 
-    public List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, BytesReference bytesReference) {
+    public List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, BytesReference bytesReference, ApiKeyRoleType roleType) {
         if (bytesReference == null) {
             return Collections.emptyList();
         }
@@ -691,7 +706,40 @@ public class ApiKeyService {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return Collections.unmodifiableList(roleDescriptors);
+        return roleType == ApiKeyRoleType.LIMITED_BY ? maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors) : roleDescriptors;
+    }
+
+    // package private for tests
+    static final RoleDescriptor LEGACY_SUPERUSER_ROLE_DESCRIPTOR = new RoleDescriptor(
+        "superuser",
+        new String[] { "all" },
+        new RoleDescriptor.IndicesPrivileges[] {
+            RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(true).build() },
+        new RoleDescriptor.ApplicationResourcePrivileges[] {
+            RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build() },
+        null,
+        new String[] { "*" },
+        MetadataUtils.DEFAULT_RESERVED_METADATA,
+        Collections.emptyMap()
+    );
+
+    // This method should only be called to replace the superuser role descriptor for the limited-by roles of an API Key.
+    // We do not replace assigned roles because they are created explicitly by users.
+    // Before #82049, it is possible to specify a role descriptor for API keys that is identical to the builtin superuser role
+    // (including the _reserved metadata field).
+    private List<RoleDescriptor> maybeReplaceSuperuserRoleDescriptor(String apiKeyId, List<RoleDescriptor> roleDescriptors) {
+        // Scan through all the roles because superuser can be one of the roles that a user has. Unlike building the Role object,
+        // capturing role descriptors does not preempt for superuser.
+        return roleDescriptors.stream().map(rd -> {
+            // Since we are only replacing limited-by roles and all limited-by roles are looked up with role providers,
+            // it is technically possible to just check the name of superuser and the _reserved metadata field.
+            // But the gain is not much since role resolving is cached and comparing the whole role descriptor is still safer.
+            if (rd.equals(LEGACY_SUPERUSER_ROLE_DESCRIPTOR)) {
+                logger.debug("replacing superuser role for API key [{}]", apiKeyId);
+                return ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
+            }
+            return rd;
+        }).toList();
     }
 
     /**
@@ -1708,5 +1756,19 @@ public class ApiKeyService {
             docCache.invalidateAll();
             roleDescriptorsBytesCache.invalidateAll();
         }
+    }
+
+    /**
+     * The type of one set of API key roles.
+     */
+    public enum ApiKeyRoleType {
+        /**
+         * Roles directly specified by the creator user on API key creation
+         */
+        ASSIGNED,
+        /**
+         * Roles captured for the owner user as the upper bound of the assigned roles
+         */
+        LIMITED_BY;
     }
 }

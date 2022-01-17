@@ -249,14 +249,14 @@ public final class IndexLifecycleTransition {
                 .get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()));
 
             Map<String, Phase> policyPhases = policyMetadata.getPolicy().getPhases();
-            final LifecycleExecutionState nextStepState;
 
-            // the failed step's phase or action doesn't exist in the "real" policy anymore so don't refresh the cached phase as that
-            // would block due to not recognizing the new step as part of the policy. we'll honour the cached phase in this case.
+            // we only refresh the cached phase if the failed step's action is still present in the underlying policy
+            // as otherwise ILM would block due to not recognizing the next step as part of the policy.
+            // if the policy was updated to not contain the action or even phase, we honour the cached phase as it is and do not refresh it
             boolean forcePhaseDefinitionRefresh = policyPhases.get(nextStepKey.getPhase()) != null
                 && policyPhases.get(nextStepKey.getPhase()).getActions().get(nextStepKey.getAction()) != null;
 
-            nextStepState = IndexLifecycleTransition.updateExecutionStateToStep(
+            final LifecycleExecutionState nextStepState = IndexLifecycleTransition.updateExecutionStateToStep(
                 policyMetadata,
                 lifecycleState,
                 nextStepKey,

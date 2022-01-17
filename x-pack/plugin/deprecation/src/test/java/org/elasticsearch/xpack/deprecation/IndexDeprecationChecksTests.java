@@ -11,9 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1017,66 +1014,6 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 )
             )
         );
-    }
-
-    public void testEmptyDataTierPreference() {
-        Settings.Builder settings = settings(Version.CURRENT);
-        settings.put(DataTier.TIER_PREFERENCE_SETTING.getKey(), "  ");
-        IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings)
-            .numberOfShards(randomIntBetween(1, 100))
-            .numberOfReplicas(randomIntBetween(1, 100))
-            .build();
-
-        {
-            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-                INDEX_SETTINGS_CHECKS,
-                c -> c.apply(ClusterState.EMPTY_STATE, indexMetadata)
-            );
-            assertThat(issues, empty());
-        }
-
-        {
-            ClusterState clusterState = clusterStateWithoutAllDataRoles();
-            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-                INDEX_SETTINGS_CHECKS,
-                c -> c.apply(clusterState, indexMetadata)
-            );
-            assertThat(
-                issues,
-                contains(
-                    new DeprecationIssue(
-                        DeprecationIssue.Level.WARNING,
-                        "No [index.routing.allocation.include._tier_preference] is set for index [test].",
-                        "https://ela.st/es-deprecation-7-empty-tier-preference",
-                        "Specify a data tier preference for this index.",
-                        false,
-                        null
-                    )
-                )
-            );
-        }
-    }
-
-    private static ClusterState clusterStateWithoutAllDataRoles() {
-        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
-        List<DiscoveryNode> nodesList = org.elasticsearch.core.List.of(
-            new DiscoveryNode(
-                "name_0",
-                "node_0",
-                buildNewFakeTransportAddress(),
-                org.elasticsearch.core.Map.of(),
-                org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE),
-                Version.CURRENT
-            )
-        );
-        for (DiscoveryNode node : nodesList) {
-            discoBuilder = discoBuilder.add(node);
-        }
-        discoBuilder.localNodeId(randomFrom(nodesList).getId());
-        discoBuilder.masterNodeId(randomFrom(nodesList).getId());
-
-        return ClusterState.builder(ClusterState.EMPTY_STATE).nodes(discoBuilder.build()).build();
     }
 
     public void testForceMemoryTermDictionary() {

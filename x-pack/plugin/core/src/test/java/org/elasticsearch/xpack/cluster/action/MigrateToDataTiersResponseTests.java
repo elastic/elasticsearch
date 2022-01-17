@@ -26,19 +26,25 @@ public class MigrateToDataTiersResponseTests extends AbstractWireSerializingTest
             randomAlphaOfLength(10),
             randomList(1, 5, () -> randomAlphaOfLengthBetween(5, 50)),
             randomList(1, 5, () -> randomAlphaOfLengthBetween(5, 50)),
+            randomList(1, 5, () -> randomAlphaOfLengthBetween(5, 50)),
+            randomList(1, 5, () -> randomAlphaOfLengthBetween(5, 50)),
+            randomList(1, 5, () -> randomAlphaOfLengthBetween(5, 50)),
             dryRun
         );
     }
 
     @Override
     protected MigrateToDataTiersResponse mutateInstance(MigrateToDataTiersResponse instance) throws IOException {
-        int i = randomIntBetween(0, 3);
+        int i = randomIntBetween(0, 6);
         switch (i) {
             case 0:
                 return new MigrateToDataTiersResponse(
                     randomValueOtherThan(instance.getRemovedIndexTemplateName(), () -> randomAlphaOfLengthBetween(5, 15)),
                     instance.getMigratedPolicies(),
                     instance.getMigratedIndices(),
+                    instance.getMigratedLegacyTemplates(),
+                    instance.getMigratedComposableTemplates(),
+                    instance.getMigratedComponentTemplates(),
                     instance.isDryRun()
                 );
             case 1:
@@ -46,6 +52,9 @@ public class MigrateToDataTiersResponseTests extends AbstractWireSerializingTest
                     instance.getRemovedIndexTemplateName(),
                     randomList(6, 10, () -> randomAlphaOfLengthBetween(5, 50)),
                     instance.getMigratedIndices(),
+                    instance.getMigratedLegacyTemplates(),
+                    instance.getMigratedComposableTemplates(),
+                    instance.getMigratedComponentTemplates(),
                     instance.isDryRun()
                 );
             case 2:
@@ -53,6 +62,9 @@ public class MigrateToDataTiersResponseTests extends AbstractWireSerializingTest
                     instance.getRemovedIndexTemplateName(),
                     instance.getMigratedPolicies(),
                     randomList(6, 10, () -> randomAlphaOfLengthBetween(5, 50)),
+                    instance.getMigratedLegacyTemplates(),
+                    instance.getMigratedComposableTemplates(),
+                    instance.getMigratedComponentTemplates(),
                     instance.isDryRun()
                 );
             case 3:
@@ -60,6 +72,39 @@ public class MigrateToDataTiersResponseTests extends AbstractWireSerializingTest
                     instance.getRemovedIndexTemplateName(),
                     instance.getMigratedPolicies(),
                     instance.getMigratedIndices(),
+                    randomList(6, 10, () -> randomAlphaOfLengthBetween(5, 50)),
+                    instance.getMigratedComposableTemplates(),
+                    instance.getMigratedComponentTemplates(),
+                    instance.isDryRun()
+                );
+            case 4:
+                return new MigrateToDataTiersResponse(
+                    instance.getRemovedIndexTemplateName(),
+                    instance.getMigratedPolicies(),
+                    instance.getMigratedIndices(),
+                    instance.getMigratedLegacyTemplates(),
+                    randomList(6, 10, () -> randomAlphaOfLengthBetween(5, 50)),
+                    instance.getMigratedComponentTemplates(),
+                    instance.isDryRun()
+                );
+            case 5:
+                return new MigrateToDataTiersResponse(
+                    instance.getRemovedIndexTemplateName(),
+                    instance.getMigratedPolicies(),
+                    instance.getMigratedIndices(),
+                    instance.getMigratedComposableTemplates(),
+                    instance.getMigratedComponentTemplates(),
+                    randomList(6, 10, () -> randomAlphaOfLengthBetween(5, 50)),
+                    instance.isDryRun()
+                );
+            case 6:
+                return new MigrateToDataTiersResponse(
+                    instance.getRemovedIndexTemplateName(),
+                    instance.getMigratedPolicies(),
+                    instance.getMigratedIndices(),
+                    instance.getMigratedLegacyTemplates(),
+                    instance.getMigratedComposableTemplates(),
+                    instance.getMigratedComponentTemplates(),
                     instance.isDryRun() ? false : true
                 );
             default:

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.SortedMap;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -99,12 +101,12 @@ public class AnnotationIndex {
             finalListener::onFailure
         );
 
-        final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
+        final ActionListener<String> createAliasListener = ActionListener.wrap(currentIndexName -> {
             IndicesAliasesRequest.AliasActions addReadAliasAction = IndicesAliasesRequest.AliasActions.add()
-                .index(INDEX_NAME)
+                .index(currentIndexName)
                 .alias(READ_ALIAS_NAME);
             IndicesAliasesRequest.AliasActions addWriteAliasAction = IndicesAliasesRequest.AliasActions.add()
-                .index(INDEX_NAME)
+                .index(currentIndexName)
                 .alias(WRITE_ALIAS_NAME);
             if (isHiddenAttributeAvailable) {
                 addReadAliasAction.isHidden(true);
@@ -138,7 +140,8 @@ public class AnnotationIndex {
             && mlLookup.firstKey().startsWith(".ml")) {
 
             // Create the annotations index if it doesn't exist already.
-            if (mlLookup.containsKey(INDEX_NAME) == false) {
+            IndexAbstraction currentIndexAbstraction = mlLookup.get(INDEX_NAME);
+            if (currentIndexAbstraction == null) {
 
                 Settings.Builder settingsBuilder = Settings.builder()
                     .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
@@ -157,12 +160,12 @@ public class AnnotationIndex {
                     client.threadPool().getThreadContext(),
                     ML_ORIGIN,
                     createIndexRequest,
-                    ActionListener.<CreateIndexResponse>wrap(r -> createAliasListener.onResponse(r.isAcknowledged()), e -> {
+                    ActionListener.<CreateIndexResponse>wrap(r -> createAliasListener.onResponse(INDEX_NAME), e -> {
                         // Possible that the index was created while the request was executing,
                         // so we need to handle that possibility
                         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                             // Create the alias
-                            createAliasListener.onResponse(true);
+                            createAliasListener.onResponse(INDEX_NAME);
                         } else {
                             finalListener.onFailure(e);
                         }
@@ -172,9 +175,20 @@ public class AnnotationIndex {
                 return;
             }
 
+            // Account for the possibility that the latest index has been reindexed
+            // into a new index with the latest index name as an alias.
+            String currentIndexName = currentIndexAbstraction.getIndices().get(0).getName();
+
             // Recreate the aliases if they've gone even though the index still exists.
-            if (mlLookup.containsKey(READ_ALIAS_NAME) == false || mlLookup.containsKey(WRITE_ALIAS_NAME) == false) {
-                createAliasListener.onResponse(true);
+            IndexAbstraction writeAliasAbstraction = mlLookup.get(WRITE_ALIAS_NAME);
+            if (mlLookup.containsKey(READ_ALIAS_NAME) == false || writeAliasAbstraction == null) {
+                createAliasListener.onResponse(currentIndexName);
+                return;
+            }
+
+            List<Index> writeAliasIndices = writeAliasAbstraction.getIndices();
+            if (writeAliasIndices.size() != 1 || currentIndexName.equals(writeAliasIndices.get(0).getName()) == false) {
+                createAliasListener.onResponse(currentIndexName);
                 return;
             }
 
@@ -187,7 +201,7 @@ public class AnnotationIndex {
         finalListener.onResponse(false);
     }
 
-    private static String annotationsMapping() {
+    public static String annotationsMapping() {
         return annotationsMapping(SINGLE_MAPPING_NAME);
     }
 

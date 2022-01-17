@@ -9,6 +9,7 @@
 package org.elasticsearch.common.time;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
@@ -48,11 +49,24 @@ public class DateUtilsTests extends ESTestCase {
         )
     );
 
+    private static final boolean isAtLeastJava18 = JavaVersion.current().compareTo(JavaVersion.parse("18")) >= 0;
+
+    // A temporary list of zones and JDKs, where Joda and the JDK timezone data are out of sync, until either Joda or the JDK
+    // are updated, see https://github.com/elastic/elasticsearch/issues/82356
+    private static final Set<String> IGNORE_IDS = new HashSet<>(Arrays.asList("Pacific/Niue"));
+
+    private static boolean maybeIgnore(String jodaId) {
+        if (IGNORE_IDS.contains(jodaId) && isAtLeastJava18) {
+            return true;
+        }
+        return false;
+    }
+
     public void testTimezoneIds() {
         assertNull(DateUtils.dateTimeZoneToZoneId(null));
         assertNull(DateUtils.zoneIdToDateTimeZone(null));
         for (String jodaId : DateTimeZone.getAvailableIDs()) {
-            if (IGNORE.contains(jodaId)) continue;
+            if (IGNORE.contains(jodaId) || maybeIgnore(jodaId)) continue;
             DateTimeZone jodaTz = DateTimeZone.forID(jodaId);
             ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(jodaTz); // does not throw
             long now = 0;

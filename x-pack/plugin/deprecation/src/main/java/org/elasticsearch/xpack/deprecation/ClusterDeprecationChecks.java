@@ -11,11 +11,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -600,6 +603,8 @@ public class ClusterDeprecationChecks {
     static DeprecationIssue checkTemplatesWithCustomAndMultipleTypes(ClusterState state) {
         Set<String> templatesWithMultipleTypes = new TreeSet<>();
         Set<String> templatesWithCustomTypes = new TreeSet<>();
+        // See https://github.com/elastic/elasticsearch/issues/82109#issuecomment-1006143687 for details:
+        Set<String> systemTemplatesWithCustomTypes = Sets.newHashSet(".triggered_watches", ".watch-history-9", ".watches");
         state.getMetadata().getTemplates().forEach((templateCursor) -> {
             String templateName = templateCursor.key;
             ImmutableOpenMap<String, CompressedXContent> mappings = templateCursor.value.mappings();
@@ -612,7 +617,9 @@ public class ClusterDeprecationChecks {
                     return MapperService.SINGLE_MAPPING_NAME.equals(typeName) == false;
                 });
                 if (hasCustomType) {
-                    templatesWithCustomTypes.add(templateName);
+                    if (systemTemplatesWithCustomTypes.contains(templateName) == false) {
+                        templatesWithCustomTypes.add(templateName);
+                    }
                 }
             }
         });
@@ -652,6 +659,7 @@ public class ClusterDeprecationChecks {
     static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final ClusterState clusterState) {
         return checkRemovedSetting(
             clusterState.metadata().settings(),
+            null,
             CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
             "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
             "Relocating shards are always taken into account in 8.0.",
@@ -1028,4 +1036,47 @@ public class ClusterDeprecationChecks {
         }
         return null;
     }
+
+    static DeprecationIssue emptyDataTierPreferenceCheck(ClusterState clusterState) {
+        if (DataTier.dataNodesWithoutAllDataRoles(clusterState).isEmpty() == false) {
+            List<String> indices = new ArrayList<>();
+            for (IndexMetadata indexMetadata : clusterState.metadata().getIndices().values()) {
+                List<String> tierPreference = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(indexMetadata.getSettings()));
+                if (tierPreference.isEmpty()) {
+                    String indexName = indexMetadata.getIndex().getName();
+                    indices.add(indexName);
+                }
+            }
+
+            if (indices.isEmpty() == false) {
+                // this is a bit of a hassle, but the String sort order puts .someindex before someindex, and we
+                // don't want to give the users a list of only just all .ds-somebackingindex-blah indices -- on the other
+                // hand, if that's all that exists, then we don't have much choice. this next little block splits out
+                // all the leading-dot indices and sorts them *after* all the non-leading-dot indices
+                Map<Boolean, List<String>> groups = indices.stream().collect(Collectors.partitioningBy(s -> s.startsWith(".")));
+                List<String> noLeadingPeriod = new ArrayList<>(groups.get(false));
+                List<String> leadingPeriod = new ArrayList<>(groups.get(true));
+                Collections.sort(noLeadingPeriod);
+                Collections.sort(leadingPeriod);
+                noLeadingPeriod.addAll(leadingPeriod);
+                indices = noLeadingPeriod;
+
+                // if there's more than a few indices, or their names are surprisingly long, then we need to cut off the list.
+                // this is not ideal, but our message here is displayed unmodified in the UA, so we have to think about this.
+                StringBuilder builder = new StringBuilder();
+                Strings.collectionToDelimitedStringWithLimit(indices, ", ", "", "", 256, builder);
+
+                return new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "No [" + DataTier.TIER_PREFERENCE + "] is set for indices [" + builder + "].",
+                    "https://ela.st/es-deprecation-7-empty-tier-preference",
+                    "Specify a data tier preference for these indices.",
+                    false,
+                    null
+                );
+            }
+        }
+        return null;
+    }
+
 }

@@ -171,7 +171,8 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
             if (range.toAsStr != null) {
                 to = parser.parseDouble(range.toAsStr, false, context::nowInMillis);
             }
-            return new Range(range.key, from, range.fromAsStr, to, range.toAsStr);
+            String key = range.key != null ? range.key : generateKey(range.originalFrom, range.originalTo, config.format());
+            return new Range(key, from, range.from, range.fromAsStr, to, range.to, range.toAsStr);
         });
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
@@ -199,5 +200,12 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
+    }
+
+    private static String generateKey(double from, double to, DocValueFormat format) {
+        StringBuilder builder = new StringBuilder().append(Double.isInfinite(from) ? "*" : format.format(from))
+            .append("-")
+            .append(Double.isInfinite(to) ? "*" : format.format(to));
+        return builder.toString();
     }
 }

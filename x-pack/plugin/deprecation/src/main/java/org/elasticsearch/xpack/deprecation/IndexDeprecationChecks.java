@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.deprecation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -725,24 +723,6 @@ public class IndexDeprecationChecks {
                 false,
                 null
             );
-        }
-        return null;
-    }
-
-    static DeprecationIssue emptyDataTierPreferenceCheck(ClusterState clusterState, IndexMetadata indexMetadata) {
-        if (DataTier.dataNodesWithoutAllDataRoles(clusterState).isEmpty() == false) {
-            final List<String> tierPreference = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(indexMetadata.getSettings()));
-            if (tierPreference.isEmpty()) {
-                String indexName = indexMetadata.getIndex().getName();
-                return new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
-                    "No [" + DataTier.TIER_PREFERENCE + "] is set for index [" + indexName + "].",
-                    "https://ela.st/es-deprecation-7-empty-tier-preference",
-                    "Specify a data tier preference for this index.",
-                    false,
-                    null
-                );
-            }
         }
         return null;
     }

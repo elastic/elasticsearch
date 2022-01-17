@@ -82,22 +82,6 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     private final boolean replicated;
     private final boolean system;
 
-    public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation, Map<String, Object> metadata) {
-        this(name, timeStampField, indices, generation, metadata, false, false, false);
-    }
-
-    public DataStream(
-        String name,
-        TimestampField timeStampField,
-        List<Index> indices,
-        long generation,
-        Map<String, Object> metadata,
-        boolean hidden,
-        boolean replicated
-    ) {
-        this(name, timeStampField, indices, generation, metadata, hidden, replicated, false, System::currentTimeMillis);
-    }
-
     public DataStream(
         String name,
         TimestampField timeStampField,
@@ -133,10 +117,6 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         this.timeProvider = timeProvider;
         this.system = system;
         assert indices.size() > 0;
-    }
-
-    public DataStream(String name, TimestampField timeStampField, List<Index> indices) {
-        this(name, timeStampField, indices, indices.size(), null);
     }
 
     public String getName() {

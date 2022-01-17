@@ -562,20 +562,22 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     public void testGetRolesForApiKeyNotInContext() throws Exception {
+        final boolean useLegacySuperuserRole = randomBoolean();
+        final RoleDescriptor superuserRoleDescriptor = useLegacySuperuserRole ? LEGACY_SUPERUSER_ROLE_DESCRIPTOR : SUPERUSER_ROLE_DESCRIPTOR;
         Map<String, Object> superUserRdMap;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             superUserRdMap = XContentHelper.convertToMap(
                 XContentType.JSON.xContent(),
-                BytesReference.bytes(SUPERUSER_ROLE_DESCRIPTOR.toXContent(builder, ToXContent.EMPTY_PARAMS, true)).streamInput(),
+                BytesReference.bytes(superuserRoleDescriptor.toXContent(builder, ToXContent.EMPTY_PARAMS, true)).streamInput(),
                 false
             );
         }
         Map<String, Object> authMetadata = new HashMap<>();
         authMetadata.put(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLength(12));
-        authMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, Collections.singletonMap(SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap));
+        authMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, Collections.singletonMap(superuserRoleDescriptor.getName(), superUserRdMap));
         authMetadata.put(
             API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-            Collections.singletonMap(SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap)
+            Collections.singletonMap(superuserRoleDescriptor.getName(), superUserRdMap)
         );
 
         final Authentication authentication = new Authentication(
@@ -592,7 +594,12 @@ public class ApiKeyServiceTests extends ESTestCase {
         service.getRoleForApiKey(authentication, roleFuture);
         ApiKeyRoleDescriptors result = roleFuture.get();
         assertThat(result.getRoleDescriptors().size(), is(1));
-        assertThat(result.getRoleDescriptors().get(0).getName(), is("superuser"));
+        // Assigned role descriptor should not change
+        assertThat(result.getRoleDescriptors().get(0), equalTo(superuserRoleDescriptor));
+
+        assertThat(result.getLimitedByRoleDescriptors().size(), is(1));
+        // Limited role descriptor should always be the update superuser descriptor
+        assertThat(result.getLimitedByRoleDescriptors().get(0), equalTo(SUPERUSER_ROLE_DESCRIPTOR));
     }
 
     @SuppressWarnings("unchecked")

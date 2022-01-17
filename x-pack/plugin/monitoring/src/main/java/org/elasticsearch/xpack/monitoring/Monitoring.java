@@ -278,13 +278,11 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return map -> {
             // Check that each required template exists, with the correct version
-            final List<String> missingTemplates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
-                .filter(id -> {
-                    IndexTemplateMetadata templateMetadata = map.get(templateName(id));
-                    return templateMetadata == null
-                        || (templateMetadata.version() != null && (templateMetadata.version() >= LAST_UPDATED_VERSION == false));
-                })
-                .collect(Collectors.toList());
+            final List<String> missingTemplates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS).filter(id -> {
+                IndexTemplateMetadata templateMetadata = map.get(templateName(id));
+                return templateMetadata == null
+                    || (templateMetadata.version() != null && (templateMetadata.version() >= LAST_UPDATED_VERSION == false));
+            }).collect(Collectors.toList());
 
             if (missingTemplates.isEmpty() == false) {
                 for (String templateId : missingTemplates) {
@@ -308,7 +306,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
                 if (templateName.startsWith("apm-6.")) {
                     ImmutableOpenMap<String, CompressedXContent> mappings = templateEntry.getValue().getMappings();
                     if (mappings != null && mappings.get("doc") != null) {
-                       // this is an old APM mapping that still uses the `doc` type so let's remove it as the later 7.x APM versions
+                        // this is an old APM mapping that still uses the `doc` type so let's remove it as the later 7.x APM versions
                         // would've installed an APM template (versioned) that doesn't contain any type
                         logger.info("removing typed legacy template [{}]", templateName);
                         return true;

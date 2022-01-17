@@ -5,10 +5,6 @@
 <titleabbrev>Security settings</titleabbrev>
 ++++
 
-By default, the {es} {security-features} are disabled when you have a basic or
-trial license. To enable {security-features}, use the `xpack.security.enabled`
-setting.
-
 You configure `xpack.security` settings to
 <<anonymous-access-settings,enable anonymous access>> and perform message
 authentication,
@@ -27,19 +23,14 @@ For more information about creating and updating the {es} keystore, see
 ==== General security settings
 `xpack.security.enabled`::
 (<<static-cluster-setting,Static>>)
-Set to `true` to enable {es} {security-features} on the node. +
+Defaults to `true`, which enables {es} {security-features} on the node. +
 +
 --
-If set to `false`, which is the default value for basic and trial licenses,
-{security-features} are disabled. It also affects all {kib} instances that
-connect to this {es} instance; you do not need to disable {security-features} in
-those `kibana.yml` files. For more information about disabling {security-features}
-in specific {kib} instances, see
+If set to `false`, {security-features} are disabled, which is not recommended.
+It also affects all {kib} instances that connect to this {es} instance; you do
+not need to disable {security-features} in those `kibana.yml` files. For more
+information about disabling {security-features} in specific {kib} instances, see
 {kibana-ref}/security-settings-kb.html[{kib} security settings].
-
-TIP: If you have gold or higher licenses, the default value is `true`; we
-recommend that you explicitly add this setting to avoid confusion.
-
 --
 
 `xpack.security.hide_settings`::

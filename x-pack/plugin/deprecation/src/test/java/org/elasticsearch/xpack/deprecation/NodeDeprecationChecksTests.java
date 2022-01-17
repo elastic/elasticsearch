@@ -1024,7 +1024,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issue.getMessage(), equalTo("Security features are enabled by default for all licenses in versions 8.0 and later"));
         assertNotNull(issue.getDetails());
         assertThat(issue.getDetails(), containsString("In Elasticsearch 8.0 the [xpack.security.enabled] setting will always "));
-        assertThat(issue.getUrl(), equalTo("https://ela.st/es-deprecation-7-security-basic-setup"));
+        assertThat(issue.getUrl(), equalTo("https://ela.st/es-deprecation-7-implicitly-enabled-security"));
     }
 
     public void testExplicitlyConfiguredSecurityOnBasicAndTrial() {

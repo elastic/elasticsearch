@@ -15,7 +15,9 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -34,7 +36,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.ShrunkShardsAllocatedStep;
+import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
@@ -177,8 +179,8 @@ public class IndexLifecycleService
             for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
                 if (Strings.isNullOrEmpty(policyName) == false) {
-                    final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
-                    StepKey stepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+                    final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
+                    StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
 
                     try {
                         if (OperationMode.STOPPING == currentMode) {
@@ -238,7 +240,8 @@ public class IndexLifecycleService
             if (safeToStop && OperationMode.STOPPING == currentMode) {
                 clusterService.submitStateUpdateTask(
                     "ilm_operation_mode_update[stopped]",
-                    OperationModeUpdateTask.ilmMode(OperationMode.STOPPED)
+                    OperationModeUpdateTask.ilmMode(OperationMode.STOPPED),
+                    ClusterStateTaskExecutor.unbatched()
                 );
             }
         }
@@ -373,8 +376,8 @@ public class IndexLifecycleService
         for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
             if (Strings.isNullOrEmpty(policyName) == false) {
-                final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
-                StepKey stepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+                final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
+                StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
 
                 try {
                     if (OperationMode.STOPPING == currentMode) {
@@ -441,7 +444,8 @@ public class IndexLifecycleService
         if (safeToStop && OperationMode.STOPPING == currentMode) {
             clusterService.submitStateUpdateTask(
                 "ilm_operation_mode_update[stopped]",
-                OperationModeUpdateTask.ilmMode(OperationMode.STOPPED)
+                OperationModeUpdateTask.ilmMode(OperationMode.STOPPED),
+                ClusterStateTaskExecutor.unbatched()
             );
         }
     }
@@ -490,14 +494,10 @@ public class IndexLifecycleService
                 indexToMetadata -> Strings.hasText(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexToMetadata.getValue().getSettings()))
             )
             // Only look at indices in the shrink action
-            .filter(
-                indexToMetadata -> ShrinkAction.NAME.equals(
-                    LifecycleExecutionState.fromIndexMetadata(indexToMetadata.getValue()).getAction()
-                )
-            )
+            .filter(indexToMetadata -> ShrinkAction.NAME.equals(indexToMetadata.getValue().getLifecycleExecutionState().getAction()))
             // Only look at indices on a step that may potentially be dangerous if we removed the node
             .filter(indexToMetadata -> {
-                String step = LifecycleExecutionState.fromIndexMetadata(indexToMetadata.getValue()).getStep();
+                String step = indexToMetadata.getValue().getLifecycleExecutionState().getStep();
                 return SetSingleNodeAllocateStep.NAME.equals(step)
                     || CheckShrinkReadyStep.NAME.equals(step)
                     || ShrinkStep.NAME.equals(step)

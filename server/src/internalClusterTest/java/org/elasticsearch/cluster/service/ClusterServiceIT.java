@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.cluster.service;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -79,12 +79,13 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
-                    logger.error(() -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
+                public void onFailure(Exception e) {
+                    logger.error("failed to execute callback in test", e);
                     onFailure.set(true);
                     latch.countDown();
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
 
         ensureGreen();
@@ -135,12 +136,13 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
-                    logger.error(() -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
+                public void onFailure(Exception e) {
+                    logger.error("failed to execute callback in test", e);
                     onFailure.set(true);
                     latch.countDown();
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
 
         ensureGreen();
@@ -194,12 +196,13 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
-                    logger.error(() -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
+                public void onFailure(Exception e) {
+                    logger.error("failed to execute callback in test", e);
                     onFailure.set(true);
                     latch.countDown();
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
 
         ensureGreen();
@@ -253,12 +256,13 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
-                    logger.error(() -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
+                public void onFailure(Exception e) {
+                    logger.error("failed to execute callback in test", e);
                     onFailure.set(true);
                     latch.countDown();
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
 
         ensureGreen();
@@ -292,11 +296,11 @@ public class ClusterServiceIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 invoked1.countDown();
                 fail();
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
         invoked1.await();
         final CountDownLatch invoked2 = new CountDownLatch(9);
         for (int i = 2; i <= 10; i++) {
@@ -307,7 +311,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     fail();
                 }
 
@@ -315,7 +319,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     invoked2.countDown();
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         }
 
         // there might be other tasks in this node, make sure to only take the ones we add into account in this test
@@ -362,11 +366,11 @@ public class ClusterServiceIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 invoked3.countDown();
                 fail();
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
         invoked3.await();
 
         for (int i = 2; i <= 5; i++) {
@@ -377,10 +381,10 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     fail();
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         }
         Thread.sleep(100);
 

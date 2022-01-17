@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.time.Instant;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -31,6 +30,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -56,7 +56,7 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
 
     public void testProfileIndexAutoCreation() {
         var indexResponse = client().prepareIndex(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS))
-            .setSource(Map.of("uid", randomAlphaOfLength(22)))
+            .setSource(Map.of("user_profile", Map.of("uid", randomAlphaOfLength(22))))
             .get();
 
         assertThat(indexResponse.status().getStatus(), equalTo(201));
@@ -80,8 +80,15 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         final Map<String, Object> mappings = getIndexResponse.getMappings().get(INTERNAL_SECURITY_PROFILE_INDEX_8).getSourceAsMap();
 
         @SuppressWarnings("unchecked")
-        final Set<String> topLevelFields = ((Map<String, Object>) mappings.get("properties")).keySet();
-        assertThat(topLevelFields, hasItems("uid", "enabled", "last_synchronized", "user", "access", "application_data"));
+        final Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+        assertThat(properties, hasKey("user_profile"));
+
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> userProfileProperties = (Map<String, Object>) ((Map<String, Object>) properties.get("user_profile")).get(
+            "properties"
+        );
+
+        assertThat(userProfileProperties.keySet(), hasItems("uid", "enabled", "last_synchronized", "user", "access", "application_data"));
     }
 
     public void testGetProfileByAuthentication() {

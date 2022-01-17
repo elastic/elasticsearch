@@ -870,8 +870,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             false
         );
 
-        IndexMetadata indexMetadata = newState.metadata().index(indexName);
-        LifecycleExecutionState nextLifecycleExecutionState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        LifecycleExecutionState nextLifecycleExecutionState = newState.metadata().index(indexName).getLifecycleExecutionState();
         assertThat(
             "we musn't refresh the cache definition if the failed step is not part of the real policy anymore",
             nextLifecycleExecutionState.getPhaseDefinition(),

@@ -16,6 +16,8 @@ public record ModelStats(
     Instant lastUsed,
     int pendingCount,
     int errorCount,
+    int rejectedExecutionCount,
+    int timeoutCount,
     Integer inferenceThreads,
     Integer modelThreads
 ) {}

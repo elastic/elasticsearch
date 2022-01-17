@@ -300,6 +300,8 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                     stats.get().timingStats().getAverage(),
                     stats.get().pendingCount(),
                     stats.get().errorCount(),
+                    stats.get().rejectedExecutionCount(),
+                    stats.get().timeoutCount(),
                     stats.get().lastUsed(),
                     stats.get().startTime(),
                     stats.get().inferenceThreads(),

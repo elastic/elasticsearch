@@ -31,7 +31,9 @@ public class AllocationStats implements ToXContentObject, Writeable {
         private final Double avgInferenceTime;
         private final Instant lastAccess;
         private final Integer pendingCount;
-        private final Integer errorCount;
+        private final int errorCount;
+        private final int rejectedExecutionCount;
+        private final int timeoutCount;
         private final RoutingStateAndReason routingState;
         private final Instant startTime;
         private final Integer inferenceThreads;
@@ -43,6 +45,8 @@ public class AllocationStats implements ToXContentObject, Writeable {
             Double avgInferenceTime,
             int pendingCount,
             int errorCount,
+            int rejectedExecutionCount,
+            int timeoutCount,
             Instant lastAccess,
             Instant startTime,
             Integer inferenceThreads,
@@ -55,6 +59,8 @@ public class AllocationStats implements ToXContentObject, Writeable {
                 lastAccess,
                 pendingCount,
                 errorCount,
+                rejectedExecutionCount,
+                timeoutCount,
                 new RoutingStateAndReason(RoutingState.STARTED, null),
                 Objects.requireNonNull(startTime),
                 inferenceThreads,
@@ -69,7 +75,9 @@ public class AllocationStats implements ToXContentObject, Writeable {
                 null,
                 null,
                 null,
-                null,
+                0,
+                0,
+                0,
                 new RoutingStateAndReason(state, reason),
                 null,
                 null,
@@ -83,7 +91,9 @@ public class AllocationStats implements ToXContentObject, Writeable {
             Double avgInferenceTime,
             Instant lastAccess,
             Integer pendingCount,
-            Integer errorCount,
+            int errorCount,
+            int rejectedExecutionCount,
+            int timeoutCount,
             RoutingStateAndReason routingState,
             @Nullable Instant startTime,
             @Nullable Integer inferenceThreads,
@@ -95,13 +105,15 @@ public class AllocationStats implements ToXContentObject, Writeable {
             this.lastAccess = lastAccess;
             this.pendingCount = pendingCount;
             this.errorCount = errorCount;
+            this.rejectedExecutionCount = rejectedExecutionCount;
+            this.timeoutCount = timeoutCount;
             this.routingState = routingState;
             this.startTime = startTime;
             this.inferenceThreads = inferenceThreads;
             this.modelThreads = modelThreads;
 
             // if lastAccess time is null there have been no inferences
-            assert this.lastAccess != null || ((inferenceCount == null || inferenceCount == 0) || (errorCount == null || errorCount == 0));
+            assert this.lastAccess != null || (inferenceCount == null || inferenceCount == 0);
         }
 
         public NodeStats(StreamInput in) throws IOException {
@@ -115,11 +127,15 @@ public class AllocationStats implements ToXContentObject, Writeable {
             if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
                 this.inferenceThreads = in.readOptionalVInt();
                 this.modelThreads = in.readOptionalVInt();
-                this.errorCount = in.readOptionalVInt();
+                this.errorCount = in.readVInt();
+                this.rejectedExecutionCount = in.readVInt();
+                this.timeoutCount = in.readVInt();
             } else {
                 this.inferenceThreads = null;
                 this.modelThreads = null;
-                this.errorCount = null;
+                this.errorCount = 0;
+                this.rejectedExecutionCount = 0;
+                this.timeoutCount = 0;
             }
         }
 
@@ -147,8 +163,16 @@ public class AllocationStats implements ToXContentObject, Writeable {
             return pendingCount;
         }
 
-        public Optional<Integer> getErrorCount() {
-            return Optional.ofNullable(errorCount);
+        public int getErrorCount() {
+            return errorCount;
+        }
+
+        public int getRejectedExecutionCount() {
+            return rejectedExecutionCount;
+        }
+
+        public int getTimeoutCount() {
+            return timeoutCount;
         }
 
         public Instant getStartTime() {
@@ -177,8 +201,14 @@ public class AllocationStats implements ToXContentObject, Writeable {
             if (pendingCount != null) {
                 builder.field("number_of_pending_requests", pendingCount);
             }
-            if (errorCount != null && errorCount > 0) {
+            if (errorCount > 0) {
                 builder.field("error_count", errorCount);
+            }
+            if (rejectedExecutionCount > 0) {
+                builder.field("rejected_execution_count", rejectedExecutionCount);
+            }
+            if (timeoutCount > 0) {
+                builder.field("timeout_count", timeoutCount);
             }
             if (startTime != null) {
                 builder.timeField("start_time", "start_time_string", startTime.toEpochMilli());
@@ -205,7 +235,9 @@ public class AllocationStats implements ToXContentObject, Writeable {
             if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
                 out.writeOptionalVInt(inferenceThreads);
                 out.writeOptionalVInt(modelThreads);
-                out.writeOptionalVInt(errorCount);
+                out.writeVInt(errorCount);
+                out.writeVInt(rejectedExecutionCount);
+                out.writeVInt(timeoutCount);
             }
         }
 
@@ -220,6 +252,8 @@ public class AllocationStats implements ToXContentObject, Writeable {
                 && Objects.equals(lastAccess, that.lastAccess)
                 && Objects.equals(pendingCount, that.pendingCount)
                 && Objects.equals(errorCount, that.errorCount)
+                && Objects.equals(rejectedExecutionCount, that.rejectedExecutionCount)
+                && Objects.equals(timeoutCount, that.timeoutCount)
                 && Objects.equals(routingState, that.routingState)
                 && Objects.equals(startTime, that.startTime)
                 && Objects.equals(inferenceThreads, that.inferenceThreads)
@@ -235,6 +269,8 @@ public class AllocationStats implements ToXContentObject, Writeable {
                 lastAccess,
                 pendingCount,
                 errorCount,
+                rejectedExecutionCount,
+                timeoutCount,
                 routingState,
                 startTime,
                 inferenceThreads,

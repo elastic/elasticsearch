@@ -8,22 +8,35 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.AssertingScorer;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
-public class MinScoreScorerTests extends LuceneTestCase {
+import static org.hamcrest.Matchers.equalTo;
+
+public class MinScoreScorerTests extends ESTestCase {
 
     private static DocIdSetIterator iterator(final int... docs) {
         return new DocIdSetIterator() {
@@ -32,11 +45,8 @@ public class MinScoreScorerTests extends LuceneTestCase {
 
             @Override
             public int nextDoc() throws IOException {
-                if (i + 1 == docs.length) {
-                    return NO_MORE_DOCS;
-                } else {
-                    return docs[++i];
-                }
+                ++i;
+                return docID();
             }
 
             @Override
@@ -75,11 +85,41 @@ public class MinScoreScorerTests extends LuceneTestCase {
         };
     }
 
+    private static Scorer hideTwoPhaseIterator(Scorer in) {
+        return new Scorer(in.getWeight()) {
+            @Override
+            public DocIdSetIterator iterator() {
+                return TwoPhaseIterator.asDocIdSetIterator(in.twoPhaseIterator());
+            }
+
+            @Override
+            public TwoPhaseIterator twoPhaseIterator() {
+                return null;
+            }
+
+            @Override
+            public float getMaxScore(int upTo) throws IOException {
+                return in.getMaxScore(upTo);
+            }
+
+            @Override
+            public float score() throws IOException {
+                return in.score();
+            }
+
+            @Override
+            public int docID() {
+                return in.docID();
+            }
+        };
+    }
+
     private static Scorer scorer(int maxDoc, final int[] docs, final float[] scores, final boolean twoPhase) {
         final DocIdSetIterator iterator = twoPhase ? DocIdSetIterator.all(maxDoc) : iterator(docs);
-        return new Scorer(fakeWeight()) {
+        final Scorer scorer = new Scorer(fakeWeight()) {
 
             int lastScoredDoc = -1;
+            final float matchCost = (random().nextBoolean() ? 1000 : 0) + random().nextInt(2000);
 
             public DocIdSetIterator iterator() {
                 if (twoPhase) {
@@ -100,7 +140,7 @@ public class MinScoreScorerTests extends LuceneTestCase {
 
                         @Override
                         public float matchCost() {
-                            return 10;
+                            return matchCost;
                         }
                     };
                 } else {
@@ -126,23 +166,33 @@ public class MinScoreScorerTests extends LuceneTestCase {
                 return Float.MAX_VALUE;
             }
         };
+        final ScoreMode scoreMode = RandomPicks.randomFrom(
+            random(),
+            new ScoreMode[] { ScoreMode.COMPLETE, ScoreMode.TOP_SCORES, ScoreMode.TOP_DOCS_WITH_SCORES }
+        );
+        final Scorer assertingScorer = AssertingScorer.wrap(random(), scorer, scoreMode);
+        if (twoPhase && randomBoolean()) {
+            return hideTwoPhaseIterator(assertingScorer);
+        } else {
+            return assertingScorer;
+        }
+    }
+
+    private static int[] randomDocs(int maxDoc, int numDocs) {
+        final List<Integer> docs = randomSubsetOf(numDocs, IntStream.range(0, maxDoc).boxed().collect(Collectors.toList()));
+        return docs.stream().mapToInt(n -> n).sorted().toArray();
     }
 
     public void doTestRandom(boolean twoPhase) throws IOException {
         final int maxDoc = TestUtil.nextInt(random(), 10, 10000);
-        final int numDocs = TestUtil.nextInt(random(), 1, maxDoc / 2);
+        final int numDocs = TestUtil.nextInt(random(), 1, maxDoc);
         final Set<Integer> uniqueDocs = new HashSet<>();
         while (uniqueDocs.size() < numDocs) {
             uniqueDocs.add(random().nextInt(maxDoc));
         }
-        final int[] docs = new int[numDocs];
-        int i = 0;
-        for (int doc : uniqueDocs) {
-            docs[i++] = doc;
-        }
-        Arrays.sort(docs);
+        final int[] docs = randomDocs(maxDoc, numDocs);
         final float[] scores = new float[numDocs];
-        for (i = 0; i < numDocs; ++i) {
+        for (int i = 0; i < numDocs; ++i) {
             scores[i] = random().nextFloat();
         }
         Scorer scorer = scorer(maxDoc, docs, scores, twoPhase);
@@ -186,5 +236,49 @@ public class MinScoreScorerTests extends LuceneTestCase {
         for (int iter = 0; iter < iters; ++iter) {
             doTestRandom(true);
         }
+    }
+
+    public void testConjunction() throws Exception {
+        final int maxDoc = randomIntBetween(10, 10000);
+        final Map<Integer, Integer> matchedDocs = new HashMap<>();
+        final List<Scorer> scorers = new ArrayList<>();
+        final int numScorers = randomIntBetween(2, 10);
+        for (int s = 0; s < numScorers; s++) {
+            final int numDocs = randomIntBetween(2, maxDoc);
+            final int[] docs = randomDocs(maxDoc, numDocs);
+            final float[] scores = new float[numDocs];
+            for (int i = 0; i < numDocs; ++i) {
+                scores[i] = randomFloat();
+            }
+            final boolean useTwoPhase = randomBoolean();
+            final Scorer scorer = scorer(maxDoc, docs, scores, useTwoPhase);
+            final float minScore;
+            if (randomBoolean()) {
+                minScore = randomFloat();
+                MinScoreScorer minScoreScorer = new MinScoreScorer(scorer.getWeight(), scorer, minScore);
+                scorers.add(minScoreScorer);
+            } else {
+                scorers.add(scorer);
+                minScore = 0.0f;
+            }
+            for (int i = 0; i < numDocs; i++) {
+                if (scores[i] >= minScore) {
+                    matchedDocs.compute(docs[i], (k, v) -> v == null ? 1 : v + 1);
+                }
+            }
+        }
+
+        final DocIdSetIterator disi = ConjunctionUtils.intersectScorers(scorers);
+        final List<Integer> actualDocs = new ArrayList<>();
+        while (disi.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+            actualDocs.add(disi.docID());
+        }
+        final List<Integer> expectedDocs = matchedDocs.entrySet()
+            .stream()
+            .filter(v -> v.getValue() == numScorers)
+            .map(Map.Entry::getKey)
+            .sorted()
+            .collect(Collectors.toList());
+        assertThat(actualDocs, equalTo(expectedDocs));
     }
 }

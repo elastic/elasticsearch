@@ -84,46 +84,46 @@ public class HttpInputTests extends ESTestCase {
 
         HttpResponse response;
         switch (randomIntBetween(1, 6)) {
-            case 1:
+            case 1 -> {
                 response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8));
                 httpInput = InputBuilders.httpInput(request.build()).build();
-                break;
-            case 2:
+            }
+            case 2 -> {
                 response = new HttpResponse(123, "---\nkey : value".getBytes(StandardCharsets.UTF_8));
                 httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.YAML).build();
-                break;
-            case 3:
+            }
+            case 3 -> {
                 response = new HttpResponse(
                     123,
                     "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8),
                     singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.JSON.mediaType() })
                 );
                 httpInput = InputBuilders.httpInput(request.build()).build();
-                break;
-            case 4:
+            }
+            case 4 -> {
                 response = new HttpResponse(
                     123,
                     "key: value".getBytes(StandardCharsets.UTF_8),
                     singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.YAML.mediaType() })
                 );
                 httpInput = InputBuilders.httpInput(request.build()).build();
-                break;
-            case 5:
+            }
+            case 5 -> {
                 response = new HttpResponse(
                     123,
                     "---\nkey: value".getBytes(StandardCharsets.UTF_8),
                     singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" })
                 );
                 httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.YAML).build();
-                break;
-            default:
+            }
+            default -> {
                 response = new HttpResponse(
                     123,
                     "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8),
                     singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" })
                 );
                 httpInput = InputBuilders.httpInput(request.build()).build();
-                break;
+            }
         }
 
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);

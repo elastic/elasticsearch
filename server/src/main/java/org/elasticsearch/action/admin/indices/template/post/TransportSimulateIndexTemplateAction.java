@@ -29,9 +29,10 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -75,7 +76,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
         SystemIndices systemIndices,
-        MetadataCreateIndexService metadataCreateIndexService
+        IndexSettingProviders indexSettingProviders
     ) {
         super(
             SimulateIndexTemplateAction.NAME,
@@ -93,7 +94,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         this.indicesService = indicesService;
         this.aliasValidator = new AliasValidator();
         this.systemIndices = systemIndices;
-        this.indexSettingProviders = metadataCreateIndexService.getIndexSettingProviders();
+        this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
     }
 
     @Override
@@ -217,7 +218,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 provider.getAdditionalIndexSettings(
                     indexName,
                     template.getDataStreamTemplate() != null ? indexName : null,
-                    true,
+                    simulatedState.getMetadata(),
                     System.currentTimeMillis(),
                     settings
                 )
@@ -252,8 +253,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         Map<String, AliasMetadata> aliasesByName = aliases.stream().collect(Collectors.toMap(AliasMetadata::getAlias, Function.identity()));
 
         // empty request mapping as the user can't specify any explicit mappings via the simulate api
-        List<Map<String, Object>> mappings = MetadataCreateIndexService.collectV2Mappings(
-            "{}",
+        List<CompressedXContent> mappings = MetadataCreateIndexService.collectV2Mappings(
+            null,
             simulatedState,
             matchingTemplate,
             xContentRegistry,
@@ -264,10 +265,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             indexMetadata,
             tempIndexService -> {
                 MapperService mapperService = tempIndexService.mapperService();
-                for (Map<String, Object> mapping : mappings) {
-                    if (mapping.isEmpty() == false) {
-                        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
-                    }
+                for (CompressedXContent mapping : mappings) {
+                    mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
                 }
 
                 DocumentMapper documentMapper = mapperService.documentMapper();

@@ -14,7 +14,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -2478,7 +2478,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final AuthenticationType authenticationType;
         final Map<String, Object> authMetadata;
         switch (randomIntBetween(0, 2)) {
-            case 0:
+            case 0 -> {
                 user = new User(randomAlphaOfLength(4), new String[] { "r1" }, new User("authenticated_username", "r2"));
                 lookedUpBy = new RealmRef(randomAlphaOfLength(4), "lookup", "by");
                 authBy = new RealmRef("authRealm", "auth", "foo");
@@ -2489,8 +2489,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
                     AuthenticationType.ANONYMOUS
                 );
                 authMetadata = Map.of();
-                break;
-            case 1:
+            }
+            case 1 -> {
                 user = new User(randomAlphaOfLength(4), "r1");
                 lookedUpBy = null;
                 authBy = new RealmRef(randomAlphaOfLength(4), "auth", "by");
@@ -2501,8 +2501,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
                     AuthenticationType.ANONYMOUS
                 );
                 authMetadata = Map.of();
-                break;
-            default:  // service account
+            }
+            default -> {  // service account
                 final String principal = randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8);
                 user = new User(
                     principal,
@@ -2522,6 +2522,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                     "_token_source",
                     tokenSource.name().toLowerCase(Locale.ROOT)
                 );
+            }
         }
         return new Authentication(user, authBy, lookedUpBy, Version.CURRENT, authenticationType, authMetadata);
     }

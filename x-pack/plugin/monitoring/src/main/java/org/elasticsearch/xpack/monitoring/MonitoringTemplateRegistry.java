@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.monitoring;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -253,18 +253,16 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
+    private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
+        BEATS_STACK_INDEX_TEMPLATE,
+        ES_STACK_INDEX_TEMPLATE,
+        KIBANA_STACK_INDEX_TEMPLATE,
+        LOGSTASH_STACK_INDEX_TEMPLATE
+    );
+
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        if (monitoringTemplatesEnabled) {
-            return parseComposableTemplates(
-                BEATS_STACK_INDEX_TEMPLATE,
-                ES_STACK_INDEX_TEMPLATE,
-                KIBANA_STACK_INDEX_TEMPLATE,
-                LOGSTASH_STACK_INDEX_TEMPLATE
-            );
-        } else {
-            return Collections.emptyMap();
-        }
+        return monitoringTemplatesEnabled ? COMPOSABLE_INDEX_TEMPLATE_CONFIGS : Map.of();
     }
 
     @Override

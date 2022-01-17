@@ -35,6 +35,7 @@ import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -107,37 +108,37 @@ public class MetadataRolloverService {
         String newIndexName,
         CreateIndexRequest createIndexRequest,
         List<Condition<?>> metConditions,
+        Instant now,
         boolean silent,
         boolean onlyValidate
     ) throws Exception {
         validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
-        switch (indexAbstraction.getType()) {
-            case ALIAS:
-                return rolloverAlias(
-                    currentState,
-                    (IndexAbstraction.Alias) indexAbstraction,
-                    rolloverTarget,
-                    newIndexName,
-                    createIndexRequest,
-                    metConditions,
-                    silent,
-                    onlyValidate
-                );
-            case DATA_STREAM:
-                return rolloverDataStream(
-                    currentState,
-                    (IndexAbstraction.DataStream) indexAbstraction,
-                    rolloverTarget,
-                    createIndexRequest,
-                    metConditions,
-                    silent,
-                    onlyValidate
-                );
-            default:
+        return switch (indexAbstraction.getType()) {
+            case ALIAS -> rolloverAlias(
+                currentState,
+                (IndexAbstraction.Alias) indexAbstraction,
+                rolloverTarget,
+                newIndexName,
+                createIndexRequest,
+                metConditions,
+                silent,
+                onlyValidate
+            );
+            case DATA_STREAM -> rolloverDataStream(
+                currentState,
+                (IndexAbstraction.DataStream) indexAbstraction,
+                rolloverTarget,
+                createIndexRequest,
+                metConditions,
+                now,
+                silent,
+                onlyValidate
+            );
+            default ->
                 // the validate method above prevents this case
                 throw new IllegalStateException("unable to roll over type [" + indexAbstraction.getType().getDisplayName() + "]");
-        }
+        };
     }
 
     public void validateIndexName(ClusterState state, String index) {
@@ -155,15 +156,13 @@ public class MetadataRolloverService {
     ) {
         validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
-        switch (indexAbstraction.getType()) {
-            case ALIAS:
-                return resolveAliasRolloverNames(currentState.metadata(), indexAbstraction, newIndexName);
-            case DATA_STREAM:
-                return resolveDataStreamRolloverNames(currentState.getMetadata(), (IndexAbstraction.DataStream) indexAbstraction);
-            default:
+        return switch (indexAbstraction.getType()) {
+            case ALIAS -> resolveAliasRolloverNames(currentState.metadata(), indexAbstraction, newIndexName);
+            case DATA_STREAM -> resolveDataStreamRolloverNames(currentState.getMetadata(), (IndexAbstraction.DataStream) indexAbstraction);
+            default ->
                 // the validate method above prevents this case
                 throw new IllegalStateException("unable to roll over type [" + indexAbstraction.getType().getDisplayName() + "]");
-        }
+        };
     }
 
     public static class NameResolution {
@@ -252,6 +251,7 @@ public class MetadataRolloverService {
         String dataStreamName,
         CreateIndexRequest createIndexRequest,
         List<Condition<?>> metConditions,
+        Instant now,
         boolean silent,
         boolean onlyValidate
     ) throws Exception {
@@ -292,7 +292,8 @@ public class MetadataRolloverService {
             dataStreamName,
             newWriteIndexName,
             createIndexRequest,
-            systemDataStreamDescriptor
+            systemDataStreamDescriptor,
+            now
         );
         ClusterState newState = createIndexService.applyCreateIndexRequest(
             currentState,
@@ -335,11 +336,13 @@ public class MetadataRolloverService {
         final String dataStreamName,
         final String targetIndexName,
         CreateIndexRequest createIndexRequest,
-        final SystemDataStreamDescriptor descriptor
+        final SystemDataStreamDescriptor descriptor,
+        Instant now
     ) {
         Settings settings = descriptor != null ? Settings.EMPTY : HIDDEN_INDEX_SETTINGS;
         return prepareCreateIndexRequest(targetIndexName, targetIndexName, "rollover_data_stream", createIndexRequest, settings)
             .dataStreamName(dataStreamName)
+            .nameResolvedInstant(now.toEpochMilli())
             .systemDataStreamDescriptor(descriptor);
     }
 

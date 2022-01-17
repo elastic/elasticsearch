@@ -559,7 +559,7 @@ public class AuthorizationService {
     private void runRequestInterceptors(
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
-        AuthorizationEngine authEngine,
+        AuthorizationEngine authorizationEngine,
         ActionListener<Void> listener
     ) {
         if (requestInterceptors.isEmpty()) {
@@ -567,11 +567,11 @@ public class AuthorizationService {
         } else {
             final Iterator<RequestInterceptor> requestInterceptorIterator = requestInterceptors.iterator();
             requestInterceptorIterator.next()
-                .intercept(requestInfo, authEngine, authorizationInfo, new ActionListener.Delegating<>(listener) {
+                .intercept(requestInfo, authorizationEngine, authorizationInfo, new ActionListener.Delegating<>(listener) {
                     @Override
                     public void onResponse(Void unused) {
                         if (requestInterceptorIterator.hasNext()) {
-                            requestInterceptorIterator.next().intercept(requestInfo, authEngine, authorizationInfo, this);
+                            requestInterceptorIterator.next().intercept(requestInfo, authorizationEngine, authorizationInfo, this);
                         } else {
                             listener.onResponse(null);
                         }
@@ -838,17 +838,12 @@ public class AuthorizationService {
 
     private static String getAction(BulkItemRequest item) {
         final DocWriteRequest<?> docWriteRequest = item.request();
-        switch (docWriteRequest.opType()) {
-            case INDEX:
-                return IMPLIED_INDEX_ACTION;
-            case CREATE:
-                return IMPLIED_CREATE_ACTION;
-            case UPDATE:
-                return UpdateAction.NAME;
-            case DELETE:
-                return DeleteAction.NAME;
-        }
-        throw new IllegalArgumentException("No equivalent action for opType [" + docWriteRequest.opType() + "]");
+        return switch (docWriteRequest.opType()) {
+            case INDEX -> IMPLIED_INDEX_ACTION;
+            case CREATE -> IMPLIED_CREATE_ACTION;
+            case UPDATE -> UpdateAction.NAME;
+            case DELETE -> DeleteAction.NAME;
+        };
     }
 
     private void putTransientIfNonExisting(String key, Object value) {

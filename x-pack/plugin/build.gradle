@@ -117,6 +117,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
   task.addAllowedWarningRegexForTest("Including \\[accept_enterprise\\] in get license.*", "Installing enterprise license")
+  task.addAllowedWarningRegex("bucket_span .* is not an integral .* of the number of seconds in 1d.* This is now deprecated.*")
 
   task.replaceValueTextByKeyValue("catch",
     'bad_request',

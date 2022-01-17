@@ -578,20 +578,14 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         public static StringDistanceImpl resolve(final String str) {
             Objects.requireNonNull(str, "Input string is null");
             final String distanceVal = str.toLowerCase(Locale.ROOT);
-            switch (distanceVal) {
-                case "internal":
-                    return INTERNAL;
-                case "damerau_levenshtein":
-                    return DAMERAU_LEVENSHTEIN;
-                case "levenshtein":
-                    return LEVENSHTEIN;
-                case "ngram":
-                    return NGRAM;
-                case "jaro_winkler":
-                    return JARO_WINKLER;
-                default:
-                    throw new IllegalArgumentException("Illegal distance option " + str);
-            }
+            return switch (distanceVal) {
+                case "internal" -> INTERNAL;
+                case "damerau_levenshtein" -> DAMERAU_LEVENSHTEIN;
+                case "levenshtein" -> LEVENSHTEIN;
+                case "ngram" -> NGRAM;
+                case "jaro_winkler" -> JARO_WINKLER;
+                default -> throw new IllegalArgumentException("Illegal distance option " + str);
+            };
         }
 
         public abstract StringDistance toLucene();

@@ -248,16 +248,12 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     protected static QueryBuilder randomNestedFilter() {
         int id = randomIntBetween(0, 2);
-        switch (id) {
-            case 0:
-                return (new MatchAllQueryBuilder()).boost(randomFloat());
-            case 1:
-                return (new IdsQueryBuilder()).boost(randomFloat());
-            case 2:
-                return (new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomDouble()).boost(randomFloat()));
-            default:
-                throw new IllegalStateException("Only three query builders supported for testing sort");
-        }
+        return switch (id) {
+            case 0 -> (new MatchAllQueryBuilder()).boost(randomFloat());
+            case 1 -> (new IdsQueryBuilder()).boost(randomFloat());
+            case 2 -> (new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomDouble()).boost(randomFloat()));
+            default -> throw new IllegalStateException("Only three query builders supported for testing sort");
+        };
     }
 
     @SuppressWarnings("unchecked")

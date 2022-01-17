@@ -17,6 +17,13 @@ makes this data access pattern possible. They store the same values as the
 sorting and aggregations. Doc values are supported on almost all field types,
 with the __notable exception of `text` and `annotated_text` fields__.
 
+<<number,Numeric types>>, such as `long` and `double`, can also be queried
+when they are not <<mapping-index,indexed>> but only have doc values enabled.
+Query performance on doc values is much slower than on index structures, but
+offers an interesting tradeoff between disk usage and query performance for
+fields that are only rarely queried and where query performance is not as
+important.
+
 All fields which support doc values have them enabled by default. If you are
 sure that you don't need to sort or aggregate on a field, or access the field
 value from a script, you can disable doc values in order to save disk space:

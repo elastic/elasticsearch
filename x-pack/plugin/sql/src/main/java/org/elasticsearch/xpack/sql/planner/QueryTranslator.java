@@ -220,11 +220,11 @@ final class QueryTranslator {
     }
 
     static String nameOf(Expression e) {
-        if (e instanceof DateTimeFunction) {
-            return nameOf(((DateTimeFunction) e).field());
+        if (e instanceof DateTimeFunction dateTimeFunction) {
+            return nameOf(dateTimeFunction.field());
         }
-        if (e instanceof NamedExpression) {
-            return ((NamedExpression) e).name();
+        if (e instanceof NamedExpression namedExpression) {
+            return namedExpression.name();
         } else {
             return e.sourceText();
         }

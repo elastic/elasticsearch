@@ -481,9 +481,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         @Override
         public Optional<Object> nextState(Object currentState, Object input, Object output) {
             State state = (State) currentState;
-            if (output instanceof IndexResponseHistoryOutput) {
+            if (output instanceof IndexResponseHistoryOutput indexResponseHistoryOutput) {
                 if (input.equals(state.safeVersion) || (state.lastFailed && ((Version) input).compareTo(state.safeVersion) > 0)) {
-                    return Optional.of(casSuccess(((IndexResponseHistoryOutput) output).getVersion()));
+                    return Optional.of(casSuccess(indexResponseHistoryOutput.getVersion()));
                 } else {
                     return Optional.empty();
                 }

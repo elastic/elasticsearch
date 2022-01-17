@@ -372,7 +372,7 @@ public class JoinHelper {
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
+        public void onFailure(Exception e) {
             joinListener.onFailure(e);
         }
 
@@ -468,8 +468,8 @@ public class JoinHelper {
 
                 final String stateUpdateSource = "elected-as-master ([" + pendingAsTasks.size() + "] nodes joined)";
 
-                pendingAsTasks.put(JoinTaskExecutor.newBecomeMasterTask(), (source, e) -> {});
-                pendingAsTasks.put(JoinTaskExecutor.newFinishElectionTask(), (source, e) -> {});
+                pendingAsTasks.put(JoinTaskExecutor.newBecomeMasterTask(), (e) -> {});
+                pendingAsTasks.put(JoinTaskExecutor.newFinishElectionTask(), (e) -> {});
                 joinTaskExecutor = joinTaskExecutorGenerator.get();
                 masterService.submitStateUpdateTasks(
                     stateUpdateSource,

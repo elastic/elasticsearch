@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.security.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -739,89 +739,98 @@ public class SecuritySystemIndices {
                 builder.field("dynamic", "strict");
                 builder.startObject("properties");
                 {
-                    builder.startObject("uid");
-                    builder.field("type", "keyword");
-                    builder.endObject();
-
-                    builder.startObject("enabled");
-                    builder.field("type", "boolean");
-                    builder.endObject();
-
-                    builder.startObject("user");
+                    builder.startObject("user_profile");
                     {
                         builder.field("type", "object");
                         builder.startObject("properties");
                         {
-                            builder.startObject("username");
-                            builder.field("type", "search_as_you_type");
+                            builder.startObject("uid");
+                            builder.field("type", "keyword");
                             builder.endObject();
 
-                            builder.startObject("realm");
+                            builder.startObject("enabled");
+                            builder.field("type", "boolean");
+                            builder.endObject();
+
+                            builder.startObject("user");
                             {
                                 builder.field("type", "object");
                                 builder.startObject("properties");
                                 {
-                                    builder.startObject("name");
-                                    builder.field("type", "keyword");
+                                    builder.startObject("username");
+                                    builder.field("type", "search_as_you_type");
                                     builder.endObject();
 
-                                    builder.startObject("type");
-                                    builder.field("type", "keyword");
+                                    builder.startObject("realm");
+                                    {
+                                        builder.field("type", "object");
+                                        builder.startObject("properties");
+                                        {
+                                            builder.startObject("name");
+                                            builder.field("type", "keyword");
+                                            builder.endObject();
+
+                                            builder.startObject("type");
+                                            builder.field("type", "keyword");
+                                            builder.endObject();
+
+                                            builder.startObject("node_name");
+                                            builder.field("type", "keyword");
+                                            builder.endObject();
+                                        }
+                                        builder.endObject();
+                                    }
                                     builder.endObject();
 
-                                    builder.startObject("domain");
-                                    builder.field("type", "keyword");
+                                    builder.startObject("email");
+                                    builder.field("type", "text");
+                                    builder.field("analyzer", "email");
+                                    builder.endObject();
+
+                                    builder.startObject("full_name");
+                                    builder.field("type", "search_as_you_type");
+                                    builder.endObject();
+
+                                    builder.startObject("display_name");
+                                    builder.field("type", "search_as_you_type");
                                     builder.endObject();
                                 }
                                 builder.endObject();
                             }
                             builder.endObject();
 
-                            builder.startObject("email");
-                            builder.field("type", "text");
-                            builder.field("analyzer", "email");
+                            builder.startObject("last_synchronized");
+                            builder.field("type", "date");
+                            builder.field("format", "epoch_millis");
                             builder.endObject();
 
-                            builder.startObject("full_name");
-                            builder.field("type", "search_as_you_type");
+                            builder.startObject("access");
+                            {
+                                builder.field("type", "object");
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("roles");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+
+                                    // Application specific access data, e.g. kibana spaces
+                                    builder.startObject("applications");
+                                    builder.field("type", "flattened");
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
                             builder.endObject();
 
-                            builder.startObject("display_name");
-                            builder.field("type", "search_as_you_type");
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-
-                    builder.startObject("last_synchronized");
-                    builder.field("type", "date");
-                    builder.field("format", "epoch_millis");
-                    builder.endObject();
-
-                    builder.startObject("access");
-                    {
-                        builder.field("type", "object");
-                        builder.startObject("properties");
-                        {
-                            builder.startObject("roles");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-
-                            // Application specific access data, e.g. kibana spaces
-                            builder.startObject("applications");
-                            builder.field("type", "flattened");
+                            // Application data, retrievable but not searchable
+                            builder.startObject("application_data");
+                            {
+                                builder.field("type", "object");
+                                builder.field("enabled", false);
+                            }
                             builder.endObject();
                         }
                         builder.endObject();
-                    }
-                    builder.endObject();
-
-                    // Application data, retrievable but not searchable
-                    builder.startObject("application_data");
-                    {
-                        builder.field("type", "object");
-                        builder.field("enabled", false);
                     }
                     builder.endObject();
                 }

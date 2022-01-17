@@ -2030,7 +2030,7 @@ public class Setting<T> implements ToXContentObject {
         protected final String key;
 
         public SimpleKey(String key) {
-            this.key = key;
+            this.key = Settings.internKeyOrValue(key);
         }
 
         @Override
@@ -2121,7 +2121,7 @@ public class Setting<T> implements ToXContentObject {
                 sb.append('.');
                 sb.append(suffix);
             }
-            keyString = sb.toString();
+            keyString = Settings.internKeyOrValue(sb.toString());
         }
 
         @Override

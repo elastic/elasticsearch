@@ -10,6 +10,7 @@ package org.elasticsearch.transport.netty4;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPromise;
 
 import org.elasticsearch.ExceptionsHelper;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CompletableContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportException;
 
@@ -30,12 +32,14 @@ public class Netty4TcpChannel implements TcpChannel {
     private final CompletableContext<Void> connectContext;
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
     private final ChannelStats stats = new ChannelStats();
+    private final boolean rstOnClose;
 
-    Netty4TcpChannel(Channel channel, boolean isServer, String profile, @Nullable ChannelFuture connectFuture) {
+    Netty4TcpChannel(Channel channel, boolean isServer, String profile, boolean rstOnClose, @Nullable ChannelFuture connectFuture) {
         this.channel = channel;
         this.isServer = isServer;
         this.profile = profile;
         this.connectContext = new CompletableContext<>();
+        this.rstOnClose = rstOnClose;
         addListener(this.channel.closeFuture(), closeContext);
         addListener(connectFuture, connectContext);
     }
@@ -88,7 +92,25 @@ public class Netty4TcpChannel implements TcpChannel {
 
     @Override
     public void close() {
-        channel.close();
+        if (rstOnClose) {
+            rstAndClose();
+        } else {
+            channel.close();
+        }
+    }
+
+    private void rstAndClose() {
+        Releasables.close(() -> {
+            if (channel.isOpen()) {
+                try {
+                    channel.config().setOption(ChannelOption.SO_LINGER, 0);
+                } catch (Exception e) {
+                    if (channel.isOpen()) {
+                        throw e;
+                    }
+                }
+            }
+        }, channel::close);
     }
 
     @Override

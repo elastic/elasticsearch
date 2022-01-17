@@ -1971,7 +1971,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Settings.Builder initialNodeSettings = Settings.builder();
         if (addMockTransportService()) {
             initialNodeSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
-            ;
         }
         return new NodeConfigurationSource() {
             @Override

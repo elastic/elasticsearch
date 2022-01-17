@@ -422,7 +422,7 @@ public class SnapshotDeletionsPendingExecutor {
                                     }
 
                                     @Override
-                                    public void onFailure(String source, Exception e) {
+                                    public void onFailure(Exception e) {
                                         triggered.removeAll(pendingDeletionsToRemove);
                                     }
                                 }, ClusterStateTaskExecutor.unbatched());

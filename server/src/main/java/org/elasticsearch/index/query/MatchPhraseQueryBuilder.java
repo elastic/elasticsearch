@@ -163,12 +163,6 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         // and possibly shortcut
         NamedAnalyzer configuredAnalyzer = configuredAnalyzer(sec);
         if (configuredAnalyzer != null && configuredAnalyzer.analyzer() instanceof KeywordAnalyzer) {
-            if (value.toString().isEmpty()) {
-                if (zeroTermsQuery == ZeroTermsQueryOption.ALL) {
-                    return new MatchAllQueryBuilder();
-                }
-                return new MatchNoneQueryBuilder();
-            }
             TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
             return termQueryBuilder.rewrite(sec);
         }

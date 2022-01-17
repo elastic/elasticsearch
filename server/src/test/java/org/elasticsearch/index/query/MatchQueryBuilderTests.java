@@ -598,44 +598,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertEquals(TEXT_FIELD_NAME, tqb.fieldName);
         assertEquals(new BytesRef("value"), tqb.value);
     }
-
-    public void testRewritesWithZeroTermsQuery() throws IOException {
-        SearchExecutionContext context = createSearchExecutionContext();
-        {
-            MatchQueryBuilder qb = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "");
-            qb.zeroTermsQuery(ZeroTermsQueryOption.ALL);
-            assertThat(qb.rewrite(context), instanceOf(MatchAllQueryBuilder.class));
-        }
-        {
-            MatchQueryBuilder qb = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "");
-            qb.zeroTermsQuery(ZeroTermsQueryOption.NONE);
-            assertThat(qb.rewrite(context), instanceOf(MatchNoneQueryBuilder.class));
-        }
-        {
-            MatchQueryBuilder qb = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "");
-            qb.zeroTermsQuery(ZeroTermsQueryOption.NULL);
-            assertThat(qb.rewrite(context), instanceOf(MatchNoneQueryBuilder.class));
-        }
-        {
-            MatchQueryBuilder qb = new MatchQueryBuilder(TEXT_FIELD_NAME, "");
-            qb.analyzer("keyword");
-            qb.zeroTermsQuery(ZeroTermsQueryOption.ALL);
-            assertThat(qb.rewrite(context), instanceOf(MatchAllQueryBuilder.class));
-        }
-        {
-            MatchQueryBuilder qb = new MatchQueryBuilder(TEXT_FIELD_NAME, "");
-            qb.analyzer("keyword");
-            qb.zeroTermsQuery(ZeroTermsQueryOption.NONE);
-            assertThat(qb.rewrite(context), instanceOf(MatchNoneQueryBuilder.class));
-        }
-        {
-            MatchQueryBuilder qb = new MatchQueryBuilder(TEXT_FIELD_NAME, "");
-            qb.analyzer("keyword");
-            qb.zeroTermsQuery(ZeroTermsQueryOption.NULL);
-            assertThat(qb.rewrite(context), instanceOf(MatchNoneQueryBuilder.class));
-        }
-    }
-
+    
     public void testRewriteWithFuzziness() throws IOException {
         // If we've configured fuzziness then we can't rewrite to a term query
         MatchQueryBuilder queryBuilder = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "value");

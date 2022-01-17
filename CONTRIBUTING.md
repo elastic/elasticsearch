@@ -620,20 +620,11 @@ actionable too since you should be logging at this level when the user should
 take some investigative action. Unlike at the `INFO` level, it is often
 appropriate to log an exception, complete with stack trace, at `WARN` level.
 Although the stack trace may not be useful to the user, it may contain
-information that is vital for a developer to fully understand the problem. In
-other cases it may be appropriate to log just the message for certain
-exceptions at `WARN` and only log the full exception if the user has enabled
-`DEBUG` logging:
-
-    if (logger.isDebugEnabled() == false && exception instanceof BoringException) {
-        logger.warn("investigate me: [{}]", exception.getMessage())
-    } else {
-        logger.warn("investigate me", exception);
-    }
+information that is vital for a developer to fully understand the problem.
 
 In a situation where occasional transient failures are expected and handled,
-but a persistent failure requires the user's attemption, consider implementing
-a mechanism to detect that a failure is unacceptably persistent and emit a
+but a persistent failure requires the user's attention, consider implementing a
+mechanism to detect that a failure is unacceptably persistent and emit a
 corresponding `WARN` log. For example, it may be helpful to log every tenth
 consecutive failure at `WARN` level, or log at `WARN` if an operation has not
 completed within a certain time limit. This is much more user-friendly than

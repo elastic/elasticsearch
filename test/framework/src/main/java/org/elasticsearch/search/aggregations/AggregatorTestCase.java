@@ -302,7 +302,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             mappingLookup,
             null,
             getMockScriptService(),
-            xContentRegistry(),
+            parserConfig(),
             writableRegistry(),
             null,
             indexSearcher,

@@ -187,7 +187,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return new MapperService(
             indexSettings,
             createIndexAnalyzers(indexSettings),
-            xContentRegistry(),
+            parserConfig(),
             similarityService,
             mapperRegistry,
             () -> { throw new UnsupportedOperationException(); },
@@ -585,7 +585,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             mapperService.mappingLookup(),
             similarityService,
             null,
-            xContentRegistry(),
+            parserConfig(),
             writableRegistry(),
             null,
             null,

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -36,11 +38,15 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsAction;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.action.TransportMonitoringBulkAction;
 import org.elasticsearch.xpack.monitoring.action.TransportMonitoringMigrateAlertsAction;
@@ -62,6 +68,7 @@ import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.monitoring.rest.action.RestMonitoringBulkAction;
 import org.elasticsearch.xpack.monitoring.rest.action.RestMonitoringMigrateAlertsAction;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -73,8 +80,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
+import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
+import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.templateName;
 
 /**
  * This class activates/deactivates the monitoring modules depending if we're running a node client, transport client:
@@ -82,6 +92,8 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
  * - transport clients: only action/transport actions are bound
  */
 public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin {
+
+    private static final Logger logger = LogManager.getLogger(Monitoring.class);
 
     /**
      * The ability to automatically cleanup ".watcher_history*" indices while also cleaning up Monitoring indices.
@@ -263,6 +275,32 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return map -> {
+            // Check that each required template exists, with the correct version
+            final List<String> missingTemplates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
+                .filter(id -> {
+                    IndexTemplateMetadata templateMetadata = map.get(templateName(id));
+                    return templateMetadata == null
+                        || (templateMetadata.version() != null && (templateMetadata.version() >= LAST_UPDATED_VERSION == false));
+                })
+                .collect(Collectors.toList());
+
+            if (missingTemplates.isEmpty() == false) {
+                for (String templateId : missingTemplates) {
+                    final String templateName = MonitoringTemplateUtils.templateName(templateId);
+                    final String templateSource = MonitoringTemplateUtils.loadTemplate(templateId);
+                    try (
+                        XContentParser parser = XContentType.JSON.xContent()
+                            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, templateSource)
+                    ) {
+                        IndexTemplateMetadata updatedTemplate = IndexTemplateMetadata.Builder.fromXContent(parser, templateName);
+                        logger.info("updated template [{}] to version [{}]", templateName, MonitoringTemplateUtils.TEMPLATE_VERSION);
+                        map.put(templateName, updatedTemplate);
+                    } catch (IOException e) {
+                        logger.error("unable to update template [" + templateName + "]", e);
+                    }
+                }
+            }
+
             // this template was not migrated to typeless due to the possibility of the old /_monitoring/bulk API being used
             // see {@link org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils#OLD_TEMPLATE_VERSION}
             // however the bulk API is not typed (the type field is for the docs, a field inside the docs) so it's safe to remove this
@@ -270,6 +308,5 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
             map.remove(".monitoring-alerts");
             return map;
         };
-
     }
 }

@@ -47,11 +47,6 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
-            return false;
-        }
-
-        @Override
         public Query existsQuery(SearchExecutionContext context) {
             throw new QueryShardException(context, "Field [" + name() + "] of type [" + typeName() + "] does not support exists queries");
         }

@@ -92,11 +92,6 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
-            return false;
-        }
-
-        @Override
         public Query existsQuery(SearchExecutionContext context) {
             throw new IllegalArgumentException("[rank_features] fields do not support [exists] queries");
         }

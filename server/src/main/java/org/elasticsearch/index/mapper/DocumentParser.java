@@ -830,11 +830,6 @@ public final class DocumentParser {
             public Query termQuery(Object value, SearchExecutionContext context) {
                 throw new UnsupportedOperationException();
             }
-
-            @Override
-            public boolean mayExistInIndex(SearchExecutionContext context) {
-                return false;
-            }
         },
         FieldMapper.MultiFields.empty(),
         FieldMapper.CopyTo.empty()

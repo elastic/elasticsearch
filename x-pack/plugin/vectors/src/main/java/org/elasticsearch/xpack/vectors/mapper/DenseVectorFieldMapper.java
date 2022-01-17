@@ -293,11 +293,6 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
-            return false;
-        }
-
-        @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }

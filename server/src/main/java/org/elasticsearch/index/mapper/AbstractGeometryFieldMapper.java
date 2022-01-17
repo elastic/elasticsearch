@@ -86,11 +86,6 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         }
 
         @Override
-        public final boolean mayExistInIndex(SearchExecutionContext context) {
-            return false;
-        }
-
-        @Override
         public final Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException(
                 "Geometry fields do not support exact searching, use dedicated geometry queries instead: [" + name() + "]"

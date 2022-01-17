@@ -244,11 +244,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
-            return false;
-        }
-
-        @Override
         public String typeName() {
             return CONTENT_TYPE;
         }

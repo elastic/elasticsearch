@@ -22,7 +22,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -221,8 +221,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     if (indicesStatsResponse.getShardFailures().length > 0) {
                         final Set<String> failedNodeIds = new HashSet<>();
                         for (final DefaultShardOperationFailedException shardFailure : indicesStatsResponse.getShardFailures()) {
-                            if (shardFailure.getCause() instanceof FailedNodeException) {
-                                final FailedNodeException failedNodeException = (FailedNodeException) shardFailure.getCause();
+                            if (shardFailure.getCause()instanceof final FailedNodeException failedNodeException) {
                                 if (failedNodeIds.add(failedNodeException.nodeId())) {
                                     if (logger.isDebugEnabled()) {
                                         logger.warn(

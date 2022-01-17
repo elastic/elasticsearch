@@ -12,13 +12,14 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState.Builder;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.Builder;
 
 import java.util.Locale;
 import java.util.function.BiFunction;
@@ -53,17 +54,10 @@ public class GenerateUniqueIndexNameStepTests extends AbstractStepTestCase<Gener
         String prefix = instance.prefix();
 
         switch (between(0, 2)) {
-            case 0:
-                key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                prefix = randomValueOtherThan(prefix, () -> randomAlphaOfLengthBetween(5, 10));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 2 -> prefix = randomValueOtherThan(prefix, () -> randomAlphaOfLengthBetween(5, 10));
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new GenerateUniqueIndexNameStep(key, nextKey, prefix, lifecycleStateSetter());
     }
@@ -94,7 +88,7 @@ public class GenerateUniqueIndexNameStepTests extends AbstractStepTestCase<Gener
         GenerateUniqueIndexNameStep generateUniqueIndexNameStep = createRandomInstance();
         ClusterState newClusterState = generateUniqueIndexNameStep.performAction(indexMetadata.getIndex(), clusterState);
 
-        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(indexName));
+        LifecycleExecutionState executionState = newClusterState.metadata().index(indexName).getLifecycleExecutionState();
         assertThat(
             "the " + GenerateUniqueIndexNameStep.NAME + " step must generate an index name",
             executionState.getShrinkIndexName(),

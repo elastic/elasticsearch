@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
@@ -456,7 +457,8 @@ public class RestoreService implements ClusterStateApplier {
                 updater,
                 repository.getMetadata(),
                 listener
-            )
+            ),
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -1064,13 +1066,13 @@ public class RestoreService implements ClusterStateApplier {
             }
 
             @Override
-            public void onFailure(final String source, final Exception e) {
+            public void onFailure(final Exception e) {
                 cleanupInProgress = false;
                 logger.warn(() -> new ParameterizedMessage("failed to remove completed restores from cluster state"), e);
             }
 
             @Override
-            public void onNoLongerMaster(String source) {
+            public void onNoLongerMaster() {
                 cleanupInProgress = false;
                 logger.debug("no longer master while removing completed restores from cluster state");
             }
@@ -1079,7 +1081,7 @@ public class RestoreService implements ClusterStateApplier {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 cleanupInProgress = false;
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     @Override
@@ -1563,7 +1565,7 @@ public class RestoreService implements ClusterStateApplier {
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
+        public void onFailure(Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] failed to restore snapshot", snapshot), e);
             listener.onFailure(e);
         }

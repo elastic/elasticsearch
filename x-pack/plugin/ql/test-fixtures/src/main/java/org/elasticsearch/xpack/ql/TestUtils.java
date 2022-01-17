@@ -387,16 +387,11 @@ public final class TestUtils {
                             String matcherType = matcherAndExpectation[0];
                             String expectation = matcherAndExpectation[1];
                             switch (matcherType.toUpperCase(Locale.ROOT)) {
-                                case MATCHER_TYPE_CONTAINS:
-                                    matchers.add(containsString(expectation));
-                                    break;
-                                case MATCHER_TYPE_REGEX:
-                                    matchers.add(containsRegex(expectation));
-                                    break;
-                                default:
-                                    throw new IllegalArgumentException(
-                                        "unsupported matcher on line " + testFileName + ":" + lineNumber + ": " + matcherType
-                                    );
+                                case MATCHER_TYPE_CONTAINS -> matchers.add(containsString(expectation));
+                                case MATCHER_TYPE_REGEX -> matchers.add(containsRegex(expectation));
+                                default -> throw new IllegalArgumentException(
+                                    "unsupported matcher on line " + testFileName + ":" + lineNumber + ": " + matcherType
+                                );
                             }
                         }
                     }

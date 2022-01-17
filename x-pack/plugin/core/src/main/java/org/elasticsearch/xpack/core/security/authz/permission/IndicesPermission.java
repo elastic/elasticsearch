@@ -286,14 +286,11 @@ public final class IndicesPermission {
             if (indexAbstraction == null) {
                 return false;
             }
-            switch (indexAbstraction.getType()) {
-                case DATA_STREAM:
-                    return true;
-                case CONCRETE_INDEX:
-                    return indexAbstraction.getParentDataStream() != null;
-                default:
-                    return false;
-            }
+            return switch (indexAbstraction.getType()) {
+                case DATA_STREAM -> true;
+                case CONCRETE_INDEX -> indexAbstraction.getParentDataStream() != null;
+                default -> false;
+            };
         }
 
         /**

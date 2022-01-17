@@ -206,14 +206,11 @@ public final class ActiveShardCount implements Writeable {
 
     @Override
     public String toString() {
-        switch (value) {
-            case ALL_ACTIVE_SHARDS:
-                return "ALL";
-            case ACTIVE_SHARD_COUNT_DEFAULT:
-                return "DEFAULT";
-            default:
-                return Integer.toString(value);
-        }
+        return switch (value) {
+            case ALL_ACTIVE_SHARDS -> "ALL";
+            case ACTIVE_SHARD_COUNT_DEFAULT -> "DEFAULT";
+            default -> Integer.toString(value);
+        };
     }
 
 }

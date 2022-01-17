@@ -175,10 +175,8 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
         InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = instance.emptyBucketInfo;
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 5)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
                 buckets = new ArrayList<>(buckets);
                 buckets.add(
                     new InternalDateHistogram.Bucket(
@@ -189,27 +187,22 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
                         InternalAggregations.EMPTY
                     )
                 );
-                break;
-            case 2:
-                order = BucketOrder.count(randomBoolean());
-                break;
-            case 3:
+            }
+            case 2 -> order = BucketOrder.count(randomBoolean());
+            case 3 -> {
                 minDocCount += between(1, 10);
                 emptyBucketInfo = null;
-                break;
-            case 4:
-                offset += between(1, 20);
-                break;
-            case 5:
+            }
+            case 4 -> offset += between(1, 20);
+            case 5 -> {
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalDateHistogram(name, buckets, order, minDocCount, offset, emptyBucketInfo, format, keyed, metadata);
     }

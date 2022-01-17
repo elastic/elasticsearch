@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -38,9 +39,9 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 
 public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecutor.Task> {
 
-    private final AllocationService allocationService;
+    private static final Logger logger = LogManager.getLogger(JoinTaskExecutor.class);
 
-    private final Logger logger;
+    private final AllocationService allocationService;
     private final RerouteService rerouteService;
 
     public static class Task implements ClusterStateTaskListener {
@@ -98,9 +99,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
     }
 
-    public JoinTaskExecutor(AllocationService allocationService, Logger logger, RerouteService rerouteService) {
+    public JoinTaskExecutor(AllocationService allocationService, RerouteService rerouteService) {
         this.allocationService = allocationService;
-        this.logger = logger;
         this.rerouteService = rerouteService;
     }
 

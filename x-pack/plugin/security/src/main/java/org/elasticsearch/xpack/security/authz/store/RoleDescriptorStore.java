@@ -99,7 +99,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         final List<RoleDescriptor> roleDescriptors = apiKeyService.parseRoleDescriptorsBytes(
             apiKeyRoleReference.getApiKeyId(),
-            apiKeyRoleReference.getRoleDescriptorsBytes()
+            apiKeyRoleReference.getRoleDescriptorsBytes(),
+            apiKeyRoleReference.getRoleType()
         );
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
@@ -113,7 +114,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         final List<RoleDescriptor> roleDescriptors = apiKeyService.parseRoleDescriptors(
             bwcApiKeyRoleReference.getApiKeyId(),
-            bwcApiKeyRoleReference.getRoleDescriptorsMap()
+            bwcApiKeyRoleReference.getRoleDescriptorsMap(),
+            bwcApiKeyRoleReference.getRoleType()
         );
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));

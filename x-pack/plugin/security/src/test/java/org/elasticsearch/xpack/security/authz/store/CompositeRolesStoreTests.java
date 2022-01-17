@@ -1374,9 +1374,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
 
         if (version == Version.CURRENT) {
-            verify(apiKeyService, times(1)).parseRoleDescriptorsBytes(anyString(), any(BytesReference.class));
+            verify(apiKeyService, times(1)).parseRoleDescriptorsBytes(anyString(), any(BytesReference.class), any());
         } else {
-            verify(apiKeyService, times(1)).parseRoleDescriptors(anyString(), anyMap());
+            verify(apiKeyService, times(1)).parseRoleDescriptors(anyString(), anyMap(), any());
         }
         assertThat(role.names().length, is(1));
         assertThat(role.names()[0], containsString("user_role_"));
@@ -1450,20 +1450,24 @@ public class CompositeRolesStoreTests extends ESTestCase {
         if (version == Version.CURRENT) {
             verify(apiKeyService).parseRoleDescriptorsBytes(
                 apiKeyId,
-                (BytesReference) authentication.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY)
+                (BytesReference) authentication.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),
+                RoleReference.ApiKeyRoleType.ASSIGNED
             );
             verify(apiKeyService).parseRoleDescriptorsBytes(
                 apiKeyId,
-                (BytesReference) authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                (BytesReference) authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+                RoleReference.ApiKeyRoleType.LIMITED_BY
             );
         } else {
             verify(apiKeyService).parseRoleDescriptors(
                 apiKeyId,
-                (Map<String, Object>) authentication.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY)
+                (Map<String, Object>) authentication.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),
+                RoleReference.ApiKeyRoleType.ASSIGNED
             );
             verify(apiKeyService).parseRoleDescriptors(
                 apiKeyId,
-                (Map<String, Object>) authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                (Map<String, Object>) authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+                RoleReference.ApiKeyRoleType.LIMITED_BY
             );
         }
         assertThat(role.names().length, is(1));
@@ -1510,7 +1514,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final PlainActionFuture<Role> future1 = new PlainActionFuture<>();
         compositeRolesStore.getRole(AuthenticationContext.fromAuthentication(authentication1).getAuthenticatingSubject(), future1);
         future1.actionGet();
-        verify(apiKeyService).parseRoleDescriptorsBytes(apiKeyId, limitedByRoleDescriptorBytes);
+        verify(apiKeyService).parseRoleDescriptorsBytes(apiKeyId, limitedByRoleDescriptorBytes, RoleReference.ApiKeyRoleType.LIMITED_BY);
 
         // Service account run as
         final User authenticatedUser2 = new User("elastic/some-service");
@@ -1702,8 +1706,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         compositeRolesStore.getRole(AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject(), roleFuture);
         roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
-        verify(apiKeyService).parseRoleDescriptorsBytes("key-id-1", roleBytes);
-        verify(apiKeyService).parseRoleDescriptorsBytes("key-id-1", limitedByRoleBytes);
+        verify(apiKeyService).parseRoleDescriptorsBytes("key-id-1", roleBytes, RoleReference.ApiKeyRoleType.ASSIGNED);
+        verify(apiKeyService).parseRoleDescriptorsBytes("key-id-1", limitedByRoleBytes, RoleReference.ApiKeyRoleType.LIMITED_BY);
 
         // Different API key with the same roles should read from cache
         final Map<String, Object> metadata2 = new HashMap<>();
@@ -1723,7 +1727,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         compositeRolesStore.getRole(AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject(), roleFuture);
         roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
-        verify(apiKeyService, never()).parseRoleDescriptorsBytes(eq("key-id-2"), any(BytesReference.class));
+        verify(apiKeyService, never()).parseRoleDescriptorsBytes(eq("key-id-2"), any(BytesReference.class), any());
 
         // Different API key with the same limitedBy role should read from cache, new role should be built
         final BytesArray anotherRoleBytes = new BytesArray("{\"b role\": {\"cluster\": [\"manage_security\"]}}");
@@ -1744,7 +1748,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         compositeRolesStore.getRole(AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject(), roleFuture);
         roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
-        verify(apiKeyService).parseRoleDescriptorsBytes("key-id-3", anotherRoleBytes);
+        verify(apiKeyService).parseRoleDescriptorsBytes("key-id-3", anotherRoleBytes, RoleReference.ApiKeyRoleType.ASSIGNED);
     }
 
     private Authentication createAuthentication() {

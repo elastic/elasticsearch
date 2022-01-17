@@ -177,7 +177,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     logger.trace("received node stats response");
 
                     for (final FailedNodeException failure : nodesStatsResponse.failures()) {
-                        logger.warn(new ParameterizedMessage("failed to retrieve stats for node [{}]", failure.nodeId()), failure.getCause());
+                        logger.warn(
+                            new ParameterizedMessage("failed to retrieve stats for node [{}]", failure.nodeId()),
+                            failure.getCause()
+                        );
                     }
 
                     ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsagesBuilder = ImmutableOpenMap.builder();
@@ -218,13 +221,13 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                         for (final DefaultShardOperationFailedException shardFailure : indicesStatsResponse.getShardFailures()) {
                             if (shardFailure.getCause()instanceof final FailedNodeException failedNodeException) {
                                 if (failedNodeIds.add(failedNodeException.nodeId())) {
-                                        logger.warn(
-                                            new ParameterizedMessage(
-                                                "failed to retrieve shard stats from node [{}]",
-                                                failedNodeException.nodeId()
-                                            ),
-                                            failedNodeException.getCause()
-                                        );
+                                    logger.warn(
+                                        new ParameterizedMessage(
+                                            "failed to retrieve shard stats from node [{}]",
+                                            failedNodeException.nodeId()
+                                        ),
+                                        failedNodeException.getCause()
+                                    );
                                 }
                                 logger.trace(
                                     new ParameterizedMessage(

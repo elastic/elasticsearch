@@ -101,7 +101,7 @@ public class JoinHelper {
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
         this.joinReasonService = joinReasonService;
-        this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(allocationService, logger, rerouteService) {
+        this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(allocationService, rerouteService) {
 
             private final long term = currentTermSupplier.getAsLong();
 

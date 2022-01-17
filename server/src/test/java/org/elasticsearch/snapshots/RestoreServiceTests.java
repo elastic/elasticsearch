@@ -196,7 +196,10 @@ public class RestoreServiceTests extends ESTestCase {
             SnapshotRestoreException.class,
             () -> RestoreService.validateSnapshotRestorable(request, repository, snapshotInfo)
         );
-        assertThat(exception.getMessage(), equalTo("[name:name/uuid] the snapshot was created without global state"));
+        assertThat(
+            exception.getMessage(),
+            equalTo("[name:name/uuid] cannot restore global state since the snapshot was created without global state")
+        );
     }
 
     private static SnapshotInfo createSnapshotInfo(Snapshot snapshot, Boolean includeGlobalState) {

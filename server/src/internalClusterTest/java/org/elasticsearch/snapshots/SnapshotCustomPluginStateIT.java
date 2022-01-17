@@ -155,7 +155,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
             assertAcked(clusterAdmin().prepareDeleteStoredScript("foobar").get());
         }
 
-        logger.info("--> try restoring cluster state from snapshot without global state");
+        logger.info("--> try restoring from snapshot without global state");
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-no-global-state")
             .setWaitForCompletion(true)
             .setRestoreGlobalState(false)

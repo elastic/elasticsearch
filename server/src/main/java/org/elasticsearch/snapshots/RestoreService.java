@@ -989,7 +989,7 @@ public class RestoreService implements ClusterStateApplier {
         if (request.includeGlobalState() && snapshotInfo.includeGlobalState() == Boolean.FALSE) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
-                "the snapshot was created without global state"
+                "cannot restore global state since the snapshot was created without global state"
             );
         }
     }

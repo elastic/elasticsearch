@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -62,7 +62,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
     }
 
     AsyncResultsService<AsyncTask, StoredAsyncResponse<Response>> createResultsService(
-        TransportService transportService,
+        TransportService transportServiceArg,
         ClusterService clusterService,
         NamedWriteableRegistry registry,
         Client client,
@@ -86,7 +86,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
             false,
             asyncTaskClass,
             (task, listener, timeout) -> AsyncTaskManagementService.addCompletionListener(threadPool, task, listener, timeout),
-            transportService.getTaskManager(),
+            transportServiceArg.getTaskManager(),
             clusterService
         );
     }

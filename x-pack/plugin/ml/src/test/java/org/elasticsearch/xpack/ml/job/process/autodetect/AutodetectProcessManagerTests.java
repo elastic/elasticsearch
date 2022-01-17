@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -161,8 +161,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocationOnMock -> {
-            if (invocationOnMock.getArguments()[0] instanceof ActionType<?>) {
-                ActionType<?> v = (ActionType<?>) invocationOnMock.getArguments()[0];
+            if (invocationOnMock.getArguments()[0]instanceof ActionType<?> v) {
                 ActionListener<?> l = (ActionListener<?>) invocationOnMock.getArguments()[2];
                 ParameterizedType parameterizedType = (ParameterizedType) v.getClass().getGenericSuperclass();
                 Type t = parameterizedType.getActualTypeArguments()[0];

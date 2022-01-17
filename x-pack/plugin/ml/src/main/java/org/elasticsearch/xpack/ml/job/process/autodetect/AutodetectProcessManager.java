@@ -14,7 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -917,14 +917,14 @@ public class AutodetectProcessManager implements ClusterStateListener {
         } catch (Exception e) {
             // If the close failed because the process has explicitly been killed by us then just pass on that exception.
             // (Note that jobKilled may be false in this case, if the kill is executed while communicator.close() is running.)
-            if (e instanceof ElasticsearchStatusException && ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT) {
+            if (e instanceof ElasticsearchStatusException exception && exception.status() == RestStatus.CONFLICT) {
                 logger.trace(
                     "[{}] Conflict between kill and {} during autodetect process cleanup - job {} before cleanup started",
                     jobId,
                     jobTask.isVacating() ? "vacate" : "close",
                     jobKilled ? "killed" : "not killed"
                 );
-                throw (ElasticsearchStatusException) e;
+                throw exception;
             }
             String msg = jobKilled
                 ? "Exception cleaning up autodetect process started after kill"

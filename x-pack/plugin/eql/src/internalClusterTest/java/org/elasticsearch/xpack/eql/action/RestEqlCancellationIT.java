@@ -72,7 +72,6 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(getTestTransportPlugin());
-        plugins.add(Netty4Plugin.class);
         plugins.add(NioTransportPlugin.class);
         return plugins;
     }
@@ -117,7 +116,7 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
         Request request = new Request("GET", "/test/_eql/search");
         request.setJsonEntity(Strings.toString(eqlSearchRequest));
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID, id));
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, id));
         logger.trace("Preparing search");
 
         final PlainActionFuture<Response> future = PlainActionFuture.newFuture();

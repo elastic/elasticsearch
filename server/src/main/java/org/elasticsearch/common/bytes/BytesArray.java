@@ -71,8 +71,7 @@ public final class BytesArray extends AbstractBytesReference {
         if (this == other) {
             return true;
         }
-        if (other instanceof BytesArray) {
-            final BytesArray that = (BytesArray) other;
+        if (other instanceof final BytesArray that) {
             return Arrays.equals(bytes, offset, offset + length, that.bytes, that.offset, that.offset + that.length);
         }
         return super.equals(other);

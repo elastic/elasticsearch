@@ -688,141 +688,128 @@ public class SimpleNestedIT extends ESIntegTestCase {
     }
 
     public void testNestedSortWithMultiLevelFiltering() throws Exception {
-        assertAcked(
-            prepareCreate("test").setMapping(
-                "{\n"
-                    + "    \"properties\": {\n"
-                    + "      \"acl\": {\n"
-                    + "        \"type\": \"nested\",\n"
-                    + "        \"properties\": {\n"
-                    + "          \"access_id\": {\"type\": \"keyword\"},\n"
-                    + "          \"operation\": {\n"
-                    + "            \"type\": \"nested\",\n"
-                    + "            \"properties\": {\n"
-                    + "              \"name\": {\"type\": \"keyword\"},\n"
-                    + "              \"user\": {\n"
-                    + "                \"type\": \"nested\",\n"
-                    + "                \"properties\": {\n"
-                    + "                  \"username\": {\"type\": \"keyword\"},\n"
-                    + "                  \"id\": {\"type\": \"integer\"}\n"
-                    + "                }\n"
-                    + "              }\n"
-                    + "            }\n"
-                    + "          }\n"
-                    + "        }\n"
-                    + "      }\n"
-                    + "    }\n"
-                    + "}"
-            )
-        );
+        assertAcked(prepareCreate("test").setMapping("""
+            {
+                "properties": {
+                  "acl": {
+                    "type": "nested",
+                    "properties": {
+                      "access_id": {"type": "keyword"},
+                      "operation": {
+                        "type": "nested",
+                        "properties": {
+                          "name": {"type": "keyword"},
+                          "user": {
+                            "type": "nested",
+                            "properties": {
+                              "username": {"type": "keyword"},
+                              "id": {"type": "integer"}
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+            }"""));
         ensureGreen();
 
-        client().prepareIndex("test")
-            .setId("1")
-            .setSource(
-                "{\n"
-                    + "  \"acl\": [\n"
-                    + "    {\n"
-                    + "      \"access_id\": 1,\n"
-                    + "      \"operation\": [\n"
-                    + "        {\n"
-                    + "          \"name\": \"read\",\n"
-                    + "          \"user\": [\n"
-                    + "            {\"username\": \"matt\", \"id\": 1},\n"
-                    + "            {\"username\": \"shay\", \"id\": 2},\n"
-                    + "            {\"username\": \"adrien\", \"id\": 3}\n"
-                    + "          ]\n"
-                    + "        },\n"
-                    + "        {\n"
-                    + "          \"name\": \"write\",\n"
-                    + "          \"user\": [\n"
-                    + "            {\"username\": \"shay\", \"id\": 2},\n"
-                    + "            {\"username\": \"adrien\", \"id\": 3}\n"
-                    + "          ]\n"
-                    + "        }\n"
-                    + "      ]\n"
-                    + "    },\n"
-                    + "    {\n"
-                    + "      \"access_id\": 2,\n"
-                    + "      \"operation\": [\n"
-                    + "        {\n"
-                    + "          \"name\": \"read\",\n"
-                    + "          \"user\": [\n"
-                    + "            {\"username\": \"jim\", \"id\": 4},\n"
-                    + "            {\"username\": \"shay\", \"id\": 2}\n"
-                    + "          ]\n"
-                    + "        },\n"
-                    + "        {\n"
-                    + "          \"name\": \"write\",\n"
-                    + "          \"user\": [\n"
-                    + "            {\"username\": \"shay\", \"id\": 2}\n"
-                    + "          ]\n"
-                    + "        },\n"
-                    + "        {\n"
-                    + "          \"name\": \"execute\",\n"
-                    + "          \"user\": [\n"
-                    + "            {\"username\": \"shay\", \"id\": 2}\n"
-                    + "          ]\n"
-                    + "        }\n"
-                    + "      ]\n"
-                    + "    }\n"
-                    + "  ]\n"
-                    + "}",
-                XContentType.JSON
-            )
-            .get();
+        client().prepareIndex("test").setId("1").setSource("""
+            {
+              "acl": [
+                {
+                  "access_id": 1,
+                  "operation": [
+                    {
+                      "name": "read",
+                      "user": [
+                        {"username": "matt", "id": 1},
+                        {"username": "shay", "id": 2},
+                        {"username": "adrien", "id": 3}
+                      ]
+                    },
+                    {
+                      "name": "write",
+                      "user": [
+                        {"username": "shay", "id": 2},
+                        {"username": "adrien", "id": 3}
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "access_id": 2,
+                  "operation": [
+                    {
+                      "name": "read",
+                      "user": [
+                        {"username": "jim", "id": 4},
+                        {"username": "shay", "id": 2}
+                      ]
+                    },
+                    {
+                      "name": "write",
+                      "user": [
+                        {"username": "shay", "id": 2}
+                      ]
+                    },
+                    {
+                      "name": "execute",
+                      "user": [
+                        {"username": "shay", "id": 2}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }""", XContentType.JSON).get();
 
-        client().prepareIndex("test")
-            .setId("2")
-            .setSource(
-                "{\n"
-                    + "  \"acl\": [\n"
-                    + "    {\n"
-                    + "      \"access_id\": 1,\n"
-                    + "      \"operation\": [\n"
-                    + "        {\n"
-                    + "          \"name\": \"read\",\n"
-                    + "          \"user\": [\n"
-                    + "            {\"username\": \"matt\", \"id\": 1},\n"
-                    + "            {\"username\": \"luca\", \"id\": 5}\n"
-                    + "          ]\n"
-                    + "        },\n"
-                    + "        {\n"
-                    + "          \"name\": \"execute\",\n"
-                    + "          \"user\": [\n"
-                    + "            {\"username\": \"luca\", \"id\": 5}\n"
-                    + "          ]\n"
-                    + "        }\n"
-                    + "      ]\n"
-                    + "    },\n"
-                    + "    {\n"
-                    + "      \"access_id\": 3,\n"
-                    + "      \"operation\": [\n"
-                    + "        {\n"
-                    + "          \"name\": \"read\",\n"
-                    + "          \"user\": [\n"
-                    + "            {\"username\": \"matt\", \"id\": 1}\n"
-                    + "          ]\n"
-                    + "        },\n"
-                    + "        {\n"
-                    + "          \"name\": \"write\",\n"
-                    + "          \"user\": [\n"
-                    + "            {\"username\": \"matt\", \"id\": 1}\n"
-                    + "          ]\n"
-                    + "        },\n"
-                    + "        {\n"
-                    + "          \"name\": \"execute\",\n"
-                    + "          \"user\": [\n"
-                    + "            {\"username\": \"matt\", \"id\": 1}\n"
-                    + "          ]\n"
-                    + "        }\n"
-                    + "      ]\n"
-                    + "    }\n"
-                    + "  ]\n"
-                    + "}",
-                XContentType.JSON
-            )
-            .get();
+        client().prepareIndex("test").setId("2").setSource("""
+            {
+              "acl": [
+                {
+                  "access_id": 1,
+                  "operation": [
+                    {
+                      "name": "read",
+                      "user": [
+                        {"username": "matt", "id": 1},
+                        {"username": "luca", "id": 5}
+                      ]
+                    },
+                    {
+                      "name": "execute",
+                      "user": [
+                        {"username": "luca", "id": 5}
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "access_id": 3,
+                  "operation": [
+                    {
+                      "name": "read",
+                      "user": [
+                        {"username": "matt", "id": 1}
+                      ]
+                    },
+                    {
+                      "name": "write",
+                      "user": [
+                        {"username": "matt", "id": 1}
+                      ]
+                    },
+                    {
+                      "name": "execute",
+                      "user": [
+                        {"username": "matt", "id": 1}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }""", XContentType.JSON).get();
         refresh();
 
         // access id = 1, read, max value, asc, should use matt and shay
@@ -929,71 +916,60 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     // https://github.com/elastic/elasticsearch/issues/31554
     public void testLeakingSortValues() throws Exception {
-        assertAcked(
-            prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 1))
-                .setMapping(
-                    "{\"_doc\":{\n"
-                        + "        \"dynamic\": \"strict\",\n"
-                        + "        \"properties\": {\n"
-                        + "          \"nested1\": {\n"
-                        + "            \"type\": \"nested\",\n"
-                        + "            \"properties\": {\n"
-                        + "              \"nested2\": {\n"
-                        + "                \"type\": \"nested\",\n"
-                        + "                \"properties\": {\n"
-                        + "                  \"nested2_keyword\": {\n"
-                        + "                    \"type\": \"keyword\"\n"
-                        + "                  },\n"
-                        + "                  \"sortVal\": {\n"
-                        + "                    \"type\": \"integer\"\n"
-                        + "                  }\n"
-                        + "                }\n"
-                        + "              }\n"
-                        + "            }\n"
-                        + "          }\n"
-                        + "        }\n"
-                        + "      }}\n"
-                )
-        );
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 1)).setMapping("""
+            {
+              "_doc": {
+                "dynamic": "strict",
+                "properties": {
+                  "nested1": {
+                    "type": "nested",
+                    "properties": {
+                      "nested2": {
+                        "type": "nested",
+                        "properties": {
+                          "nested2_keyword": {
+                            "type": "keyword"
+                          },
+                          "sortVal": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """));
         ensureGreen();
 
-        client().prepareIndex("test")
-            .setId("1")
-            .setSource(
-                "{\n"
-                    + "  \"nested1\": [\n"
-                    + "    {\n"
-                    + "      \"nested2\": [\n"
-                    + "        {\n"
-                    + "          \"nested2_keyword\": \"nested2_bar\",\n"
-                    + "          \"sortVal\": 1\n"
-                    + "        }\n"
-                    + "      ]\n"
-                    + "    }\n"
-                    + " ]\n"
-                    + "}",
-                XContentType.JSON
-            )
-            .get();
+        client().prepareIndex("test").setId("1").setSource("""
+            {
+              "nested1": [
+                {
+                  "nested2": [
+                    {
+                      "nested2_keyword": "nested2_bar",
+                      "sortVal": 1
+                    }
+                  ]
+                }
+             ]
+            }""", XContentType.JSON).get();
 
-        client().prepareIndex("test")
-            .setId("2")
-            .setSource(
-                "{\n"
-                    + "  \"nested1\": [\n"
-                    + "    {\n"
-                    + "      \"nested2\": [\n"
-                    + "        {\n"
-                    + "          \"nested2_keyword\": \"nested2_bar\",\n"
-                    + "          \"sortVal\": 2\n"
-                    + "        }\n"
-                    + "      ]\n"
-                    + "    } \n"
-                    + "  ]\n"
-                    + "}",
-                XContentType.JSON
-            )
-            .get();
+        client().prepareIndex("test").setId("2").setSource("""
+            {
+              "nested1": [
+                {
+                  "nested2": [
+                    {
+                      "nested2_keyword": "nested2_bar",
+                      "sortVal": 2
+                    }
+                  ]
+                }
+              ]
+            }""", XContentType.JSON).get();
 
         refresh();
 

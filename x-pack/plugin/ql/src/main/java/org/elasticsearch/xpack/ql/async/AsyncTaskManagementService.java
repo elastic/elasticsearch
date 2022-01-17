@@ -14,7 +14,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ListenerTimeouts;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -107,13 +107,13 @@ public class AsyncTaskManagementService<
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        public Task createTask(long id, String type, String actionName, TaskId parentTaskId, Map<String, String> headers) {
             Map<String, String> originHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
             return operation.createTask(
                 request,
                 id,
                 type,
-                action,
+                actionName,
                 parentTaskId,
                 headers,
                 originHeaders,

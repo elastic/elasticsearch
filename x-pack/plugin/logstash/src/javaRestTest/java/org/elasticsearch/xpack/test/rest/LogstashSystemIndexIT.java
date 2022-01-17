@@ -158,7 +158,11 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
                 }
                 builder.endObject();
                 builder.field("username", "john.doe");
-                builder.field("pipeline", "\"input\": {},\n \"filter\": {},\n \"output\": {}\n");
+                builder.field("pipeline", """
+                    "input": {},
+                    "filter": {},
+                    "output": {}
+                    """);
                 builder.startObject("pipeline_settings");
                 {
                     builder.field("pipeline.batch.delay", 50);

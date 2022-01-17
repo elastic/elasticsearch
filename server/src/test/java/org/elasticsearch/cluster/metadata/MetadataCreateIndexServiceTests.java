@@ -40,6 +40,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -131,7 +132,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             null,
             null,
             null,
-            xContentRegistry(),
+            parserConfig(),
             writableRegistry(),
             null,
             null,
@@ -577,7 +578,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 threadPool,
                 null,
                 EmptySystemIndices.INSTANCE,
-                false
+                false,
+                new IndexSettingProviders(Set.of())
             );
             validateIndexName(checkerService, "index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
 
@@ -656,7 +658,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 new SystemIndices(
                     Collections.singletonMap("foo", new SystemIndices.Feature("foo", "test feature", systemIndexDescriptors))
                 ),
-                false
+                false,
+                new IndexSettingProviders(Set.of())
             );
             // Check deprecations
             assertFalse(checkerService.validateDotIndex(".test2", false));
@@ -743,7 +746,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 aliasValidator,
                 xContentRegistry(),
                 searchExecutionContext,
-                indexNameExpressionResolver::resolveDateMathExpression
+                indexNameExpressionResolver::resolveDateMathExpression,
+                m -> false
             )
         );
     }
@@ -761,7 +765,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             aliasValidator,
             xContentRegistry(),
             searchExecutionContext,
-            indexNameExpressionResolver::resolveDateMathExpression
+            indexNameExpressionResolver::resolveDateMathExpression,
+            m -> false
         );
 
         assertEquals("date-math-based-2021-01-01", aliasMetadata.get(0).alias());
@@ -795,7 +800,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             aliasValidator,
             xContentRegistry(),
             searchExecutionContext,
-            indexNameExpressionResolver::resolveDateMathExpression
+            indexNameExpressionResolver::resolveDateMathExpression,
+            m -> false
         );
 
         Settings aggregatedIndexSettings = aggregateIndexSettings(
@@ -891,7 +897,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             aliasValidator,
             xContentRegistry(),
             searchExecutionContext,
-            indexNameExpressionResolver::resolveDateMathExpression
+            indexNameExpressionResolver::resolveDateMathExpression,
+            m -> false
         );
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("12"));
@@ -932,7 +939,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             aliasValidator,
             xContentRegistry(),
             searchExecutionContext,
-            indexNameExpressionResolver::resolveDateMathExpression
+            indexNameExpressionResolver::resolveDateMathExpression,
+            m -> false
         );
 
         assertThat(resolvedAliases.get(0).alias(), equalTo("jan-2021-01-01"));
@@ -1083,7 +1091,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testParseMappingsWithTypedTemplate() throws Exception {
         IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
             try {
-                builder.putMapping("type", "{\"type\":{\"properties\":{\"field\":{\"type\":\"keyword\"}}}}");
+                builder.putMapping("type", """
+                    {"type":{"properties":{"field":{"type":"keyword"}}}}
+                    """);
             } catch (IOException e) {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }

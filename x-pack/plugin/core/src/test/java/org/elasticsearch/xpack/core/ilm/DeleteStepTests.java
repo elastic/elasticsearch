@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -39,14 +40,9 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-            case 0:
-                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new DeleteStep(key, nextKey, instance.getClient());
@@ -146,7 +142,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
                 .build();
         }
 
-        DataStream dataStream = new DataStream(
+        DataStream dataStream = DataStreamTestHelper.newInstance(
             dataStreamName,
             createTimestampField("@timestamp"),
             List.of(index1.getIndex(), sourceIndexMetadata.getIndex())

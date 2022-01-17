@@ -313,6 +313,16 @@ public final class MlTasks {
         });
     }
 
+    public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasks(
+        @Nullable PersistentTasksCustomMetadata tasks
+    ) {
+        if (tasks == null) {
+            return Collections.emptyList();
+        }
+
+        return tasks.findTasks(JOB_SNAPSHOT_UPGRADE_TASK_NAME, task -> true);
+    }
+
     public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasksOnNode(
         @Nullable PersistentTasksCustomMetadata tasks,
         String nodeId
@@ -431,15 +441,11 @@ public final class MlTasks {
 
     public static MemoryTrackedTaskState getMemoryTrackedTaskState(PersistentTasksCustomMetadata.PersistentTask<?> task) {
         String taskName = task.getTaskName();
-        switch (taskName) {
-            case JOB_TASK_NAME:
-                return getJobStateModifiedForReassignments(task);
-            case JOB_SNAPSHOT_UPGRADE_TASK_NAME:
-                return getSnapshotUpgradeState(task);
-            case DATA_FRAME_ANALYTICS_TASK_NAME:
-                return getDataFrameAnalyticsState(task);
-            default:
-                throw new IllegalStateException("unexpected task type [" + task.getTaskName() + "]");
-        }
+        return switch (taskName) {
+            case JOB_TASK_NAME -> getJobStateModifiedForReassignments(task);
+            case JOB_SNAPSHOT_UPGRADE_TASK_NAME -> getSnapshotUpgradeState(task);
+            case DATA_FRAME_ANALYTICS_TASK_NAME -> getDataFrameAnalyticsState(task);
+            default -> throw new IllegalStateException("unexpected task type [" + task.getTaskName() + "]");
+        };
     }
 }

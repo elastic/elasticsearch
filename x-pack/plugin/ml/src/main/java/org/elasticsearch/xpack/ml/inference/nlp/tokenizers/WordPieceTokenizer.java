@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -25,26 +26,7 @@ public class WordPieceTokenizer {
     private final String unknownToken;
     private final int maxInputCharsPerWord;
 
-    public static class TokenAndId {
-        private final String token;
-        private final int id;
-
-        TokenAndId(String token, int id) {
-            this.token = token;
-            this.id = id;
-        }
-
-        public int getId() {
-            return id;
-        }
-
-        public String getToken() {
-            return token;
-        }
-    }
-
     /**
-     *
      * @param vocab The token vocabulary
      * @param unknownToken If not found in the vocabulary
      * @param maxInputCharsPerWord Inputs tokens longer than this are 'unknown'
@@ -58,63 +40,55 @@ public class WordPieceTokenizer {
     /**
      * Wordpiece tokenize the input text.
      *
-     * @param text A single token or whitespace separated tokens.
-     *             Input should have been normalized by the {@link BasicTokenizer}.
-     * @return List of tokens
+     * @param token Word to tokenize
+     * @return List of token IDs
      */
-    public List<TokenAndId> tokenize(String text) {
-        String[] tokens = BasicTokenizer.whiteSpaceTokenize(text);
+    public List<Integer> tokenize(DelimitedToken token) {
 
-        List<TokenAndId> output = new ArrayList<>();
-        for (String token : tokens) {
-            if (token.length() > maxInputCharsPerWord) {
-                assert vocab.containsKey(unknownToken);
-                output.add(new TokenAndId(unknownToken, vocab.get(unknownToken)));
-                continue;
-            }
+        if (token.getToken().length() > maxInputCharsPerWord) {
+            assert vocab.containsKey(unknownToken);
+            return Collections.singletonList(vocab.get(unknownToken));
+        }
 
-            boolean isBad = false;
-            int start = 0;
-            List<TokenAndId> subTokens = new ArrayList<>();
-            int length = token.length();
-            while (start < length) {
-                int end = length;
+        List<Integer> output = new ArrayList<>();
+        boolean isBad = false;
+        int start = 0;
+        int length = token.getToken().length();
+        while (start < length) {
+            int end = length;
 
-                String currentValidSubStr = null;
+            String currentValidSubStr = null;
 
-                while (start < end) {
-                    String subStr;
-                    if (start > 0) {
-                        subStr = CONTINUATION + token.substring(start, end);
-                    } else {
-                        subStr = token.substring(start, end);
-                    }
-
-                    if (vocab.containsKey(subStr)) {
-                        currentValidSubStr = subStr;
-                        break;
-                    }
-
-                    end--;
+            while (start < end) {
+                String subStr;
+                if (start > 0) {
+                    subStr = CONTINUATION + token.getToken().substring(start, end);
+                } else {
+                    subStr = token.getToken().substring(start, end);
                 }
 
-                if (currentValidSubStr == null) {
-                    isBad = true;
+                if (vocab.containsKey(subStr)) {
+                    currentValidSubStr = subStr;
                     break;
                 }
 
-                subTokens.add(new TokenAndId(currentValidSubStr, vocab.get(currentValidSubStr)));
-
-                start = end;
+                end--;
             }
 
-            if (isBad) {
-                output.add(new TokenAndId(unknownToken, vocab.get(unknownToken)));
-            } else {
-                output.addAll(subTokens);
+            if (currentValidSubStr == null) {
+                isBad = true;
+                break;
             }
+
+            output.add(vocab.get(currentValidSubStr));
+
+            start = end;
         }
 
-        return output;
+        if (isBad) {
+            return Collections.singletonList(vocab.get(unknownToken));
+        } else {
+            return output;
+        }
     }
 }

@@ -64,21 +64,18 @@ public class BranchingStepTests extends AbstractStepTestCase<BranchingStep> {
         BiPredicate<Index, ClusterState> predicate = instance.getPredicate();
 
         switch (between(0, 2)) {
-            case 0:
-                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextStepKey = new StepKey(nextStepKey.getPhase(), nextStepKey.getAction(), nextStepKey.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                nextSkipStepKey = new StepKey(
-                    nextSkipStepKey.getPhase(),
-                    nextSkipStepKey.getAction(),
-                    nextSkipStepKey.getName() + randomAlphaOfLength(5)
-                );
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextStepKey = new StepKey(
+                nextStepKey.getPhase(),
+                nextStepKey.getAction(),
+                nextStepKey.getName() + randomAlphaOfLength(5)
+            );
+            case 2 -> nextSkipStepKey = new StepKey(
+                nextSkipStepKey.getPhase(),
+                nextSkipStepKey.getAction(),
+                nextSkipStepKey.getName() + randomAlphaOfLength(5)
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new BranchingStep(key, nextStepKey, nextSkipStepKey, predicate);

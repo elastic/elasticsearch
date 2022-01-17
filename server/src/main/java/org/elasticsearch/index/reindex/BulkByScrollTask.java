@@ -657,44 +657,18 @@ public class BulkByScrollTask extends CancellableTask {
                     }
                 } else { // else if it is a value
                     switch (fieldName) {
-                        case Status.SLICE_ID_FIELD:
-                            builder.setSliceId(parser.intValue());
-                            break;
-                        case Status.TOTAL_FIELD:
-                            builder.setTotal(parser.longValue());
-                            break;
-                        case Status.UPDATED_FIELD:
-                            builder.setUpdated(parser.longValue());
-                            break;
-                        case Status.CREATED_FIELD:
-                            builder.setCreated(parser.longValue());
-                            break;
-                        case Status.DELETED_FIELD:
-                            builder.setDeleted(parser.longValue());
-                            break;
-                        case Status.BATCHES_FIELD:
-                            builder.setBatches(parser.intValue());
-                            break;
-                        case Status.VERSION_CONFLICTS_FIELD:
-                            builder.setVersionConflicts(parser.longValue());
-                            break;
-                        case Status.NOOPS_FIELD:
-                            builder.setNoops(parser.longValue());
-                            break;
-                        case Status.THROTTLED_RAW_FIELD:
-                            builder.setThrottled(parser.longValue());
-                            break;
-                        case Status.REQUESTS_PER_SEC_FIELD:
-                            builder.setRequestsPerSecond(parser.floatValue());
-                            break;
-                        case Status.CANCELED_FIELD:
-                            builder.setReasonCancelled(parser.text());
-                            break;
-                        case Status.THROTTLED_UNTIL_RAW_FIELD:
-                            builder.setThrottledUntil(parser.longValue());
-                            break;
-                        default:
-                            break;
+                        case Status.SLICE_ID_FIELD -> builder.setSliceId(parser.intValue());
+                        case Status.TOTAL_FIELD -> builder.setTotal(parser.longValue());
+                        case Status.UPDATED_FIELD -> builder.setUpdated(parser.longValue());
+                        case Status.CREATED_FIELD -> builder.setCreated(parser.longValue());
+                        case Status.DELETED_FIELD -> builder.setDeleted(parser.longValue());
+                        case Status.BATCHES_FIELD -> builder.setBatches(parser.intValue());
+                        case Status.VERSION_CONFLICTS_FIELD -> builder.setVersionConflicts(parser.longValue());
+                        case Status.NOOPS_FIELD -> builder.setNoops(parser.longValue());
+                        case Status.THROTTLED_RAW_FIELD -> builder.setThrottled(parser.longValue());
+                        case Status.REQUESTS_PER_SEC_FIELD -> builder.setRequestsPerSecond(parser.floatValue());
+                        case Status.CANCELED_FIELD -> builder.setReasonCancelled(parser.text());
+                        case Status.THROTTLED_UNTIL_RAW_FIELD -> builder.setThrottledUntil(parser.longValue());
                     }
                 }
             }

@@ -52,6 +52,11 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
         super(NAME, Response::new);
     }
 
+    // This needs to be a MasterNodeReadRequest even though the corresponding transport
+    // action is a HandledTransportAction so that in mixed version clusters it can be
+    // serialized to older nodes where the transport action was a MasterNodeReadAction.
+    // TODO: Make this a simple request in a future version where there is no possibility
+    // of this request being serialized to another node.
     public static class Request extends MasterNodeReadRequest<Request> {
 
         public static final String ALLOW_NO_MATCH = "allow_no_match";

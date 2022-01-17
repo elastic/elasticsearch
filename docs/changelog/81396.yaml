@@ -1,0 +1,5 @@
+pr: 81396
+summary: "Script: fields API for IP mapped type"
+area: Infra/Scripting
+type: enhancement
+issues: []

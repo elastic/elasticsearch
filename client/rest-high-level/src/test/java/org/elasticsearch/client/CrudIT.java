@@ -180,7 +180,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertFalse(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
         IndexRequest index = new IndexRequest("index").id("id");
-        index.source("{\"field1\":\"value1\",\"field2\":\"value2\"}", XContentType.JSON);
+        index.source("""
+            {"field1":"value1","field2":"value2"}""", XContentType.JSON);
         index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         highLevelClient().index(index, RequestOptions.DEFAULT);
         {
@@ -205,7 +206,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
         IndexRequest index = new IndexRequest("index").id("id");
-        index.source("{\"field1\":\"value1\",\"field2\":\"value2\"}", XContentType.JSON);
+        index.source("""
+            {"field1":"value1","field2":"value2"}""", XContentType.JSON);
         index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         highLevelClient().index(index, RequestOptions.DEFAULT);
         {
@@ -228,7 +230,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
         IndexRequest index = new IndexRequest("index").id("id");
-        index.source("{\"field1\":\"value1\",\"field2\":\"value2\"}", XContentType.JSON);
+        index.source("""
+            {"field1":"value1","field2":"value2"}""", XContentType.JSON);
         index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         highLevelClient().index(index, RequestOptions.DEFAULT);
         {
@@ -283,7 +286,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
         IndexRequest index = new IndexRequest("index").id("id");
-        String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
+        String document = """
+            {"field1":"value1","field2":"value2"}""";
         index.source(document, XContentType.JSON);
         index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         highLevelClient().index(index, RequestOptions.DEFAULT);
@@ -423,7 +427,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
         IndexRequest index = new IndexRequest("index").id("id");
-        String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
+        String document = """
+            {"field1":"value1","field2":"value2"}""";
         index.source(document, XContentType.JSON);
         index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         highLevelClient().index(index, RequestOptions.DEFAULT);
@@ -1073,7 +1078,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // prepare : index docs
             Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
-            String mappings = "\"properties\":{\"field\":{\"type\":\"text\"}}";
+            String mappings = """
+                "properties":{"field":{"type":"text"}}""";
             createIndex(sourceIndex, settings, mappings);
             assertEquals(
                 RestStatus.OK,
@@ -1163,7 +1169,9 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // prepare : index docs
             Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
-            String mappings = "\"properties\":{\"field\":{\"type\":\"text\"}, \"field2\":{\"type\":\"text\"}}";
+            String mappings = """
+                "properties":{"field":{"type":"text"}, "field2":{"type":"text"}}
+                """;
             createIndex(sourceIndex, settings, mappings);
             assertEquals(
                 RestStatus.OK,

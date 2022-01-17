@@ -8,13 +8,9 @@ package org.elasticsearch.xpack.ml;
 
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -22,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
@@ -38,15 +33,17 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
-import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
@@ -57,12 +54,11 @@ import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -124,12 +120,10 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         Map<String, Object> jobsUsage = new LinkedHashMap<>();
         Map<String, Object> datafeedsUsage = new LinkedHashMap<>();
         Map<String, Object> analyticsUsage = new LinkedHashMap<>();
-        Map<String, Object> inferenceUsage = new LinkedHashMap<>();
         int nodeCount = mlNodeCount(state);
 
-        // Step 7. extract deployment stats and then return results
-        ActionListener<GetDeploymentStatsAction.Response> trainedModelDeploymentsListener = ActionListener.wrap(response -> {
-            addDeploymentStats(response, inferenceUsage);
+        // Step 5. return final ML usage
+        ActionListener<Map<String, Object>> inferenceUsageListener = ActionListener.wrap(inferenceUsage -> {
             listener.onResponse(
                 new XPackUsageFeatureResponse(
                     new MachineLearningFeatureSetUsage(
@@ -145,35 +139,10 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             );
         }, listener::onFailure);
 
-        // Step 6. extract trained model config count and gather deployment stats then return results
-        ActionListener<GetTrainedModelsAction.Response> trainedModelsListener = ActionListener.wrap(response -> {
-            addTrainedModelStats(response, inferenceUsage);
-            client.execute(
-                GetDeploymentStatsAction.INSTANCE,
-                new GetDeploymentStatsAction.Request("_all"),
-                trainedModelDeploymentsListener
-            );
-        }, listener::onFailure);
-
-        // Step 5. Extract usage from ingest statistics and gather trained model config count
-        ActionListener<NodesStatsResponse> nodesStatsListener = ActionListener.wrap(response -> {
-            addInferenceIngestUsage(response, inferenceUsage);
-            GetTrainedModelsAction.Request getModelsRequest = new GetTrainedModelsAction.Request(
-                "*",
-                Collections.emptyList(),
-                Collections.emptySet()
-            );
-            getModelsRequest.setPageParams(new PageParams(0, 10_000));
-            client.execute(GetTrainedModelsAction.INSTANCE, getModelsRequest, trainedModelsListener);
-        }, listener::onFailure);
-
-        // Step 4. Extract usage from data frame analytics configs and then request ingest node stats
+        // Step 4. Extract usage from data frame analytics configs and then get inference usage
         ActionListener<GetDataFrameAnalyticsAction.Response> dataframeAnalyticsListener = ActionListener.wrap(response -> {
             addDataFrameAnalyticsUsage(response, analyticsUsage);
-            String[] ingestNodes = ingestNodes(state);
-            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
-                .addMetric(NodesStatsRequest.Metric.INGEST.metricName());
-            client.execute(NodesStatsAction.INSTANCE, nodesStatsRequest, nodesStatsListener);
+            addInferenceUsage(inferenceUsageListener);
         }, listener::onFailure);
 
         // Step 3. Extract usage from data frame analytics stats and then request data frame analytics configs
@@ -355,25 +324,42 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         dataframeAnalyticsUsage.put("analysis_counts", perAnalysisTypeCounterMap);
     }
 
-    private static void initializeStats(Map<String, Long> emptyStatsMap) {
-        emptyStatsMap.put("sum", 0L);
-        emptyStatsMap.put("min", 0L);
-        emptyStatsMap.put("max", 0L);
+    private void addInferenceUsage(ActionListener<Map<String, Object>> listener) {
+        GetTrainedModelsAction.Request getModelsRequest = new GetTrainedModelsAction.Request(
+            "*",
+            Collections.emptyList(),
+            Collections.emptySet()
+        );
+        getModelsRequest.setPageParams(new PageParams(0, 10_000));
+        client.execute(GetTrainedModelsAction.INSTANCE, getModelsRequest, ActionListener.wrap(getModelsResponse -> {
+            GetTrainedModelsStatsAction.Request getStatsRequest = new GetTrainedModelsStatsAction.Request("*");
+            getStatsRequest.setPageParams(new PageParams(0, 10_000));
+            client.execute(GetTrainedModelsStatsAction.INSTANCE, getStatsRequest, ActionListener.wrap(getStatsResponse -> {
+                Map<String, Object> inferenceUsage = new LinkedHashMap<>();
+                addInferenceIngestUsage(getStatsResponse, inferenceUsage);
+                addTrainedModelStats(getModelsResponse, getStatsResponse, inferenceUsage);
+                addDeploymentStats(getStatsResponse, inferenceUsage);
+                listener.onResponse(inferenceUsage);
+            }, listener::onFailure));
+        }, listener::onFailure));
     }
 
-    private static void updateStats(Map<String, Long> statsMap, Long value) {
-        statsMap.computeIfPresent("sum", (k, v) -> v + value);
-        statsMap.computeIfPresent("min", (k, v) -> Math.min(v, value));
-        statsMap.computeIfPresent("max", (k, v) -> Math.max(v, value));
-    }
-
-    private void addDeploymentStats(GetDeploymentStatsAction.Response response, Map<String, Object> inferenceUsage) {
+    private void addDeploymentStats(GetTrainedModelsStatsAction.Response statsResponse, Map<String, Object> inferenceUsage) {
         StatsAccumulator modelSizes = new StatsAccumulator();
+        int deploymentsCount = 0;
         double avgTimeSum = 0.0;
         StatsAccumulator nodeDistribution = new StatsAccumulator();
-        for (var stats : response.getStats().results()) {
-            modelSizes.add(stats.getModelSize().getBytes());
-            for (var nodeStats : stats.getNodeStats()) {
+        for (var stats : statsResponse.getResources().results()) {
+            AllocationStats deploymentStats = stats.getDeploymentStats();
+            if (deploymentStats == null) {
+                continue;
+            }
+            deploymentsCount++;
+            TrainedModelSizeStats modelSizeStats = stats.getModelSizeStats();
+            if (modelSizeStats != null) {
+                modelSizes.add(modelSizeStats.getModelSizeBytes());
+            }
+            for (var nodeStats : deploymentStats.getNodeStats()) {
                 long nodeInferenceCount = nodeStats.getInferenceCount().orElse(0L);
                 avgTimeSum += nodeStats.getAvgInferenceTime().orElse(0.0) * nodeInferenceCount;
                 nodeDistribution.add(nodeInferenceCount);
@@ -384,7 +370,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             "deployments",
             Map.of(
                 "count",
-                response.getStats().count(),
+                deploymentsCount,
                 "time_ms",
                 Map.of(StatsAccumulator.Fields.AVG, nodeDistribution.getTotal() == 0.0 ? 0.0 : avgTimeSum / nodeDistribution.getTotal()),
                 "model_sizes_bytes",
@@ -395,8 +381,16 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         );
     }
 
-    private void addTrainedModelStats(GetTrainedModelsAction.Response response, Map<String, Object> inferenceUsage) {
-        List<TrainedModelConfig> trainedModelConfigs = response.getResources().results();
+    private void addTrainedModelStats(
+        GetTrainedModelsAction.Response modelsResponse,
+        GetTrainedModelsStatsAction.Response statsResponse,
+        Map<String, Object> inferenceUsage
+    ) {
+        List<TrainedModelConfig> trainedModelConfigs = modelsResponse.getResources().results();
+        Map<String, GetTrainedModelsStatsAction.Response.TrainedModelStats> statsToModelId = statsResponse.getResources()
+            .results()
+            .stream()
+            .collect(Collectors.toMap(GetTrainedModelsStatsAction.Response.TrainedModelStats::getModelId, Function.identity()));
         Map<String, Object> trainedModelsUsage = new HashMap<>();
         trainedModelsUsage.put(MachineLearningFeatureSetUsage.ALL, createCountUsageEntry(trainedModelConfigs.size()));
 
@@ -418,7 +412,9 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 createdByAnalyticsCount++;
             }
             estimatedOperations.add(trainedModelConfig.getEstimatedOperations());
-            estimatedMemoryUsageBytes.add(trainedModelConfig.getModelSize());
+            if (statsToModelId.containsKey(trainedModelConfig.getModelId())) {
+                estimatedMemoryUsageBytes.add(statsToModelId.get(trainedModelConfig.getModelId()).getModelSizeStats().getModelSizeBytes());
+            }
         }
 
         Map<String, Object> counts = new HashMap<>();
@@ -435,43 +431,37 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     }
 
     // TODO separate out ours and users models possibly regression vs classification
-    private void addInferenceIngestUsage(NodesStatsResponse response, Map<String, Object> inferenceUsage) {
-        Set<String> pipelines = new HashSet<>();
-        Map<String, Long> docCountStats = new HashMap<>(3);
-        Map<String, Long> timeStats = new HashMap<>(3);
-        Map<String, Long> failureStats = new HashMap<>(3);
-        initializeStats(docCountStats);
-        initializeStats(timeStats);
-        initializeStats(failureStats);
+    private void addInferenceIngestUsage(GetTrainedModelsStatsAction.Response statsResponse, Map<String, Object> inferenceUsage) {
+        int pipelineCount = 0;
+        StatsAccumulator docCountStats = new StatsAccumulator();
+        StatsAccumulator timeStats = new StatsAccumulator();
+        StatsAccumulator failureStats = new StatsAccumulator();
 
-        response.getNodes()
-            .stream()
-            .map(NodeStats::getIngestStats)
-            .map(IngestStats::getProcessorStats)
-            .forEach(map -> map.forEach((pipelineId, processors) -> {
-                boolean containsInference = false;
-                for (IngestStats.ProcessorStat stats : processors) {
-                    if (stats.getName().equals(InferenceProcessor.TYPE)) {
-                        containsInference = true;
-                        long ingestCount = stats.getStats().getIngestCount();
-                        long ingestTime = stats.getStats().getIngestTimeInMillis();
-                        long failureCount = stats.getStats().getIngestFailedCount();
-                        updateStats(docCountStats, ingestCount);
-                        updateStats(timeStats, ingestTime);
-                        updateStats(failureStats, failureCount);
-                    }
+        for (GetTrainedModelsStatsAction.Response.TrainedModelStats modelStats : statsResponse.getResources().results()) {
+            pipelineCount += modelStats.getPipelineCount();
+            modelStats.getIngestStats().getProcessorStats().values().stream().flatMap(List::stream).forEach(processorStat -> {
+                if (processorStat.getName().equals(InferenceProcessor.TYPE)) {
+                    docCountStats.add(processorStat.getStats().getIngestCount());
+                    timeStats.add(processorStat.getStats().getIngestTimeInMillis());
+                    failureStats.add(processorStat.getStats().getIngestFailedCount());
                 }
-                if (containsInference) {
-                    pipelines.add(pipelineId);
-                }
-            }));
+            });
+        }
 
         Map<String, Object> ingestUsage = new HashMap<>(6);
-        ingestUsage.put("pipelines", createCountUsageEntry(pipelines.size()));
-        ingestUsage.put("num_docs_processed", docCountStats);
-        ingestUsage.put("time_ms", timeStats);
-        ingestUsage.put("num_failures", failureStats);
+        ingestUsage.put("pipelines", createCountUsageEntry(pipelineCount));
+        ingestUsage.put("num_docs_processed", getMinMaxSumAsLongsFromStats(docCountStats));
+        ingestUsage.put("time_ms", getMinMaxSumAsLongsFromStats(timeStats));
+        ingestUsage.put("num_failures", getMinMaxSumAsLongsFromStats(failureStats));
         inferenceUsage.put("ingest_processors", Collections.singletonMap(MachineLearningFeatureSetUsage.ALL, ingestUsage));
+    }
+
+    private Map<String, Object> getMinMaxSumAsLongsFromStats(StatsAccumulator stats) {
+        Map<String, Object> asMap = new HashMap<>(3);
+        asMap.put("sum", Double.valueOf(stats.getTotal()).longValue());
+        asMap.put("min", Double.valueOf(stats.getMin()).longValue());
+        asMap.put("max", Double.valueOf(stats.getMax()).longValue());
+        return asMap;
     }
 
     private static int mlNodeCount(final ClusterState clusterState) {
@@ -482,9 +472,5 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             }
         }
         return mlNodeCount;
-    }
-
-    private static String[] ingestNodes(final ClusterState clusterState) {
-        return clusterState.nodes().getIngestNodes().keySet().toArray(String[]::new);
     }
 }

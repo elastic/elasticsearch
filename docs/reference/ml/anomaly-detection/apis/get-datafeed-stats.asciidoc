@@ -112,6 +112,19 @@ has no configured `end` time.
 (boolean) Indicates whether the {dfeed} has finished running on the available
 past data. For {dfeeds} without a configured `end` time, this means that
 the {dfeed} is now running on "real-time" data.
+
+`search_interval`:::
+(Optional, object) Provides the latest time interval the {dfeed} has searched.
++
+[%collapsible%open]
+=====
+`start_ms`::::
+The start time as an epoch in milliseconds.
+
+`end_ms`::::
+ The end time as an epoch in milliseconds.
+=====
+
 ====
 --
 

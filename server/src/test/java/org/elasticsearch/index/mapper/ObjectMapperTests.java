@@ -27,27 +27,20 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         DocumentMapper defaultMapper = createDocumentMapper(mapping(b -> {}));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> defaultMapper.parse(
-                new SourceToParse(
-                    "1",
-                    new BytesArray(
-                        " {\n"
-                            + "      \"object\": {\n"
-                            + "        \"array\":[\n"
-                            + "        {\n"
-                            + "          \"object\": { \"value\": \"value\" }\n"
-                            + "        },\n"
-                            + "        {\n"
-                            + "          \"object\":\"value\"\n"
-                            + "        }\n"
-                            + "        ]\n"
-                            + "      },\n"
-                            + "      \"value\":\"value\"\n"
-                            + "    }"
-                    ),
-                    XContentType.JSON
-                )
-            )
+            () -> defaultMapper.parse(new SourceToParse("1", new BytesArray("""
+                {
+                     "object": {
+                       "array":[
+                       {
+                         "object": { "value": "value" }
+                       },
+                       {
+                         "object":"value"
+                       }
+                       ]
+                     },
+                     "value":"value"
+                   }""".indent(1)), XContentType.JSON))
         );
         assertTrue(e.getMessage(), e.getMessage().contains("cannot be changed from type"));
     }

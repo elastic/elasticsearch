@@ -484,16 +484,16 @@ Elasticsearch uses Log4J for logging. In most cases you should log via a
 `Logger` named after the class that is writing the log messages, which you can
 do by declaring a static field of the class as follows:
 
-    private static final Logger logger = LogManager.getLogger(MyClassName.class);
+    private static final Logger logger = LogManager.getLogger();
 
 In rare situations you may want to configure your `Logger` slightly
-differently, perhaps using one of the methods on
-`org.elasticsearch.common.logging.Loggers` instead.
+differently, perhaps specifying a different class or maybe using one of the
+methods on `org.elasticsearch.common.logging.Loggers` instead.
 
 If the log message includes values from your code then you must use use
-placeholders rather than constructing the string yourself. Consider wrapping
-the values in `[...]` to help distinguish them from the static part of the
-message:
+placeholders rather than constructing the string yourself using simple
+concatenation. Consider wrapping the values in `[...]` to help distinguish them
+from the static part of the message:
 
     logger.debug("operation failed [{}] times in [{}]ms", failureCount, elapsedMillis);
 

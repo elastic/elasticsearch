@@ -215,7 +215,7 @@ class NodeDeprecationChecks {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Security features are enabled by default for all licenses in versions 8.0 and later",
-                "https://ela.st/es-deprecation-7-implicitly-enabled-security",
+                "https://ela.st/es-deprecation-7-implicitly-disabled-security",
                 details,
                 false,
                 null

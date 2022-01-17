@@ -29,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -141,7 +142,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
 
     public void testPromptingForInstanceInformation() throws Exception {
         final int numberOfInstances = scaledRandomIntBetween(1, 12);
-        Map<String, Map<String, String>> instanceInput = new HashMap<>(numberOfInstances);
+        Map<String, Map<String, String>> instanceInput = Maps.newMapWithExpectedSize(numberOfInstances);
         for (int i = 0; i < numberOfInstances; i++) {
             final String name;
             while (true) {

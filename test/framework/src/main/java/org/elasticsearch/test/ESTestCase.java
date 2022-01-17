@@ -59,6 +59,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -123,7 +124,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -954,7 +954,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static <K, V> Map<K, V> randomMap(int minMapSize, int maxMapSize, Supplier<Tuple<K, V>> entryConstructor) {
         final int size = randomIntBetween(minMapSize, maxMapSize);
-        Map<K, V> list = new HashMap<>(size);
+        Map<K, V> list = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             Tuple<K, V> entry = entryConstructor.get();
             list.put(entry.v1(), entry.v2());

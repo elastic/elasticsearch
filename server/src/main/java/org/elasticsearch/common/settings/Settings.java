@@ -22,6 +22,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -133,7 +134,7 @@ public final class Settings implements ToXContentFragment {
     }
 
     private Map<String, Object> getAsStructuredMap() {
-        Map<String, Object> map = new HashMap<>(2);
+        Map<String, Object> map = Maps.newMapWithExpectedSize(2);
         for (Map.Entry<String, Object> entry : settings.entrySet()) {
             processSetting(map, "", entry.getKey(), entry.getValue());
         }
@@ -165,7 +166,7 @@ public final class Settings implements ToXContentFragment {
             String rest = setting.substring(prefixLength + 1);
             Object existingValue = map.get(prefix + key);
             if (existingValue == null) {
-                Map<String, Object> newMap = new HashMap<>(2);
+                Map<String, Object> newMap = Maps.newMapWithExpectedSize(2);
                 processSetting(newMap, "", rest, value);
                 map.put(prefix + key, newMap);
             } else {

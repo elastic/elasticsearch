@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.dataframe.extractor;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -794,7 +795,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("some_integer", "integer")
             .build();
 
-        Map<String, Long> fieldCardinalities = new HashMap<>(2);
+        Map<String, Long> fieldCardinalities = Maps.newMapWithExpectedSize(2);
         fieldCardinalities.put("some_boolean", 2L);
         fieldCardinalities.put("some_integer", 2L);
 

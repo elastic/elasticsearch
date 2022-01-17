@@ -293,9 +293,9 @@ public class ClusterHealthIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 completionFuture.onFailure(e);
-                throw new AssertionError(source, e);
+                throw new AssertionError("looping task", e);
             }
 
             @Override
@@ -384,9 +384,9 @@ public class ClusterHealthIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 completionFuture.onFailure(e);
-                throw new AssertionError(source, e);
+                throw new AssertionError("looping task", e);
             }
 
             @Override

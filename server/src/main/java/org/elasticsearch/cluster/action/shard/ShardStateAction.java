@@ -296,17 +296,19 @@ public class ShardStateAction {
             this.logger = logger;
         }
 
+        private static final String TASK_SOURCE = "shard-failed";
+
         @Override
         public void messageReceived(FailedShardEntry request, TransportChannel channel, Task task) throws Exception {
             logger.debug(() -> new ParameterizedMessage("{} received shard failed for {}", request.shardId, request), request.failure);
             clusterService.submitStateUpdateTask(
-                "shard-failed",
+                TASK_SOURCE,
                 request,
                 ClusterStateTaskConfig.build(Priority.HIGH),
                 shardFailedClusterStateTaskExecutor,
                 new ClusterStateTaskListener() {
                     @Override
-                    public void onFailure(String source, Exception e) {
+                    public void onFailure(Exception e) {
                         logger.error(
                             () -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", request.shardId, request),
                             e
@@ -328,10 +330,10 @@ public class ShardStateAction {
                     }
 
                     @Override
-                    public void onNoLongerMaster(String source) {
+                    public void onNoLongerMaster() {
                         logger.error("{} no longer master while failing shard [{}]", request.shardId, request);
                         try {
-                            channel.sendResponse(new NotMasterException(source));
+                            channel.sendResponse(new NotMasterException(TASK_SOURCE));
                         } catch (Exception channelException) {
                             logger.warn(
                                 () -> new ParameterizedMessage(
@@ -628,16 +630,19 @@ public class ShardStateAction {
                 request,
                 ClusterStateTaskConfig.build(Priority.URGENT),
                 shardStartedClusterStateTaskExecutor,
-                shardStartedClusterStateTaskExecutor
+                e -> {
+                    if (e instanceof FailedToCommitClusterStateException || e instanceof NotMasterException) {
+                        logger.debug(new ParameterizedMessage("failure during [shard-started {}]", request), e);
+                    } else {
+                        logger.error(new ParameterizedMessage("unexpected failure during [shard-started {}]", request), e);
+                    }
+                }
             );
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 
-    public static class ShardStartedClusterStateTaskExecutor
-        implements
-            ClusterStateTaskExecutor<StartedShardEntry>,
-            ClusterStateTaskListener {
+    public static class ShardStartedClusterStateTaskExecutor implements ClusterStateTaskExecutor<StartedShardEntry> {
         private final AllocationService allocationService;
         private final Logger logger;
         private final RerouteService rerouteService;
@@ -774,15 +779,6 @@ public class ShardStateAction {
                         + cursor.getValue().prettyPrint();
             }
             return true;
-        }
-
-        @Override
-        public void onFailure(String source, Exception e) {
-            if (e instanceof FailedToCommitClusterStateException || e instanceof NotMasterException) {
-                logger.debug(() -> new ParameterizedMessage("failure during [{}]", source), e);
-            } else {
-                logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-            }
         }
 
         @Override

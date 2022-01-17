@@ -302,7 +302,7 @@ class IndexLifecycleRunner {
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
+                    public void onFailure(Exception e) {
                         logger.error(
                             new ParameterizedMessage(
                                 "retry execution of step [{}] for index [{}] failed",

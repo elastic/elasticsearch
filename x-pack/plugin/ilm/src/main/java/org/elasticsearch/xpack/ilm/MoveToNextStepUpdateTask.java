@@ -90,7 +90,7 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
     }
 
     @Override
-    public void handleFailure(String source, Exception e) {
+    public void handleFailure(Exception e) {
         logger.warn(
             new ParameterizedMessage(
                 "policy [{}] for index [{}] failed trying to move from step [{}] to step [{}].",

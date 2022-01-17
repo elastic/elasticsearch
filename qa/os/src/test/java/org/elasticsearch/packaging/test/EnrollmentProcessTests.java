@@ -19,7 +19,6 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
@@ -31,10 +30,7 @@ import static org.elasticsearch.packaging.util.docker.Docker.verifyContainerInst
 import static org.elasticsearch.packaging.util.docker.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.docker.DockerRun.builder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyOrNullString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
 
 public class EnrollmentProcessTests extends PackagingTestCase {
@@ -96,21 +92,20 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         verifySecurityAutoConfigured(installation);
         waitForElasticsearch(installation);
         final String node1ContainerId = Docker.getContainerId();
-        String createTokenResult = installation.executables().createEnrollmentToken.run("-s node").stdout;
-        assertThat(createTokenResult, not(emptyOrNullString()));
-        final List<String> noWarningOutputLines = createTokenResult.lines()
+
+        final String enrollmentToken = installation.executables().createEnrollmentToken.run("-s node").stdout.lines()
             .filter(line -> line.startsWith("WARNING:") == false)
-            .collect(Collectors.toList());
-        assertThat(noWarningOutputLines.size(), equalTo(1));
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Failing to find any non-warning output lines"));
+
         // installation refers to second node from now on
-        installation = runAdditionalContainer(
-            distribution(),
-            builder().envVar("ENROLLMENT_TOKEN", noWarningOutputLines.get(0)).extraArgs("--publish 9301:9300 --publish 9201:9200")
-        );
+        installation = runAdditionalContainer(distribution(), builder().envVar("ENROLLMENT_TOKEN", enrollmentToken), 9201, 9301);
+
         // TODO Make our packaging test methods aware of multiple installations, see https://github.com/elastic/elasticsearch/issues/79688
         waitForElasticsearch(installation);
         verifyContainerInstallation(installation);
         verifySecurityAutoConfigured(installation);
+
         // Allow some time for the second node to join the cluster, we can probably do this more elegantly in
         // https://github.com/elastic/elasticsearch/issues/79688
         // Then verify that the two nodes formed a cluster

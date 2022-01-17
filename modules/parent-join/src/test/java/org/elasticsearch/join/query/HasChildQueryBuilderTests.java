@@ -208,41 +208,42 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     public void testFromJson() throws IOException {
-        String query = "{\n"
-            + "  \"has_child\" : {\n"
-            + "    \"query\" : {\n"
-            + "      \"range\" : {\n"
-            + "        \"mapped_string\" : {\n"
-            + "          \"gte\" : \"agJhRET\",\n"
-            + "          \"lte\" : \"zvqIq\",\n"
-            + "          \"boost\" : 1.0\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"type\" : \"child\",\n"
-            + "    \"score_mode\" : \"avg\",\n"
-            + "    \"min_children\" : 883170873,\n"
-            + "    \"max_children\" : 1217235442,\n"
-            + "    \"ignore_unmapped\" : false,\n"
-            + "    \"boost\" : 2.0,\n"
-            + "    \"_name\" : \"WNzYMJKRwePuRBh\",\n"
-            + "    \"inner_hits\" : {\n"
-            + "      \"name\" : \"inner_hits_name\",\n"
-            + "      \"ignore_unmapped\" : false,\n"
-            + "      \"from\" : 0,\n"
-            + "      \"size\" : 100,\n"
-            + "      \"version\" : false,\n"
-            + "      \"seq_no_primary_term\" : false,\n"
-            + "      \"explain\" : false,\n"
-            + "      \"track_scores\" : false,\n"
-            + "      \"sort\" : [ {\n"
-            + "        \"mapped_string\" : {\n"
-            + "          \"order\" : \"asc\"\n"
-            + "        }\n"
-            + "      } ]\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String query = """
+            {
+              "has_child" : {
+                "query" : {
+                  "range" : {
+                    "mapped_string" : {
+                      "gte" : "agJhRET",
+                      "lte" : "zvqIq",
+                      "boost" : 1.0
+                    }
+                  }
+                },
+                "type" : "child",
+                "score_mode" : "avg",
+                "min_children" : 883170873,
+                "max_children" : 1217235442,
+                "ignore_unmapped" : false,
+                "boost" : 2.0,
+                "_name" : "WNzYMJKRwePuRBh",
+                "inner_hits" : {
+                  "name" : "inner_hits_name",
+                  "ignore_unmapped" : false,
+                  "from" : 0,
+                  "size" : 100,
+                  "version" : false,
+                  "seq_no_primary_term" : false,
+                  "explain" : false,
+                  "track_scores" : false,
+                  "sort" : [ {
+                    "mapped_string" : {
+                      "order" : "asc"
+                    }
+                  } ]
+                }
+              }
+            }""";
         HasChildQueryBuilder queryBuilder = (HasChildQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);
         assertEquals(query, queryBuilder.maxChildren(), 1217235442);

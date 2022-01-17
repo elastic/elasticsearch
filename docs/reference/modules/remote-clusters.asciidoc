@@ -68,10 +68,15 @@ local and remote nodes.
 include::remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
 ====
 
-* *role*: Dedicated master nodes are never selected as gateway nodes.
-* *attributes*: You can tag which nodes should be selected
-(see <<remote-clusters-settings,remote cluster settings>>), though such tagged nodes still have
-to satisfy the two above requirements.
+IMPORTANT: Elastic only supports {ccs} on a subset of these configurations. See
+<<ccs-supported-configurations>>.
+
+* *role*: By default, any non-<<master-node,master-eligible>> node can act as a
+gateway node. Dedicated master nodes are never selected as gateway nodes.
+
+* *attributes*: You can define the gateway nodes for a cluster by setting
+<<cluster-remote-node-attr,`cluster.remote.node.attr.gateway`>> to `true`.
+However, such nodes still have to satisfy the two above requirements.
 
 [[proxy-mode]]
 [discrete]
@@ -95,6 +100,9 @@ Proxy mode has the same version compatibility requirements as sniff mode.
 ====
 include::remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
 ====
+
+IMPORTANT: Elastic only supports {ccs} on a subset of these configurations. See
+<<ccs-supported-configurations>>.
 
 include::cluster/remote-clusters-security.asciidoc[]
 include::cluster/remote-clusters-connect.asciidoc[]

@@ -127,41 +127,28 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
         } else if (path.size() == 1) {
             GeoBoundingBox geoBoundingBox = resolveGeoBoundingBox();
             String bBoxSide = path.get(0);
-            switch (bBoxSide) {
-                case "top":
-                    return geoBoundingBox.top();
-                case "left":
-                    return geoBoundingBox.left();
-                case "bottom":
-                    return geoBoundingBox.bottom();
-                case "right":
-                    return geoBoundingBox.right();
-                default:
-                    throw new IllegalArgumentException("Found unknown path element [" + bBoxSide + "] in [" + getName() + "]");
-            }
+            return switch (bBoxSide) {
+                case "top" -> geoBoundingBox.top();
+                case "left" -> geoBoundingBox.left();
+                case "bottom" -> geoBoundingBox.bottom();
+                case "right" -> geoBoundingBox.right();
+                default -> throw new IllegalArgumentException("Found unknown path element [" + bBoxSide + "] in [" + getName() + "]");
+            };
         } else if (path.size() == 2) {
             GeoBoundingBox geoBoundingBox = resolveGeoBoundingBox();
             GeoPoint cornerPoint = null;
             String cornerString = path.get(0);
-            switch (cornerString) {
-                case "top_left":
-                    cornerPoint = geoBoundingBox.topLeft();
-                    break;
-                case "bottom_right":
-                    cornerPoint = geoBoundingBox.bottomRight();
-                    break;
-                default:
-                    throw new IllegalArgumentException("Found unknown path element [" + cornerString + "] in [" + getName() + "]");
-            }
+            cornerPoint = switch (cornerString) {
+                case "top_left" -> geoBoundingBox.topLeft();
+                case "bottom_right" -> geoBoundingBox.bottomRight();
+                default -> throw new IllegalArgumentException("Found unknown path element [" + cornerString + "] in [" + getName() + "]");
+            };
             String latLonString = path.get(1);
-            switch (latLonString) {
-                case "lat":
-                    return cornerPoint.lat();
-                case "lon":
-                    return cornerPoint.lon();
-                default:
-                    throw new IllegalArgumentException("Found unknown path element [" + latLonString + "] in [" + getName() + "]");
-            }
+            return switch (latLonString) {
+                case "lat" -> cornerPoint.lat();
+                case "lon" -> cornerPoint.lon();
+                default -> throw new IllegalArgumentException("Found unknown path element [" + latLonString + "] in [" + getName() + "]");
+            };
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }

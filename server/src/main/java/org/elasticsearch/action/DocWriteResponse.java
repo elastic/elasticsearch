@@ -81,20 +81,14 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
         public static Result readFrom(StreamInput in) throws IOException {
             Byte opcode = in.readByte();
-            switch (opcode) {
-                case 0:
-                    return CREATED;
-                case 1:
-                    return UPDATED;
-                case 2:
-                    return DELETED;
-                case 3:
-                    return NOT_FOUND;
-                case 4:
-                    return NOOP;
-                default:
-                    throw new IllegalArgumentException("Unknown result code: " + opcode);
-            }
+            return switch (opcode) {
+                case 0 -> CREATED;
+                case 1 -> UPDATED;
+                case 2 -> DELETED;
+                case 3 -> NOT_FOUND;
+                case 4 -> NOOP;
+                default -> throw new IllegalArgumentException("Unknown result code: " + opcode);
+            };
         }
 
         @Override

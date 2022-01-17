@@ -82,7 +82,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         final Set<String> roleNames = Set.copyOf(new HashSet<>(List.of(namedRoleReference.getRoleNames())));
         if (roleNames.isEmpty()) {
             listener.onResponse(RolesRetrievalResult.EMPTY);
-        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
+        } else if (roleNames.equals(Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()))) {
             listener.onResponse(RolesRetrievalResult.SUPERUSER);
         } else {
             resolveRoleNames(roleNames, listener);
@@ -96,7 +96,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         final List<RoleDescriptor> roleDescriptors = apiKeyService.parseRoleDescriptorsBytes(
             apiKeyRoleReference.getApiKeyId(),
-            apiKeyRoleReference.getRoleDescriptorsBytes()
+            apiKeyRoleReference.getRoleDescriptorsBytes(),
+            apiKeyRoleReference.getRoleType()
         );
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
@@ -110,7 +111,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         final List<RoleDescriptor> roleDescriptors = apiKeyService.parseRoleDescriptors(
             bwcApiKeyRoleReference.getApiKeyId(),
-            bwcApiKeyRoleReference.getRoleDescriptorsMap()
+            bwcApiKeyRoleReference.getRoleDescriptorsMap(),
+            bwcApiKeyRoleReference.getRoleType()
         );
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
@@ -226,11 +228,15 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                         roleNames.remove(descriptor.getName());
                     }
                 } else {
-                    logger.warn(new ParameterizedMessage("role retrieval failed from [{}]", rolesProvider), result.getFailure());
+                    logger.warn(
+                        new ParameterizedMessage("role [{}] retrieval failed from [{}]", roleNames, rolesProvider),
+                        result.getFailure()
+                    );
                     rolesResult.setFailure();
                 }
                 providerListener.onResponse(result);
             }, providerListener::onFailure));
         }, asyncRoleProviders, threadContext, Function.identity(), iterationPredicate).run();
     }
+
 }

@@ -80,22 +80,35 @@ public class GetResultTests extends ESTestCase {
                 1,
                 1,
                 true,
-                new BytesArray("{ \"field1\" : " + "\"value1\", \"field2\":\"value2\"}"),
+                new BytesArray("""
+                    { "field1" : "value1", "field2":"value2"}"""),
                 singletonMap("field1", new DocumentField("field1", singletonList("value1"))),
                 singletonMap("field1", new DocumentField("metafield", singletonList("metavalue")))
             );
             String output = Strings.toString(getResult);
-            assertEquals(
-                "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1,"
-                    + "\"metafield\":\"metavalue\",\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},"
-                    + "\"fields\":{\"field1\":[\"value1\"]}}",
-                output
-            );
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "_index": "index",
+                  "_id": "id",
+                  "_version": 1,
+                  "_seq_no": 0,
+                  "_primary_term": 1,
+                  "metafield": "metavalue",
+                  "found": true,
+                  "_source": {
+                    "field1": "value1",
+                    "field2": "value2"
+                  },
+                  "fields": {
+                    "field1": [ "value1" ]
+                  }
+                }"""), XContentHelper.stripWhitespace(output));
         }
         {
             GetResult getResult = new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
             String output = Strings.toString(getResult);
-            assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"found\":false}", output);
+            assertEquals("""
+                {"_index":"index","_id":"id","found":false}""", output);
         }
     }
 
@@ -108,7 +121,8 @@ public class GetResultTests extends ESTestCase {
                 1,
                 1,
                 true,
-                new BytesArray("{ \"field1\" : " + "\"value1\", \"field2\":\"value2\"}"),
+                new BytesArray("""
+                    { "field1" : "value1", "field2":"value2"}"""),
                 singletonMap("field1", new DocumentField("field1", singletonList("value1"))),
                 singletonMap("field1", new DocumentField("metafield", singletonList("metavalue")))
             );
@@ -116,12 +130,24 @@ public class GetResultTests extends ESTestCase {
             try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7)) {
                 getResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 String output = Strings.toString(builder);
-                assertEquals(
-                    "{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1,"
-                        + "\"metafield\":\"metavalue\",\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},"
-                        + "\"fields\":{\"field1\":[\"value1\"]}}",
-                    output
-                );
+                assertEquals(XContentHelper.stripWhitespace("""
+                    {
+                      "_index": "index",
+                      "_type": "_doc",
+                      "_id": "id",
+                      "_version": 1,
+                      "_seq_no": 0,
+                      "_primary_term": 1,
+                      "metafield": "metavalue",
+                      "found": true,
+                      "_source": {
+                        "field1": "value1",
+                        "field2": "value2"
+                      },
+                      "fields": {
+                        "field1": [ "value1" ]
+                      }
+                    }"""), XContentHelper.stripWhitespace(output));
             }
         }
         {
@@ -130,7 +156,8 @@ public class GetResultTests extends ESTestCase {
             try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7)) {
                 getResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 String output = Strings.toString(builder);
-                assertEquals("{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"found\":false}", output);
+                assertEquals("""
+                    {"_index":"index","_type":"_doc","_id":"id","found":false}""", output);
             }
         }
     }
@@ -189,11 +216,20 @@ public class GetResultTests extends ESTestCase {
         );
 
         BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON, false);
-        assertEquals(
-            "{\"_seq_no\":0,\"_primary_term\":1,\"found\":true,\"_source\":{\"foo\":\"bar\",\"baz\":[\"baz_0\",\"baz_1\"]},"
-                + "\"fields\":{\"foo\":[\"bar\"],\"baz\":[\"baz_0\",\"baz_1\"]}}",
-            originalBytes.utf8ToString()
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "_seq_no": 0,
+              "_primary_term": 1,
+              "found": true,
+              "_source": {
+                "foo": "bar",
+                "baz": [ "baz_0", "baz_1" ]
+              },
+              "fields": {
+                "foo": [ "bar" ],
+                "baz": [ "baz_0", "baz_1" ]
+              }
+            }"""), originalBytes.utf8ToString());
     }
 
     public void testToXContentEmbeddedNotFound() throws IOException {

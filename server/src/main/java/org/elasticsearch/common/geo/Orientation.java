@@ -37,17 +37,10 @@ public enum Orientation {
 
     public static Orientation fromString(String orientation) {
         orientation = orientation.toLowerCase(Locale.ROOT);
-        switch (orientation) {
-            case "right":
-            case "counterclockwise":
-            case "ccw":
-                return Orientation.RIGHT;
-            case "left":
-            case "clockwise":
-            case "cw":
-                return Orientation.LEFT;
-            default:
-                throw new IllegalArgumentException("Unknown orientation [" + orientation + "]");
-        }
+        return switch (orientation) {
+            case "right", "counterclockwise", "ccw" -> Orientation.RIGHT;
+            case "left", "clockwise", "cw" -> Orientation.LEFT;
+            default -> throw new IllegalArgumentException("Unknown orientation [" + orientation + "]");
+        };
     }
 }

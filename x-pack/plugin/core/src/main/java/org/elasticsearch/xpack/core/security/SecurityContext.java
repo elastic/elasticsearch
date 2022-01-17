@@ -36,6 +36,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
 
 /**
  * A lightweight utility that can find the current user and authentication information for the local thread.
@@ -107,7 +109,7 @@ public class SecurityContext {
      */
     public void setUser(User user, Version version) {
         Objects.requireNonNull(user);
-        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("__attach", "__attach", nodeName);
+        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(ATTACH_REALM_NAME, ATTACH_REALM_TYPE, nodeName);
         final Authentication.RealmRef lookedUpBy;
         if (user.isRunAs()) {
             lookedUpBy = authenticatedBy;

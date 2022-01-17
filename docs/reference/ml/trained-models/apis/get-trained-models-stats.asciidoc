@@ -112,9 +112,17 @@ The detailed allocation state related to the nodes.
 The desired number of nodes for model allocation.
 ======
 
+`inference_threads`:::
+(integer)
+The number of threads used by the inference process.
+
 `model_id`:::
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+`model_threads`:::
+(integer)
+The number of threads used when sending inference requests to the model.
 
 `nodes`:::
 (array of objects)
@@ -127,13 +135,30 @@ The deployment stats for each node that currently has the model allocated.
 (double)
 The average time for each inference call to complete on this node.
 
+`error_count`:::
+(integer)
+The number of errors when evaluating the trained model.
+
+
 `inference_count`:::
 (integer)
 The total number of inference calls made against this node for this model.
 
+`inference_threads`:::
+(integer)
+The number of threads used by the inference process.
+This figure may be lower than top level value if there is not sufficient
+hardware threads to.
+
 `last_access`:::
 (long)
 The epoch time stamp of the last inference call for the model on this node.
+
+`model_threads`:::
+(integer)
+The number of threads used when sending inference requests to the model.
+This figure may be lower than top level value if there is not sufficient
+hardware threads to.
 
 `node`:::
 (object)
@@ -179,9 +204,17 @@ The current routing state and reason for the current routing state for this allo
 --
 
 `start_time`:::
-(long)
+(integer)
 The epoch timestamp when the allocation started.
 
+`rejected_execution_count`:::
+(integer)
+The number of inference requests that were not processed because the
+queue was full.
+
+`timeout_count`:::
+(integer)
+The number of inference requests that timed out before being processed.
 ======
 
 `start_time`:::
@@ -197,6 +230,11 @@ The overall state of the deployment. The values may be:
 * `started`: The deployment is usable as at least one node has the model allocated.
 * `stopping`: The deployment is preparing to stop and deallocate the model from the relevant nodes.
 --
+
+`queue_capacity`:::
+(integer)
+The number of inference requests that may be queued before new requests are
+rejected.
 
 =====
 

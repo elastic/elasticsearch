@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -100,6 +101,7 @@ public class CompositeRolesStore {
     private final AtomicLong numInvalidation = new AtomicLong();
     private final RoleDescriptorStore roleReferenceResolver;
     private final Role superuserRole;
+    private final Role xpackSecurityRole;
     private final Role xpackUserRole;
     private final Role asyncSearchUserRole;
     private final Automaton restrictedIndicesAutomaton;
@@ -149,6 +151,7 @@ public class CompositeRolesStore {
         this.restrictedIndicesAutomaton = resolver.getSystemNameAutomaton();
         this.superuserRole = Role.builder(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton)
             .build();
+        xpackSecurityRole = Role.builder(XPackSecurityUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
         xpackUserRole = Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
         asyncSearchUserRole = Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
 
@@ -211,11 +214,14 @@ public class CompositeRolesStore {
         }, roleActionListener::onFailure));
     }
 
-    private Role tryGetRoleForInternalUser(Subject subject) {
+    // Accessible by tests
+    Role tryGetRoleForInternalUser(Subject subject) {
         // we need to special case the internal users in this method, if we apply the anonymous roles to every user including these system
         // user accounts then we run into the chance of a deadlock because then we need to get a role that we may be trying to get as the
-        // internal user. The SystemUser is special cased as it has special privileges to execute internal actions and should never be
-        // passed into this method. The XPackSecurityUser has the Superuser role and we can simply return that
+        // internal user.
+        // The SystemUser is special cased as it has special privileges to execute internal actions and should never be passed into this
+        // method.
+        // The other internal users have directly assigned roles that are handled with special cases here
         final User user = subject.getUser();
         if (SystemUser.is(user)) {
             throw new IllegalArgumentException(
@@ -227,7 +233,7 @@ public class CompositeRolesStore {
             return xpackUserRole;
         }
         if (XPackSecurityUser.is(user)) {
-            return superuserRole;
+            return xpackSecurityRole;
         }
         if (AsyncSearchUser.is(user)) {
             return asyncSearchUserRole;
@@ -264,9 +270,36 @@ public class CompositeRolesStore {
                         roleActionListener
                     );
                 }
-            }, roleActionListener::onFailure));
+            }, e -> {
+                // Because superuser does not have write access to restricted indices, it is valid to mix superuser with other roles to
+                // gain addition access. However, if retrieving those roles fails for some reason, then that could leave admins in a
+                // situation where they are unable to administer their cluster (in order to resolve the problem that is leading to failures
+                // in role retrieval). So if a role reference includes superuser, but role retrieval failed, we fallback to the static
+                // superuser role.
+                if (includesSuperuserRole(roleReference)) {
+                    logger.warn(
+                        new ParameterizedMessage(
+                            "there was a failure resolving the roles [{}], falling back to the [{}] role instead",
+                            roleReference.id(),
+                            Strings.arrayToCommaDelimitedString(superuserRole.names())
+                        ),
+                        e
+                    );
+                    roleActionListener.onResponse(superuserRole);
+                } else {
+                    roleActionListener.onFailure(e);
+                }
+            }));
         } else {
             roleActionListener.onResponse(existing);
+        }
+    }
+
+    private boolean includesSuperuserRole(RoleReference roleReference) {
+        if (roleReference instanceof RoleReference.NamedRoleReference namedRoles) {
+            return Arrays.asList(namedRoles.getRoleNames()).contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
+        } else {
+            return false;
         }
     }
 

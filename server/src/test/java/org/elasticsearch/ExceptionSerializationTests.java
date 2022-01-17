@@ -19,7 +19,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.VersionMismatchException;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
-import org.elasticsearch.client.AbstractClientHeadersTestCase;
+import org.elasticsearch.client.internal.AbstractClientHeadersTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.CoordinationStateRejectedException;
@@ -410,12 +410,10 @@ public class ExceptionSerializationTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("thenode", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
         ConnectTransportException ex = serialize(new ConnectTransportException(node, "msg", "action", null));
         assertEquals("[][" + transportAddress + "][action] msg", ex.getMessage());
-        assertEquals(node, ex.node());
         assertNull(ex.getCause());
 
         ex = serialize(new ConnectTransportException(node, "msg", "action", new NullPointerException()));
         assertEquals("[][" + transportAddress + "][action] msg", ex.getMessage());
-        assertEquals(node, ex.node());
         assertTrue(ex.getCause() instanceof NullPointerException);
     }
 
@@ -490,9 +488,11 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testNotSerializableExceptionWrapper() throws IOException {
         NotSerializableExceptionWrapper ex = serialize(new NotSerializableExceptionWrapper(new NullPointerException()));
-        assertEquals("{\"type\":\"null_pointer_exception\",\"reason\":\"null_pointer_exception: null\"}", Strings.toString(ex));
+        assertEquals("""
+            {"type":"null_pointer_exception","reason":"null_pointer_exception: null"}""", Strings.toString(ex));
         ex = serialize(new NotSerializableExceptionWrapper(new IllegalArgumentException("nono!")));
-        assertEquals("{\"type\":\"illegal_argument_exception\",\"reason\":\"illegal_argument_exception: nono!\"}", Strings.toString(ex));
+        assertEquals("""
+            {"type":"illegal_argument_exception","reason":"illegal_argument_exception: nono!"}""", Strings.toString(ex));
 
         class UnknownException extends Exception {
             UnknownException(final String message) {
@@ -754,7 +754,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(90, org.elasticsearch.index.engine.RefreshFailedEngineException.class);
         ids.put(91, org.elasticsearch.search.aggregations.AggregationInitializationException.class);
         ids.put(92, org.elasticsearch.indices.recovery.DelayRecoveryException.class);
-        ids.put(94, org.elasticsearch.client.transport.NoNodeAvailableException.class);
+        ids.put(94, org.elasticsearch.client.internal.transport.NoNodeAvailableException.class);
         ids.put(95, null);
         ids.put(96, org.elasticsearch.snapshots.InvalidSnapshotNameException.class);
         ids.put(97, org.elasticsearch.index.shard.IllegalIndexShardStateException.class);

@@ -15,7 +15,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -251,7 +252,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                 remoteAliases,
                                 (cn) -> remoteClusterService.getConnection(cn).getVersion()
                             );
-                            createDataExtractor(job, datafeedConfigHolder.get(), params, waitForTaskListener);
+                            createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
                         }
                     },
                         e -> listener.onFailure(
@@ -264,7 +265,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     )
                 );
             } else {
-                createDataExtractor(job, datafeedConfigHolder.get(), params, waitForTaskListener);
+                createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
             }
         };
 
@@ -343,13 +344,14 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
     /** Creates {@link DataExtractorFactory} solely for the purpose of validation i.e. verifying that it can be created. */
     private void createDataExtractor(
+        Task task,
         Job job,
         DatafeedConfig datafeed,
         StartDatafeedAction.DatafeedParams params,
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> listener
     ) {
         DataExtractorFactory.create(
-            client,
+            new ParentTaskAssigningClient(client, clusterService.localNode(), task),
             datafeed,
             job,
             xContentRegistry,
@@ -537,16 +539,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 return;
             }
             switch (datafeedTask.setDatafeedRunner(datafeedRunner)) {
-                case NEITHER:
-                    datafeedRunner.run(datafeedTask, datafeedTask::completeOrFailIfRequired);
-                    break;
-                case ISOLATED:
-                    logger.info("[{}] datafeed isolated immediately after reassignment.", params.getDatafeedId());
-                    break;
-                case STOPPED:
+                case NEITHER -> datafeedRunner.run(datafeedTask, datafeedTask::completeOrFailIfRequired);
+                case ISOLATED -> logger.info("[{}] datafeed isolated immediately after reassignment.", params.getDatafeedId());
+                case STOPPED -> {
                     logger.info("[{}] datafeed stopped immediately after reassignment. Marking as completed", params.getDatafeedId());
                     datafeedTask.completeOrFailIfRequired(null);
-                    break;
+                }
             }
         }
 
@@ -692,10 +690,14 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     // reasonable to say real-time running hasn't started yet. The state will quickly
                     // change once the datafeed runner gets going and determines where the datafeed is up
                     // to.
-                    return new GetDatafeedRunningStateAction.Response.RunningState(endTime == null, false);
+                    return new GetDatafeedRunningStateAction.Response.RunningState(endTime == null, false, null);
                 }
             }
-            return new GetDatafeedRunningStateAction.Response.RunningState(endTime == null, datafeedRunner.finishedLookBack(this));
+            return new GetDatafeedRunningStateAction.Response.RunningState(
+                endTime == null,
+                datafeedRunner.finishedLookBack(this),
+                datafeedRunner.getSearchInterval(this)
+            );
         }
     }
 

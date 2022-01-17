@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security.action.user;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;

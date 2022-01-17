@@ -112,19 +112,20 @@ public class SlackActionTests extends ESTestCase {
             HttpRequest request = mock(HttpRequest.class);
             int randomInt = randomIntBetween(0, 2);
             switch (randomInt) {
-                case 0:
+                case 0 -> {
                     messages.add(SentMessages.SentMessage.error(randomAlphaOfLength(10), message, new Exception("unknown error")));
                     hasError = true;
-                    break;
-                case 1:
+                }
+                case 1 -> {
                     when(response.status()).thenReturn(randomIntBetween(300, 600)); // error response
                     messages.add(SentMessages.SentMessage.responded(randomAlphaOfLength(10), message, request, response));
                     hasError = true;
-                    break;
-                case 2:
+                }
+                case 2 -> {
                     when(response.status()).thenReturn(randomIntBetween(200, 299)); // success
                     messages.add(SentMessages.SentMessage.responded(randomAlphaOfLength(10), message, request, response));
                     hasSuccess = true;
+                }
             }
         }
         SentMessages sentMessages = new SentMessages(accountName, messages);

@@ -30,6 +30,7 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
     private final Logger logger;
     private final String clusterName;
     private final PostStartBasicRequest request;
+    private final String description;
     private final ActionListener<PostStartBasicResponse> listener;
     private final Clock clock;
     private AtomicReference<Map<String, String[]>> ackMessages = new AtomicReference<>(Collections.emptyMap());
@@ -39,11 +40,13 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
         String clusterName,
         Clock clock,
         PostStartBasicRequest request,
+        String description,
         ActionListener<PostStartBasicResponse> listener
     ) {
         this.logger = logger;
         this.clusterName = clusterName;
         this.request = request;
+        this.description = description;
         this.listener = listener;
         this.clock = clock;
     }
@@ -73,9 +76,9 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
         if (shouldGenerateNewBasicLicense(currentLicense)) {
             License selfGeneratedLicense = generateBasicLicense(currentState);
             if (request.isAcknowledged() == false && currentLicense != null) {
-                Map<String, String[]> ackMessages = LicenseService.getAckMessages(selfGeneratedLicense, currentLicense);
-                if (ackMessages.isEmpty() == false) {
-                    this.ackMessages.set(ackMessages);
+                Map<String, String[]> ackMessageMap = LicenseService.getAckMessages(selfGeneratedLicense, currentLicense);
+                if (ackMessageMap.isEmpty() == false) {
+                    this.ackMessages.set(ackMessageMap);
                     return currentState;
                 }
             }
@@ -90,8 +93,8 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void onFailure(String source, @Nullable Exception e) {
-        logger.error(new ParameterizedMessage("unexpected failure during [{}]", source), e);
+    public void onFailure(@Nullable Exception e) {
+        logger.error(new ParameterizedMessage("unexpected failure during [{}]", description), e);
         listener.onFailure(e);
     }
 
@@ -112,5 +115,9 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
             .expiryDate(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS);
 
         return SelfGeneratedLicense.create(specBuilder, currentState.nodes());
+    }
+
+    public String getDescription() {
+        return description;
     }
 }

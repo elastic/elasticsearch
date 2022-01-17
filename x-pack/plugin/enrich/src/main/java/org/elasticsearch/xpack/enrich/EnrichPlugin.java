@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -168,7 +168,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
+        Settings unused,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -260,7 +260,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings unused) {
         return Collections.singletonList(
             new SystemIndexDescriptor(ENRICH_INDEX_PATTERN, "Contains data to support enrich ingest processors.")
         );

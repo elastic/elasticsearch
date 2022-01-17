@@ -185,11 +185,9 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(false));
 
-        assertEquals(
-            "{\"field\":{\"type\":\"completion\",\"analyzer\":\"simple\",\"search_analyzer\":\"standard\","
-                + "\"preserve_separators\":false,\"preserve_position_increments\":true,\"max_input_length\":50}}",
-            Strings.toString(fieldMapper)
-        );
+        assertEquals("""
+            {"field":{"type":"completion","analyzer":"simple","search_analyzer":"standard",\
+            "preserve_separators":false,"preserve_position_increments":true,"max_input_length":50}}""", Strings.toString(fieldMapper));
     }
 
     @SuppressWarnings("unchecked")

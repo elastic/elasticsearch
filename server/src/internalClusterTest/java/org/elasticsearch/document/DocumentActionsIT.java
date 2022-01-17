@@ -29,10 +29,10 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 
 import static org.elasticsearch.action.DocWriteRequest.OpType;
-import static org.elasticsearch.client.Requests.clearIndicesCacheRequest;
-import static org.elasticsearch.client.Requests.getRequest;
-import static org.elasticsearch.client.Requests.indexRequest;
-import static org.elasticsearch.client.Requests.refreshRequest;
+import static org.elasticsearch.client.internal.Requests.clearIndicesCacheRequest;
+import static org.elasticsearch.client.internal.Requests.getRequest;
+import static org.elasticsearch.client.internal.Requests.indexRequest;
+import static org.elasticsearch.client.internal.Requests.refreshRequest;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;

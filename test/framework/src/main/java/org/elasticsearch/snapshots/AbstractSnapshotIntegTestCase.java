@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -228,7 +229,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static void blockMasterOnShardLevelSnapshotFile(final String repositoryName, String indexId) {
-        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).setBlockAndOnWriteShardLevelSnapFiles(indexId);
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).setBlockOnShardLevelSnapFiles(indexId);
     }
 
     @SuppressWarnings("unchecked")
@@ -437,14 +438,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return snapshotInfo;
     }
 
-    protected SnapshotInfo createSnapshot(String repositoryName, String snapshot, List<String> indices) {
+    protected SnapshotInfo createSnapshot(String repositoryName, String snapshot, List<String> indices, List<String> featureStates) {
         logger.info("--> creating snapshot [{}] of {} in [{}]", snapshot, indices, repositoryName);
         final CreateSnapshotResponse response = client().admin()
             .cluster()
             .prepareCreateSnapshot(repositoryName, snapshot)
             .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
             .setWaitForCompletion(true)
-            .setFeatureStates(NO_FEATURE_STATES_VALUE) // Exclude all feature states to ensure only specified indices are included
+            .setFeatureStates(featureStates.toArray(Strings.EMPTY_ARRAY))
             .get();
 
         final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
@@ -452,6 +453,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.failedShards(), equalTo(0));
         return snapshotInfo;
+    }
+
+    protected SnapshotInfo createSnapshot(String repositoryName, String snapshot, List<String> indices) {
+        return createSnapshot(repositoryName, snapshot, indices, Collections.singletonList(NO_FEATURE_STATES_VALUE));
     }
 
     protected void createIndexWithRandomDocs(String indexName, int docCount) throws InterruptedException {
@@ -641,7 +646,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 future.onFailure(e);
             }
 
@@ -649,7 +654,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 future.onResponse(null);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
         future.get();
     }
 
@@ -724,31 +729,15 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         if (sort == null) {
             assertion = (s1, s2) -> assertThat(s2, greaterThanOrEqualTo(s1));
         } else {
-            switch (sort) {
-                case START_TIME:
-                    assertion = (s1, s2) -> assertThat(s2.startTime(), greaterThanOrEqualTo(s1.startTime()));
-                    break;
-                case NAME:
-                    assertion = (s1, s2) -> assertThat(s2.snapshotId().getName(), greaterThanOrEqualTo(s1.snapshotId().getName()));
-                    break;
-                case DURATION:
-                    assertion = (s1, s2) -> assertThat(s2.endTime() - s2.startTime(), greaterThanOrEqualTo(s1.endTime() - s1.startTime()));
-                    break;
-                case INDICES:
-                    assertion = (s1, s2) -> assertThat(s2.indices().size(), greaterThanOrEqualTo(s1.indices().size()));
-                    break;
-                case SHARDS:
-                    assertion = (s1, s2) -> assertThat(s2.totalShards(), greaterThanOrEqualTo(s1.totalShards()));
-                    break;
-                case FAILED_SHARDS:
-                    assertion = (s1, s2) -> assertThat(s2.failedShards(), greaterThanOrEqualTo(s1.failedShards()));
-                    break;
-                case REPOSITORY:
-                    assertion = (s1, s2) -> assertThat(s2.repository(), greaterThanOrEqualTo(s1.repository()));
-                    break;
-                default:
-                    throw new AssertionError("unknown sort column [" + sort + "]");
-            }
+            assertion = switch (sort) {
+                case START_TIME -> (s1, s2) -> assertThat(s2.startTime(), greaterThanOrEqualTo(s1.startTime()));
+                case NAME -> (s1, s2) -> assertThat(s2.snapshotId().getName(), greaterThanOrEqualTo(s1.snapshotId().getName()));
+                case DURATION -> (s1, s2) -> assertThat(s2.endTime() - s2.startTime(), greaterThanOrEqualTo(s1.endTime() - s1.startTime()));
+                case INDICES -> (s1, s2) -> assertThat(s2.indices().size(), greaterThanOrEqualTo(s1.indices().size()));
+                case SHARDS -> (s1, s2) -> assertThat(s2.totalShards(), greaterThanOrEqualTo(s1.totalShards()));
+                case FAILED_SHARDS -> (s1, s2) -> assertThat(s2.failedShards(), greaterThanOrEqualTo(s1.failedShards()));
+                case REPOSITORY -> (s1, s2) -> assertThat(s2.repository(), greaterThanOrEqualTo(s1.repository()));
+            };
         }
         final BiConsumer<SnapshotInfo, SnapshotInfo> orderAssertion;
         if (sortOrder == SortOrder.ASC) {

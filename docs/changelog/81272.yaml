@@ -1,0 +1,5 @@
+pr: 81272
+summary: Add date fields to the scripting fields api
+area: Infra/Scripting
+type: enhancement
+issues: []

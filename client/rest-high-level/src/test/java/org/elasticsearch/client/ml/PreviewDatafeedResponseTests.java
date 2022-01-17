@@ -32,26 +32,27 @@ public class PreviewDatafeedResponseTests extends ESTestCase {
     }
 
     public void testGetDataList() throws IOException {
-        String rawData = "[\n"
-            + "  {\n"
-            + "    \"time\": 1454803200000,\n"
-            + "    \"airline\": \"JZA\",\n"
-            + "    \"doc_count\": 5,\n"
-            + "    \"responsetime\": 990.4628295898438\n"
-            + "  },\n"
-            + "  {\n"
-            + "    \"time\": 1454803200000,\n"
-            + "    \"airline\": \"JBU\",\n"
-            + "    \"doc_count\": 23,\n"
-            + "    \"responsetime\": 877.5927124023438\n"
-            + "  },\n"
-            + "  {\n"
-            + "    \"time\": 1454803200000,\n"
-            + "    \"airline\": \"KLM\",\n"
-            + "    \"doc_count\": 42,\n"
-            + "    \"responsetime\": 1355.481201171875\n"
-            + "  }\n"
-            + "]";
+        String rawData = """
+            [
+              {
+                "time": 1454803200000,
+                "airline": "JZA",
+                "doc_count": 5,
+                "responsetime": 990.4628295898438
+              },
+              {
+                "time": 1454803200000,
+                "airline": "JBU",
+                "doc_count": 23,
+                "responsetime": 877.5927124023438
+              },
+              {
+                "time": 1454803200000,
+                "airline": "KLM",
+                "doc_count": 42,
+                "responsetime": 1355.481201171875
+              }
+            ]""";
         BytesReference bytes = new BytesArray(rawData);
         PreviewDatafeedResponse response = new PreviewDatafeedResponse(bytes);
         assertThat(

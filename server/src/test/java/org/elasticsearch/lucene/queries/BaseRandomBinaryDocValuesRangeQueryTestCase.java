@@ -19,10 +19,10 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CONTAINS;
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CROSSES;
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.WITHIN;
+import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CONTAINS;
+import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CROSSES;
+import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
+import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.WITHIN;
 
 public abstract class BaseRandomBinaryDocValuesRangeQueryTestCase extends BaseRangeFieldQueryTestCase {
 

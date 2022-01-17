@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -95,10 +96,8 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
         InternalVariableWidthHistogram.EmptyBucketInfo emptyBucketInfo = instance.getEmptyBucketInfo();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
                 buckets = new ArrayList<>(buckets);
                 double boundMin = randomDouble();
                 double boundMax = Math.abs(boundMin) * 2;
@@ -111,8 +110,8 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
                         InternalAggregations.EMPTY
                     )
                 );
-                break;
-            case 2:
+            }
+            case 2 -> {
                 emptyBucketInfo = null;
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
@@ -120,9 +119,8 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalVariableWidthHistogram(name, buckets, emptyBucketInfo, targetBuckets, format, metadata);
     }
@@ -153,7 +151,7 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
             DEFAULT_MAX_BUCKETS,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
         );
-        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
             bucketConsumer,
@@ -207,7 +205,7 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
             DEFAULT_MAX_BUCKETS,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
         );
-        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
             bucketConsumer,
@@ -297,7 +295,7 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
             DEFAULT_MAX_BUCKETS,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
         );
-        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
             bucketConsumer,
@@ -353,7 +351,7 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
             DEFAULT_MAX_BUCKETS,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
         );
-        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
             bucketConsumer,
@@ -414,7 +412,7 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
             DEFAULT_MAX_BUCKETS,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
         );
-        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
             bucketConsumer,

@@ -17,8 +17,8 @@ import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -716,6 +716,11 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return map -> {
             map.keySet().removeIf(name -> name.startsWith("watch_history_"));
+            // watcher migrated to using system indices so these legacy templates are not needed anymore
+            map.remove(".watches");
+            map.remove(".triggered_watches");
+            // post 7.x we moved to typeless watch-history-10
+            map.remove(".watch-history-9");
             return map;
         };
     }

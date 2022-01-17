@@ -46,8 +46,8 @@ public class ActionTransportException extends TransportException {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getVersion().before(Version.V_8_1_0)) {
-            out.writeBoolean(false); // optional transport address
-            out.writeBoolean(false); // optional action
+            out.writeMissingWriteable(TransportAddress.class);
+            out.writeMissingString(); // action
         }
     }
 

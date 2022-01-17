@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -25,6 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -383,18 +382,13 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
          * @return state
          */
         public static State fromValue(byte value) {
-            switch (value) {
-                case 0:
-                    return INIT;
-                case 1:
-                    return STARTED;
-                case 2:
-                    return SUCCESS;
-                case 3:
-                    return FAILURE;
-                default:
-                    throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
-            }
+            return switch (value) {
+                case 0 -> INIT;
+                case 1 -> STARTED;
+                case 2 -> SUCCESS;
+                case 3 -> FAILURE;
+                default -> throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
+            };
         }
     }
 
@@ -480,9 +474,9 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         builder.endArray();
         builder.startArray("shards");
         {
-            for (ObjectObjectCursor<ShardId, ShardRestoreStatus> shardEntry : entry.shards) {
-                ShardId shardId = shardEntry.key;
-                ShardRestoreStatus status = shardEntry.value;
+            for (Map.Entry<ShardId, ShardRestoreStatus> shardEntry : entry.shards.entrySet()) {
+                ShardId shardId = shardEntry.getKey();
+                ShardRestoreStatus status = shardEntry.getValue();
                 builder.startObject();
                 {
                     builder.field("index", shardId.getIndex());

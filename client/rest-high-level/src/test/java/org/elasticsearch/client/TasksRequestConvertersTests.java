@@ -72,7 +72,7 @@ public class TasksRequestConvertersTests extends ESTestCase {
             if (randomBoolean()) {
                 if (randomBoolean()) {
                     TaskId taskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
-                    request.setParentTaskId(taskId);
+                    request.setTargetParentTaskId(taskId);
                     expectedParams.put("parent_task_id", taskId.toString());
                 } else {
                     request.setParentTask(TaskId.EMPTY_TASK_ID);
@@ -102,12 +102,12 @@ public class TasksRequestConvertersTests extends ESTestCase {
         }
         {
             ListTasksRequest request = new ListTasksRequest();
-            request.setTaskId(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()));
+            request.setTargetTaskId(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()));
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
                 () -> TasksRequestConverters.listTasks(request)
             );
-            assertEquals("TaskId cannot be used for list tasks request", exception.getMessage());
+            assertEquals("TargetTaskId cannot be used for list tasks request", exception.getMessage());
         }
     }
 }

@@ -87,28 +87,19 @@ public class Shell {
     public void chown(Path path, String newOwner) throws Exception {
         logger.info("Chowning " + path + " to " + newOwner);
         Platforms.onLinux(() -> run("chown -R elasticsearch:elasticsearch " + path));
-        Platforms.onWindows(
-            () -> run(
-                String.format(
-                    Locale.ROOT,
-                    "$account = New-Object System.Security.Principal.NTAccount '%s'; "
-                        + "$pathInfo = Get-Item '%s'; "
-                        + "$toChown = @(); "
-                        + "if ($pathInfo.PSIsContainer) { "
-                        + "  $toChown += Get-ChildItem '%s' -Recurse; "
-                        + "}"
-                        + "$toChown += $pathInfo; "
-                        + "$toChown | ForEach-Object { "
-                        + "  $acl = Get-Acl $_.FullName; "
-                        + "  $acl.SetOwner($account); "
-                        + "  Set-Acl $_.FullName $acl "
-                        + "}",
-                    newOwner,
-                    path,
-                    path
-                )
-            )
-        );
+        Platforms.onWindows(() -> run(String.format(Locale.ROOT, """
+            $account = New-Object System.Security.Principal.NTAccount '%s';
+            $pathInfo = Get-Item '%s';
+            $toChown = @();
+            if ($pathInfo.PSIsContainer) {
+              $toChown += Get-ChildItem '%s' -Recurse;
+            }
+            $toChown += $pathInfo;
+            $toChown | ForEach-Object {
+              $acl = Get-Acl $_.FullName;
+              $acl.SetOwner($account);
+              Set-Acl $_.FullName $acl
+            }""", newOwner, path, path)));
     }
 
     public void extractZip(Path zipPath, Path destinationDir) throws Exception {

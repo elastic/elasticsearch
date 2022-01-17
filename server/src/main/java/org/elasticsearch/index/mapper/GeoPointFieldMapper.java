@@ -36,6 +36,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.field.GeoPointDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -198,12 +199,12 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     @Override
     protected void index(DocumentParserContext context, GeoPoint geometry) throws IOException {
-        if (fieldType().isSearchable()) {
+        if (fieldType().isIndexed()) {
             context.doc().add(new LatLonPoint(fieldType().name(), geometry.lat(), geometry.lon()));
         }
         if (fieldType().hasDocValues()) {
             context.doc().add(new LatLonDocValuesField(fieldType().name(), geometry.lat(), geometry.lon()));
-        } else if (fieldType().isStored() || fieldType().isSearchable()) {
+        } else if (fieldType().isStored() || fieldType().isIndexed()) {
             context.addToFieldNames(fieldType().name());
         }
         if (fieldType().isStored()) {
@@ -304,7 +305,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new AbstractLatLonPointIndexFieldData.Builder(name(), CoreValuesSourceType.GEOPOINT);
+            return new AbstractLatLonPointIndexFieldData.Builder(name(), CoreValuesSourceType.GEOPOINT, GeoPointDocValuesField::new);
         }
 
         @Override
@@ -367,6 +368,12 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         @Override
         protected void reset(GeoPoint in, double x, double y) {
             in.reset(y, x);
+        }
+
+        @Override
+        public GeoPoint normalizeFromSource(GeoPoint point) {
+            // normalize during parsing
+            return point;
         }
     }
 }

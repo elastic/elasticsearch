@@ -13,12 +13,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -53,12 +52,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         ScriptService scriptService,
         ClusterService clusterService
     ) {
-        super(
-            UpdateByQueryAction.NAME,
-            transportService,
-            actionFilters,
-            (Writeable.Reader<UpdateByQueryRequest>) UpdateByQueryRequest::new
-        );
+        super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new);
         this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;

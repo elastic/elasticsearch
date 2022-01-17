@@ -11,6 +11,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
@@ -194,8 +196,7 @@ public interface DocValueFormat extends NamedWriteable {
     };
 
     static DocValueFormat withNanosecondResolution(final DocValueFormat format) {
-        if (format instanceof DateTime) {
-            DateTime dateTime = (DateTime) format;
+        if (format instanceof DateTime dateTime) {
             return new DateTime(dateTime.formatter, dateTime.timeZone, DateFieldMapper.Resolution.NANOSECONDS, dateTime.formatSortValues);
         } else {
             throw new IllegalArgumentException("trying to convert a known date time formatter to a nanosecond one, wrong field used?");
@@ -203,8 +204,7 @@ public interface DocValueFormat extends NamedWriteable {
     }
 
     static DocValueFormat enableFormatSortValues(DocValueFormat format) {
-        if (format instanceof DateTime) {
-            DateTime dateTime = (DateTime) format;
+        if (format instanceof DateTime dateTime) {
             return new DateTime(dateTime.formatter, dateTime.timeZone, dateTime.resolution, true);
         }
         throw new IllegalArgumentException("require a date_time formatter; got [" + format.getWriteableName() + "]");
@@ -666,6 +666,33 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public double parseDouble(String value, boolean roundUp, LongSupplier now) {
             return Double.parseDouble(value);
+        }
+    };
+
+    DocValueFormat TIME_SERIES_ID = new TimeSeriesIdDocValueFormat();
+
+    /**
+     * DocValues format for time series id.
+     */
+    class TimeSeriesIdDocValueFormat implements DocValueFormat {
+        private TimeSeriesIdDocValueFormat() {}
+
+        @Override
+        public String getWriteableName() {
+            return "tsid";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
+        @Override
+        public String toString() {
+            return "tsid";
+        }
+
+        @Override
+        public Object format(BytesRef value) {
+            return TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(value).streamInput());
         }
     };
 }

@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -351,11 +351,11 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 failure.set(e);
                 latch.countDown();
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
 
         logger.debug("--> waiting for cluster state to be processed/rejected");
         latch.await();

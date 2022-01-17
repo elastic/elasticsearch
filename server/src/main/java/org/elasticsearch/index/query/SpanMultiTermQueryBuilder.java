@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.queries.SpanMatchNoDocsQuery;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClau
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -122,8 +122,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
         QueryBuilder multiTermQueryBuilder = Rewriteable.rewrite(this.multiTermQueryBuilder, context);
         if (multiTermQueryBuilder instanceof MatchNoneQueryBuilder) {
             return new SpanMatchNoDocsQuery(this.multiTermQueryBuilder.fieldName(), "Inner query rewrote to match_none");
-        } else if (multiTermQueryBuilder instanceof PrefixQueryBuilder) {
-            PrefixQueryBuilder prefixBuilder = (PrefixQueryBuilder) multiTermQueryBuilder;
+        } else if (multiTermQueryBuilder instanceof PrefixQueryBuilder prefixBuilder) {
             MappedFieldType fieldType = context.getFieldType(prefixBuilder.fieldName());
             if (fieldType == null) {
                 throw new IllegalStateException("Rewrite first");
@@ -135,8 +134,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                     null,
                     LoggingDeprecationHandler.INSTANCE
                 );
-                if (rewriteMethod instanceof TopTermsRewrite) {
-                    TopTermsRewrite<?> innerRewrite = (TopTermsRewrite<?>) rewriteMethod;
+                if (rewriteMethod instanceof TopTermsRewrite<?> innerRewrite) {
                     spanRewriteMethod = new SpanMultiTermQueryWrapper.TopTermsSpanBooleanQueryRewrite(innerRewrite.getSize());
                 } else {
                     spanRewriteMethod = new SpanBooleanQueryRewriteWithMaxClause();
@@ -150,8 +148,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
             while (true) {
                 if (subQuery instanceof ConstantScoreQuery) {
                     subQuery = ((ConstantScoreQuery) subQuery).getQuery();
-                } else if (subQuery instanceof BoostQuery) {
-                    BoostQuery boostQuery = (BoostQuery) subQuery;
+                } else if (subQuery instanceof BoostQuery boostQuery) {
                     subQuery = boostQuery.getQuery();
                 } else {
                     break;

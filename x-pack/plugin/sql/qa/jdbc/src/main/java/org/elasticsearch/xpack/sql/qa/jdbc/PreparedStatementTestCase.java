@@ -268,7 +268,8 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testWildcardField() throws IOException, SQLException {
-        String mapping = "\"properties\":{\"id\":{\"type\":\"integer\"},\"text\":{\"type\":\"wildcard\"}}";
+        String mapping = """
+            "properties":{"id":{"type":"integer"},"text":{"type":"wildcard"}}""";
         createIndex("test", Settings.EMPTY, mapping);
         String text = randomAlphaOfLengthBetween(1, 10);
 
@@ -298,7 +299,8 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testConstantKeywordField() throws IOException, SQLException {
-        String mapping = "\"properties\":{\"id\":{\"type\":\"integer\"},\"text\":{\"type\":\"constant_keyword\"}}";
+        String mapping = """
+            "properties":{"id":{"type":"integer"},"text":{"type":"constant_keyword"}}""";
         createIndex("test", Settings.EMPTY, mapping);
         String text = randomAlphaOfLengthBetween(1, 10);
 
@@ -467,11 +469,14 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     private static void setupIndexForDateTimeTests(long randomMillisOrNanos, boolean isNanos) throws IOException {
-        String mapping = "\"properties\":{\"id\":{\"type\":\"integer\"},";
+        String mapping = """
+            "properties":{"id":{"type":"integer"},""";
         if (isNanos) {
-            mapping += "\"test_date_nanos\":{\"type\":\"date_nanos\"}}";
+            mapping += """
+                "test_date_nanos":{"type":"date_nanos"}}""";
         } else {
-            mapping += "\"birth_date\":{\"type\":\"date\"}}";
+            mapping += """
+                "birth_date":{"type":"date"}}""";
         }
         createIndex("emps", Settings.EMPTY, mapping);
         for (int i = 1; i <= 3; i++) {

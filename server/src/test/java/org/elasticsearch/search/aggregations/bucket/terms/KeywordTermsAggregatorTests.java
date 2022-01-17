@@ -108,7 +108,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
                 Document document = new Document();
                 for (String value : dataset) {
                     document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(value)));
-                    if (keywordFieldType.isSearchable()) {
+                    if (keywordFieldType.isIndexed()) {
                         document.add(new Field(KEYWORD_FIELD, new BytesRef(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
                     }
                     indexWriter.addDocument(document);

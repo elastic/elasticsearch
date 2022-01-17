@@ -25,7 +25,7 @@ setup:
               - category: process
             "@timestamp": 2020-02-03T12:34:56Z
             user: SYSTEM
-            id: "123"
+            id: 123
             valid: false
             some_keyword: longer than normal
           - index:
@@ -35,7 +35,7 @@ setup:
               - category: process
             "@timestamp": 2020-02-04T12:34:56Z
             user: SYSTEM
-            id: "123"
+            id: 123
             valid: true
           - index:
               _index: eql_test
@@ -44,7 +44,7 @@ setup:
               - category: process
             "@timestamp": 2020-02-05T12:34:56Z
             user: SYSTEM
-            id: "123"
+            id: 123
             valid: true
           - index:
               _index: eql_test
@@ -53,7 +53,7 @@ setup:
               - category: network
             "@timestamp": 2020-02-06T12:34:56Z
             user: ADMIN
-            id: "123"
+            id: 123
             valid: true
           - index:
               _index: eql_test
@@ -62,7 +62,7 @@ setup:
               - category: network
             "@timestamp": 2020-02-07T12:34:56Z
             user: SYSTEM
-            id: "123"
+            id: 123
             valid: true
           - index:
               _index: eql_test
@@ -71,7 +71,7 @@ setup:
               - category: network
             "@timestamp": 2020-02-08T12:34:56Z
             user: ADMIN
-            id: "123"
+            id: 123
             valid: true
           - index:
               _index: eql_test
@@ -80,7 +80,7 @@ setup:
               - category: network
             "@timestamp": 2020-02-09T12:34:56Z
             user: SYSTEM
-            id: "123"
+            id: 123
             valid: true
 
 ---

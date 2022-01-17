@@ -17,6 +17,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -32,6 +33,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.hamcrest.Matcher;
@@ -341,6 +343,16 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             // Create API key
             final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
+            createApiKeyRequest.setOptions(
+                RequestOptions.DEFAULT.toBuilder()
+                    .addHeader(
+                        "Authorization",
+                        UsernamePasswordToken.basicAuthHeaderValue(
+                            "api_key_super_creator",
+                            new SecureString("l0ng-r4nd0m-p@ssw0rd".toCharArray())
+                        )
+                    )
+            );
             createApiKeyRequest.setJsonEntity("""
                 {
                    "name": "super_legacy_key"
@@ -397,10 +409,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         + "version, direct access to system indices will be prevented by default"
                 ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
             );
-            // TODO: uncomment when #81400 is merged
-            // final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(indexRequest));
-            // assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            // assertThat(e.getMessage(), containsString("is unauthorized"));
+            final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(indexRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(e.getMessage(), containsString("is unauthorized"));
         }
     }
 

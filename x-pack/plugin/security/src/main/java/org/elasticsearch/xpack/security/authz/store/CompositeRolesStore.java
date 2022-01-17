@@ -119,6 +119,7 @@ public class CompositeRolesStore {
     private final ServiceAccountService serviceAccountService;
     private final boolean isAnonymousEnabled;
     private final Role superuserRole;
+    private final Role xpackSecurityRole;
     private final Role xpackUserRole;
     private final Role asyncSearchUserRole;
     private final Automaton restrictedIndicesAutomaton;
@@ -175,6 +176,7 @@ public class CompositeRolesStore {
         this.restrictedIndicesAutomaton = resolver.getSystemNameAutomaton();
         this.superuserRole = Role.builder(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton)
             .build();
+        xpackSecurityRole = Role.builder(XPackSecurityUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
         xpackUserRole = Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
         asyncSearchUserRole = Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
     }
@@ -227,7 +229,26 @@ public class CompositeRolesStore {
                     invalidationCounter,
                     roleActionListener
                 );
-            }, roleActionListener::onFailure));
+            }, e -> {
+                // Because superuser does not have write access to restricted indices, it is valid to mix superuser with other roles to
+                // gain addition access. However, if retrieving those roles fails for some reason, then that could leave admins in a
+                // situation where they are unable to administer their cluster (in order to resolve the problem that is leading to failures
+                // in role retrieval). So if a role reference includes superuser, but role retrieval failed, we fallback to the static
+                // superuser role.
+                if (includesSuperuserRole(roleNames)) {
+                    logger.warn(
+                        new ParameterizedMessage(
+                            "there was a failure resolving the roles [{}], falling back to the [{}] role instead",
+                            Strings.collectionToCommaDelimitedString(roleNames),
+                            Strings.arrayToCommaDelimitedString(superuserRole.names())
+                        ),
+                        e
+                    );
+                    roleActionListener.onResponse(superuserRole);
+                } else {
+                    roleActionListener.onFailure(e);
+                }
+            }));
         }
     }
 
@@ -253,6 +274,11 @@ public class CompositeRolesStore {
     }
 
     // for testing
+    Role getXpackSecurityRole() {
+        return xpackSecurityRole;
+    }
+
+    // for testing
     Role getAsyncSearchUserRole() {
         return asyncSearchUserRole;
     }
@@ -273,7 +299,7 @@ public class CompositeRolesStore {
             return;
         }
         if (XPackSecurityUser.is(user)) {
-            roleActionListener.onResponse(superuserRole);
+            roleActionListener.onResponse(xpackSecurityRole);
             return;
         }
         if (AsyncSearchUser.is(user)) {
@@ -296,12 +322,16 @@ public class CompositeRolesStore {
 
             if (roleNames.isEmpty()) {
                 roleActionListener.onResponse(Role.EMPTY);
-            } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
+            } else if (roleNames.size() == 1 && includesSuperuserRole(roleNames)) {
                 roleActionListener.onResponse(superuserRole);
             } else {
                 roles(roleNames, roleActionListener);
             }
         }
+    }
+
+    private boolean includesSuperuserRole(Set<String> roleNames) {
+        return roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
     }
 
     private void getRolesForServiceAccount(Authentication authentication, ActionListener<Role> roleActionListener) {

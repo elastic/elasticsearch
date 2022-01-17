@@ -203,13 +203,14 @@ public abstract class TransportNodesAction<
         return transportNodeAction;
     }
 
-    class AsyncAction {
+    class AsyncAction implements CancellableTask.CancellationListener {
 
         private final NodesRequest request;
         private final ActionListener<NodesResponse> listener;
         private final AtomicReferenceArray<Object> responses;
         private final AtomicInteger counter = new AtomicInteger();
         private final Task task;
+        private volatile boolean cancelled = false;
 
         AsyncAction(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
             this.task = task;
@@ -223,6 +224,12 @@ public abstract class TransportNodesAction<
         }
 
         void start() {
+            if (task instanceof CancellableTask cancellableTask) {
+                if (cancellableTask.registerListener(this) == false) {
+                    cancellableTask.notifyIfCancelled(listener);
+                    return;
+                }
+            }
             final DiscoveryNode[] nodes = request.concreteNodes();
             if (nodes.length == 0) {
                 finishHim();
@@ -273,27 +280,39 @@ public abstract class TransportNodesAction<
         }
 
         private void onOperation(int idx, NodeResponse nodeResponse) {
-            responses.set(idx, nodeResponse);
+            if (cancelled == false) {
+                responses.set(idx, nodeResponse);
+            }
             if (counter.incrementAndGet() == responses.length()) {
                 finishHim();
             }
         }
 
         private void onFailure(int idx, String nodeId, Throwable t) {
-            logger.debug(new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
-            responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
+            if (cancelled == false) {
+                logger.debug(new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
+                responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
+            }
             if (counter.incrementAndGet() == responses.length()) {
                 finishHim();
             }
         }
 
         private void finishHim() {
-            if (task instanceof CancellableTask && ((CancellableTask) task).notifyIfCancelled(listener)) {
+            if (cancelled) {
                 return;
             }
 
             final String executor = finalExecutor.equals(ThreadPool.Names.SAME) ? ThreadPool.Names.GENERIC : finalExecutor;
             threadPool.executor(executor).execute(() -> newResponse(task, request, responses, listener));
+        }
+
+        @Override
+        public void onCancelled() {
+            cancelled = (task instanceof CancellableTask t) && t.notifyIfCancelled(listener);
+            for (int i = 0; i < responses.length(); i++) {
+                responses.set(i, null);
+            }
         }
     }
 

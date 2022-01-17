@@ -256,7 +256,7 @@ public abstract class TransportBroadcastByNodeAction<
         new AsyncAction(task, request, listener).start();
     }
 
-    protected class AsyncAction {
+    protected class AsyncAction implements CancellableTask.CancellationListener {
         private final Task task;
         private final Request request;
         private final ActionListener<Response> listener;
@@ -266,6 +266,7 @@ public abstract class TransportBroadcastByNodeAction<
         private final AtomicReferenceArray<Object> responses;
         private final AtomicInteger counter = new AtomicInteger();
         private final int unavailableShardCount;
+        private volatile boolean cancelled = false;
 
         protected AsyncAction(Task task, Request request, ActionListener<Response> listener) {
             this.task = task;
@@ -316,6 +317,12 @@ public abstract class TransportBroadcastByNodeAction<
         }
 
         public void start() {
+            if (task instanceof CancellableTask cancellableTask) {
+                if (cancellableTask.registerListener(this) == false) {
+                    cancellableTask.notifyIfCancelled(listener);
+                    return;
+                }
+            }
             if (nodeIds.size() == 0) {
                 try {
                     onCompletion();
@@ -369,6 +376,10 @@ public abstract class TransportBroadcastByNodeAction<
         }
 
         protected void onNodeResponse(DiscoveryNode node, int nodeIndex, NodeResponse response) {
+            if (cancelled) {
+                return;
+            }
+
             if (logger.isTraceEnabled()) {
                 logger.trace("received response for [{}] from node [{}]", actionName, node.getId());
             }
@@ -384,6 +395,10 @@ public abstract class TransportBroadcastByNodeAction<
         }
 
         protected void onNodeFailure(DiscoveryNode node, int nodeIndex, Throwable t) {
+            if (cancelled) {
+                return;
+            }
+
             String nodeId = node.getId();
             logger.debug(new ParameterizedMessage("failed to execute [{}] on node [{}]", actionName, nodeId), t);
 
@@ -398,7 +413,7 @@ public abstract class TransportBroadcastByNodeAction<
         }
 
         protected void onCompletion() {
-            if (task instanceof CancellableTask && ((CancellableTask) task).notifyIfCancelled(listener)) {
+            if (cancelled) {
                 return;
             }
 
@@ -415,6 +430,14 @@ public abstract class TransportBroadcastByNodeAction<
                 } catch (Exception e) {
                     listener.onFailure(e);
                 }
+            }
+        }
+
+        @Override
+        public void onCancelled() {
+            cancelled = (task instanceof CancellableTask t) && t.notifyIfCancelled(listener);
+            for (int i = 0; i < responses.length(); i++) {
+                responses.set(i, null);
             }
         }
     }

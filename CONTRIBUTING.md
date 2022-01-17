@@ -477,7 +477,7 @@ so please use it as a last resort.
 The Elasticsearch server logs are vitally useful for diagnosing problems in a
 running cluster. You should make sure that your contribution uses logging
 appropriately: log enough detail to inform users about key events and help them
-understand what happened when things go wrong, without logging so much detail
+understand what happened when things go wrong without logging so much detail
 that the logs fill up with noise and the useful signal is lost.
 
 Elasticsearch uses Log4J for logging. In most cases you should log via a
@@ -497,8 +497,8 @@ from the static part of the message:
 
     logger.debug("operation failed [{}] times in [{}]ms", failureCount, elapsedMillis);
 
-You can also pass in an exception to log it including its stack trace (and
-causes and so on...):
+You can also pass in an exception to log it including its stack trace, and any
+causes and their causes, as well as any suppressed exceptions and so on:
 
     logger.debug("operation failed", exception);
 
@@ -608,7 +608,7 @@ complete stack trace.
 
 This is the next least verbose level, and the first level that is enabled by
 default. It is appropriate for recording important events in the life of the
-cluster, such as an index being created or deleted, or a snapshot starting or
+cluster, such as an index being created or deleted or a snapshot starting or
 completing. Users will mostly ignore log messages at `INFO` level, but may use
 these messages to construct a high-level timeline of events leading up to an
 incident.
@@ -663,7 +663,7 @@ threshold has been breached:
 Unlike at the `INFO` level, it is often appropriate to log an exception,
 complete with stack trace, at `WARN` level. Although the stack trace may not be
 useful to the user, it may contain information that is vital for a developer to
-fully understand the problem.
+fully understand the problem and its wider context.
 
 In a situation where occasional transient failures are expected and handled,
 but a persistent failure requires the user's attention, consider implementing a

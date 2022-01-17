@@ -563,7 +563,9 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testGetRolesForApiKeyNotInContext() throws Exception {
         final boolean useLegacySuperuserRole = randomBoolean();
-        final RoleDescriptor superuserRoleDescriptor = useLegacySuperuserRole ? LEGACY_SUPERUSER_ROLE_DESCRIPTOR : SUPERUSER_ROLE_DESCRIPTOR;
+        final RoleDescriptor superuserRoleDescriptor = useLegacySuperuserRole
+            ? LEGACY_SUPERUSER_ROLE_DESCRIPTOR
+            : SUPERUSER_ROLE_DESCRIPTOR;
         Map<String, Object> superUserRdMap;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             superUserRdMap = XContentHelper.convertToMap(
@@ -575,10 +577,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         Map<String, Object> authMetadata = new HashMap<>();
         authMetadata.put(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLength(12));
         authMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, Collections.singletonMap(superuserRoleDescriptor.getName(), superUserRdMap));
-        authMetadata.put(
-            API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-            Collections.singletonMap(superuserRoleDescriptor.getName(), superUserRdMap)
-        );
+        authMetadata.put(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Collections.singletonMap(superuserRoleDescriptor.getName(), superUserRdMap));
 
         final Authentication authentication = new Authentication(
             new User("joe"),

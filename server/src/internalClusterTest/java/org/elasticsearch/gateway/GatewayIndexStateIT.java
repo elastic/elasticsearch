@@ -16,8 +16,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -466,18 +466,15 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         internalCluster().startNode();
         prepareCreate("test").setSettings(
             Settings.builder().put("index.analysis.analyzer.test.tokenizer", "standard").put("index.number_of_shards", "1")
-        )
-            .setMapping(
-                "{\n"
-                    + "      \"properties\": {\n"
-                    + "        \"field1\": {\n"
-                    + "          \"type\": \"text\",\n"
-                    + "          \"analyzer\": \"test\"\n"
-                    + "        }\n"
-                    + "      }\n"
-                    + "  }}"
-            )
-            .get();
+        ).setMapping("""
+            {
+              "properties": {
+                "field1": {
+                  "type": "text",
+                  "analyzer": "test"
+                }
+              }
+            }""").get();
         logger.info("--> indexing a simple document");
         client().prepareIndex("test").setId("1").setSource("field1", "value one").setRefreshPolicy(IMMEDIATE).get();
         logger.info("--> waiting for green status");

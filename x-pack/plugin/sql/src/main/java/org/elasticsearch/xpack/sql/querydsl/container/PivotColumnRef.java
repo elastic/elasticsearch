@@ -25,8 +25,7 @@ public class PivotColumnRef extends AggRef {
     }
 
     private static Object esAggType(Object value) {
-        if (value instanceof Number) {
-            Number n = (Number) value;
+        if (value instanceof Number n) {
             if (value instanceof Double) {
                 return value;
             }

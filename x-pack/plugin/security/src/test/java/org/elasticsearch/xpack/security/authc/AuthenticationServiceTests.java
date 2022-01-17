@@ -28,7 +28,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -345,17 +345,11 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     private Realm mockRealm(RealmConfig config) {
-        Class<? extends Realm> cls;
-        switch (config.type()) {
-            case InternalRealms.FILE_TYPE:
-                cls = FileRealm.class;
-                break;
-            case InternalRealms.NATIVE_TYPE:
-                cls = NativeRealm.class;
-                break;
-            default:
-                throw new IllegalArgumentException("No factory for realm " + config);
-        }
+        Class<? extends Realm> cls = switch (config.type()) {
+            case InternalRealms.FILE_TYPE -> FileRealm.class;
+            case InternalRealms.NATIVE_TYPE -> NativeRealm.class;
+            default -> throw new IllegalArgumentException("No factory for realm " + config);
+        };
         final Realm mock = mock(cls);
         when(mock.type()).thenReturn(config.type());
         when(mock.name()).thenReturn(config.name());

@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -91,10 +92,10 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError();
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
         assertThat(runnableTasks.size(), equalTo(1));
         assertThat(lastClusterStateRef.get().metadata().indices().size(), equalTo(0));
         assertThat(lastClusterStateRef.get().version(), equalTo(firstClusterStateVersion));
@@ -131,10 +132,10 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError();
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
         assertThat(runnableTasks.size(), equalTo(0));
 
         publishingCallback.getAndSet(null).onResponse(null);

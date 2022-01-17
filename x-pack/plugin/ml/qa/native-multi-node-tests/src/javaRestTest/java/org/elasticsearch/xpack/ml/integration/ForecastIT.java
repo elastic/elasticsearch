@@ -624,14 +624,9 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             double value = 10.0 + h;
             for (int i = 1; i < 101; i++) {
                 for (int j = 1; j < 81; j++) {
-                    String json = String.format(
-                        Locale.ROOT,
-                        "{\"time\": %d, \"value\": %f, \"clientIP\": \"192.168.%d.%d\"}\n",
-                        timestamp,
-                        value,
-                        i,
-                        j
-                    );
+                    String json = String.format(Locale.ROOT, """
+                        {"time": %s, "value": %f, "clientIP": "192.168.%d.%d"}
+                        """, timestamp, value, i, j);
                     data.add(json);
                 }
             }

@@ -25,6 +25,8 @@ import java.util.UUID;
 public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(StartupSelfGeneratedLicenseTask.class);
 
+    static final String TASK_SOURCE = "maybe generate license for cluster";
+
     /**
      * Max number of nodes licensed by generated trial license
      */
@@ -98,8 +100,8 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void onFailure(String source, @Nullable Exception e) {
-        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+    public void onFailure(@Nullable Exception e) {
+        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", TASK_SOURCE), e);
     }
 
     private ClusterState extendBasic(ClusterState currentState, LicensesMetadata currentLicenseMetadata) {
@@ -107,12 +109,14 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
         Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
         LicensesMetadata newLicenseMetadata = createBasicLicenseFromExistingLicense(currentLicenseMetadata);
         mdBuilder.putCustom(LicensesMetadata.TYPE, newLicenseMetadata);
-        logger.info(
-            "Existing basic license has an expiration. Basic licenses no longer expire."
-                + "Regenerating license.\n\nOld license:\n {}\n\n New license:\n{}",
-            license,
-            newLicenseMetadata.getLicense()
-        );
+        logger.info("""
+            Existing basic license has an expiration. Basic licenses no longer expire.Regenerating license.
+
+            Old license:
+             {}
+
+             New license:
+            {}""", license, newLicenseMetadata.getLicense());
         return ClusterState.builder(currentState).metadata(mdBuilder).build();
     }
 

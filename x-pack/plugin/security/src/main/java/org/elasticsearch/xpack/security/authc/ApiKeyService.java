@@ -33,7 +33,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -92,6 +92,9 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
+import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
@@ -198,18 +201,6 @@ public class ApiKeyService {
         TimeValue.timeValueMinutes(0),
         TimeValue.timeValueMinutes(15),
         Property.NodeScope
-    );
-
-    // This following fixed role descriptor is for fleet-server BWC on and before 7.14.
-    // It is fixed and must NOT be updated when the fleet-server service account updates.
-    private static final BytesArray FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14 = new BytesArray(
-        "{\"elastic/fleet-server\":{\"cluster\":[\"monitor\",\"manage_own_api_key\"],"
-            + "\"indices\":[{\"names\":[\"logs-*\",\"metrics-*\",\"traces-*\",\"synthetics-*\","
-            + "\".logs-endpoint.diagnostic.collection-*\"],"
-            + "\"privileges\":[\"write\",\"create_index\",\"auto_configure\"],\"allow_restricted_indices\":false},"
-            + "{\"names\":[\".fleet-*\"],\"privileges\":[\"read\",\"write\",\"monitor\",\"create_index\",\"auto_configure\"],"
-            + "\"allow_restricted_indices\":false}],\"applications\":[],\"run_as\":[],\"metadata\":{},"
-            + "\"transient_metadata\":{\"enabled\":true}}}"
     );
 
     private final Clock clock;
@@ -531,11 +522,15 @@ public class ApiKeyService {
         }), client::get);
     }
 
-    public List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, final Map<String, Object> roleDescriptors) {
-        if (roleDescriptors == null) {
+    public List<RoleDescriptor> parseRoleDescriptors(
+        final String apiKeyId,
+        final Map<String, Object> roleDescriptorsMap,
+        RoleReference.ApiKeyRoleType roleType
+    ) {
+        if (roleDescriptorsMap == null) {
             return null;
         }
-        return roleDescriptors.entrySet().stream().map(entry -> {
+        final List<RoleDescriptor> roleDescriptors = roleDescriptorsMap.entrySet().stream().map(entry -> {
             final String name = entry.getKey();
             @SuppressWarnings("unchecked")
             final Map<String, Object> rdMap = (Map<String, Object>) entry.getValue();
@@ -555,9 +550,16 @@ public class ApiKeyService {
                 throw new UncheckedIOException(e);
             }
         }).collect(Collectors.toList());
+        return roleType == RoleReference.ApiKeyRoleType.LIMITED_BY
+            ? maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors)
+            : roleDescriptors;
     }
 
-    public List<RoleDescriptor> parseRoleDescriptorsBytes(final String apiKeyId, BytesReference bytesReference) {
+    public List<RoleDescriptor> parseRoleDescriptorsBytes(
+        final String apiKeyId,
+        BytesReference bytesReference,
+        RoleReference.ApiKeyRoleType roleType
+    ) {
         if (bytesReference == null) {
             return Collections.emptyList();
         }
@@ -580,7 +582,42 @@ public class ApiKeyService {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return Collections.unmodifiableList(roleDescriptors);
+        return roleType == RoleReference.ApiKeyRoleType.LIMITED_BY
+            ? maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors)
+            : roleDescriptors;
+    }
+
+    // package private for tests
+    static final RoleDescriptor LEGACY_SUPERUSER_ROLE_DESCRIPTOR = new RoleDescriptor(
+        "superuser",
+        new String[] { "all" },
+        new RoleDescriptor.IndicesPrivileges[] {
+            RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(true).build() },
+        new RoleDescriptor.ApplicationResourcePrivileges[] {
+            RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build() },
+        null,
+        new String[] { "*" },
+        MetadataUtils.DEFAULT_RESERVED_METADATA,
+        Collections.emptyMap()
+    );
+
+    // This method should only be called to replace the superuser role descriptor for the limited-by roles of an API Key.
+    // We do not replace assigned roles because they are created explicitly by users.
+    // Before #82049, it is possible to specify a role descriptor for API keys that is identical to the builtin superuser role
+    // (including the _reserved metadata field).
+    private List<RoleDescriptor> maybeReplaceSuperuserRoleDescriptor(String apiKeyId, List<RoleDescriptor> roleDescriptors) {
+        // Scan through all the roles because superuser can be one of the roles that a user has. Unlike building the Role object,
+        // capturing role descriptors does not preempt for superuser.
+        return roleDescriptors.stream().map(rd -> {
+            // Since we are only replacing limited-by roles and all limited-by roles are looked up with role providers,
+            // it is technically possible to just check the name of superuser and the _reserved metadata field.
+            // But the gain is not much since role resolving is cached and comparing the whole role descriptor is still safer.
+            if (rd.equals(LEGACY_SUPERUSER_ROLE_DESCRIPTOR)) {
+                logger.debug("replacing superuser role for API key [{}]", apiKeyId);
+                return ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
+            }
+            return rd;
+        }).toList();
     }
 
     /**

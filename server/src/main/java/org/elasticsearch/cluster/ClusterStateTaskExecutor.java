@@ -148,4 +148,25 @@ public interface ClusterStateTaskExecutor<T> {
             return failure;
         }
     }
+
+    /**
+     * Creates a task executor that only executes a single task. Use a new instance of this executor to specifically submit a cluster state
+     * update task that should be executed in isolation and not be batched with other state updates.
+     */
+    static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> unbatched() {
+        return new ClusterStateTaskExecutor<>() {
+            @Override
+            public ClusterTasksResult<T> execute(ClusterState currentState, List<T> tasks) throws Exception {
+                assert tasks.size() == 1 : "this only supports a single task but received " + tasks;
+                ClusterState result = tasks.get(0).execute(currentState);
+                return ClusterTasksResult.<T>builder().successes(tasks).build(result);
+            }
+
+            @Override
+            public String describeTasks(List<T> tasks) {
+                return ""; // one of task, source is enough
+            }
+        };
+    }
+
 }

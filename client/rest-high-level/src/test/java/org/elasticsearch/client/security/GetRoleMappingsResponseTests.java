@@ -25,32 +25,33 @@ import static org.hamcrest.Matchers.equalTo;
 public class GetRoleMappingsResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        final String json = "{\n"
-            + " \"kerberosmapping\" : {\n"
-            + "   \"enabled\" : true,\n"
-            + "   \"roles\" : [\n"
-            + "     \"superuser\"\n"
-            + "   ],\n"
-            + "   \"rules\" : {\n"
-            + "     \"field\" : {\n"
-            + "       \"realm.name\" : \"kerb1\"\n"
-            + "     }\n"
-            + "   },\n"
-            + "   \"metadata\" : { }\n"
-            + " },\n"
-            + " \"ldapmapping\" : {\n"
-            + "   \"enabled\" : false,\n"
-            + "   \"roles\" : [\n"
-            + "     \"monitoring\"\n"
-            + "   ],\n"
-            + "   \"rules\" : {\n"
-            + "     \"field\" : {\n"
-            + "       \"groups\" : \"cn=ipausers,cn=groups,cn=accounts,dc=ipademo,dc=local\"\n"
-            + "     }\n"
-            + "   },\n"
-            + "   \"metadata\" : { }\n"
-            + " }\n"
-            + "}";
+        final String json = """
+            {
+             "kerberosmapping" : {
+               "enabled" : true,
+               "roles" : [
+                 "superuser"
+               ],
+               "rules" : {
+                 "field" : {
+                   "realm.name" : "kerb1"
+                 }
+               },
+               "metadata" : { }
+             },
+             "ldapmapping" : {
+               "enabled" : false,
+               "roles" : [
+                 "monitoring"
+               ],
+               "rules" : {
+                 "field" : {
+                   "groups" : "cn=ipausers,cn=groups,cn=accounts,dc=ipademo,dc=local"
+                 }
+               },
+               "metadata" : { }
+             }
+            }""";
         final GetRoleMappingsResponse response = GetRoleMappingsResponse.fromXContent(
             XContentType.JSON.xContent()
                 .createParser(new NamedXContentRegistry(Collections.emptyList()), DeprecationHandler.IGNORE_DEPRECATIONS, json)
@@ -106,11 +107,10 @@ public class GetRoleMappingsResponseTests extends ESTestCase {
     }
 
     private static GetRoleMappingsResponse mutateTestItem(GetRoleMappingsResponse original) {
-        GetRoleMappingsResponse mutated = null;
-        switch (randomIntBetween(0, 1)) {
-            case 0:
-                final List<ExpressionRoleMapping> roleMappingsList1 = new ArrayList<>();
-                roleMappingsList1.add(
+        ExpressionRoleMapping originalRoleMapping = original.getMappings().get(0);
+        return switch (randomIntBetween(0, 1)) {
+            case 0 -> new GetRoleMappingsResponse(
+                List.of(
                     new ExpressionRoleMapping(
                         "ldapmapping",
                         FieldRoleMapperExpression.ofGroups("cn=ipausers,cn=groups,cn=accounts,dc=ipademo,dc=local"),
@@ -119,13 +119,10 @@ public class GetRoleMappingsResponseTests extends ESTestCase {
                         null,
                         false
                     )
-                );
-                mutated = new GetRoleMappingsResponse(roleMappingsList1);
-                break;
-            case 1:
-                final List<ExpressionRoleMapping> roleMappingsList2 = new ArrayList<>();
-                ExpressionRoleMapping originalRoleMapping = original.getMappings().get(0);
-                roleMappingsList2.add(
+                )
+            );
+            default -> new GetRoleMappingsResponse(
+                List.of(
                     new ExpressionRoleMapping(
                         originalRoleMapping.getName(),
                         FieldRoleMapperExpression.ofGroups("cn=ipausers,cn=groups,cn=accounts,dc=ipademo,dc=local"),
@@ -134,10 +131,8 @@ public class GetRoleMappingsResponseTests extends ESTestCase {
                         originalRoleMapping.getMetadata(),
                         originalRoleMapping.isEnabled() == false
                     )
-                );
-                mutated = new GetRoleMappingsResponse(roleMappingsList2);
-                break;
-        }
-        return mutated;
+                )
+            );
+        };
     }
 }

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.timeseries.support;
 
-import io.github.nik9000.mapmatcher.MapMatcher;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -23,6 +21,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -39,9 +38,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.IntFunction;
 
-import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
-import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static java.time.temporal.ChronoField.INSTANT_SECONDS;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 
 @TestLogging(value = "org.elasticsearch.timeseries.support:debug", reason = "test")
 public class TimeSeriesMetricsIT extends ESIntegTestCase {
@@ -88,15 +87,11 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
             "2021-01-01T00:20:00.000Z", };
         indexRandom(
             true,
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[0], "dim", d1, "v", 1)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "dim", d1, "v", 2)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[2], "dim", d1, "v", 3)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[3], "dim", d1, "v", 4)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "dim", d2, "v", 5, "m", 6)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[0], "dim", d1, "m", 1)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "dim", d1, "m", 2)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[2], "dim", d1, "m", 3)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[3], "dim", d1, "m", 4))
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[0], "dim", d1, "v", 1, "m", 1)),
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "dim", d1, "v", 2, "m", 2)),
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[2], "dim", d1, "v", 3, "m", 3)),
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[3], "dim", d1, "v", 4, "m", 4)),
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "dim", d2, "v", 5, "m", 6))
         );
 
         assertMap(
@@ -429,7 +424,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
     ) {
         return withMetrics(
             bucketBatchSize,
-            between(0, 10000),  // Not used by this method
+            between(1, 10000),
             staleness,
             (future, metrics) -> metrics.range(List.of(eq("v")), List.of(), timeMillis, range, step, new CollectingListener(future))
         );
@@ -481,7 +476,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
         new TimeSeriesMetricsService(client(), bucketBatchSize, docBatchSize, staleness).newMetrics(
             new String[] { "tsdb" },
             IndicesOptions.STRICT_EXPAND_OPEN,
-            new ActionListener<TimeSeriesMetrics>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(TimeSeriesMetrics metrics) {
                     handle.accept(result, metrics);
@@ -512,7 +507,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
                 results.put(currentDimensions, currentValues);
             }
             currentDimensions = new Tuple<>(metric, dimensions);
-            currentValues = new ArrayList<>();
+            currentValues = results.getOrDefault(currentDimensions, new ArrayList<>());
         }
 
         @Override

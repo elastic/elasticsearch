@@ -84,8 +84,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             return new EmptyCollector();
         }
 
-        if (valuesSource instanceof ValuesSource.Numeric) {
-            ValuesSource.Numeric source = (ValuesSource.Numeric) valuesSource;
+        if (valuesSource instanceof ValuesSource.Numeric source) {
             MurmurHash3Values hashValues = source.isFloatingPoint()
                 ? MurmurHash3Values.hash(source.doubleValues(ctx))
                 : MurmurHash3Values.hash(source.longValues(ctx));
@@ -93,8 +92,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             return new DirectCollector(counts, hashValues);
         }
 
-        if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
-            ValuesSource.Bytes.WithOrdinals source = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+        if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals source) {
             final SortedSetDocValues ordinalValues = source.ordinalsValues(ctx);
             final long maxOrd = ordinalValues.getValueCount();
             if (maxOrd == 0) {

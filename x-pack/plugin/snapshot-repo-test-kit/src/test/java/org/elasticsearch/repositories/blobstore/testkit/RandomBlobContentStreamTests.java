@@ -47,21 +47,21 @@ public class RandomBlobContentStreamTests extends ESTestCase {
 
             while (readComplete.get() == false) {
                 switch (between(1, resetCount < 10 ? 4 : 3)) {
-                    case 1:
+                    case 1 -> {
                         randomBlobContentStream.mark(between(0, Integer.MAX_VALUE));
                         mark = position;
-                        break;
-                    case 2:
+                    }
+                    case 2 -> {
                         final int nextByte = randomBlobContentStream.read();
                         assertThat(nextByte, not(equalTo(-1)));
                         output[position++] = (byte) nextByte;
-                        break;
-                    case 3:
+                    }
+                    case 3 -> {
                         final int len = between(0, output.length - position);
                         assertThat(randomBlobContentStream.read(output, position, len), equalTo(len));
                         position += len;
-                        break;
-                    case 4:
+                    }
+                    case 4 -> {
                         randomBlobContentStream.reset();
                         resetCount += 1;
                         if (randomBoolean()) {
@@ -71,7 +71,7 @@ public class RandomBlobContentStreamTests extends ESTestCase {
                         } else {
                             position = mark;
                         }
-                        break;
+                    }
                 }
             }
 

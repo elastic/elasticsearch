@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.lucene.bwc.codecs;
 
 import org.apache.lucene.backward_codecs.lucene70.Lucene70Codec;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
@@ -20,7 +19,6 @@ import org.apache.lucene.codecs.PointsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.TermVectorsFormat;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
@@ -56,11 +54,6 @@ public abstract class BWCCodec extends Codec {
 
     @Override
     public NormsFormat normsFormat() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public DocValuesFormat docValuesFormat() {
         throw new UnsupportedOperationException();
     }
 
@@ -165,7 +158,7 @@ public abstract class BWCCodec extends Codec {
         };
     }
 
-    // mark all fields as having no postings, no doc values, and no points.
+    // mark all fields as having no postings, no term vectors, no norms, no payloads, no points, and no vectors.
     private static FieldInfos filterFields(FieldInfos fieldInfos) {
         List<FieldInfo> fieldInfoCopy = new ArrayList<>(fieldInfos.size());
         for (FieldInfo fieldInfo : fieldInfos) {
@@ -177,8 +170,8 @@ public abstract class BWCCodec extends Codec {
                     false,
                     false,
                     IndexOptions.NONE,
-                    DocValuesType.NONE,
-                    -1,
+                    fieldInfo.getDocValuesType(),
+                    fieldInfo.getDocValuesGen(),
                     fieldInfo.attributes(),
                     0,
                     0,

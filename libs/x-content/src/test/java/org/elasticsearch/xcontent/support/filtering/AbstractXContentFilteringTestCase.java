@@ -122,18 +122,12 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
                 }
                 assertThat(token1, equalTo(token2));
                 switch (token1) {
-                    case FIELD_NAME:
-                        assertThat(jsonParser.currentName(), equalTo(testParser.currentName()));
-                        break;
-                    case VALUE_STRING:
-                        assertThat(jsonParser.text(), equalTo(testParser.text()));
-                        break;
-                    case VALUE_NUMBER:
+                    case FIELD_NAME -> assertThat(jsonParser.currentName(), equalTo(testParser.currentName()));
+                    case VALUE_STRING -> assertThat(jsonParser.text(), equalTo(testParser.text()));
+                    case VALUE_NUMBER -> {
                         assertThat(jsonParser.numberType(), equalTo(testParser.numberType()));
                         assertThat(jsonParser.numberValue(), equalTo(testParser.numberValue()));
-                        break;
-                    default:
-                        break;
+                    }
                 }
             }
         } catch (Exception e) {

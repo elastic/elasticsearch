@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.cluster.repositories.verify;
 
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * Builder for verify repository request

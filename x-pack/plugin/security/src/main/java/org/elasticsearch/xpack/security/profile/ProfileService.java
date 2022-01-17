@@ -89,6 +89,16 @@ public class ProfileService {
     }
 
     // TODO: with request when we take request body for profile activation
+
+    /**
+     * Create a new profile or update an existing profile for the user of the given Authentication.
+     * @param authentication This is the object from which the profile will be created or updated.
+     *                       It contains information about the username and relevant realms and domain.
+     *                       Note that this authentication object does not belong to the authenticating user
+     *                       because the associated ActivateProfileRequest provides the authentication information
+     *                       in the request body while the authenticating user is the one that has privileges
+     *                       to submit the request.
+     */
     public void activateProfile(Authentication authentication, ActionListener<Profile> listener) {
         final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
         if (Subject.Type.USER != subject.getType()) {

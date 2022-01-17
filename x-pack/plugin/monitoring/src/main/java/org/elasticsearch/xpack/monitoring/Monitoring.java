@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -300,6 +302,20 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
                     }
                 }
             }
+
+            map.entrySet().removeIf(templateEntry -> {
+                String templateName = templateEntry.getKey();
+                if (templateName.startsWith("apm-6.")) {
+                    ImmutableOpenMap<String, CompressedXContent> mappings = templateEntry.getValue().getMappings();
+                    if (mappings != null && mappings.get("doc") != null) {
+                       // this is an old APM mapping that still uses the `doc` type so let's remove it as the later 7.x APM versions
+                        // would've installed an APM template (versioned) that doesn't contain any type
+                        logger.info("removing typed legacy template [{}]", templateName);
+                        return true;
+                    }
+                }
+                return false;
+            });
 
             // this template was not migrated to typeless due to the possibility of the old /_monitoring/bulk API being used
             // see {@link org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils#OLD_TEMPLATE_VERSION}

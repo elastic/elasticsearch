@@ -381,7 +381,9 @@ public class ClusterStateChanges {
         return runTasks(
             nodeRemovalExecutor,
             clusterState,
-            nodes.stream().map(n -> new NodeRemovalClusterStateTaskExecutor.Task(n, "dummy reason")).collect(Collectors.toList())
+            nodes.stream()
+                .map(n -> new NodeRemovalClusterStateTaskExecutor.Task(n, "dummy reason", e -> { throw new AssertionError(e); }))
+                .collect(Collectors.toList())
         );
     }
 

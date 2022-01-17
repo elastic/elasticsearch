@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -22,14 +23,16 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
     private final AllocationService allocationService;
     private final Logger logger;
 
-    public static class Task {
+    public static class Task implements ClusterStateTaskListener {
 
         private final DiscoveryNode node;
         private final String reason;
+        private final ClusterStateTaskListener listener;
 
-        public Task(final DiscoveryNode node, final String reason) {
+        public Task(DiscoveryNode node, String reason, ClusterStateTaskListener listener) {
             this.node = node;
             this.reason = reason;
+            this.listener = listener;
         }
 
         public DiscoveryNode node() {
@@ -38,6 +41,21 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
 
         public String reason() {
             return reason;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        public void onNoLongerMaster() {
+            listener.onNoLongerMaster();
+        }
+
+        @Override
+        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            listener.clusterStateProcessed(source, oldState, newState);
         }
 
         @Override

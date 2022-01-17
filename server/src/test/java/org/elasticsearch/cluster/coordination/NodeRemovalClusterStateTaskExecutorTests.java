@@ -46,7 +46,13 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
             removeBuilder.add(node(i));
         }
         final List<NodeRemovalClusterStateTaskExecutor.Task> tasks = StreamSupport.stream(removeBuilder.build().spliterator(), false)
-            .map(node -> new NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed"))
+            .map(
+                node -> new NodeRemovalClusterStateTaskExecutor.Task(
+                    node,
+                    randomBoolean() ? "left" : "failed",
+                    e -> { throw new AssertionError(e); }
+                )
+            )
             .collect(Collectors.toList());
 
         final ClusterStateTaskExecutor.ClusterTasksResult<NodeRemovalClusterStateTaskExecutor.Task> result = executor.execute(
@@ -80,7 +86,13 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
             final DiscoveryNode node = node(i);
             builder.add(node);
             if (first || randomBoolean()) {
-                tasks.add(new NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed"));
+                tasks.add(
+                    new NodeRemovalClusterStateTaskExecutor.Task(
+                        node,
+                        randomBoolean() ? "left" : "failed",
+                        e -> { throw new AssertionError(e); }
+                    )
+                );
             }
             first = false;
         }

@@ -300,27 +300,28 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private void removeNode(DiscoveryNode discoveryNode, String reason) {
         synchronized (mutex) {
             if (mode == Mode.LEADER) {
+                var task = new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, reason, new ClusterStateTaskListener() {
+                    @Override
+                    public void onFailure(final Exception e) {
+                        logger.error("unexpected failure during [node-left]", e);
+                    }
+
+                    @Override
+                    public void onNoLongerMaster() {
+                        logger.debug("no longer master while processing node removal [node-left]");
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        joinReasonService.onNodeRemoved(discoveryNode, reason);
+                    }
+                });
                 masterService.submitStateUpdateTask(
                     "node-left",
-                    new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, reason),
+                    task,
                     ClusterStateTaskConfig.build(Priority.IMMEDIATE),
                     nodeRemovalExecutor,
-                    new ClusterStateTaskListener() {
-                        @Override
-                        public void onFailure(final Exception e) {
-                            logger.error("unexpected failure during [node-left]", e);
-                        }
-
-                        @Override
-                        public void onNoLongerMaster() {
-                            logger.debug("no longer master while processing node removal [node-left]");
-                        }
-
-                        @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                            joinReasonService.onNodeRemoved(discoveryNode, reason);
-                        }
-                    }
+                    task
                 );
             }
         }

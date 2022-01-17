@@ -15,7 +15,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -86,7 +85,6 @@ import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplat
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.loadPipeline;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.pipelineName;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.templateName;
 import static org.elasticsearch.xpack.monitoring.Monitoring.CLEAN_WATCHER_HISTORY;
 
 public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener, LicenseStateListener {
@@ -369,25 +367,6 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         final List<Runnable> asyncActions = new ArrayList<>();
         final AtomicInteger pendingResponses = new AtomicInteger(0);
 
-        // Check that each required template exists, installing it if needed
-        final List<String> missingTemplates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
-            .filter(id -> hasTemplate(clusterState, templateName(id)) == false)
-            .collect(Collectors.toList());
-
-        if (missingTemplates.isEmpty() == false) {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("template {} not found", missingTemplates));
-            for (String templateId : missingTemplates) {
-                final String templateName = MonitoringTemplateUtils.templateName(templateId);
-                asyncActions.add(
-                    () -> putTemplate(
-                        templateName,
-                        MonitoringTemplateUtils.loadTemplate(templateId),
-                        new ResponseActionListener<>("template", templateName, pendingResponses)
-                    )
-                );
-            }
-        }
-
         if (useIngest) {
             final List<String> missingPipelines = Arrays.stream(PIPELINE_IDS)
                 .filter(id -> hasIngestPipeline(clusterState, id) == false)
@@ -572,22 +551,6 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         final IndexTemplateMetadata template = clusterState.getMetadata().getTemplates().get(templateName);
 
         return template != null && hasValidVersion(template.getVersion(), LAST_UPDATED_VERSION);
-    }
-
-    // FIXME this should use the IndexTemplateMetadataUpgrader
-    private void putTemplate(String template, String source, ActionListener<AcknowledgedResponse> listener) {
-        logger.debug("installing template [{}]", template);
-
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest(template).source(source, XContentType.JSON);
-        assert Thread.currentThread().isInterrupted() == false : "current thread has been interrupted before putting index template!!!";
-
-        executeAsyncWithOrigin(
-            client.threadPool().getThreadContext(),
-            MONITORING_ORIGIN,
-            request,
-            listener,
-            client.admin().indices()::putTemplate
-        );
     }
 
     /**

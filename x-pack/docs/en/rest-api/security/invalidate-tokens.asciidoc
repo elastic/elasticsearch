@@ -106,6 +106,7 @@ The get token API returns the following information about the access token:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
+// TESTRESPONSE[s/superuser/_es_test_root/]
 
 This access token can now be immediately invalidated, as shown in the following
 example:
@@ -165,6 +166,7 @@ The get token API returns the following information:
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 // TESTRESPONSE[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
+// TESTRESPONSE[s/superuser/_es_test_root/]
 
 The refresh token can now also be immediately invalidated as shown
 in the following example:

@@ -123,6 +123,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     @Override
     protected void assertSearchable(MappedFieldType fieldType) {
         assertThat(fieldType, instanceOf(DenseVectorFieldType.class));
+        assertEquals(fieldType.isIndexed(), indexed);
         assertEquals(fieldType.isSearchable(), indexed);
     }
 

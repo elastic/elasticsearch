@@ -462,7 +462,7 @@ public class ClusterStateChanges {
             ClusterStateUpdateTask task = (ClusterStateUpdateTask) invocationOnMock.getArguments()[1];
             result[0] = task.execute(state);
             return null;
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
         runnable.run();
         assertThat(result[0], notNullValue());
         return result[0];

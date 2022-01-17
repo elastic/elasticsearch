@@ -293,20 +293,20 @@ public class ClusterHealthIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 completionFuture.onFailure(e);
-                throw new AssertionError(source, e);
+                throw new AssertionError("looping task", e);
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (keepSubmittingTasks.get()) {
-                    clusterService.submitStateUpdateTask("looping task", this);
+                    clusterService.submitStateUpdateTask("looping task", this, ClusterStateTaskExecutor.unbatched());
                 } else {
                     completionFuture.onResponse(null);
                 }
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
 
         try {
             createIndex("index");
@@ -384,20 +384,20 @@ public class ClusterHealthIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 completionFuture.onFailure(e);
-                throw new AssertionError(source, e);
+                throw new AssertionError("looping task", e);
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (keepSubmittingTasks.get()) {
-                    clusterService.submitStateUpdateTask("looping task", this);
+                    clusterService.submitStateUpdateTask("looping task", this, ClusterStateTaskExecutor.unbatched());
                 } else {
                     completionFuture.onResponse(null);
                 }
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
 
         try {
             final ClusterHealthResponse clusterHealthResponse = client().admin()

@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -55,10 +54,13 @@ public interface RoleReference {
         public RoleKey id() {
             if (roleNames.length == 0) {
                 return RoleKey.ROLE_KEY_EMPTY;
-            } else if (Arrays.asList(roleNames).contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
-                return RoleKey.ROLE_KEY_SUPERUSER;
             } else {
-                return new RoleKey(Set.copyOf(new HashSet<>(List.of(roleNames))), RoleKey.ROLES_STORE_SOURCE);
+                final Set<String> distinctRoles = new HashSet<>(List.of(roleNames));
+                if (distinctRoles.size() == 1 && distinctRoles.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
+                    return RoleKey.ROLE_KEY_SUPERUSER;
+                } else {
+                    return new RoleKey(Set.copyOf(distinctRoles), RoleKey.ROLES_STORE_SOURCE);
+                }
             }
         }
 

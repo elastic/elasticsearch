@@ -98,17 +98,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
         IdFieldType(BooleanSupplier fieldDataEnabled) {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.fieldDataEnabled = fieldDataEnabled;
+            assert isSearchable();
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public boolean isSearchable() {
-            // The _id field is always searchable.
-            return true;
         }
 
         @Override

@@ -116,6 +116,7 @@ import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.authc.ApiKeyService.API_KEY_METADATA_KEY;
+import static org.elasticsearch.xpack.security.authc.ApiKeyService.LEGACY_SUPERUSER_ROLE_DESCRIPTOR;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -702,11 +703,11 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testParseRoleDescriptors() {
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
         final String apiKeyId = randomAlphaOfLength(12);
-        List<RoleDescriptor> roleDescriptors = service.parseRoleDescriptors(apiKeyId, null);
+        List<RoleDescriptor> roleDescriptors = service.parseRoleDescriptors(apiKeyId, null, randomApiKeyRoleType());
         assertTrue(roleDescriptors.isEmpty());
 
         BytesReference roleBytes = new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}");
-        roleDescriptors = service.parseRoleDescriptors(apiKeyId, roleBytes);
+        roleDescriptors = service.parseRoleDescriptors(apiKeyId, roleBytes, randomApiKeyRoleType());
         assertEquals(1, roleDescriptors.size());
         assertEquals("a role", roleDescriptors.get(0).getName());
         assertArrayEquals(new String[] { "all" }, roleDescriptors.get(0).getClusterPrivileges());
@@ -720,11 +721,18 @@ public class ApiKeyServiceTests extends ESTestCase {
                 + "\"privileges\":[\"*\"],\"resources\":[\"*\"]}],\"run_as\":[\"*\"],\"metadata\":{\"_reserved\":true},"
                 + "\"transient_metadata\":{}}}\n"
         );
-        roleDescriptors = service.parseRoleDescriptors(apiKeyId, roleBytes);
+        final ApiKeyService.ApiKeyRoleType apiKeyRoleType = randomApiKeyRoleType();
+        roleDescriptors = service.parseRoleDescriptors(apiKeyId, roleBytes, apiKeyRoleType);
         assertEquals(2, roleDescriptors.size());
         assertEquals(
             Set.of("reporting_user", "superuser"),
             roleDescriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toSet())
+        );
+        assertThat(
+            roleDescriptors.get(1),
+            equalTo(
+                apiKeyRoleType == ApiKeyService.ApiKeyRoleType.LIMITED_BY ? SUPERUSER_ROLE_DESCRIPTOR : LEGACY_SUPERUSER_ROLE_DESCRIPTOR
+            )
         );
     }
 
@@ -1122,7 +1130,11 @@ public class ApiKeyServiceTests extends ESTestCase {
         final BytesReference limitedByRoleDescriptorsBytes = service.getRoleDescriptorsBytesCache()
             .get(cachedApiKeyDoc.limitedByRoleDescriptorsHash);
         assertNotNull(limitedByRoleDescriptorsBytes);
-        final List<RoleDescriptor> limitedByRoleDescriptors = service.parseRoleDescriptors(docId, limitedByRoleDescriptorsBytes);
+        final List<RoleDescriptor> limitedByRoleDescriptors = service.parseRoleDescriptors(
+            docId,
+            limitedByRoleDescriptorsBytes,
+            ApiKeyService.ApiKeyRoleType.LIMITED_BY
+        );
         assertEquals(1, limitedByRoleDescriptors.size());
         assertEquals(SUPERUSER_ROLE_DESCRIPTOR, limitedByRoleDescriptors.get(0));
         if (metadata == null) {
@@ -1694,5 +1706,9 @@ public class ApiKeyServiceTests extends ESTestCase {
                 equalTo(XContentTestUtils.convertToXContent((Map<String, Object>) metadata, XContentType.JSON))
             );
         }
+    }
+
+    private ApiKeyService.ApiKeyRoleType randomApiKeyRoleType() {
+        return randomFrom(ApiKeyService.ApiKeyRoleType.values());
     }
 }

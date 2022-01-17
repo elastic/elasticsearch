@@ -1551,8 +1551,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         verify(apiKeyService, times(2)).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
-        verify(apiKeyService).parseRoleDescriptors("key-id-1", roleBytes);
-        verify(apiKeyService).parseRoleDescriptors("key-id-1", limitedByRoleBytes);
+        verify(apiKeyService).parseRoleDescriptors("key-id-1", roleBytes, ApiKeyService.ApiKeyRoleType.ASSIGNED);
+        verify(apiKeyService).parseRoleDescriptors("key-id-1", limitedByRoleBytes, ApiKeyService.ApiKeyRoleType.LIMITED_BY);
 
         // Different API key with the same roles should read from cache
         authentication = new Authentication(
@@ -1576,7 +1576,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         verify(apiKeyService, times(2)).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
-        verify(apiKeyService, never()).parseRoleDescriptors(eq("key-id-2"), any(BytesReference.class));
+        verify(apiKeyService, never()).parseRoleDescriptors(eq("key-id-2"), any(BytesReference.class), any());
 
         // Different API key with the same limitedBy role should read from cache, new role should be built
         final BytesArray anotherRoleBytes = new BytesArray("{\"b role\": {\"cluster\": [\"manage_security\"]}}");
@@ -1601,7 +1601,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         verify(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), eq(false));
-        verify(apiKeyService).parseRoleDescriptors("key-id-3", anotherRoleBytes);
+        verify(apiKeyService).parseRoleDescriptors("key-id-3", anotherRoleBytes, ApiKeyService.ApiKeyRoleType.ASSIGNED);
     }
 
     private Authentication createAuthentication() {

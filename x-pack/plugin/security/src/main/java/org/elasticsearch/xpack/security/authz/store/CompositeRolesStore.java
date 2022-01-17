@@ -422,7 +422,11 @@ public class CompositeRolesStore {
         final Role existing = roleCache.get(roleKey);
         if (existing == null) {
             final long invalidationCounter = numInvalidation.get();
-            final List<RoleDescriptor> roleDescriptors = apiKeyService.parseRoleDescriptors(apiKeyIdAndBytes.v1(), apiKeyIdAndBytes.v2());
+            final List<RoleDescriptor> roleDescriptors = apiKeyService.parseRoleDescriptors(
+                apiKeyIdAndBytes.v1(),
+                apiKeyIdAndBytes.v2(),
+                limitedBy ? ApiKeyService.ApiKeyRoleType.LIMITED_BY : ApiKeyService.ApiKeyRoleType.ASSIGNED
+            );
             buildThenMaybeCacheRole(roleKey, roleDescriptors, Collections.emptySet(), true, invalidationCounter, roleActionListener);
         } else {
             roleActionListener.onResponse(existing);

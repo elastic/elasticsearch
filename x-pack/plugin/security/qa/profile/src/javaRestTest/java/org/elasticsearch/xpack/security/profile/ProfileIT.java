@@ -39,7 +39,8 @@ public class ProfileIT extends ESRestTestCase {
               },
               "email": "foo@example.com",
               "full_name": "User Foo",
-              "display_name": "Curious Foo"
+              "display_name": "Curious Foo",
+              "active": true
             },
             "last_synchronized": %s,
             "access": {
@@ -65,6 +66,28 @@ public class ProfileIT extends ESRestTestCase {
                 basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()))
             )
             .build();
+    }
+
+    public void testActivateProfile() throws IOException {
+        final Request activateProfileRequest = new Request("POST", "_security/profile/_activate");
+        activateProfileRequest.setJsonEntity("""
+            {
+              "grant_type": "password",
+              "username": "rac_user",
+              "password": "x-pack-test-password"
+            }""");
+
+        final Response activateProfileResponse = adminClient().performRequest(activateProfileRequest);
+        assertOK(activateProfileResponse);
+        final Map<String, Object> activateProfileMap = responseAsMap(activateProfileResponse);
+
+        final String profileUid = (String) activateProfileMap.get("uid");
+        final Request getProfileRequest1 = new Request("GET", "_security/profile/" + profileUid);
+        final Response getProfileResponse1 = adminClient().performRequest(getProfileRequest1);
+        assertOK(getProfileResponse1);
+        final Map<String, Object> getProfileMap1 = responseAsMap(getProfileResponse1);
+        final Map<String, Object> profile1 = castToMap(getProfileMap1.get(profileUid));
+        assertThat(profile1, equalTo(activateProfileMap));
     }
 
     public void testGetProfile() throws IOException {

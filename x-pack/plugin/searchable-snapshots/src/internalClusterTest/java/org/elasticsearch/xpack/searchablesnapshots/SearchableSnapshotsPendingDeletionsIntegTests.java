@@ -444,7 +444,7 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
         });
     }
 
-    public void testSearchableSnapshotIsDeletedAfterExpiration() throws Exception {
+    public void testSnapshotDeletionsPendingIsRemovedFromClusterStateAfterExpiration() throws Exception {
         mountIndexThenExecute((repository, snapshot, index) -> {
             try {
                 assertAcked(

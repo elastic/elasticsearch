@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -49,7 +50,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -128,7 +128,6 @@ import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VAL
 public class RestoreService implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(RestoreService.class);
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestoreService.class);
 
     public static final Setting<Boolean> REFRESH_REPO_UUID_ON_RESTORE_SETTING = Setting.boolSetting(
         "snapshot.refresh_repo_uuid_on_restore",
@@ -297,7 +296,7 @@ public class RestoreService implements ClusterStateApplier {
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
 
         // Make sure that we can restore from this snapshot
-        validateSnapshotRestorable(repositoryName, snapshotInfo);
+        validateSnapshotRestorable(request, repository.getMetadata(), snapshotInfo);
 
         // Get the global state if necessary
         Metadata globalMetadata = null;
@@ -957,16 +956,16 @@ public class RestoreService implements ClusterStateApplier {
      * @param repository      repository name
      * @param snapshotInfo    snapshot metadata
      */
-    private static void validateSnapshotRestorable(final String repository, final SnapshotInfo snapshotInfo) {
+    static void validateSnapshotRestorable(RestoreSnapshotRequest request, RepositoryMetadata repository, SnapshotInfo snapshotInfo) {
         if (snapshotInfo.state().restorable() == false) {
             throw new SnapshotRestoreException(
-                new Snapshot(repository, snapshotInfo.snapshotId()),
+                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
                 "unsupported snapshot state [" + snapshotInfo.state() + "]"
             );
         }
         if (Version.CURRENT.before(snapshotInfo.version())) {
             throw new SnapshotRestoreException(
-                new Snapshot(repository, snapshotInfo.snapshotId()),
+                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
                 "the snapshot was created with Elasticsearch version ["
                     + snapshotInfo.version()
                     + "] which is higher than the version of this node ["
@@ -976,12 +975,18 @@ public class RestoreService implements ClusterStateApplier {
         }
         if (snapshotInfo.version().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
             throw new SnapshotRestoreException(
-                new Snapshot(repository, snapshotInfo.snapshotId()),
+                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
                 "the snapshot was created with Elasticsearch version ["
                     + snapshotInfo.version()
                     + "] which is below the current versions minimum index compatibility version ["
                     + Version.CURRENT.minimumIndexCompatibilityVersion()
                     + "]"
+            );
+        }
+        if (request.includeGlobalState() && snapshotInfo.includeGlobalState() == Boolean.FALSE) {
+            throw new SnapshotRestoreException(
+                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
+                "cannot restore global state since the snapshot was created without global state"
             );
         }
     }

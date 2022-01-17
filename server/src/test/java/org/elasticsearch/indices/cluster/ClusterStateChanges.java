@@ -321,7 +321,7 @@ public class ClusterStateChanges {
             EmptySystemIndices.INSTANCE
         );
 
-        nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
+        nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService);
         joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, (s, p, r) -> {});
     }
 
@@ -400,7 +400,7 @@ public class ClusterStateChanges {
         return runTasks(
             nodeRemovalExecutor,
             clusterState,
-            nodes.stream().map(n -> new NodeRemovalClusterStateTaskExecutor.Task(n, "dummy reason")).collect(Collectors.toList())
+            nodes.stream().map(n -> new NodeRemovalClusterStateTaskExecutor.Task(n, "dummy reason", () -> {})).collect(Collectors.toList())
         );
     }
 

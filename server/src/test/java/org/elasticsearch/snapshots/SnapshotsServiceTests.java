@@ -54,11 +54,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         final ShardId shardId1 = new ShardId(index(indexName1), 0);
         {
             final ClusterState state = stateWithSnapshots(repoName, snapshotNoShards);
-            final SnapshotsService.ShardSnapshotUpdate shardCompletion = new SnapshotsService.ShardSnapshotUpdate(
-                snapshot,
-                shardId1,
-                successfulShardStatus(uuid())
-            );
+            final SnapshotsService.ShardSnapshotUpdate shardCompletion = successUpdate(snapshot, shardId1, uuid());
             assertIsNoop(state, shardCompletion);
         }
         {
@@ -67,10 +63,10 @@ public class SnapshotsServiceTests extends ESTestCase {
                 repoName,
                 snapshotEntry(snapshot, Collections.singletonMap(indexId.getName(), indexId), shardsMap(shardId1, initShardStatus(uuid())))
             );
-            final SnapshotsService.ShardSnapshotUpdate shardCompletion = new SnapshotsService.ShardSnapshotUpdate(
+            final SnapshotsService.ShardSnapshotUpdate shardCompletion = successUpdate(
                 snapshot("other-repo", snapshot.getSnapshotId().getName()),
                 shardId1,
-                successfulShardStatus(uuid())
+                uuid()
             );
             assertIsNoop(state, shardCompletion);
         }
@@ -435,11 +431,11 @@ public class SnapshotsServiceTests extends ESTestCase {
     }
 
     private static SnapshotsService.ShardSnapshotUpdate successUpdate(Snapshot snapshot, ShardId shardId, String nodeId) {
-        return new SnapshotsService.ShardSnapshotUpdate(snapshot, shardId, successfulShardStatus(nodeId));
+        return new SnapshotsService.ShardSnapshotUpdate(snapshot, shardId, null, successfulShardStatus(nodeId), null);
     }
 
     private static SnapshotsService.ShardSnapshotUpdate successUpdate(Snapshot snapshot, RepositoryShardId shardId, String nodeId) {
-        return new SnapshotsService.ShardSnapshotUpdate(snapshot, shardId, successfulShardStatus(nodeId));
+        return new SnapshotsService.ShardSnapshotUpdate(snapshot, null, shardId, successfulShardStatus(nodeId), null);
     }
 
     private static ClusterState stateWithUnassignedIndices(String... indexNames) {

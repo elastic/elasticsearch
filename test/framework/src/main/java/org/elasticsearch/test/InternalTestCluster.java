@@ -523,7 +523,8 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
-        // RST all closing connections in tests
+        // RST all closing connections in tests (by setting SO_LINGER to 0) so we don't leave too many connections in TIME_WAIT state and
+        // run out of ports.
         builder.put(TransportSettings.RST_ON_CLOSE.getKey(), true);
 
         // randomize tcp settings

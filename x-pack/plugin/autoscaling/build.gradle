@@ -19,7 +19,6 @@ dependencies {
   testImplementation project(path: xpackModule('ilm'))
 
   testImplementation "com.fasterxml.jackson.core:jackson-databind:2.10.4"
-  testImplementation project(':modules:transport-netty4') // for http
   testImplementation project(':plugins:transport-nio') // for http
 }
 

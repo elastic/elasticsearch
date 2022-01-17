@@ -203,13 +203,10 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             request.getParameters().getReadPollTimeout()
         );
         patterns.put(request.getName(), autoFollowPattern);
-        ClusterState.Builder newState = ClusterState.builder(localState);
-        newState.metadata(
-            Metadata.builder(localState.getMetadata())
-                .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices, headers))
-                .build()
+
+        return localState.copyAndUpdateMetadata(
+            metadata -> metadata.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices, headers))
         );
-        return newState.build();
     }
 
     private static void markExistingIndicesAsAutoFollowedForNewPatterns(

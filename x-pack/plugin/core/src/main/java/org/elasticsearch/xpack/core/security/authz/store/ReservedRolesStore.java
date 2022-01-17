@@ -50,7 +50,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
         "superuser",
         new String[] { "all" },
         new RoleDescriptor.IndicesPrivileges[] {
-            RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(true).build() },
+            RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(false).build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices("*")
+                .privileges("monitor", "read", "view_index_metadata", "read_cross_cluster")
+                .allowRestrictedIndices(true)
+                .build() },
         new RoleDescriptor.ApplicationResourcePrivileges[] {
             RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build() },
         null,

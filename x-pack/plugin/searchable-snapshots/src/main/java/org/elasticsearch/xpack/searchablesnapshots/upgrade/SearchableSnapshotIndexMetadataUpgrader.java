@@ -77,7 +77,7 @@ public class SearchableSnapshotIndexMetadataUpgrader {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     logger.warn(
                         "upgrading frozen indices to have frozen shard limit group failed, will retry on the next cluster state update",
                         e

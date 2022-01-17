@@ -99,7 +99,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 logger.error(new ParameterizedMessage("failed to put shutdown for node [{}]", request.getNodeId()), e);
                 listener.onFailure(e);
             }

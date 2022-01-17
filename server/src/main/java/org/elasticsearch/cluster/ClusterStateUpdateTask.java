@@ -53,11 +53,11 @@ public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, 
      * ERROR} level and otherwise ignored. If log-and-ignore is the right behaviour then implementations should do so themselves, typically
      * using a more specific logger and at a less dramatic log level.
      */
-    public abstract void onFailure(String source, Exception e);
+    public abstract void onFailure(Exception e);
 
     /**
      * If the cluster state update task wasn't processed by the provided timeout, call
-     * {@link ClusterStateTaskListener#onFailure(String, Exception)}. May return null to indicate no timeout is needed (default).
+     * {@link ClusterStateTaskListener#onFailure(Exception)}. May return null to indicate no timeout is needed (default).
      */
     @Nullable
     public final TimeValue timeout() {

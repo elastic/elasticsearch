@@ -11,29 +11,29 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.Grant;
 
 import java.io.IOException;
 
 public class ActivateProfileRequest extends ActionRequest {
 
     // TODO: move grant to separate class
-    private final GrantApiKeyRequest.Grant grant;
+    private final Grant grant;
 
     public ActivateProfileRequest() {
-        this.grant = new GrantApiKeyRequest.Grant();
+        this.grant = new Grant();
     }
 
-    public ActivateProfileRequest(GrantApiKeyRequest.Grant grant) {
+    public ActivateProfileRequest(Grant grant) {
         this.grant = grant;
     }
 
     public ActivateProfileRequest(StreamInput in) throws IOException {
         super(in);
-        this.grant = new GrantApiKeyRequest.Grant(in);
+        this.grant = new Grant(in);
     }
 
-    public GrantApiKeyRequest.Grant getGrant() {
+    public Grant getGrant() {
         return grant;
     }
 

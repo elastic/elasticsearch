@@ -19,6 +19,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -92,18 +93,14 @@ public final class TransportGrantApiKeyAction extends HandledTransportAction<Gra
         }
     }
 
-    private void resolveAuthentication(
-        GrantApiKeyRequest.Grant grant,
-        TransportRequest transportRequest,
-        ActionListener<Authentication> listener
-    ) {
+    private void resolveAuthentication(Grant grant, TransportRequest transportRequest, ActionListener<Authentication> listener) {
         switch (grant.getType()) {
-            case GrantApiKeyRequest.PASSWORD_GRANT_TYPE -> {
+            case Grant.PASSWORD_GRANT_TYPE -> {
                 final UsernamePasswordToken token = new UsernamePasswordToken(grant.getUsername(), grant.getPassword());
                 authenticationService.authenticate(super.actionName, transportRequest, token, listener);
                 return;
             }
-            case GrantApiKeyRequest.ACCESS_TOKEN_GRANT_TYPE -> {
+            case Grant.ACCESS_TOKEN_GRANT_TYPE -> {
                 tokenService.authenticateToken(grant.getAccessToken(), listener);
                 return;
             }

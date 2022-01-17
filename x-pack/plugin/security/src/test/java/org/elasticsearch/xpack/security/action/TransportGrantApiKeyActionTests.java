@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -150,10 +151,9 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         assertThat(future.actionGet(), sameInstance(response));
     }
 
-    public void testGrantApiKeyWithInvalidatedCredentials() throws Exception {
-        final boolean withUsernamePassword = randomBoolean();
+    public void testGrantApiKeyWithInvalidatedCredentials() {
         final GrantApiKeyRequest request = mockRequest();
-        if (withUsernamePassword) {
+        if (randomBoolean()) {
             request.getGrant().setType("password");
             final String username = randomAlphaOfLengthBetween(4, 12);
             final SecureString password = new SecureString(randomAlphaOfLengthBetween(8, 24).toCharArray());
@@ -192,7 +192,8 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             listener.onFailure(new ElasticsearchSecurityException("authentication failed for testing"));
 
             return null;
-        }).when(authenticationService).authenticate(eq(GrantApiKeyAction.NAME), same(request), any(BearerToken.class), anyActionListener());
+        }).when(authenticationService)
+            .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(AuthenticationToken.class), anyActionListener());
 
         setupApiKeyGenerator(authentication, request, response);
 

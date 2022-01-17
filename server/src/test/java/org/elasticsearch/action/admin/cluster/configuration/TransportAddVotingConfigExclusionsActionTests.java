@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateObserver.Listener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
@@ -544,7 +545,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     throw new AssertionError("unexpected failure", e);
                 }
 
@@ -552,7 +553,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     doneLatch.countDown();
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         }
 
         @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -97,14 +98,14 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 logger.error(
                     new ParameterizedMessage("could not update watcher stopped status to [{}], source [{}]", manuallyStopped, source),
                     e
                 );
                 listener.onFailure(e);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     @Override

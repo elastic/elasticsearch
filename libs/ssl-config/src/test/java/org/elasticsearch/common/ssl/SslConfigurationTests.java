@@ -91,52 +91,49 @@ public class SslConfigurationTests extends ESTestCase {
                 orig.getCipherSuites(),
                 orig.getSupportedProtocols()
             ),
-            orig -> {
-                switch (randomIntBetween(1, 4)) {
-                    case 1:
-                        return new SslConfiguration(
-                            true,
-                            orig.getTrustConfig(),
-                            orig.getKeyConfig(),
-                            randomValueOtherThan(orig.getVerificationMode(), () -> randomFrom(SslVerificationMode.values())),
-                            orig.getClientAuth(),
-                            orig.getCipherSuites(),
-                            orig.getSupportedProtocols()
-                        );
-                    case 2:
-                        return new SslConfiguration(
-                            true,
-                            orig.getTrustConfig(),
-                            orig.getKeyConfig(),
-                            orig.getVerificationMode(),
-                            randomValueOtherThan(orig.getClientAuth(), () -> randomFrom(SslClientAuthenticationMode.values())),
-                            orig.getCipherSuites(),
-                            orig.getSupportedProtocols()
-                        );
-                    case 3:
-                        return new SslConfiguration(
-                            true,
-                            orig.getTrustConfig(),
-                            orig.getKeyConfig(),
-                            orig.getVerificationMode(),
-                            orig.getClientAuth(),
-                            DEFAULT_CIPHERS,
-                            orig.getSupportedProtocols()
-                        );
-                    case 4:
-                    default:
-                        return new SslConfiguration(
-                            true,
-                            orig.getTrustConfig(),
-                            orig.getKeyConfig(),
-                            orig.getVerificationMode(),
-                            orig.getClientAuth(),
-                            orig.getCipherSuites(),
-                            Arrays.asList(VALID_PROTOCOLS)
-                        );
-                }
-            }
+            this::mutateSslConfiguration
         );
+    }
+
+    private SslConfiguration mutateSslConfiguration(SslConfiguration orig) {
+        return switch (randomIntBetween(1, 4)) {
+            case 1 -> new SslConfiguration(
+                true,
+                orig.getTrustConfig(),
+                orig.getKeyConfig(),
+                randomValueOtherThan(orig.getVerificationMode(), () -> randomFrom(SslVerificationMode.values())),
+                orig.getClientAuth(),
+                orig.getCipherSuites(),
+                orig.getSupportedProtocols()
+            );
+            case 2 -> new SslConfiguration(
+                true,
+                orig.getTrustConfig(),
+                orig.getKeyConfig(),
+                orig.getVerificationMode(),
+                randomValueOtherThan(orig.getClientAuth(), () -> randomFrom(SslClientAuthenticationMode.values())),
+                orig.getCipherSuites(),
+                orig.getSupportedProtocols()
+            );
+            case 3 -> new SslConfiguration(
+                true,
+                orig.getTrustConfig(),
+                orig.getKeyConfig(),
+                orig.getVerificationMode(),
+                orig.getClientAuth(),
+                DEFAULT_CIPHERS,
+                orig.getSupportedProtocols()
+            );
+            default -> new SslConfiguration(
+                true,
+                orig.getTrustConfig(),
+                orig.getKeyConfig(),
+                orig.getVerificationMode(),
+                orig.getClientAuth(),
+                orig.getCipherSuites(),
+                Arrays.asList(VALID_PROTOCOLS)
+            );
+        };
     }
 
     public void testDependentFiles() {

@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -21,6 +20,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -88,8 +88,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     ) {
         Map<String, List<AbstractAllocateAllocationCommand>> stalePrimaryAllocations = new HashMap<>();
         for (AllocationCommand command : request.getCommands().commands()) {
-            if (command instanceof AllocateStalePrimaryAllocationCommand) {
-                final AllocateStalePrimaryAllocationCommand cmd = (AllocateStalePrimaryAllocationCommand) command;
+            if (command instanceof final AllocateStalePrimaryAllocationCommand cmd) {
                 stalePrimaryAllocations.computeIfAbsent(cmd.index(), k -> new ArrayList<>()).add(cmd);
             }
         }
@@ -159,15 +158,18 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         );
     }
 
+    private static final String TASK_SOURCE = "cluster_reroute (api)";
+
     private void submitStateUpdate(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
         clusterService.submitStateUpdateTask(
-            "cluster_reroute (api)",
+            TASK_SOURCE,
             new ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, request, listener.map(response -> {
                 if (request.dryRun() == false) {
                     response.getExplanations().getYesDecisionMessages().forEach(logger::info);
                 }
                 return response;
-            }))
+            })),
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -204,9 +206,9 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
-            logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", source), e);
-            super.onFailure(source, e);
+        public void onFailure(Exception e) {
+            logger.debug("failed to perform [" + TASK_SOURCE + "]", e);
+            super.onFailure(e);
         }
 
         @Override

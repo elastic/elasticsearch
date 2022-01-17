@@ -73,14 +73,11 @@ public final class AnalysisUtils {
 
     private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named, boolean allowCompound) {
         // if it's a object/compound type, keep it unresolved with a nice error message
-        if (named instanceof FieldAttribute) {
-            FieldAttribute fa = (FieldAttribute) named;
+        if (named instanceof FieldAttribute fa) {
 
             // incompatible mappings
-            if (fa.field() instanceof InvalidMappedField) {
-                named = u.withUnresolvedMessage(
-                    "Cannot use field [" + fa.name() + "] due to ambiguities being " + ((InvalidMappedField) fa.field()).errorMessage()
-                );
+            if (fa.field()instanceof InvalidMappedField field) {
+                named = u.withUnresolvedMessage("Cannot use field [" + fa.name() + "] due to ambiguities being " + field.errorMessage());
             }
             // unsupported types
             else if (DataTypes.isUnsupported(fa.dataType())) {

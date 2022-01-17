@@ -426,20 +426,14 @@ public class Email implements ToXContentObject {
             if (name == null) {
                 return defaultPriority;
             }
-            switch (name.toLowerCase(Locale.ROOT)) {
-                case "highest":
-                    return HIGHEST;
-                case "high":
-                    return HIGH;
-                case "normal":
-                    return NORMAL;
-                case "low":
-                    return LOW;
-                case "lowest":
-                    return LOWEST;
-                default:
-                    return defaultPriority;
-            }
+            return switch (name.toLowerCase(Locale.ROOT)) {
+                case "highest" -> HIGHEST;
+                case "high" -> HIGH;
+                case "normal" -> NORMAL;
+                case "low" -> LOW;
+                case "lowest" -> LOWEST;
+                default -> defaultPriority;
+            };
         }
 
         public static Priority parse(Settings settings, String name) {

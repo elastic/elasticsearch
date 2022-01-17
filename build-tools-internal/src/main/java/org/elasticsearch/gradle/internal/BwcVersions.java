@@ -67,7 +67,7 @@ public class BwcVersions {
     private static final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*?LUCENE_(\\d+)_(\\d+)_(\\d+)\\);"
     );
-    private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("7.16.0");
+    private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("7.17.0");
 
     private final VersionPair currentVersion;
     private final List<VersionPair> versions;
@@ -236,11 +236,11 @@ public class BwcVersions {
         );
     }
 
-    public void withIndexCompatiple(BiConsumer<Version, String> versionAction) {
+    public void withIndexCompatible(BiConsumer<Version, String> versionAction) {
         getIndexCompatible().forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
-    public void withIndexCompatiple(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
+    public void withIndexCompatible(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
         getIndexCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
@@ -250,11 +250,11 @@ public class BwcVersions {
         );
     }
 
-    public void withWireCompatiple(BiConsumer<Version, String> versionAction) {
+    public void withWireCompatible(BiConsumer<Version, String> versionAction) {
         getWireCompatible().forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
-    public void withWireCompatiple(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
+    public void withWireCompatible(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
         getWireCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
@@ -274,6 +274,10 @@ public class BwcVersions {
         List<Version> unreleasedWireCompatible = new ArrayList<>(getWireCompatible());
         unreleasedWireCompatible.retainAll(getUnreleased());
         return unmodifiableList(unreleasedWireCompatible);
+    }
+
+    public Version getMinimumWireCompatibleVersion() {
+        return MINIMUM_WIRE_COMPATIBLE_VERSION;
     }
 
     public static class UnreleasedVersionInfo {

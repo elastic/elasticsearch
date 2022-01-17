@@ -10,7 +10,7 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
     NodesStatsRequest,

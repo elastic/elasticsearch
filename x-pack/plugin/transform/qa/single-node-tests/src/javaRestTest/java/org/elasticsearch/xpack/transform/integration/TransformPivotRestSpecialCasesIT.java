@@ -52,16 +52,17 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
         // output field "rating.avg" in the pivot config
         final Request createIndexTemplateRequest = new Request("PUT", "_template/special_pivot_template");
 
-        String template = "{"
-            + "\"index_patterns\" : [\"special_pivot_template*\"],"
-            + "  \"mappings\" : {"
-            + "    \"properties\": {"
-            + "      \"rating\":{"
-            + "        \"type\": \"float\"\n"
-            + "      }"
-            + "    }"
-            + "  }"
-            + "}";
+        String template = """
+            {
+              "index_patterns": [ "special_pivot_template*" ],
+              "mappings": {
+                "properties": {
+                  "rating": {
+                    "type": "float"
+                  }
+                }
+              }
+            }""";
 
         createIndexTemplateRequest.setJsonEntity(template);
         createIndexTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
@@ -70,27 +71,31 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
 
         final Request createTransformRequest = new Request("PUT", getTransformEndpoint() + transformId);
 
-        String config = "{"
-            + " \"source\": {\"index\":\""
-            + REVIEWS_INDEX_NAME
-            + "\"},"
-            + " \"dest\": {\"index\":\""
-            + transformIndex
-            + "\"},";
-
-        config += " \"pivot\": {"
-            + "   \"group_by\": {"
-            + "     \"reviewer\": {"
-            + "       \"terms\": {"
-            + "         \"field\": \"user_id\""
-            + " } } },"
-            + "   \"aggregations\": {"
-            + "     \"rating.avg\": {"
-            + "       \"avg\": {"
-            + "         \"field\": \"stars\""
-            + " } }"
-            + " } }"
-            + "}";
+        String config = """
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "rating.avg": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -138,25 +143,29 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
         }
 
         final StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_index\":\"" + indexName + "\"}}\n");
-        bulk.append("{\"host\":\"host-1\",\"cpu\": 22}\n");
-        bulk.append("{\"index\":{\"_index\":\"" + indexName + "\"}}\n");
-        bulk.append("{\"host\":\"host-1\",\"cpu\": 55}\n");
-        bulk.append("{\"index\":{\"_index\":\"" + indexName + "\"}}\n");
-        bulk.append("{\"host\":\"host-1\",\"cpu\": 23}\n");
-        bulk.append("{\"index\":{\"_index\":\"" + indexName + "\"}}\n");
-        bulk.append("{\"host\":\"host-2\",\"cpu\": 0}\n");
-        bulk.append("{\"index\":{\"_index\":\"" + indexName + "\"}}\n");
-        bulk.append("{\"host\":\"host-2\",\"cpu\": 99}\n");
-        bulk.append("{\"index\":{\"_index\":\"" + indexName + "\"}}\n");
-        bulk.append("{\"host\":\"host-1\",\"cpu\": 28}\n");
-        bulk.append("{\"index\":{\"_index\":\"" + indexName + "\"}}\n");
-        bulk.append("{\"host\":\"host-1\",\"cpu\": 77}\n");
+        bulk.append("""
+            {"index":{"_index":"%s"}}
+            {"host":"host-1","cpu": 22}
+            {"index":{"_index":"%s"}}
+            {"host":"host-1","cpu": 55}
+            {"index":{"_index":"%s"}}
+            {"host":"host-1","cpu": 23}
+            {"index":{"_index":"%s"}}
+            {"host":"host-2","cpu": 0}
+            {"index":{"_index":"%s"}}
+            {"host":"host-2","cpu": 99}
+            {"index":{"_index":"%s"}}
+            {"host":"host-1","cpu": 28}
+            {"index":{"_index":"%s"}}
+            {"host":"host-1","cpu": 77}
+            """.formatted(indexName, indexName, indexName, indexName, indexName, indexName, indexName));
 
         // missing value for cpu
-        bulk.append("{\"index\":{\"_index\":\"" + indexName + "\"}}\n");
-        bulk.append("{\"host\":\"host-3\"}\n");
-        bulk.append("\r\n");
+        bulk.append("""
+            {"index":{"_index":"%s"}}
+            {"host":"host-3"}
+
+            """.formatted(indexName));
         final Request bulkRequest = new Request("POST", "/_bulk");
         bulkRequest.addParameter("refresh", "true");
         bulkRequest.setJsonEntity(bulk.toString());
@@ -164,21 +173,31 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
 
         final Request createTransformRequest = new Request("PUT", getTransformEndpoint() + transformId);
 
-        String config = "{" + " \"source\": {\"index\":\"" + indexName + "\"}," + " \"dest\": {\"index\":\"" + transformIndex + "\"},";
-
-        config += " \"pivot\": {"
-            + "   \"group_by\": {"
-            + "     \"host\": {"
-            + "       \"terms\": {"
-            + "         \"field\": \"host\""
-            + " } } },"
-            + "   \"aggregations\": {"
-            + "     \"p\": {"
-            + "       \"percentiles\": {"
-            + "         \"field\": \"cpu\""
-            + " } }"
-            + " } }"
-            + "}";
+        String config = """
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "host": {
+                    "terms": {
+                      "field": "host"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "p": {
+                    "percentiles": {
+                      "field": "cpu"
+                    }
+                  }
+                }
+              }
+            }""".formatted(indexName, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));

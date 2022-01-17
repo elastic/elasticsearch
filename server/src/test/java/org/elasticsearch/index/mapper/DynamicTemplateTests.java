@@ -89,7 +89,8 @@ public class DynamicTemplateTests extends ESTestCase {
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         Map<String, Object> stringObjectMap = template.mappingForName("my_name", "my_type");
         assertEquals(
-            "{\"field1_my_name\":\"my_type\",\"test\":[\"field2_my_name_my_type\"]}",
+            """
+                {"field1_my_name":"my_type","test":["field2_my_name_my_type"]}""",
             Strings.toString(JsonXContent.contentBuilder().map(stringObjectMap))
         );
     }
@@ -101,7 +102,8 @@ public class DynamicTemplateTests extends ESTestCase {
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         Map<String, Object> stringObjectMap = template.mappingForName("my_name", "my_type");
         assertEquals(
-            "{\"field1_my_name\":\"my_type\",\"test\":[\"field2_my_name_my_type\"]}",
+            """
+                {"field1_my_name":"my_type","test":["field2_my_name_my_type"]}""",
             Strings.toString(JsonXContent.contentBuilder().map(stringObjectMap))
         );
     }
@@ -285,7 +287,8 @@ public class DynamicTemplateTests extends ESTestCase {
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         XContentBuilder builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match_mapping_type\":\"string\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
+        assertEquals("""
+            {"match_mapping_type":"string","mapping":{"store":true}}""", Strings.toString(builder));
 
         // name-based template
         templateDef = new HashMap<>();
@@ -298,7 +301,8 @@ public class DynamicTemplateTests extends ESTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match\":\"*name\",\"unmatch\":\"first_name\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
+        assertEquals("""
+            {"match":"*name","unmatch":"first_name","mapping":{"store":true}}""", Strings.toString(builder));
 
         // path-based template
         templateDef = new HashMap<>();
@@ -311,7 +315,8 @@ public class DynamicTemplateTests extends ESTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"path_match\":\"*name\",\"path_unmatch\":\"first_name\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
+        assertEquals("""
+            {"path_match":"*name","path_unmatch":"first_name","mapping":{"store":true}}""", Strings.toString(builder));
 
         // regex matching
         templateDef = new HashMap<>();
@@ -324,7 +329,8 @@ public class DynamicTemplateTests extends ESTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match\":\"^a$\",\"match_pattern\":\"regex\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
+        assertEquals("""
+            {"match":"^a$","match_pattern":"regex","mapping":{"store":true}}""", Strings.toString(builder));
 
         // empty condition
         templateDef = new HashMap<>();
@@ -332,7 +338,8 @@ public class DynamicTemplateTests extends ESTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(Strings.toString(builder), equalTo("{\"mapping\":{\"store\":true}}"));
+        assertThat(Strings.toString(builder), equalTo("""
+            {"mapping":{"store":true}}"""));
     }
 
     public void testSerializationRuntimeMappings() throws Exception {
@@ -343,7 +350,8 @@ public class DynamicTemplateTests extends ESTestCase {
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         XContentBuilder builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match_mapping_type\":\"string\",\"runtime\":{}}", Strings.toString(builder));
+        assertEquals("""
+            {"match_mapping_type":"string","runtime":{}}""", Strings.toString(builder));
 
         // name-based template
         templateDef = new HashMap<>();
@@ -356,7 +364,8 @@ public class DynamicTemplateTests extends ESTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match\":\"*name\",\"unmatch\":\"first_name\",\"runtime\":{\"type\":\"new_type\"}}", Strings.toString(builder));
+        assertEquals("""
+            {"match":"*name","unmatch":"first_name","runtime":{"type":"new_type"}}""", Strings.toString(builder));
 
         // path-based template
         templateDef = new HashMap<>();
@@ -369,7 +378,8 @@ public class DynamicTemplateTests extends ESTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"path_match\":\"*name\",\"path_unmatch\":\"first_name\",\"runtime\":{}}", Strings.toString(builder));
+        assertEquals("""
+            {"path_match":"*name","path_unmatch":"first_name","runtime":{}}""", Strings.toString(builder));
 
         // regex matching
         templateDef = new HashMap<>();
@@ -382,7 +392,8 @@ public class DynamicTemplateTests extends ESTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match\":\"^a$\",\"match_pattern\":\"regex\",\"runtime\":{}}", Strings.toString(builder));
+        assertEquals("""
+            {"match":"^a$","match_pattern":"regex","runtime":{}}""", Strings.toString(builder));
     }
 
     public void testMatchTemplateName() throws Exception {

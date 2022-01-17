@@ -19,7 +19,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -96,7 +95,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             final List<Class<? extends Plugin>> mockPlugins = List.of(
                 MockHttpTransport.TestPlugin.class,
                 MockTransportService.TestPlugin.class,
-                MockNioTransportPlugin.class
+                getTestTransportPlugin()
             );
             final Collection<Class<? extends Plugin>> nodePlugins = nodePlugins(clusterAlias);
 
@@ -221,7 +220,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         final Settings.Builder builder = Settings.builder();
         builder.putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()); // empty list disables a port scan for other nodes
         builder.putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
-        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME);
+        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         builder.put(nodeSettings);
 
         return new NodeConfigurationSource() {

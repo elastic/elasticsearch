@@ -14,14 +14,12 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -58,7 +56,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
                 public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                     return Settings.builder()
                         .put(MultiClusterRepoAccessIT.this.nodeSettings(nodeOrdinal, otherSettings))
-                        .put(NetworkModule.TRANSPORT_TYPE_KEY, MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME)
+                        .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                         .put(Environment.PATH_REPO_SETTING.getKey(), repoPath)
                         .build();
                 }
@@ -74,9 +72,8 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
                 ESIntegTestCase.TestSeedPlugin.class,
                 MockHttpTransport.TestPlugin.class,
                 MockTransportService.TestPlugin.class,
-                MockNioTransportPlugin.class,
                 InternalSettingsPlugin.class,
-                MockRepository.Plugin.class
+                getTestTransportPlugin()
             ),
             Function.identity()
         );
@@ -92,13 +89,13 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(NetworkModule.TRANSPORT_TYPE_KEY, MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME)
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
             .build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), MockNioTransportPlugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), getTestTransportPlugin());
     }
 
     public void testConcurrentDeleteFromOtherCluster() throws InterruptedException {

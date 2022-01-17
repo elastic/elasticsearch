@@ -55,7 +55,7 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
             }
 
             @Override
-            public void onFailure(String source, @Nullable Exception e) {
+            public void onFailure(@Nullable Exception e) {
                 logger.error("error on metadata cleanup after test", e);
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -83,7 +83,7 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
             }
 
             @Override
-            public void onFailure(String source, @Nullable Exception e) {
+            public void onFailure(@Nullable Exception e) {
                 logger.error("error on metadata cleanup after test", e);
             }
         }, ClusterStateTaskExecutor.unbatched());

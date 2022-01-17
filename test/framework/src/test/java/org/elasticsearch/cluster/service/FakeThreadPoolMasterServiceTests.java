@@ -92,7 +92,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError();
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -132,7 +132,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError();
             }
         }, ClusterStateTaskExecutor.unbatched());

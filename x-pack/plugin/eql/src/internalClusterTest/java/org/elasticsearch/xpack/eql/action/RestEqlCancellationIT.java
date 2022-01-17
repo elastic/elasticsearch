@@ -54,7 +54,6 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(getTestTransportPlugin());
-        plugins.add(Netty4Plugin.class);
         return plugins;
     }
 

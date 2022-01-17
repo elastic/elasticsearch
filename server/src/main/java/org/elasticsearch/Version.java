@@ -317,6 +317,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     // instances
     private Version minIndexCompatVersion;
 
+    // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
+    // instances
+    private Version previousFirstMinor;
+
     /**
      * Returns the minimum compatible version based on the current
      * version. Ie a node needs to have at least the return version in order
@@ -384,6 +388,17 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
     }
 
+    private Version computePreviousFirstMinor() {
+        List<Version> allVersions = DeclaredVersionsHolder.DECLARED_VERSIONS;
+        for (int i = allVersions.size() - 1; i >= 0; i--) {
+            Version v = allVersions.get(i);
+            if (v.before(this) && (v.minor < this.minor || v.major < this.major)) {
+                return fromId(v.major * 1000000 + v.minor * 10000 + 99);
+            }
+        }
+        throw new IllegalArgumentException("couldn't find any released versions of the minor before [" + this + "]");
+    }
+
     /**
      * Returns <code>true</code> iff both version are compatible. Otherwise <code>false</code>
      */
@@ -400,6 +415,20 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      */
     public Version previousMajor() {
         return Version.fromId(previousMajorId);
+    }
+
+    /**
+     * Returns the first minor version previous to the minor version stored in this object.
+     * I.e 8.2.1 will return 8.1.0
+     */
+    public Version previousFirstMinor() {
+
+        Version res = previousFirstMinor;
+        if (res == null) {
+            res = computePreviousFirstMinor();
+            previousFirstMinor = res;
+        }
+        return res;
     }
 
     @SuppressForbidden(reason = "System.out.*")

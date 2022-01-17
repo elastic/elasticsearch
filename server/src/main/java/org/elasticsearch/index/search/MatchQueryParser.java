@@ -194,7 +194,7 @@ public class MatchQueryParser {
         this.autoGenerateSynonymsPhraseQuery = enabled;
     }
 
-    public Query parse(Type type, String fieldName, Object value) throws IOException {
+    public final Query parse(Type type, String fieldName, Object value) throws IOException {
         final MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             return newUnmappedFieldQuery(fieldName);

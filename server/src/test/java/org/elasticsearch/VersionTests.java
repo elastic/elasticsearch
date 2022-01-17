@@ -336,4 +336,22 @@ public class VersionTests extends ESTestCase {
         VersionTests.assertUnknownVersion(VERSION_5_1_0_UNRELEASED);
     }
 
+    public void testPreviousFirstMinor() throws Exception {
+        final List<Version> declaredVersions = Version.getDeclaredVersions(Version.class);
+        Version randomVersion = randomValueOtherThanMany(v -> v.before(Version.V_7_1_0), () -> randomFrom(declaredVersions));
+        Version previousFirstMinor = randomVersion.previousFirstMinor();
+        assertTrue(previousFirstMinor.before(randomVersion));
+        assertTrue(previousFirstMinor.revision == 0);
+        for (int i = declaredVersions.indexOf(previousFirstMinor); i < declaredVersions.indexOf(randomVersion); i++) {
+            Version version = declaredVersions.get(i);
+            assertTrue(version.before(randomVersion));
+            if (randomVersion.major == previousFirstMinor.major) {
+                assertTrue(previousFirstMinor.minor == randomVersion.minor - 1 || previousFirstMinor.minor == randomVersion.minor);
+            } else {
+                assertTrue((randomVersion.major - 1) == previousFirstMinor.major);
+                assertTrue(randomVersion.minor == 0);
+            }
+        }
+    }
+
 }

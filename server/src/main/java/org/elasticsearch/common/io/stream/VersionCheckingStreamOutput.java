@@ -65,12 +65,12 @@ public class VersionCheckingStreamOutput extends StreamOutput {
     }
 
     private void checkVersionCompatibility(NamedWriteable namedWriteable) {
-        if (namedWriteable.getReleasedVersion().after(getVersion())) {
+        if (namedWriteable.getFirstReleasedVersion().after(getVersion())) {
             throw new IllegalArgumentException(
                 "NamedWritable ["
                     + namedWriteable.getClass().getName()
                     + "] was released in version "
-                    + namedWriteable.getReleasedVersion()
+                    + namedWriteable.getFirstReleasedVersion()
                     + " which is after current OutputStream version "
                     + getVersion()
             );

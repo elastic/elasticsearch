@@ -261,7 +261,7 @@ public class RestSearchActionTests extends RestActionTestCase {
         }
 
         @Override
-        public Version getReleasedVersion() {
+        public Version getFirstReleasedVersion() {
             return Version.CURRENT;
         }
     }

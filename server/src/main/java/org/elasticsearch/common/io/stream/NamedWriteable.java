@@ -22,7 +22,10 @@ public interface NamedWriteable extends Writeable {
      */
     String getWriteableName();
 
-    default Version getReleasedVersion() {
+    /**
+     * returns the Version this {@link NamedWriteable} was first introduced
+     */
+    default Version getFirstReleasedVersion() {
         return Version.CURRENT.minimumCompatibilityVersion();
     }
 }

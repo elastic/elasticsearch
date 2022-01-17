@@ -80,6 +80,9 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 /**
  * {@link Metadata} is the part of the {@link ClusterState} which persists across restarts. This persistence is XContent-based, so a
  * round-trip through XContent must be faithful in {@link XContentContext#GATEWAY} context.
+ * <p>
+ * The details of how this is persisted are covered in {@link org.elasticsearch.gateway.PersistedClusterStateService}.
+ * </p>
  */
 public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, ToXContentFragment {
 
@@ -1005,7 +1008,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         @Override
         public Metadata apply(Metadata part) {
-            Builder builder = builder();
+            // create builder from existing mappings hashes so we don't change existing index metadata instances when deduplicating
+            // mappings in the builder
+            Builder builder = new Builder(part.mappingsByHash);
             builder.clusterUUID(clusterUUID);
             builder.clusterUUIDCommitted(clusterUUIDCommitted);
             builder.version(version);
@@ -1020,6 +1025,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
     }
 
+    public static final Version MAPPINGS_AS_HASH_VERSION = Version.V_8_1_0;
+
     public static Metadata readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder();
         builder.version = in.readLong();
@@ -1031,9 +1038,25 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
         }
+        final Function<String, MappingMetadata> mappingLookup;
+        if (in.getVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
+            final int mappings = in.readVInt();
+            if (mappings > 0) {
+                final Map<String, MappingMetadata> mappingMetadataMap = new HashMap<>(mappings);
+                for (int i = 0; i < mappings; i++) {
+                    final MappingMetadata m = new MappingMetadata(in);
+                    mappingMetadataMap.put(m.getSha256(), m);
+                }
+                mappingLookup = mappingMetadataMap::get;
+            } else {
+                mappingLookup = null;
+            }
+        } else {
+            mappingLookup = null;
+        }
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            builder.put(IndexMetadata.readFrom(in), false);
+            builder.put(IndexMetadata.readFrom(in, mappingLookup), false);
         }
         size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -1058,9 +1081,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             hashesOfConsistentSettings.writeTo(out);
         }
+        // Starting in #MAPPINGS_AS_HASH_VERSION we write the mapping metadata first and then write the indices without metadata so that
+        // we avoid writing duplicate mappings twice
+        if (out.getVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
+            out.writeCollection(mappingsByHash.values());
+        }
         out.writeVInt(indices.size());
+        final boolean writeMappingsHash = out.getVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION);
         for (IndexMetadata indexMetadata : this) {
-            indexMetadata.writeTo(out);
+            indexMetadata.writeTo(out, writeMappingsHash);
         }
         out.writeVInt(templates.size());
         for (IndexTemplateMetadata template : templates.values()) {
@@ -1096,13 +1125,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private final Map<String, MappingMetadata> mappingsByHash;
 
         public Builder() {
-            clusterUUID = UNKNOWN_CLUSTER_UUID;
-            indices = ImmutableOpenMap.builder();
-            templates = ImmutableOpenMap.builder();
-            customs = ImmutableOpenMap.builder();
-            indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
-            previousIndicesLookup = null;
-            mappingsByHash = new HashMap<>();
+            this(Map.of());
         }
 
         Builder(Metadata metadata) {
@@ -1118,6 +1141,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             this.customs = ImmutableOpenMap.builder(metadata.customs);
             previousIndicesLookup = metadata.getIndicesLookup();
             this.mappingsByHash = new HashMap<>(metadata.mappingsByHash);
+        }
+
+        private Builder(Map<String, MappingMetadata> mappingsByHash) {
+            clusterUUID = UNKNOWN_CLUSTER_UUID;
+            indices = ImmutableOpenMap.builder();
+            templates = ImmutableOpenMap.builder();
+            customs = ImmutableOpenMap.builder();
+            indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
+            previousIndicesLookup = null;
+            this.mappingsByHash = new HashMap<>(mappingsByHash);
         }
 
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {

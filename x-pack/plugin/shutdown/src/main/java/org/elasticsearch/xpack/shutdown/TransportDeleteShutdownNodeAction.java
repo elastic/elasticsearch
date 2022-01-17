@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -83,7 +84,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 logger.error(new ParameterizedMessage("failed to delete shutdown for node [{}]", request.getNodeId()), e);
                 listener.onFailure(e);
             }
@@ -108,7 +109,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
                         }
                     });
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     @Override

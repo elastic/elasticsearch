@@ -89,6 +89,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
@@ -206,13 +207,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             .put(dataStreamIndex2, true)
             .put(dataStreamIndex3, true)
             .put(
-                new DataStream(
+                newInstance(
                     dataStreamName,
                     createTimestampField("@timestamp"),
                     List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex())
                 )
             )
-            .put(new DataStream(otherDataStreamName, createTimestampField("@timestamp"), List.of(dataStreamIndex3.getIndex())))
+            .put(newInstance(otherDataStreamName, createTimestampField("@timestamp"), List.of(dataStreamIndex3.getIndex())))
             .put(indexBuilder(securityIndexName).settings(settings))
             .build();
 

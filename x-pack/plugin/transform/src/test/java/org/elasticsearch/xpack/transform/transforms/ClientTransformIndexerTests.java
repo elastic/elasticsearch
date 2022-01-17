@@ -20,7 +20,7 @@ import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
@@ -120,7 +120,10 @@ public class ClientTransformIndexerTests extends ESTestCase {
     }
 
     public void testPitInjection() throws InterruptedException {
-        TransformConfig config = TransformConfigTests.randomTransformConfig();
+        // pit must be enabled, otherwise take a random config
+        TransformConfig config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setSettings(
+            new SettingsConfig.Builder().setUsePit(true).build()
+        ).build();
 
         try (PitMockClient client = new PitMockClient(getTestName(), true)) {
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(
@@ -217,7 +220,10 @@ public class ClientTransformIndexerTests extends ESTestCase {
     }
 
     public void testPitInjectionIfPitNotSupported() throws InterruptedException {
-        TransformConfig config = TransformConfigTests.randomTransformConfig();
+        // pit must be enabled, otherwise take a random config
+        TransformConfig config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setSettings(
+            new SettingsConfig.Builder().setUsePit(true).build()
+        ).build();
 
         try (PitMockClient client = new PitMockClient(getTestName(), false)) {
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(
@@ -453,8 +459,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 pitContextCounter.decrementAndGet();
                 listener.onResponse((Response) response);
                 return;
-            } else if (request instanceof SearchRequest) {
-                SearchRequest searchRequest = (SearchRequest) request;
+            } else if (request instanceof SearchRequest searchRequest) {
 
                 // if pit is used and deleted-index is given throw index not found
                 if (searchRequest.pointInTimeBuilder() != null && Arrays.binarySearch(searchRequest.indices(), "deleted-index") >= 0) {

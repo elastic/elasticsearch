@@ -183,7 +183,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         final AllocationDecider decider = new CcrPrimaryFollowerAllocationDecider();
         final RoutingAllocation routingAllocation = new RoutingAllocation(
             new AllocationDeciders(List.of(decider)),
-            new RoutingNodes(clusterState),
+            RoutingNodes.immutable(clusterState.routingTable(), clusterState.nodes()),
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,

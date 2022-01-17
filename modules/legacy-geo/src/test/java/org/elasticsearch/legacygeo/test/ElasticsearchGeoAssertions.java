@@ -193,9 +193,7 @@ public class ElasticsearchGeoAssertions {
     public static void assertEquals(Object s1, Object s2) {
         if (s1 instanceof JtsGeometry && s2 instanceof JtsGeometry) {
             assertEquals((JtsGeometry) s1, (JtsGeometry) s2);
-        } else if (s1 instanceof JtsPoint && s2 instanceof JtsPoint) {
-            JtsPoint p1 = (JtsPoint) s1;
-            JtsPoint p2 = (JtsPoint) s2;
+        } else if (s1 instanceof JtsPoint p1 && s2 instanceof JtsPoint p2) {
             Assert.assertEquals(p1, p2);
         } else if (s1 instanceof ShapeCollection && s2 instanceof ShapeCollection) {
             assertEquals((ShapeCollection<?>) s1, (ShapeCollection<?>) s2);
@@ -203,17 +201,17 @@ public class ElasticsearchGeoAssertions {
             Assert.assertEquals(s1, s2);
         } else if (s1 instanceof RectangleImpl && s2 instanceof RectangleImpl) {
             Assert.assertEquals(s1, s2);
-        } else if (s1 instanceof org.apache.lucene.geo.Line[] && s2 instanceof org.apache.lucene.geo.Line[]) {
-            Assert.assertArrayEquals((org.apache.lucene.geo.Line[]) s1, (org.apache.lucene.geo.Line[]) s2);
-        } else if (s1 instanceof org.apache.lucene.geo.Polygon[] && s2 instanceof org.apache.lucene.geo.Polygon[]) {
-            Assert.assertArrayEquals((org.apache.lucene.geo.Polygon[]) s1, (org.apache.lucene.geo.Polygon[]) s2);
+        } else if (s1 instanceof org.apache.lucene.geo.Line[] lines1 && s2 instanceof org.apache.lucene.geo.Line[] lines2) {
+            Assert.assertArrayEquals(lines1, lines2);
+        } else if (s1 instanceof org.apache.lucene.geo.Polygon[] poly1 && s2 instanceof org.apache.lucene.geo.Polygon[] poly2) {
+            Assert.assertArrayEquals(poly1, poly2);
         } else if ((s1 instanceof org.apache.lucene.geo.Line && s2 instanceof org.apache.lucene.geo.Line)
             || (s1 instanceof org.apache.lucene.geo.Polygon && s2 instanceof org.apache.lucene.geo.Polygon)
             || (s1 instanceof org.apache.lucene.geo.Rectangle && s2 instanceof org.apache.lucene.geo.Rectangle)
             || (s1 instanceof GeoPoint && s2 instanceof GeoPoint)) {
                 Assert.assertEquals(s1, s2);
-            } else if (s1 instanceof Object[] && s2 instanceof Object[]) {
-                Assert.assertArrayEquals((Object[]) s1, (Object[]) s2);
+            } else if (s1 instanceof Object[] objects1 && s2 instanceof Object[] objects2) {
+                Assert.assertArrayEquals(objects1, objects2);
             } else if (s1 instanceof org.elasticsearch.geometry.Geometry && s2 instanceof org.elasticsearch.geometry.Geometry) {
                 Assert.assertEquals(s1, s2);
             } else {

@@ -61,17 +61,13 @@ public class AggregationConfigTests extends AbstractXContentTestCase<Aggregation
 
     private static AggregationBuilder getRandomSupportedAggregation() {
         final int numberOfSupportedAggs = 4;
-        switch (randomIntBetween(1, numberOfSupportedAggs)) {
-            case 1:
-                return AggregationBuilders.avg(randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
-            case 2:
-                return AggregationBuilders.min(randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
-            case 3:
-                return AggregationBuilders.max(randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
-            case 4:
-                return AggregationBuilders.sum(randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
-        }
+        return switch (randomIntBetween(1, numberOfSupportedAggs)) {
+            case 1 -> AggregationBuilders.avg(randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            case 2 -> AggregationBuilders.min(randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            case 3 -> AggregationBuilders.max(randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            case 4 -> AggregationBuilders.sum(randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            default -> null;
+        };
 
-        return null;
     }
 }

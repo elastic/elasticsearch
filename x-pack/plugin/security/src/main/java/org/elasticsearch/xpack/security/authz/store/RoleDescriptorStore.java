@@ -84,7 +84,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         if (roleNames.isEmpty()) {
             assert false : "empty role names should have short circuited earlier";
             listener.onResponse(RolesRetrievalResult.EMPTY);
-        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
+        } else if (roleNames.equals(Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()))) {
             assert false : "superuser role should have short circuited earlier";
             listener.onResponse(RolesRetrievalResult.SUPERUSER);
         } else {
@@ -239,11 +239,15 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                         roleNames.remove(descriptor.getName());
                     }
                 } else {
-                    logger.warn(new ParameterizedMessage("role retrieval failed from [{}]", rolesProvider), result.getFailure());
+                    logger.warn(
+                        new ParameterizedMessage("role [{}] retrieval failed from [{}]", roleNames, rolesProvider),
+                        result.getFailure()
+                    );
                     rolesResult.setFailure();
                 }
                 providerListener.onResponse(result);
             }, providerListener::onFailure));
         }, asyncRoleProviders, threadContext, Function.identity(), iterationPredicate).run();
     }
+
 }

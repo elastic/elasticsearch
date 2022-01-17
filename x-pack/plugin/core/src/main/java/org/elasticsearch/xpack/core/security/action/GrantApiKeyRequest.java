@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,26 +20,23 @@ import java.util.Objects;
  * Logically this is similar to {@link CreateApiKeyRequest}, but is for cases when the user that has permission to call this action
  * is different to the user for whom the API key should be created
  */
-public final class GrantApiKeyRequest extends ActionRequest {
+public final class GrantApiKeyRequest extends GrantRequest {
 
-    private final Grant grant;
     private CreateApiKeyRequest apiKey;
 
     public GrantApiKeyRequest() {
-        this.grant = new Grant();
+        super();
         this.apiKey = new CreateApiKeyRequest();
     }
 
     public GrantApiKeyRequest(StreamInput in) throws IOException {
         super(in);
-        this.grant = new Grant(in);
         this.apiKey = new CreateApiKeyRequest(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        grant.writeTo(out);
         apiKey.writeTo(out);
     }
 
@@ -50,10 +46,6 @@ public final class GrantApiKeyRequest extends ActionRequest {
 
     public void setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
         apiKey.setRefreshPolicy(refreshPolicy);
-    }
-
-    public Grant getGrant() {
-        return grant;
     }
 
     public CreateApiKeyRequest getApiKeyRequest() {

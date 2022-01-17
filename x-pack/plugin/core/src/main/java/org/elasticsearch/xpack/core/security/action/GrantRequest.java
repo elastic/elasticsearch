@@ -5,32 +5,39 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.security.action.profile;
+package org.elasticsearch.xpack.core.security.action;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.core.security.action.GrantRequest;
 
 import java.io.IOException;
 
-public class ActivateProfileRequest extends GrantRequest {
+public abstract class GrantRequest extends ActionRequest {
+    protected final Grant grant;
 
-    public ActivateProfileRequest() {
-        super();
+    public GrantRequest() {
+        this.grant = new Grant();
     }
 
-    public ActivateProfileRequest(StreamInput in) throws IOException {
+    public GrantRequest(StreamInput in) throws IOException {
         super(in);
+        this.grant = new Grant(in);
+    }
+
+    public Grant getGrant() {
+        return grant;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        grant.writeTo(out);
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        return super.validate();
+        return grant.validate(null);
     }
 }

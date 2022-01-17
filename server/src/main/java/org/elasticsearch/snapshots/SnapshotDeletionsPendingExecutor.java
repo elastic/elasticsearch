@@ -80,10 +80,6 @@ public class SnapshotDeletionsPendingExecutor {
      */
     private final Map<SnapshotId, ConflictType> conflicting = new HashMap<>();
 
-    /**
-     * Counters for the type of conflicts for the current set of conflicting pending snapshots deletions. This is used to look for
-     * updates in cluster state updates only when it is really needed.
-     */
     enum ConflictType {
         RESTORING,
         CLONING,

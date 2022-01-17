@@ -250,26 +250,19 @@ public final class IndexLifecycleTransition {
 
             Map<String, Phase> policyPhases = policyMetadata.getPolicy().getPhases();
             final LifecycleExecutionState nextStepState;
-            if (policyPhases.get(nextStepKey.getPhase()) == null
-                || policyPhases.get(nextStepKey.getPhase()).getActions().get(nextStepKey.getAction()) == null) {
-                // the failed step's phase or action doesn't exist in the "real" policy anymore so don't refresh the cached phase as that
-                // would block due to not recognizing the new step as part of the policy. we'll honour the cached phase in this case.
-                nextStepState = IndexLifecycleTransition.updateExecutionStateToStep(
-                    policyMetadata,
-                    lifecycleState,
-                    nextStepKey,
-                    nowSupplier,
-                    false
-                );
-            } else {
-                nextStepState = IndexLifecycleTransition.updateExecutionStateToStep(
-                    policyMetadata,
-                    lifecycleState,
-                    nextStepKey,
-                    nowSupplier,
-                    true
-                );
-            }
+
+            // the failed step's phase or action doesn't exist in the "real" policy anymore so don't refresh the cached phase as that
+            // would block due to not recognizing the new step as part of the policy. we'll honour the cached phase in this case.
+            boolean forcePhaseDefinitionRefresh = policyPhases.get(nextStepKey.getPhase()) != null
+                && policyPhases.get(nextStepKey.getPhase()).getActions().get(nextStepKey.getAction()) != null;
+
+            nextStepState = IndexLifecycleTransition.updateExecutionStateToStep(
+                policyMetadata,
+                lifecycleState,
+                nextStepKey,
+                nowSupplier,
+                forcePhaseDefinitionRefresh
+            );
 
             LifecycleExecutionState.Builder retryStepState = LifecycleExecutionState.builder(nextStepState);
             retryStepState.setIsAutoRetryableError(lifecycleState.isAutoRetryableError());

@@ -1704,7 +1704,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
         // the latest known repository generation
         if (bestEffortConsistency == false && cached.getGenId() == latestKnownRepoGen.get()) {
-            repoDataDeduplicator.executeOnce(metadata, listener, (metadata, l) -> l.onResponse(cached));
+            listener.onResponse(cached);
             return;
         }
         if (metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN && isReadOnly() == false) {

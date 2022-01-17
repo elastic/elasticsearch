@@ -69,6 +69,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -1098,6 +1099,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     public static Builder builder(Metadata metadata) {
         return new Builder(metadata);
+    }
+
+    public Metadata copyAndUpdate(Consumer<Builder> updater) {
+        var builder = builder(this);
+        updater.accept(builder);
+        return builder.build();
     }
 
     public static class Builder {

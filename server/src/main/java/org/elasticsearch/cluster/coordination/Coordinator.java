@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.LocalClusterUpdateTask;
+import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
@@ -307,13 +307,13 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     nodeRemovalExecutor,
                     new ClusterStateTaskListener() {
                         @Override
-                        public void onFailure(final String source, final Exception e) {
-                            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                        public void onFailure(final Exception e) {
+                            logger.error("unexpected failure during [node-left]", e);
                         }
 
                         @Override
-                        public void onNoLongerMaster(String source) {
-                            logger.debug("no longer master while processing node removal [{}]", source);
+                        public void onNoLongerMaster() {
+                            logger.debug("no longer master while processing node removal [node-left]");
                         }
 
                         @Override
@@ -800,23 +800,20 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     private void cleanMasterService() {
-        final LocalClusterUpdateTask update = new LocalClusterUpdateTask() {
+        new LocalMasterServiceTask(Priority.NORMAL) {
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 // ignore
                 logger.trace("failed to clean-up after stepping down as master", e);
             }
 
             @Override
-            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
+            public void execute(ClusterState currentState) {
                 if (currentState.nodes().isLocalNodeElectedMaster() == false) {
                     allocationService.cleanCaches();
                 }
-                return unchanged();
             }
-
-        };
-        masterService.submitStateUpdateTask("clean-up after stepping down as master", update, update);
+        }.submit(masterService, "clean-up after stepping down as master");
     }
 
     private PreVoteResponse getPreVoteResponse() {
@@ -1177,7 +1174,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     reconfigurationTaskScheduled.set(false);
                     logger.debug("reconfiguration failed", e);
                 }

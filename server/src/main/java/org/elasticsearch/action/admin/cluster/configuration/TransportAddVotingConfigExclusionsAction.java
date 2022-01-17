@@ -118,7 +118,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 

@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.core.ilm.AbstractStepTestCase;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests;
@@ -54,7 +54,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.eligibleToCheckForRefresh;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.refreshPhaseDefinition;
 import static org.elasticsearch.xpack.ilm.IndexLifecycleRunnerTests.createOneStepPolicyStepRegistry;
@@ -658,7 +658,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             false
         );
         IndexLifecycleRunnerTests.assertClusterStateOnNextStep(clusterState, index, errorStepKey, failedStepKey, nextClusterState, now);
-        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(nextClusterState.metadata().index(indexName));
+        LifecycleExecutionState executionState = nextClusterState.metadata().index(indexName).getLifecycleExecutionState();
         assertThat("manual move to failed step should not count as a retry", executionState.getFailedStepRetryCount(), is(nullValue()));
     }
 
@@ -808,7 +808,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             true
         );
         IndexLifecycleRunnerTests.assertClusterStateOnNextStep(clusterState, index, errorStepKey, failedStepKey, nextClusterState, now);
-        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(nextClusterState.metadata().index(indexName));
+        LifecycleExecutionState executionState = nextClusterState.metadata().index(indexName).getLifecycleExecutionState();
         assertThat(executionState.getFailedStepRetryCount(), is(1));
     }
 
@@ -853,7 +853,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         ClusterState changedState = refreshPhaseDefinition(existingState, index, policyMetadata);
 
         IndexMetadata newIdxMeta = changedState.metadata().index(index);
-        LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);
+        LifecycleExecutionState afterExState = newIdxMeta.getLifecycleExecutionState();
         Map<String, String> beforeState = new HashMap<>(exState.build().asMap());
         beforeState.remove("phase_definition");
         Map<String, String> afterState = new HashMap<>(afterExState.asMap());
@@ -1014,7 +1014,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             try (Client client = new NoOpClient(getTestName())) {
                 LifecycleExecutionState newState = moveStateToNextActionAndUpdateCachedPhase(
                     meta,
-                    LifecycleExecutionState.fromIndexMetadata(meta),
+                    meta.getLifecycleExecutionState(),
                     System::currentTimeMillis,
                     currentPolicy,
                     updatedPolicyMetadata,
@@ -1051,7 +1051,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             try (Client client = new NoOpClient(getTestName())) {
                 LifecycleExecutionState newState = moveStateToNextActionAndUpdateCachedPhase(
                     meta,
-                    LifecycleExecutionState.fromIndexMetadata(meta),
+                    meta.getLifecycleExecutionState(),
                     System::currentTimeMillis,
                     currentPolicy,
                     updatedPolicyMetadata,
@@ -1150,8 +1150,8 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertNotSame(oldClusterState.metadata(), newMetadata);
         IndexMetadata newIndexMetadata = newMetadata.getIndexSafe(index);
         assertNotSame(oldClusterState.metadata().index(index), newIndexMetadata);
-        LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(index));
-        LifecycleExecutionState oldLifecycleState = LifecycleExecutionState.fromIndexMetadata(oldClusterState.metadata().index(index));
+        LifecycleExecutionState newLifecycleState = newClusterState.metadata().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
         assertEquals(nextStep.getPhase(), newLifecycleState.getPhase());
         assertEquals(nextStep.getAction(), newLifecycleState.getAction());
@@ -1201,8 +1201,8 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertNotSame(oldClusterState.metadata(), newMetadata);
         IndexMetadata newIndexMetadata = newMetadata.getIndexSafe(index);
         assertNotSame(oldClusterState.metadata().index(index), newIndexMetadata);
-        LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(index));
-        LifecycleExecutionState oldLifecycleState = LifecycleExecutionState.fromIndexMetadata(oldClusterState.metadata().index(index));
+        LifecycleExecutionState newLifecycleState = newClusterState.metadata().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
         assertEquals(currentStep.getPhase(), newLifecycleState.getPhase());
         assertEquals(currentStep.getAction(), newLifecycleState.getAction());
@@ -1229,8 +1229,8 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertNotSame(oldClusterState.metadata(), newMetadata);
         IndexMetadata newIndexMetadata = newMetadata.getIndexSafe(index);
         assertNotSame(oldClusterState.metadata().index(index), newIndexMetadata);
-        LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(index));
-        LifecycleExecutionState oldLifecycleState = LifecycleExecutionState.fromIndexMetadata(oldClusterState.metadata().index(index));
+        LifecycleExecutionState newLifecycleState = newClusterState.metadata().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
         assertEquals(currentStep.getPhase(), newLifecycleState.getPhase());
         assertEquals(currentStep.getAction(), newLifecycleState.getAction());

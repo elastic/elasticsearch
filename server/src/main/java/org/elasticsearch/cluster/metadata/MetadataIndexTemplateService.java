@@ -147,7 +147,7 @@ public class MetadataIndexTemplateService {
             new ClusterStateUpdateTask(Priority.URGENT, request.masterTimeout) {
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
 
@@ -202,7 +202,7 @@ public class MetadataIndexTemplateService {
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
 
@@ -374,7 +374,7 @@ public class MetadataIndexTemplateService {
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
 
@@ -491,7 +491,7 @@ public class MetadataIndexTemplateService {
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
 
@@ -831,7 +831,7 @@ public class MetadataIndexTemplateService {
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
 
@@ -959,7 +959,7 @@ public class MetadataIndexTemplateService {
             new ClusterStateUpdateTask(Priority.URGENT, request.masterTimeout) {
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
 

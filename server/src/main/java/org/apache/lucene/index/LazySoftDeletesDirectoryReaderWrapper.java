@@ -34,6 +34,7 @@ import java.util.Objects;
  */
 public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectoryReader {
     private final CacheHelper readerCacheHelper;
+
     /**
      * Creates a new soft deletes wrapper.
      * @param in the incoming directory reader
@@ -92,7 +93,8 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         final int maxDoc = reader.maxDoc();
         final int numDocs = maxDoc - segmentInfo.getDelCount() - segmentInfo.getSoftDelCount();
         final LazyBits lazyBits = new LazyBits(maxDoc, field, reader, numSoftDeletes, numDocs);
-        return reader instanceof CodecReader ? new LazySoftDeletesFilterCodecReader((CodecReader) reader, lazyBits, numDocs)
+        return reader instanceof CodecReader
+            ? new LazySoftDeletesFilterCodecReader((CodecReader) reader, lazyBits, numDocs)
             : new LazySoftDeletesFilterLeafReader(reader, lazyBits, numDocs);
     }
 
@@ -107,8 +109,9 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
             this.reader = reader;
             this.bits = bits;
             this.numDocs = numDocs;
-            this.readerCacheHelper = reader.getReaderCacheHelper() == null ? null :
-                new DelegatingCacheHelper(reader.getReaderCacheHelper());
+            this.readerCacheHelper = reader.getReaderCacheHelper() == null
+                ? null
+                : new DelegatingCacheHelper(reader.getReaderCacheHelper());
         }
 
         @Override
@@ -143,8 +146,9 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
             this.reader = reader;
             this.bits = bits;
             this.numDocs = numDocs;
-            this.readerCacheHelper = reader.getReaderCacheHelper() == null ? null :
-                new DelegatingCacheHelper(reader.getReaderCacheHelper());
+            this.readerCacheHelper = reader.getReaderCacheHelper() == null
+                ? null
+                : new DelegatingCacheHelper(reader.getReaderCacheHelper());
         }
 
         @Override
@@ -243,8 +247,8 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
                 bits.set(0, maxDoc);
             }
             int numComputedSoftDeletes = PendingSoftDeletes.applySoftDeletes(iterator, bits);
-            assert numComputedSoftDeletes == numSoftDeletes :
-                "numComputedSoftDeletes: " + numComputedSoftDeletes + " expected: " + numSoftDeletes;
+            assert numComputedSoftDeletes == numSoftDeletes
+                : "numComputedSoftDeletes: " + numComputedSoftDeletes + " expected: " + numSoftDeletes;
 
             int numDeletes = reader.numDeletedDocs() + numComputedSoftDeletes;
             int computedNumDocs = reader.maxDoc() - numDeletes;

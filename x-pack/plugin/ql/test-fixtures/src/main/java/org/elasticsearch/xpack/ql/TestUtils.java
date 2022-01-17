@@ -14,11 +14,11 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -387,16 +387,11 @@ public final class TestUtils {
                             String matcherType = matcherAndExpectation[0];
                             String expectation = matcherAndExpectation[1];
                             switch (matcherType.toUpperCase(Locale.ROOT)) {
-                                case MATCHER_TYPE_CONTAINS:
-                                    matchers.add(containsString(expectation));
-                                    break;
-                                case MATCHER_TYPE_REGEX:
-                                    matchers.add(containsRegex(expectation));
-                                    break;
-                                default:
-                                    throw new IllegalArgumentException(
-                                        "unsupported matcher on line " + testFileName + ":" + lineNumber + ": " + matcherType
-                                    );
+                                case MATCHER_TYPE_CONTAINS -> matchers.add(containsString(expectation));
+                                case MATCHER_TYPE_REGEX -> matchers.add(containsRegex(expectation));
+                                default -> throw new IllegalArgumentException(
+                                    "unsupported matcher on line " + testFileName + ":" + lineNumber + ": " + matcherType
+                                );
                             }
                         }
                     }

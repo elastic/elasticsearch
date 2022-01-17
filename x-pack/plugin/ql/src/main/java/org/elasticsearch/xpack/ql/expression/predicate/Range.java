@@ -127,32 +127,44 @@ public class Range extends ScalarFunction {
         ScriptTemplate lowerScript = asScript(lower);
         ScriptTemplate upperScript = asScript(upper);
 
+        String template = formatTemplate(
+            format(
+                Locale.ROOT,
+                "{ql}.and({ql}.%s(%s, %s), {ql}.%s(%s, %s))",
+                includeLower() ? "gte" : "gt",
+                valueScript.template(),
+                lowerScript.template(),
+                includeUpper() ? "lte" : "lt",
+                valueScript.template(),
+                upperScript.template()
+            )
+        );
 
-        String template = formatTemplate(format(Locale.ROOT, "{ql}.and({ql}.%s(%s, %s), {ql}.%s(%s, %s))",
-                        includeLower() ? "gte" : "gt",
-                        valueScript.template(),
-                        lowerScript.template(),
-                        includeUpper() ? "lte" : "lt",
-                        valueScript.template(),
-                        upperScript.template()
-                        ));
-
-        Params params = paramsBuilder()
-                .script(valueScript.params())
-                .script(lowerScript.params())
-                .script(valueScript.params())
-                .script(upperScript.params())
-                .build();
+        Params params = paramsBuilder().script(valueScript.params())
+            .script(lowerScript.params())
+            .script(valueScript.params())
+            .script(upperScript.params())
+            .build();
 
         return new ScriptTemplate(template, params, DataTypes.BOOLEAN);
     }
 
     @Override
     protected Pipe makePipe() {
-        BinaryComparisonPipe lowerPipe = new BinaryComparisonPipe(source(), this, Expressions.pipe(value()), Expressions.pipe(lower()),
-                includeLower() ? BinaryComparisonOperation.GTE : BinaryComparisonOperation.GT);
-        BinaryComparisonPipe upperPipe = new BinaryComparisonPipe(source(), this, Expressions.pipe(value()), Expressions.pipe(upper()),
-                includeUpper() ? BinaryComparisonOperation.LTE : BinaryComparisonOperation.LT);
+        BinaryComparisonPipe lowerPipe = new BinaryComparisonPipe(
+            source(),
+            this,
+            Expressions.pipe(value()),
+            Expressions.pipe(lower()),
+            includeLower() ? BinaryComparisonOperation.GTE : BinaryComparisonOperation.GT
+        );
+        BinaryComparisonPipe upperPipe = new BinaryComparisonPipe(
+            source(),
+            this,
+            Expressions.pipe(value()),
+            Expressions.pipe(upper()),
+            includeUpper() ? BinaryComparisonOperation.LTE : BinaryComparisonOperation.LT
+        );
         BinaryLogicPipe and = new BinaryLogicPipe(source(), this, lowerPipe, upperPipe, BinaryLogicOperation.AND);
         return and;
     }
@@ -174,10 +186,10 @@ public class Range extends ScalarFunction {
 
         Range other = (Range) obj;
         return Objects.equals(includeLower, other.includeLower)
-                && Objects.equals(includeUpper, other.includeUpper)
-                && Objects.equals(value, other.value)
-                && Objects.equals(lower, other.lower)
-                && Objects.equals(upper, other.upper)
-                && Objects.equals(zoneId, other.zoneId);
+            && Objects.equals(includeUpper, other.includeUpper)
+            && Objects.equals(value, other.value)
+            && Objects.equals(lower, other.lower)
+            && Objects.equals(upper, other.upper)
+            && Objects.equals(zoneId, other.zoneId);
     }
 }

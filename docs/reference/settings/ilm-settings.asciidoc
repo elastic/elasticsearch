@@ -37,8 +37,9 @@ You can explicitly set it to <<skipping-rollover, skip rollover>>.
 Defaults to `false`.
 
 `index.lifecycle.name`::
-(<<indices-update-settings, Dynamic>>, string) 
-The name of the policy to use to manage the index.
+(<<indices-update-settings, Dynamic>>, string)
+The name of the policy to use to manage the index. For information about how
+{es} applies policy changes, see <<update-lifecycle-policy>>.
 
 [[index-lifecycle-origination-date]]
 `index.lifecycle.origination_date`::

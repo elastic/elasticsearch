@@ -14,9 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -32,11 +29,15 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.index.shard.ShardCountStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -96,6 +97,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
     @Nullable
     public BulkStats bulk;
 
+    @Nullable
+    public ShardCountStats shards;
+
     public CommonStats() {
         this(CommonStatsFlags.NONE);
     }
@@ -105,59 +109,25 @@ public class CommonStats implements Writeable, ToXContentFragment {
 
         for (CommonStatsFlags.Flag flag : setFlags) {
             switch (flag) {
-                case Docs:
-                    docs = new DocsStats();
-                    break;
-                case Store:
-                    store = new StoreStats();
-                    break;
-                case Indexing:
-                    indexing = new IndexingStats();
-                    break;
-                case Get:
-                    get = new GetStats();
-                    break;
-                case Search:
-                    search = new SearchStats();
-                    break;
-                case Merge:
-                    merge = new MergeStats();
-                    break;
-                case Refresh:
-                    refresh = new RefreshStats();
-                    break;
-                case Flush:
-                    flush = new FlushStats();
-                    break;
-                case Warmer:
-                    warmer = new WarmerStats();
-                    break;
-                case QueryCache:
-                    queryCache = new QueryCacheStats();
-                    break;
-                case FieldData:
-                    fieldData = new FieldDataStats();
-                    break;
-                case Completion:
-                    completion = new CompletionStats();
-                    break;
-                case Segments:
-                    segments = new SegmentsStats();
-                    break;
-                case Translog:
-                    translog = new TranslogStats();
-                    break;
-                case RequestCache:
-                    requestCache = new RequestCacheStats();
-                    break;
-                case Recovery:
-                    recoveryStats = new RecoveryStats();
-                    break;
-                case Bulk:
-                    bulk = new BulkStats();
-                    break;
-                default:
-                    throw new IllegalStateException("Unknown Flag: " + flag);
+                case Docs -> docs = new DocsStats();
+                case Store -> store = new StoreStats();
+                case Indexing -> indexing = new IndexingStats();
+                case Get -> get = new GetStats();
+                case Search -> search = new SearchStats();
+                case Merge -> merge = new MergeStats();
+                case Refresh -> refresh = new RefreshStats();
+                case Flush -> flush = new FlushStats();
+                case Warmer -> warmer = new WarmerStats();
+                case QueryCache -> queryCache = new QueryCacheStats();
+                case FieldData -> fieldData = new FieldDataStats();
+                case Completion -> completion = new CompletionStats();
+                case Segments -> segments = new SegmentsStats();
+                case Translog -> translog = new TranslogStats();
+                case RequestCache -> requestCache = new RequestCacheStats();
+                case Recovery -> recoveryStats = new RecoveryStats();
+                case Bulk -> bulk = new BulkStats();
+                case Shards -> shards = new ShardCountStats();
+                default -> throw new IllegalStateException("Unknown Flag: " + flag);
             }
         }
     }
@@ -167,59 +137,27 @@ public class CommonStats implements Writeable, ToXContentFragment {
         for (CommonStatsFlags.Flag flag : setFlags) {
             try {
                 switch (flag) {
-                    case Docs:
-                        docs = indexShard.docStats();
-                        break;
-                    case Store:
-                        store = indexShard.storeStats();
-                        break;
-                    case Indexing:
-                        indexing = indexShard.indexingStats();
-                        break;
-                    case Get:
-                        get = indexShard.getStats();
-                        break;
-                    case Search:
-                        search = indexShard.searchStats(flags.groups());
-                        break;
-                    case Merge:
-                        merge = indexShard.mergeStats();
-                        break;
-                    case Refresh:
-                        refresh = indexShard.refreshStats();
-                        break;
-                    case Flush:
-                        flush = indexShard.flushStats();
-                        break;
-                    case Warmer:
-                        warmer = indexShard.warmerStats();
-                        break;
-                    case QueryCache:
-                        queryCache = indicesQueryCache.getStats(indexShard.shardId());
-                        break;
-                    case FieldData:
-                        fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
-                        break;
-                    case Completion:
-                        completion = indexShard.completionStats(flags.completionDataFields());
-                        break;
-                    case Segments:
-                        segments = indexShard.segmentStats(flags.includeSegmentFileSizes(), flags.includeUnloadedSegments());
-                        break;
-                    case Translog:
-                        translog = indexShard.translogStats();
-                        break;
-                    case RequestCache:
-                        requestCache = indexShard.requestCache().stats();
-                        break;
-                    case Recovery:
-                        recoveryStats = indexShard.recoveryStats();
-                        break;
-                    case Bulk:
-                        bulk = indexShard.bulkStats();
-                        break;
-                    default:
-                        throw new IllegalStateException("Unknown Flag: " + flag);
+                    case Docs -> docs = indexShard.docStats();
+                    case Store -> store = indexShard.storeStats();
+                    case Indexing -> indexing = indexShard.indexingStats();
+                    case Get -> get = indexShard.getStats();
+                    case Search -> search = indexShard.searchStats(flags.groups());
+                    case Merge -> merge = indexShard.mergeStats();
+                    case Refresh -> refresh = indexShard.refreshStats();
+                    case Flush -> flush = indexShard.flushStats();
+                    case Warmer -> warmer = indexShard.warmerStats();
+                    case QueryCache -> queryCache = indicesQueryCache.getStats(indexShard.shardId());
+                    case FieldData -> fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
+                    case Completion -> completion = indexShard.completionStats(flags.completionDataFields());
+                    case Segments -> segments = indexShard.segmentStats(flags.includeSegmentFileSizes(), flags.includeUnloadedSegments());
+                    case Translog -> translog = indexShard.translogStats();
+                    case RequestCache -> requestCache = indexShard.requestCache().stats();
+                    case Recovery -> recoveryStats = indexShard.recoveryStats();
+                    case Bulk -> bulk = indexShard.bulkStats();
+                    case Shards ->
+                        // Setting to 1 because the single IndexShard passed to this method implies 1 shard
+                        shards = new ShardCountStats(1);
+                    default -> throw new IllegalStateException("Unknown Flag: " + flag);
                 }
             } catch (AlreadyClosedException e) {
                 // shard is closed - no stats is fine
@@ -247,6 +185,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             bulk = in.readOptionalWriteable(BulkStats::new);
         }
+        shards = in.readOptionalWriteable(ShardCountStats::new);
     }
 
     @Override
@@ -270,6 +209,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeOptionalWriteable(bulk);
         }
+        out.writeOptionalWriteable(shards);
     }
 
     public void add(CommonStats stats) {
@@ -410,6 +350,13 @@ public class CommonStats implements Writeable, ToXContentFragment {
         } else {
             bulk.add(stats.getBulk());
         }
+        if (stats.shards != null) {
+            if (shards == null) {
+                shards = stats.shards;
+            } else {
+                shards = shards.add(stats.shards);
+            }
+        }
     }
 
     @Nullable
@@ -497,9 +444,14 @@ public class CommonStats implements Writeable, ToXContentFragment {
         return bulk;
     }
 
+    @Nullable
+    public ShardCountStats getShards() {
+        return shards;
+    }
+
     /**
      * Utility method which computes total memory by adding
-     * FieldData, PercolatorCache, Segments (memory, index writer, version map)
+     * FieldData, PercolatorCache, Segments (index writer, version map)
      */
     public ByteSizeValue getTotalMemory() {
         long size = 0;
@@ -510,9 +462,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
             size += this.getQueryCache().getMemorySizeInBytes();
         }
         if (this.getSegments() != null) {
-            size += this.getSegments().getMemoryInBytes() +
-                    this.getSegments().getIndexWriterMemoryInBytes() +
-                    this.getSegments().getVersionMapMemoryInBytes();
+            size += this.getSegments().getIndexWriterMemoryInBytes() + this.getSegments().getVersionMapMemoryInBytes();
         }
 
         return new ByteSizeValue(size);
@@ -521,11 +471,28 @@ public class CommonStats implements Writeable, ToXContentFragment {
     // note, requires a wrapping object
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final Stream<ToXContent> stream = Arrays.stream(new ToXContent[] {
-            docs, store, indexing, get, search, merge, refresh, flush, warmer, queryCache,
-            fieldData, completion, segments, translog, requestCache, recoveryStats, bulk})
-            .filter(Objects::nonNull);
-        for (ToXContent toXContent : ((Iterable<ToXContent>)stream::iterator)) {
+        final Stream<ToXContent> stream = Arrays.stream(
+            new ToXContent[] {
+                docs,
+                shards,
+                store,
+                indexing,
+                get,
+                search,
+                merge,
+                refresh,
+                flush,
+                warmer,
+                queryCache,
+                fieldData,
+                completion,
+                segments,
+                translog,
+                requestCache,
+                recoveryStats,
+                bulk }
+        ).filter(Objects::nonNull);
+        for (ToXContent toXContent : ((Iterable<ToXContent>) stream::iterator)) {
             toXContent.toXContent(builder, params);
         }
         return builder;

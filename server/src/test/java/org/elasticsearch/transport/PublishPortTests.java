@@ -42,44 +42,58 @@ public class PublishPortTests extends ESTestCase {
         } else {
             baseSettings = Settings.EMPTY;
             settings = Settings.builder().put(TransportSettings.PUBLISH_PORT.getKey(), 9081).build();
-            settings = randomBoolean() ? settings  :
-                Settings.builder().put(settings).put("transport.profiles.default.publish_port", 9080).build();
+            settings = randomBoolean()
+                ? settings
+                : Settings.builder().put(settings).put("transport.profiles.default.publish_port", 9080).build();
             profile = "default";
 
         }
 
-        int publishPort = resolvePublishPort(new TcpTransport.ProfileSettings(settings, profile),
-            randomAddresses(), getByName("127.0.0.2"));
+        int publishPort = resolvePublishPort(
+            new TcpTransport.ProfileSettings(settings, profile),
+            randomAddresses(),
+            getByName("127.0.0.2")
+        );
         assertThat("Publish port should be explicitly set", publishPort, equalTo(useProfile ? 9080 : 9081));
 
-        publishPort = resolvePublishPort(new TcpTransport.ProfileSettings(baseSettings, profile),
+        publishPort = resolvePublishPort(
+            new TcpTransport.ProfileSettings(baseSettings, profile),
             asList(address("127.0.0.1", boundPort), address("127.0.0.2", otherBoundPort)),
-            getByName("127.0.0.1"));
+            getByName("127.0.0.1")
+        );
         assertThat("Publish port should be derived from matched address", publishPort, equalTo(boundPort));
 
-        publishPort = resolvePublishPort(new TcpTransport.ProfileSettings(baseSettings, profile),
+        publishPort = resolvePublishPort(
+            new TcpTransport.ProfileSettings(baseSettings, profile),
             asList(address("127.0.0.1", boundPort), address("127.0.0.2", boundPort)),
-            getByName("127.0.0.3"));
+            getByName("127.0.0.3")
+        );
         assertThat("Publish port should be derived from unique port of bound addresses", publishPort, equalTo(boundPort));
 
         try {
-            resolvePublishPort(new TcpTransport.ProfileSettings(baseSettings, profile),
+            resolvePublishPort(
+                new TcpTransport.ProfileSettings(baseSettings, profile),
                 asList(address("127.0.0.1", boundPort), address("127.0.0.2", otherBoundPort)),
-                getByName("127.0.0.3"));
+                getByName("127.0.0.3")
+            );
             fail("Expected BindTransportException as publish_port not specified and non-unique port of bound addresses");
         } catch (BindTransportException e) {
             assertThat(e.getMessage(), containsString("Failed to auto-resolve publish port"));
         }
 
-        publishPort = resolvePublishPort(new TcpTransport.ProfileSettings(baseSettings, profile),
+        publishPort = resolvePublishPort(
+            new TcpTransport.ProfileSettings(baseSettings, profile),
             asList(address("0.0.0.0", boundPort), address("127.0.0.2", otherBoundPort)),
-            getByName("127.0.0.1"));
+            getByName("127.0.0.1")
+        );
         assertThat("Publish port should be derived from matching wildcard address", publishPort, equalTo(boundPort));
 
         if (NetworkUtils.SUPPORTS_V6) {
-            publishPort = resolvePublishPort(new TcpTransport.ProfileSettings(baseSettings, profile),
+            publishPort = resolvePublishPort(
+                new TcpTransport.ProfileSettings(baseSettings, profile),
                 asList(address("0.0.0.0", boundPort), address("127.0.0.2", otherBoundPort)),
-                getByName("::1"));
+                getByName("::1")
+            );
             assertThat("Publish port should be derived from matching wildcard address", publishPort, equalTo(boundPort));
         }
     }

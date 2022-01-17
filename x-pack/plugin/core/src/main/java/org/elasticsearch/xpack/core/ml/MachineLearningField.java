@@ -6,11 +6,14 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -19,12 +22,35 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public final class MachineLearningField {
-    public static final Setting<Boolean> AUTODETECT_PROCESS =
-            Setting.boolSetting("xpack.ml.autodetect_process", true, Setting.Property.NodeScope);
-    public static final Setting<ByteSizeValue> MAX_MODEL_MEMORY_LIMIT =
-            Setting.memorySizeSetting("xpack.ml.max_model_memory_limit", ByteSizeValue.ZERO,
-                    Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    public static final String DEPRECATED_ALLOW_NO_JOBS_PARAM = "allow_no_jobs";
+    public static final String DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM = "allow_no_datafeeds";
+
+    public static final Setting<Boolean> AUTODETECT_PROCESS = Setting.boolSetting(
+        "xpack.ml.autodetect_process",
+        true,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> MAX_MODEL_MEMORY_LIMIT = Setting.memorySizeSetting(
+        "xpack.ml.max_model_memory_limit",
+        ByteSizeValue.ZERO,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     public static final TimeValue STATE_PERSIST_RESTORE_TIMEOUT = TimeValue.timeValueMinutes(30);
+    public static final String ML_FEATURE_FAMILY = "machine-learning";
+    public static final LicensedFeature.Momentary ML_API_FEATURE = LicensedFeature.momentary(
+        ML_FEATURE_FAMILY,
+        "api",
+        License.OperationMode.PLATINUM
+    );
+
+    // Ideally this would be 7.0.0, but it has to be 6.4.0 because due to an oversight it's impossible
+    // for the Java code to distinguish the model states for versions 6.4.0 to 7.9.3 inclusive.
+    public static final Version MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION = Version.fromString("6.4.0");
+    // We tell the user we support model snapshots newer than 7.0.0 as that's the major version
+    // boundary, even though behind the scenes we have to support back to 6.4.0.
+    public static final Version MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION = Version.V_7_0_0;
 
     private MachineLearningField() {}
 
@@ -37,4 +63,5 @@ public final class MachineLearningField {
         System.arraycopy(Numbers.longToBytes(hash.h2), 0, hashedBytes, 8, 8);
         return new BigInteger(hashedBytes) + "_" + combined.length();
     }
+
 }

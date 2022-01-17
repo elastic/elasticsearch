@@ -12,12 +12,12 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -31,8 +31,9 @@ import static org.elasticsearch.tasks.TaskInfoTests.randomTaskInfo;
  */
 public class TaskResultTests extends ESTestCase {
     public void testBinaryRoundTrip() throws IOException {
-        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.singletonList(
-            new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new)));
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(
+            Collections.singletonList(new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new))
+        );
         TaskResult result = randomTaskResult();
         TaskResult read;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -55,8 +56,7 @@ public class TaskResultTests extends ESTestCase {
         TaskResult read;
         try (XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.values()).xContent())) {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            try (XContentBuilder shuffled = shuffleXContent(builder);
-                 XContentParser parser = createParser(shuffled)) {
+            try (XContentBuilder shuffled = shuffleXContent(builder); XContentParser parser = createParser(shuffled)) {
                 read = TaskResult.PARSER.apply(parser, null);
             }
         } catch (IOException e) {
@@ -102,16 +102,12 @@ public class TaskResultTests extends ESTestCase {
     }
 
     private static TaskResult randomTaskResult() throws IOException {
-        switch (between(0, 2)) {
-            case 0:
-                return new TaskResult(randomBoolean(), randomTaskInfo());
-            case 1:
-                return new TaskResult(randomTaskInfo(), new RuntimeException("error"));
-            case 2:
-                return new TaskResult(randomTaskInfo(), randomTaskResponse());
-            default:
-                throw new UnsupportedOperationException("Unsupported random TaskResult constructor");
-        }
+        return switch (between(0, 2)) {
+            case 0 -> new TaskResult(randomBoolean(), randomTaskInfo());
+            case 1 -> new TaskResult(randomTaskInfo(), new RuntimeException("error"));
+            case 2 -> new TaskResult(randomTaskInfo(), randomTaskResponse());
+            default -> throw new UnsupportedOperationException("Unsupported random TaskResult constructor");
+        };
     }
 
     private static ToXContent randomTaskResponse() {

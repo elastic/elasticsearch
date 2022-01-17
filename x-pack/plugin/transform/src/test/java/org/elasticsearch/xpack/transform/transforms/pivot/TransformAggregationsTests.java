@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -136,16 +136,13 @@ public class TransformAggregationsTests extends ESTestCase {
             .collect(Collectors.toList());
 
         for (String aggregationName : aggregationNames) {
+            String message = """
+                The following aggregation is unknown to transform: [%s]. If this is a newly added aggregation, \
+                please open an issue to add transform support for it. Afterwards add "%s" to the list in %s. \
+                Thanks!\
+                """.formatted(aggregationName, aggregationName, TransformAggregations.class.getName());
             assertTrue(
-                "The following aggregation is unknown to transform: ["
-                    + aggregationName
-                    + "]. If this is a newly added aggregation, "
-                    + "please open an issue to add transform support for it. Afterwards add \""
-                    + aggregationName
-                    + "\" to the list in "
-                    + TransformAggregations.class.getName()
-                    + ". Thanks!",
-
+                message,
                 TransformAggregations.isSupportedByTransform(aggregationName)
                     || TransformAggregations.isUnSupportedByTransform(aggregationName)
             );

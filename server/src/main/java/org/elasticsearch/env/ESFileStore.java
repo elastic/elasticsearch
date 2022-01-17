@@ -9,8 +9,8 @@
 package org.elasticsearch.env;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.nio.file.FileStore;
@@ -137,12 +137,12 @@ class ESFileStore extends FileStore {
 
     @Override
     public Object getAttribute(String attribute) throws IOException {
-        switch(attribute) {
+        return switch (attribute) {
             // for the partition
-            case "lucene:major_device_number": return majorDeviceNumber;
-            case "lucene:minor_device_number": return minorDeviceNumber;
-            default: return in.getAttribute(attribute);
-        }
+            case "lucene:major_device_number" -> majorDeviceNumber;
+            case "lucene:minor_device_number" -> minorDeviceNumber;
+            default -> in.getAttribute(attribute);
+        };
     }
 
     @Override

@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.ml.aggs.inference;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResultsTests;
@@ -40,13 +40,19 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
 
     @Override
     protected SearchPlugin registerPlugin() {
-        return new MachineLearning(Settings.EMPTY, null);
+        return new MachineLearning(Settings.EMPTY);
     }
 
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(super.getNamedXContents(), new NamedXContentRegistry.Entry(Aggregation.class,
-                new ParseField(InferencePipelineAggregationBuilder.NAME), (p, c) -> ParsedInference.fromXContent(p, (String) c)));
+        return CollectionUtils.appendToCopy(
+            super.getNamedXContents(),
+            new NamedXContentRegistry.Entry(
+                Aggregation.class,
+                new ParseField(InferencePipelineAggregationBuilder.NAME),
+                (p, c) -> ParsedInference.fromXContent(p, (String) c)
+            )
+        );
     }
 
     @Override
@@ -73,10 +79,7 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
         } else if (randomBoolean()) {
             // build a random result with the result field set to `value`
             RegressionInferenceResults randomResults = RegressionInferenceResultsTests.createRandomResults();
-            result = new RegressionInferenceResults(
-                randomResults.value(),
-                "value",
-                randomResults.getFeatureImportance());
+            result = new RegressionInferenceResults(randomResults.value(), "value", randomResults.getFeatureImportance());
         } else {
             result = new WarningInferenceResults("this is a warning");
         }
@@ -99,19 +102,16 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
         ParsedInference parsed = ((ParsedInference) parsedAggregation);
 
         InferenceResults result = agg.getInferenceResult();
-        if (result instanceof WarningInferenceResults) {
-            WarningInferenceResults warning = (WarningInferenceResults) result;
+        if (result instanceof WarningInferenceResults warning) {
             assertEquals(warning.getWarning(), parsed.getWarning());
-        } else if (result instanceof RegressionInferenceResults) {
-            RegressionInferenceResults regression = (RegressionInferenceResults) result;
+        } else if (result instanceof RegressionInferenceResults regression) {
             assertEquals(regression.value(), parsed.getValue());
             List<RegressionFeatureImportance> featureImportance = regression.getFeatureImportance();
             if (featureImportance.isEmpty()) {
                 featureImportance = null;
             }
             assertEquals(featureImportance, parsed.getFeatureImportance());
-        } else if (result instanceof ClassificationInferenceResults) {
-            ClassificationInferenceResults classification = (ClassificationInferenceResults) result;
+        } else if (result instanceof ClassificationInferenceResults classification) {
             assertEquals(classification.predictedValue(), parsed.getValue());
 
             List<ClassificationFeatureImportance> featureImportance = classification.getFeatureImportance();
@@ -135,8 +135,10 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
 
     public void testGetProperty_givenTooLongPath() {
         InternalInferenceAggregation internalAgg = createTestInstance();
-        InvalidAggregationPathException e = expectThrows(InvalidAggregationPathException.class,
-            () -> internalAgg.getProperty(Arrays.asList("one", "two")));
+        InvalidAggregationPathException e = expectThrows(
+            InvalidAggregationPathException.class,
+            () -> internalAgg.getProperty(Arrays.asList("one", "two"))
+        );
 
         String message = "unknown property [one, two] for inference aggregation [" + internalAgg.getName() + "]";
         assertEquals(message, e.getMessage());
@@ -144,8 +146,10 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
 
     public void testGetProperty_givenWrongPath() {
         InternalInferenceAggregation internalAgg = createTestInstance();
-        InvalidAggregationPathException e = expectThrows(InvalidAggregationPathException.class,
-            () -> internalAgg.getProperty(Collections.singletonList("bar")));
+        InvalidAggregationPathException e = expectThrows(
+            InvalidAggregationPathException.class,
+            () -> internalAgg.getProperty(Collections.singletonList("bar"))
+        );
 
         String message = "unknown property [bar] for inference aggregation [" + internalAgg.getName() + "]";
         assertEquals(message, e.getMessage());
@@ -175,22 +179,28 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
         {
             ClassificationInferenceResults results = ClassificationInferenceResultsTests.createRandomResults();
             InternalInferenceAggregation internalAgg = new InternalInferenceAggregation("foo", Collections.emptyMap(), results);
-            expectThrows(InvalidAggregationPathException.class,
-                () -> internalAgg.getProperty(Collections.singletonList("feature_importance")));
+            expectThrows(
+                InvalidAggregationPathException.class,
+                () -> internalAgg.getProperty(Collections.singletonList("feature_importance"))
+            );
         }
 
         {
             RegressionInferenceResults results = RegressionInferenceResultsTests.createRandomResults();
             InternalInferenceAggregation internalAgg = new InternalInferenceAggregation("foo", Collections.emptyMap(), results);
-            expectThrows(InvalidAggregationPathException.class,
-                () -> internalAgg.getProperty(Collections.singletonList("feature_importance")));
+            expectThrows(
+                InvalidAggregationPathException.class,
+                () -> internalAgg.getProperty(Collections.singletonList("feature_importance"))
+            );
         }
 
         {
             WarningInferenceResults results = new WarningInferenceResults("a warning from history");
             InternalInferenceAggregation internalAgg = new InternalInferenceAggregation("foo", Collections.emptyMap(), results);
-            expectThrows(InvalidAggregationPathException.class,
-                () -> internalAgg.getProperty(Collections.singletonList("feature_importance")));
+            expectThrows(
+                InvalidAggregationPathException.class,
+                () -> internalAgg.getProperty(Collections.singletonList("feature_importance"))
+            );
         }
     }
 
@@ -198,22 +208,19 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
         {
             ClassificationInferenceResults results = ClassificationInferenceResultsTests.createRandomResults();
             InternalInferenceAggregation internalAgg = new InternalInferenceAggregation("foo", Collections.emptyMap(), results);
-            expectThrows(InvalidAggregationPathException.class,
-                () -> internalAgg.getProperty(Collections.singletonList("top_classes")));
+            expectThrows(InvalidAggregationPathException.class, () -> internalAgg.getProperty(Collections.singletonList("top_classes")));
         }
 
         {
             RegressionInferenceResults results = RegressionInferenceResultsTests.createRandomResults();
             InternalInferenceAggregation internalAgg = new InternalInferenceAggregation("foo", Collections.emptyMap(), results);
-            expectThrows(InvalidAggregationPathException.class,
-                () -> internalAgg.getProperty(Collections.singletonList("top_classes")));
+            expectThrows(InvalidAggregationPathException.class, () -> internalAgg.getProperty(Collections.singletonList("top_classes")));
         }
 
         {
             WarningInferenceResults results = new WarningInferenceResults("a warning from history");
             InternalInferenceAggregation internalAgg = new InternalInferenceAggregation("foo", Collections.emptyMap(), results);
-            expectThrows(InvalidAggregationPathException.class,
-                () -> internalAgg.getProperty(Collections.singletonList("top_classes")));
+            expectThrows(InvalidAggregationPathException.class, () -> internalAgg.getProperty(Collections.singletonList("top_classes")));
         }
     }
 }

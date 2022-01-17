@@ -19,6 +19,8 @@ import java.util.stream.StreamSupport;
 
 public class Iterables {
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> Iterable<T> concat(Iterable<T>... inputs) {
         Objects.requireNonNull(inputs);
         return new ConcatenatedIterable<>(inputs);
@@ -33,11 +35,11 @@ public class Iterables {
 
         @Override
         public Iterator<T> iterator() {
-            return Stream
-                    .of(inputs)
-                    .map(it -> StreamSupport.stream(it.spliterator(), false))
-                    .reduce(Stream::concat)
-                    .orElseGet(Stream::empty).iterator();
+            return Stream.of(inputs)
+                .map(it -> StreamSupport.stream(it.spliterator(), false))
+                .reduce(Stream::concat)
+                .orElseGet(Stream::empty)
+                .iterator();
         }
     }
 
@@ -61,9 +63,7 @@ public class Iterables {
 
         @Override
         public Iterator<T> iterator() {
-            return StreamSupport
-                    .stream(inputs.spliterator(), false)
-                    .flatMap(s -> StreamSupport.stream(s.spliterator(), false)).iterator();
+            return StreamSupport.stream(inputs.spliterator(), false).flatMap(s -> StreamSupport.stream(s.spliterator(), false)).iterator();
         }
     }
 
@@ -72,8 +72,7 @@ public class Iterables {
         if (position < 0) {
             throw new IllegalArgumentException("position >= 0");
         }
-        if (iterable instanceof List) {
-            List<T> list = (List<T>)iterable;
+        if (iterable instanceof List<T> list) {
             if (position >= list.size()) {
                 throw new IndexOutOfBoundsException(Integer.toString(position));
             }

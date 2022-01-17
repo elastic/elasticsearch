@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[version]]
 === Version field type
 ++++

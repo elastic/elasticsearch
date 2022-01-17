@@ -6,21 +6,20 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-
 
 public class TrainedModelInput implements ToXContentObject, Writeable {
 
@@ -41,9 +40,11 @@ public class TrainedModelInput implements ToXContentObject, Writeable {
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<TrainedModelInput, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<TrainedModelInput, Void> parser = new ConstructingObjectParser<>(NAME,
+        ConstructingObjectParser<TrainedModelInput, Void> parser = new ConstructingObjectParser<>(
+            NAME,
             ignoreUnknownFields,
-            a -> new TrainedModelInput((List<String>) a[0]));
+            a -> new TrainedModelInput((List<String>) a[0])
+        );
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), FIELD_NAMES);
         return parser;
     }

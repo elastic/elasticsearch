@@ -8,22 +8,25 @@
 
 package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.joda.time.DateTime;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 
+import java.time.ZonedDateTime;
 import java.util.Objects;
 
 public class QueuedWatch {
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<QueuedWatch, Void> PARSER =
-        new ConstructingObjectParser<>("watcher_stats_node", true, (args, c) -> new QueuedWatch(
+    public static final ConstructingObjectParser<QueuedWatch, Void> PARSER = new ConstructingObjectParser<>(
+        "watcher_stats_node",
+        true,
+        (args, c) -> new QueuedWatch(
             (String) args[0],
             (String) args[1],
-            DateTime.parse((String) args[2]),
-            DateTime.parse((String) args[3])
-        ));
+            ZonedDateTime.parse((String) args[2]),
+            ZonedDateTime.parse((String) args[3])
+        )
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("watch_id"));
@@ -32,13 +35,12 @@ public class QueuedWatch {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("execution_time"));
     }
 
-
     private final String watchId;
     private final String watchRecordId;
-    private final DateTime triggeredTime;
-    private final DateTime executionTime;
+    private final ZonedDateTime triggeredTime;
+    private final ZonedDateTime executionTime;
 
-    public QueuedWatch(String watchId, String watchRecordId, DateTime triggeredTime, DateTime executionTime) {
+    public QueuedWatch(String watchId, String watchRecordId, ZonedDateTime triggeredTime, ZonedDateTime executionTime) {
         this.watchId = watchId;
         this.watchRecordId = watchRecordId;
         this.triggeredTime = triggeredTime;
@@ -53,11 +55,11 @@ public class QueuedWatch {
         return watchRecordId;
     }
 
-    public DateTime getTriggeredTime() {
+    public ZonedDateTime getTriggeredTime() {
         return triggeredTime;
     }
 
-    public DateTime getExecutionTime() {
+    public ZonedDateTime getExecutionTime() {
         return executionTime;
     }
 
@@ -66,10 +68,10 @@ public class QueuedWatch {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         QueuedWatch that = (QueuedWatch) o;
-        return Objects.equals(watchId, that.watchId) &&
-            Objects.equals(watchRecordId, that.watchRecordId) &&
-            Objects.equals(triggeredTime, that.triggeredTime) &&
-            Objects.equals(executionTime, that.executionTime);
+        return Objects.equals(watchId, that.watchId)
+            && Objects.equals(watchRecordId, that.watchRecordId)
+            && Objects.equals(triggeredTime, that.triggeredTime)
+            && Objects.equals(executionTime, that.executionTime);
     }
 
     @Override

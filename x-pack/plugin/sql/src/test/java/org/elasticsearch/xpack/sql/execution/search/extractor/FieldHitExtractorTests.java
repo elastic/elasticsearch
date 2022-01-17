@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
+
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.ZoneId;
@@ -148,7 +149,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         SearchHit hit = new SearchHit(1, null, null, singletonMap("a.b.c", field), null);
         assertThat(fe.extract(hit), is(value));
     }
-    
+
     public void testMultiValuedSource() {
         FieldHitExtractor fe = getFieldHitExtractor("a");
         Object value = randomValue();
@@ -157,7 +158,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [a]) are not supported"));
     }
-    
+
     public void testMultiValuedSourceAllowed() {
         FieldHitExtractor fe = new FieldHitExtractor("a", null, UTC, true);
         Object valueA = randomValue();
@@ -179,11 +180,11 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
         assertEquals(new GeoShape(1, 2), fe.extract(hit));
     }
-    
+
     public void testMultipleGeoShapeExtraction() {
         String fieldName = randomAlphaOfLength(5);
         FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, false);
-    
+
         Map<String, Object> map1 = new HashMap<>(2);
         map1.put("coordinates", asList(1d, 2d));
         map1.put("type", "Point");
@@ -195,10 +196,14 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
-    
+
         FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, true);
-        assertEquals(new GeoShape(3, 4), lenientFe.extract(new SearchHit(1, null, null, singletonMap(fieldName,
-            new DocumentField(fieldName, singletonList(map2))), null)));
+        assertEquals(
+            new GeoShape(3, 4),
+            lenientFe.extract(
+                new SearchHit(1, null, null, singletonMap(fieldName, new DocumentField(fieldName, singletonList(map2))), null)
+            )
+        );
     }
 
     private FieldHitExtractor getFieldHitExtractor(String fieldName) {

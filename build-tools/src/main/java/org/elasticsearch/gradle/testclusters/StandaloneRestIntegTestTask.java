@@ -15,6 +15,7 @@ import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.WorkResult;
+import org.gradle.api.tasks.options.Option;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.internal.resources.ResourceLock;
 import org.gradle.internal.resources.SharedResource;
@@ -36,6 +37,7 @@ import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.THROTTLE_
 public class StandaloneRestIntegTestTask extends Test implements TestClustersAware, FileSystemOperationsAware {
 
     private Collection<ElasticsearchCluster> clusters = new HashSet<>();
+    private boolean debugServer = false;
 
     public StandaloneRestIntegTestTask() {
         this.getOutputs()
@@ -60,6 +62,11 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
                 // Don't cache the output of this task if it's not running from a clean data directory.
                 t -> getClusters().stream().anyMatch(cluster -> cluster.isPreserveDataDir())
             );
+    }
+
+    @Option(option = "debug-server-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
+    public void setDebugServer(boolean enabled) {
+        this.debugServer = enabled;
     }
 
     @Override
@@ -90,5 +97,12 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
 
     public WorkResult delete(Object... objects) {
         return getFileSystemOperations().delete(d -> d.delete(objects));
+    }
+
+    @Override
+    public void beforeStart() {
+        if (debugServer) {
+            enableDebug();
+        }
     }
 }

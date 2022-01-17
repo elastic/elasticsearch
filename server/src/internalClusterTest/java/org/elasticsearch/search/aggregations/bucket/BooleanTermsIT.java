@@ -13,9 +13,9 @@ import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -43,40 +43,37 @@ public class BooleanTermsIT extends ESIntegTestCase {
             }
             final boolean[] multiValue;
             switch (randomInt(3)) {
-                case 0:
-                    multiValue = new boolean[0];
-                    break;
-                case 1:
+                case 0 -> multiValue = new boolean[0];
+                case 1 -> {
                     numMultiFalses++;
-                    multiValue = new boolean[] {false};
-                    break;
-                case 2:
+                    multiValue = new boolean[] { false };
+                }
+                case 2 -> {
                     numMultiTrues++;
-                    multiValue = new boolean[] {true};
-                    break;
-                case 3:
+                    multiValue = new boolean[] { true };
+                }
+                case 3 -> {
                     numMultiFalses++;
                     numMultiTrues++;
-                    multiValue = new boolean[] {false, true};
-                    break;
-                default:
-                    throw new AssertionError();
+                    multiValue = new boolean[] { false, true };
+                }
+                default -> throw new AssertionError();
             }
-            builders[i] = client().prepareIndex("idx").setSource(jsonBuilder()
-                    .startObject()
-                    .field(SINGLE_VALUED_FIELD_NAME, singleValue)
-                    .array(MULTI_VALUED_FIELD_NAME, multiValue)
-                    .endObject());
+            builders[i] = client().prepareIndex("idx")
+                .setSource(
+                    jsonBuilder().startObject()
+                        .field(SINGLE_VALUED_FIELD_NAME, singleValue)
+                        .array(MULTI_VALUED_FIELD_NAME, multiValue)
+                        .endObject()
+                );
         }
         indexRandom(true, builders);
     }
 
     public void testSingleValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms")
-                        .field(SINGLE_VALUED_FIELD_NAME)
-                        .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .get();
+            .addAggregation(terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values())))
+            .get();
 
         assertSearchResponse(response);
 
@@ -107,10 +104,8 @@ public class BooleanTermsIT extends ESIntegTestCase {
 
     public void testMultiValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms")
-                        .field(MULTI_VALUED_FIELD_NAME)
-                        .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .get();
+            .addAggregation(terms("terms").field(MULTI_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values())))
+            .get();
 
         assertSearchResponse(response);
 
@@ -141,11 +136,10 @@ public class BooleanTermsIT extends ESIntegTestCase {
 
     public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped")
-                .addAggregation(terms("terms")
-                        .field(SINGLE_VALUED_FIELD_NAME)
-                        .size(between(1, 5))
-                        .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .get();
+            .addAggregation(
+                terms("terms").field(SINGLE_VALUED_FIELD_NAME).size(between(1, 5)).collectMode(randomFrom(SubAggCollectionMode.values()))
+            )
+            .get();
 
         assertSearchResponse(response);
 

@@ -79,7 +79,6 @@ public class NullIf extends ConditionalFunction {
 
     @Override
     protected Pipe makePipe() {
-        return new NullIfPipe(source(), this,
-            Expressions.pipe(children().get(0)), Expressions.pipe(children().get(1)));
+        return new NullIfPipe(source(), this, Expressions.pipe(children().get(0)), Expressions.pipe(children().get(1)));
     }
 }

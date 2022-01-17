@@ -18,8 +18,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -29,11 +29,14 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -47,6 +50,16 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETT
  */
 public class SystemIndexManager implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(SystemIndexManager.class);
+
+    public static final Set<String> MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST;
+    static {
+        Set<String> allowlist = new HashSet<>();
+        // Add all the blocks, we need to be able to clear those
+        for (IndexMetadata.APIBlock blockType : IndexMetadata.APIBlock.values()) {
+            allowlist.add(blockType.settingName());
+        }
+        MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST = Collections.unmodifiableSet(allowlist);
+    }
 
     private final SystemIndices systemIndices;
     private final Client client;
@@ -115,7 +128,7 @@ public class SystemIndexManager implements ClusterStateListener {
         return this.systemIndices.getSystemIndexDescriptors()
             .stream()
             .filter(SystemIndexDescriptor::isAutomaticallyManaged)
-            .filter(d -> metadata.hasConcreteIndex(d.getPrimaryIndex()))
+            .filter(d -> metadata.hasIndexAbstraction(d.getPrimaryIndex()))
             .collect(Collectors.toList());
     }
 

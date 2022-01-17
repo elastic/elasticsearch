@@ -101,7 +101,6 @@ public class EndsWithFunctionProcessor implements Processor {
         return Objects.hash(input(), pattern(), isCaseInsensitive());
     }
 
-
     @Override
     public String getWriteableName() {
         return NAME;

@@ -11,7 +11,6 @@ import org.elasticsearch.client.Validatable;
 
 import java.util.Objects;
 
-
 public class DeleteRollupJobRequest implements Validatable {
 
     private final String id;

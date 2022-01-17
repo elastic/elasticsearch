@@ -8,16 +8,16 @@ package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.watcher.support.Strings;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -84,10 +84,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
 
     public void testParserSingleMinuteNumber() throws Exception {
         int minute = validMinute();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("minute", minute)
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject().field("minute", minute).endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
@@ -98,10 +95,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
     }
 
     public void testParserSingleMinuteNumberInvalid() throws Exception {
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("minute", invalidMinute())
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject().field("minute", invalidMinute()).endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
@@ -115,10 +109,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
 
     public void testParserSingleMinuteString() throws Exception {
         int minute = validMinute();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("minute", String.valueOf(minute))
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject().field("minute", String.valueOf(minute)).endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
@@ -129,10 +120,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
     }
 
     public void testParserSingleMinuteStringInvalid() throws Exception {
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("minute", String.valueOf(invalidMinute()))
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject().field("minute", String.valueOf(invalidMinute())).endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
@@ -146,10 +134,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
 
     public void testParserMultipleMinutesNumbers() throws Exception {
         int[] minutes = validMinutes();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("minute", minutes)
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject().field("minute", minutes).endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
@@ -164,10 +149,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
 
     public void testParserMultipleMinutesNumbersInvalid() throws Exception {
         int[] minutes = invalidMinutes();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("minute", minutes)
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject().field("minute", minutes).endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
@@ -181,10 +163,9 @@ public class HourlyScheduleTests extends ScheduleTestCase {
 
     public void testParserMultipleMinutesStrings() throws Exception {
         int[] minutes = validMinutes();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("minute", Arrays.stream(minutes).mapToObj(Integer::toString).collect(Collectors.toList()))
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("minute", Arrays.stream(minutes).mapToObj(Integer::toString).collect(Collectors.toList()))
+            .endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
@@ -200,10 +181,9 @@ public class HourlyScheduleTests extends ScheduleTestCase {
 
     public void testParserMultipleMinutesStringsInvalid() throws Exception {
         int[] minutes = invalidMinutes();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("minute", Arrays.stream(minutes).mapToObj(Integer::toString).collect(Collectors.toList()))
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("minute", Arrays.stream(minutes).mapToObj(Integer::toString).collect(Collectors.toList()))
+            .endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object

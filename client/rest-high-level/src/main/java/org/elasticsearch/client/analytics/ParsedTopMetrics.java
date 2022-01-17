@@ -8,19 +8,19 @@
 
 package org.elasticsearch.client.analytics;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Results of the {@code top_metrics} aggregation.
@@ -57,11 +57,14 @@ public class ParsedTopMetrics extends ParsedAggregation {
     }
 
     public static final ConstructingObjectParser<ParsedTopMetrics, String> PARSER = new ConstructingObjectParser<>(
-            TopMetricsAggregationBuilder.NAME, true, (args, name) -> {
-                @SuppressWarnings("unchecked")
-                List<TopMetrics> topMetrics = (List<TopMetrics>) args[0];
-                return new ParsedTopMetrics(name, topMetrics);
-            });
+        TopMetricsAggregationBuilder.NAME,
+        true,
+        (args, name) -> {
+            @SuppressWarnings("unchecked")
+            List<TopMetrics> topMetrics = (List<TopMetrics>) args[0];
+            return new ParsedTopMetrics(name, topMetrics);
+        }
+    );
     static {
         PARSER.declareObjectArray(constructorArg(), (p, c) -> TopMetrics.PARSER.parse(p, null), TOP_FIELD);
         ParsedAggregation.declareAggregationFields(PARSER);
@@ -96,17 +99,24 @@ public class ParsedTopMetrics extends ParsedAggregation {
             return metrics;
         }
 
-        private static final ConstructingObjectParser<TopMetrics, Void> PARSER = new ConstructingObjectParser<>("top", true,
-                (args, name) -> {
-                    @SuppressWarnings("unchecked")
-                    List<Object> sort = (List<Object>) args[0];
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> metrics = (Map<String, Object>) args[1];
-                    return new TopMetrics(sort, metrics);
-                });
+        private static final ConstructingObjectParser<TopMetrics, Void> PARSER = new ConstructingObjectParser<>(
+            "top",
+            true,
+            (args, name) -> {
+                @SuppressWarnings("unchecked")
+                List<Object> sort = (List<Object>) args[0];
+                @SuppressWarnings("unchecked")
+                Map<String, Object> metrics = (Map<String, Object>) args[1];
+                return new TopMetrics(sort, metrics);
+            }
+        );
         static {
-            PARSER.declareFieldArray(constructorArg(), (p, c) -> XContentParserUtils.parseFieldsValue(p),
-                    SORT_FIELD, ObjectParser.ValueType.VALUE_ARRAY);
+            PARSER.declareFieldArray(
+                constructorArg(),
+                (p, c) -> XContentParserUtils.parseFieldsValue(p),
+                SORT_FIELD,
+                ObjectParser.ValueType.VALUE_ARRAY
+            );
             PARSER.declareObject(constructorArg(), (p, c) -> p.map(), METRICS_FIELD);
         }
 

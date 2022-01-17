@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -226,6 +226,7 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
                 .startObject("raw")
                 .field("type", "integer")
                 .field("index", false)
+                .field("doc_values", false)
                 .endObject()
                 .endObject()
                 .endObject();

@@ -16,5 +16,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
  */
 public interface DateIntervalConsumer<T> {
     T calendarInterval(DateHistogramInterval interval);
+
     T fixedInterval(DateHistogramInterval interval);
 }

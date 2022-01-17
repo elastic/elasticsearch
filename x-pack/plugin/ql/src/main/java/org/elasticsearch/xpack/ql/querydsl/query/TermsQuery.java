@@ -46,8 +46,7 @@ public class TermsQuery extends LeafQuery {
         }
 
         TermsQuery other = (TermsQuery) obj;
-        return Objects.equals(term, other.term)
-            && Objects.equals(values, other.values);
+        return Objects.equals(term, other.term) && Objects.equals(values, other.values);
     }
 
     @Override

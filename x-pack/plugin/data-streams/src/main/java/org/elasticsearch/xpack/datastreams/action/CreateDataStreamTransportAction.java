@@ -67,9 +67,11 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
         MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest updateRequest =
             new MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest(
                 request.getName(),
+                request.getStartTime(),
                 systemDataStreamDescriptor,
                 request.masterNodeTimeout(),
-                request.timeout()
+                request.timeout(),
+                true
             );
         metadataCreateDataStreamService.createDataStream(updateRequest, listener);
     }

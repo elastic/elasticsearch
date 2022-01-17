@@ -11,8 +11,8 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -30,8 +30,7 @@ public final class FieldScriptStats implements Writeable, ToXContentFragment {
     private long maxDocUsages = 0;
     private long totalDocUsages = 0;
 
-    FieldScriptStats() {
-    }
+    FieldScriptStats() {}
 
     FieldScriptStats(StreamInput in) throws IOException {
         this.maxLines = in.readLong();
@@ -89,14 +88,14 @@ public final class FieldScriptStats implements Writeable, ToXContentFragment {
             return false;
         }
         FieldScriptStats that = (FieldScriptStats) o;
-        return maxLines == that.maxLines &&
-            totalLines == that.totalLines &&
-            maxChars == that.maxChars &&
-            totalChars == that.totalChars &&
-            maxSourceUsages == that.maxSourceUsages &&
-            totalSourceUsages == that.totalSourceUsages &&
-            maxDocUsages == that.maxDocUsages &&
-            totalDocUsages == that.totalDocUsages;
+        return maxLines == that.maxLines
+            && totalLines == that.totalLines
+            && maxChars == that.maxChars
+            && totalChars == that.totalChars
+            && maxSourceUsages == that.maxSourceUsages
+            && totalSourceUsages == that.totalSourceUsages
+            && maxDocUsages == that.maxDocUsages
+            && totalDocUsages == that.totalDocUsages;
     }
 
     @Override

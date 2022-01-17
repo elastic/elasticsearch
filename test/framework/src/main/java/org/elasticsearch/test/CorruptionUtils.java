@@ -8,8 +8,9 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.logging.log4j.Logger;
+
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -32,25 +33,21 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
-
 public final class CorruptionUtils {
     private static final Logger logger = LogManager.getLogger(CorruptionUtils.class);
+
     private CorruptionUtils() {}
 
     public static void corruptIndex(Random random, Path indexPath, boolean corruptSegments) throws IOException {
         // corrupt files
-        final Path[] filesToCorrupt =
-            Files.walk(indexPath)
-                .filter(p -> {
-                    final String name = p.getFileName().toString();
-                    boolean segmentFile = name.startsWith("segments_") || name.endsWith(".si");
-                        return Files.isRegularFile(p)
-                            && name.startsWith("extra") == false // Skip files added by Lucene's ExtrasFS
-                            && IndexWriter.WRITE_LOCK_NAME.equals(name) == false
-                            && (corruptSegments ? segmentFile : segmentFile == false);
-                    }
-                )
-                .toArray(Path[]::new);
+        final Path[] filesToCorrupt = Files.walk(indexPath).filter(p -> {
+            final String name = p.getFileName().toString();
+            boolean segmentFile = name.startsWith("segments_") || name.endsWith(".si");
+            return Files.isRegularFile(p)
+                && name.startsWith("extra") == false // Skip files added by Lucene's ExtrasFS
+                && IndexWriter.WRITE_LOCK_NAME.equals(name) == false
+                && (corruptSegments ? segmentFile : segmentFile == false);
+        }).toArray(Path[]::new);
         corruptFile(random, filesToCorrupt);
     }
 
@@ -80,7 +77,7 @@ public final class CorruptionUtils {
                 input.seek(input.length() - CodecUtil.footerLength());
                 checksumAfterCorruption = input.getChecksum();
                 input.seek(input.length() - 8);
-                actualChecksumAfterCorruption = input.readLong();
+                actualChecksumAfterCorruption = CodecUtil.readBELong(input);
             }
             // we need to add assumptions here that the checksums actually really don't match there is a small chance to get collisions
             // in the checksum which is ok though....
@@ -91,9 +88,11 @@ public final class CorruptionUtils {
             msg.append("file: ").append(fileToCorrupt.getFileName()).append(" length: ");
             msg.append(dir.fileLength(fileToCorrupt.getFileName().toString()));
             logger.info("Checksum {}", msg);
-            assumeTrue("Checksum collision - " + msg.toString(),
-                    checksumAfterCorruption != checksumBeforeCorruption // collision
-                            || actualChecksumAfterCorruption != checksumBeforeCorruption); // checksum corrupted
+            assumeTrue(
+                "Checksum collision - " + msg.toString(),
+                checksumAfterCorruption != checksumBeforeCorruption // collision
+                    || actualChecksumAfterCorruption != checksumBeforeCorruption
+            ); // checksum corrupted
             assertThat("no file corrupted", fileToCorrupt, notNullValue());
         }
     }
@@ -114,9 +113,13 @@ public final class CorruptionUtils {
         // rewrite
         channel.position(filePointer);
         channel.write(bb);
-        logger.info("Corrupting file --  flipping at position {} from {} to {} file: {}", filePointer,
-                Integer.toHexString(oldValue), Integer.toHexString(newValue), path.getFileName());
+        logger.info(
+            "Corrupting file --  flipping at position {} from {} to {} file: {}",
+            filePointer,
+            Integer.toHexString(oldValue),
+            Integer.toHexString(newValue),
+            path.getFileName()
+        );
     }
-
 
 }

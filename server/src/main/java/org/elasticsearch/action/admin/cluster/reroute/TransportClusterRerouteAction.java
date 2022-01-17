@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -21,6 +20,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -52,11 +52,25 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     private final AllocationService allocationService;
 
     @Inject
-    public TransportClusterRerouteAction(TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, AllocationService allocationService, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(ClusterRerouteAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              ClusterRerouteRequest::new, indexNameExpressionResolver, ClusterRerouteResponse::new, ThreadPool.Names.SAME);
+    public TransportClusterRerouteAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        AllocationService allocationService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            ClusterRerouteAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            ClusterRerouteRequest::new,
+            indexNameExpressionResolver,
+            ClusterRerouteResponse::new,
+            ThreadPool.Names.SAME
+        );
         this.allocationService = allocationService;
     }
 
@@ -66,12 +80,15 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     }
 
     @Override
-    protected void masterOperation(Task task, final ClusterRerouteRequest request, final ClusterState state,
-                                   final ActionListener<ClusterRerouteResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        final ClusterRerouteRequest request,
+        final ClusterState state,
+        final ActionListener<ClusterRerouteResponse> listener
+    ) {
         Map<String, List<AbstractAllocateAllocationCommand>> stalePrimaryAllocations = new HashMap<>();
         for (AllocationCommand command : request.getCommands().commands()) {
-            if (command instanceof AllocateStalePrimaryAllocationCommand) {
-                final AllocateStalePrimaryAllocationCommand cmd = (AllocateStalePrimaryAllocationCommand) command;
+            if (command instanceof final AllocateStalePrimaryAllocationCommand cmd) {
                 stalePrimaryAllocations.computeIfAbsent(cmd.index(), k -> new ArrayList<>()).add(cmd);
             }
         }
@@ -82,60 +99,78 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         }
     }
 
-    private void verifyThenSubmitUpdate(ClusterRerouteRequest request, ActionListener<ClusterRerouteResponse> listener,
-        Map<String, List<AbstractAllocateAllocationCommand>> stalePrimaryAllocations) {
-        transportService.sendRequest(transportService.getLocalNode(), IndicesShardStoresAction.NAME,
+    private void verifyThenSubmitUpdate(
+        ClusterRerouteRequest request,
+        ActionListener<ClusterRerouteResponse> listener,
+        Map<String, List<AbstractAllocateAllocationCommand>> stalePrimaryAllocations
+    ) {
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            IndicesShardStoresAction.NAME,
             new IndicesShardStoresRequest().indices(stalePrimaryAllocations.keySet().toArray(Strings.EMPTY_ARRAY)),
-            new ActionListenerResponseHandler<>(
-                ActionListener.wrap(
-                    response -> {
-                        ImmutableOpenMap<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> status =
-                            response.getStoreStatuses();
-                        Exception e = null;
-                        for (Map.Entry<String, List<AbstractAllocateAllocationCommand>> entry : stalePrimaryAllocations.entrySet()) {
-                            final String index = entry.getKey();
-                            final ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> indexStatus = status.get(index);
-                            if (indexStatus == null) {
-                                // The index in the stale primary allocation request was green and hence filtered out by the store status
-                                // request. We ignore it here since the relevant exception will be thrown by the reroute action later on.
-                                continue;
-                            }
-                            for (AbstractAllocateAllocationCommand command : entry.getValue()) {
-                                final List<IndicesShardStoresResponse.StoreStatus> shardStatus =
-                                    indexStatus.get(command.shardId());
-                                if (shardStatus == null || shardStatus.isEmpty()) {
-                                    e = ExceptionsHelper.useOrSuppress(e, new IllegalArgumentException(
-                                        "No data for shard [" + command.shardId() + "] of index [" + index + "] found on any node")
-                                    );
-                                } else if (shardStatus.stream().noneMatch(storeStatus -> {
-                                    final DiscoveryNode node = storeStatus.getNode();
-                                    final String nodeInCommand = command.node();
-                                    return nodeInCommand.equals(node.getName()) || nodeInCommand.equals(node.getId());
-                                })) {
-                                    e = ExceptionsHelper.useOrSuppress(e, new IllegalArgumentException(
-                                        "No data for shard [" + command.shardId() + "] of index [" + index + "] found on node ["
-                                            + command.node() + ']'));
-                                }
-                            }
+            new ActionListenerResponseHandler<>(ActionListener.wrap(response -> {
+                ImmutableOpenMap<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> status = response
+                    .getStoreStatuses();
+                Exception e = null;
+                for (Map.Entry<String, List<AbstractAllocateAllocationCommand>> entry : stalePrimaryAllocations.entrySet()) {
+                    final String index = entry.getKey();
+                    final ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> indexStatus = status.get(index);
+                    if (indexStatus == null) {
+                        // The index in the stale primary allocation request was green and hence filtered out by the store status
+                        // request. We ignore it here since the relevant exception will be thrown by the reroute action later on.
+                        continue;
+                    }
+                    for (AbstractAllocateAllocationCommand command : entry.getValue()) {
+                        final List<IndicesShardStoresResponse.StoreStatus> shardStatus = indexStatus.get(command.shardId());
+                        if (shardStatus == null || shardStatus.isEmpty()) {
+                            e = ExceptionsHelper.useOrSuppress(
+                                e,
+                                new IllegalArgumentException(
+                                    "No data for shard [" + command.shardId() + "] of index [" + index + "] found on any node"
+                                )
+                            );
+                        } else if (shardStatus.stream().noneMatch(storeStatus -> {
+                            final DiscoveryNode node = storeStatus.getNode();
+                            final String nodeInCommand = command.node();
+                            return nodeInCommand.equals(node.getName()) || nodeInCommand.equals(node.getId());
+                        })) {
+                            e = ExceptionsHelper.useOrSuppress(
+                                e,
+                                new IllegalArgumentException(
+                                    "No data for shard ["
+                                        + command.shardId()
+                                        + "] of index ["
+                                        + index
+                                        + "] found on node ["
+                                        + command.node()
+                                        + ']'
+                                )
+                            );
                         }
-                        if (e == null) {
-                            submitStateUpdate(request, listener);
-                        } else {
-                            listener.onFailure(e);
-                        }
-                    }, listener::onFailure
-                ), IndicesShardStoresResponse::new));
+                    }
+                }
+                if (e == null) {
+                    submitStateUpdate(request, listener);
+                } else {
+                    listener.onFailure(e);
+                }
+            }, listener::onFailure), IndicesShardStoresResponse::new)
+        );
     }
 
+    private static final String TASK_SOURCE = "cluster_reroute (api)";
+
     private void submitStateUpdate(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
-        clusterService.submitStateUpdateTask("cluster_reroute (api)",
-            new ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, request, listener.map(
-                    response -> {
-                        if (request.dryRun() == false) {
-                            response.getExplanations().getYesDecisionMessages().forEach(logger::info);
-                        }
-                        return response;
-                    })));
+        clusterService.submitStateUpdateTask(
+            TASK_SOURCE,
+            new ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, request, listener.map(response -> {
+                if (request.dryRun() == false) {
+                    response.getExplanations().getYesDecisionMessages().forEach(logger::info);
+                }
+                return response;
+            })),
+            ClusterStateTaskExecutor.unbatched()
+        );
     }
 
     static class ClusterRerouteResponseAckedClusterStateUpdateTask extends AckedClusterStateUpdateTask {
@@ -147,8 +182,12 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         private volatile ClusterState clusterStateToSend;
         private volatile RoutingExplanations explanations;
 
-        ClusterRerouteResponseAckedClusterStateUpdateTask(Logger logger, AllocationService allocationService, ClusterRerouteRequest request,
-                                                          ActionListener<ClusterRerouteResponse> listener) {
+        ClusterRerouteResponseAckedClusterStateUpdateTask(
+            Logger logger,
+            AllocationService allocationService,
+            ClusterRerouteRequest request,
+            ActionListener<ClusterRerouteResponse> listener
+        ) {
             super(Priority.IMMEDIATE, request, listener);
             this.request = request;
             this.listener = listener;
@@ -167,15 +206,19 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
-            logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", source), e);
-            super.onFailure(source, e);
+        public void onFailure(Exception e) {
+            logger.debug("failed to perform [" + TASK_SOURCE + "]", e);
+            super.onFailure(e);
         }
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            AllocationService.CommandsResult commandsResult =
-                allocationService.reroute(currentState, request.getCommands(), request.explain(), request.isRetryFailed());
+            AllocationService.CommandsResult commandsResult = allocationService.reroute(
+                currentState,
+                request.getCommands(),
+                request.explain(),
+                request.isRetryFailed()
+            );
             clusterStateToSend = commandsResult.getClusterState();
             explanations = commandsResult.explanations();
             if (request.dryRun()) {

@@ -7,13 +7,13 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.elasticsearch.client.NodeSelector;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import org.elasticsearch.client.NodeSelector;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -37,7 +37,7 @@ public class ApiCallSection {
     }
 
     public Map<String, String> getParams() {
-        //make sure we never modify the parameters once returned
+        // make sure we never modify the parameters once returned
         return unmodifiableMap(params);
     }
 

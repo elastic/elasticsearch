@@ -23,11 +23,17 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
 
     private static Map<Class<? extends Error>, Integer> EXPECTED_STATUS = Map.of(
-            InternalError.class, 128,
-            OutOfMemoryError.class, 127,
-            StackOverflowError.class, 126,
-            UnknownError.class, 125,
-            IOError.class, 124);
+        InternalError.class,
+        128,
+        OutOfMemoryError.class,
+        127,
+        StackOverflowError.class,
+        126,
+        UnknownError.class,
+        125,
+        IOError.class,
+        124
+    );
 
     public void testUncaughtError() throws InterruptedException {
         final Error error = randomFrom(
@@ -36,7 +42,9 @@ public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
             new StackOverflowError(),
             new UnknownError(),
             new IOError(new IOException("fatal")),
-            new Error() {});
+            new Error() {
+            }
+        );
         final Thread thread = new Thread(() -> { throw error; });
         final String name = randomAlphaOfLength(10);
         thread.setName(name);

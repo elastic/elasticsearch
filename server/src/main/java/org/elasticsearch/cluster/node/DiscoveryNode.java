@@ -9,15 +9,17 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -28,7 +30,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
-
 
 /**
  * A discovery node represents a node that is part of the cluster.
@@ -84,8 +85,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     private static boolean isDedicatedFrozenRoles(Set<DiscoveryNodeRole> roles) {
-        return roles.contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) &&
-            roles.stream().filter(DiscoveryNodeRole::canContainData)
+        return roles.contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
+            && roles.stream()
+                .filter(DiscoveryNodeRole::canContainData)
                 .anyMatch(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) == false;
     }
 
@@ -95,6 +97,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     public static boolean isDedicatedFrozenNode(final Settings settings) {
         return isDedicatedFrozenRoles(getRolesFromSettings(settings));
     }
+
+    private static final StringLiteralDeduplicator nodeStringDeduplicator = new StringLiteralDeduplicator();
 
     private final String nodeName;
     private final String nodeId;
@@ -138,8 +142,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param roles            node roles
      * @param version          the version of the node
      */
-    public DiscoveryNode(String id, TransportAddress address, Map<String, String> attributes, Set<DiscoveryNodeRole> roles,
-                         Version version) {
+    public DiscoveryNode(
+        String id,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        Version version
+    ) {
         this("", id, address, attributes, roles, version);
     }
 
@@ -159,10 +168,25 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param roles            node roles
      * @param version          the version of the node
      */
-    public DiscoveryNode(String nodeName, String nodeId, TransportAddress address,
-                         Map<String, String> attributes, Set<DiscoveryNodeRole> roles, Version version) {
-        this(nodeName, nodeId, UUIDs.randomBase64UUID(), address.address().getHostString(), address.getAddress(), address, attributes,
-            roles, version);
+    public DiscoveryNode(
+        String nodeName,
+        String nodeId,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        Version version
+    ) {
+        this(
+            nodeName,
+            nodeId,
+            UUIDs.randomBase64UUID(),
+            address.address().getHostString(),
+            address.getAddress(),
+            address,
+            attributes,
+            roles,
+            version
+        );
     }
 
     /**
@@ -183,26 +207,36 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param roles            node roles
      * @param version          the version of the node
      */
-    public DiscoveryNode(String nodeName, String nodeId, String ephemeralId, String hostName, String hostAddress,
-                         TransportAddress address, Map<String, String> attributes, Set<DiscoveryNodeRole> roles, Version version) {
+    public DiscoveryNode(
+        String nodeName,
+        String nodeId,
+        String ephemeralId,
+        String hostName,
+        String hostAddress,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        Version version
+    ) {
         if (nodeName != null) {
-            this.nodeName = nodeName.intern();
+            this.nodeName = nodeStringDeduplicator.deduplicate(nodeName);
         } else {
             this.nodeName = "";
         }
-        this.nodeId = nodeId.intern();
-        this.ephemeralId = ephemeralId.intern();
-        this.hostName = hostName.intern();
-        this.hostAddress = hostAddress.intern();
+        this.nodeId = nodeStringDeduplicator.deduplicate(nodeId);
+        this.ephemeralId = nodeStringDeduplicator.deduplicate(ephemeralId);
+        this.hostName = nodeStringDeduplicator.deduplicate(hostName);
+        assert Strings.hasText(hostAddress);
+        this.hostAddress = nodeStringDeduplicator.deduplicate(hostAddress);
         this.address = address;
         if (version == null) {
             this.version = Version.CURRENT;
         } else {
             this.version = version;
         }
-        this.attributes = Collections.unmodifiableMap(attributes);
-        assert DiscoveryNodeRole.roleNames().stream().noneMatch(attributes::containsKey) :
-                "Node roles must not be provided as attributes but saw attributes " + attributes;
+        this.attributes = Map.copyOf(attributes);
+        assert DiscoveryNodeRole.roleNames().stream().noneMatch(attributes::containsKey)
+            : "Node roles must not be provided as attributes but saw attributes " + attributes;
         this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
     }
 
@@ -218,19 +252,21 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return Set.copyOf(NODE_ROLES_SETTING.get(settings));
     }
 
+    private static final Writeable.Reader<String> readStringLiteral = s -> nodeStringDeduplicator.deduplicate(s.readString());
+
     /**
      * Creates a new {@link DiscoveryNode} by reading from the stream provided as argument
      * @param in the stream
      * @throws IOException if there is an error while reading from the stream
      */
     public DiscoveryNode(StreamInput in) throws IOException {
-        this.nodeName = in.readString().intern();
-        this.nodeId = in.readString().intern();
-        this.ephemeralId = in.readString().intern();
-        this.hostName = in.readString().intern();
-        this.hostAddress = in.readString().intern();
+        this.nodeName = readStringLiteral.read(in);
+        this.nodeId = readStringLiteral.read(in);
+        this.ephemeralId = readStringLiteral.read(in);
+        this.hostName = readStringLiteral.read(in);
+        this.hostAddress = readStringLiteral.read(in);
         this.address = new TransportAddress(in);
-        this.attributes = in.readMap(StreamInput::readString, StreamInput::readString);
+        this.attributes = Collections.unmodifiableMap(in.readMap(readStringLiteral, readStringLiteral));
         int rolesSize = in.readVInt();
         final SortedSet<DiscoveryNodeRole> roles = new TreeSet<>();
         for (int i = 0; i < rolesSize; i++) {
@@ -244,7 +280,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 final DiscoveryNodeRole role = maybeRole.get();
                 assert roleName.equals(role.roleName()) : "role name [" + roleName + "] does not match role [" + role.roleName() + "]";
                 assert roleNameAbbreviation.equals(role.roleNameAbbreviation())
-                        : "role name abbreviation [" + roleName + "] does not match role [" + role.roleNameAbbreviation() + "]";
+                    : "role name abbreviation [" + roleName + "] does not match role [" + role.roleNameAbbreviation() + "]";
                 roles.add(role);
             }
         }
@@ -415,6 +451,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(stringBuilder::append);
             stringBuilder.append('}');
         }
+    }
+
+    public String descriptionWithoutAttributes() {
+        final StringBuilder stringBuilder = new StringBuilder();
+        appendDescriptionWithoutAttributes(stringBuilder);
+        return stringBuilder.toString();
     }
 
     @Override

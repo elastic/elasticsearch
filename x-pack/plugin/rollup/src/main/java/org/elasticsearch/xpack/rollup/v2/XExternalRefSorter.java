@@ -1,4 +1,5 @@
-/* @notice
+/*
+ * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -81,8 +82,10 @@ class XExternalRefSorter implements BytesRefSorter, Closeable {
             input = null;
         }
 
-        OfflineSorter.ByteSequencesReader reader =
-            sorter.getReader(sorter.getDirectory().openChecksumInput(sortedFileName, IOContext.READONCE), sortedFileName);
+        OfflineSorter.ByteSequencesReader reader = sorter.getReader(
+            sorter.getDirectory().openChecksumInput(sortedFileName, IOContext.READONCE),
+            sortedFileName
+        );
         return new ByteSequenceIterator(reader);
     }
 
@@ -103,9 +106,7 @@ class XExternalRefSorter implements BytesRefSorter, Closeable {
             closeWriter();
         } finally {
             if (input == null) {
-                deleteFilesIgnoringExceptions(sorter.getDirectory(),
-                    input == null ? null : input.getName(),
-                    sortedFileName);
+                deleteFilesIgnoringExceptions(sorter.getDirectory(), input == null ? null : input.getName(), sortedFileName);
             }
         }
     }
@@ -146,7 +147,7 @@ class XExternalRefSorter implements BytesRefSorter, Closeable {
     }
 
     private static void deleteFilesIgnoringExceptions(Directory dir, String... files) {
-        for(String name : files) {
+        for (String name : files) {
             if (name != null) {
                 try {
                     dir.deleteFile(name);

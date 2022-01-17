@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -49,7 +49,8 @@ public class ClassificationFeatureImportanceTests extends AbstractSerializingTes
             Stream.generate(classNameGenerator)
                 .limit(randomLongBetween(2, 10))
                 .map(name -> new ClassificationFeatureImportance.ClassImportance(name, randomDoubleBetween(-10, 10, false)))
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList())
+        );
     }
 
     public void testGetTotalImportance_GivenBinary() {

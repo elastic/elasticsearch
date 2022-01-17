@@ -9,8 +9,8 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
@@ -33,7 +33,9 @@ public class UnavailableShardsException extends ElasticsearchException {
         return buildMessage(shardId.getIndexName(), shardId.id(), message);
     }
 
-    private static String buildMessage(String index, int shardId, String message) {return "[" + index + "][" + shardId + "] " + message;}
+    private static String buildMessage(String index, int shardId, String message) {
+        return "[" + index + "][" + shardId + "] " + message;
+    }
 
     public UnavailableShardsException(StreamInput in) throws IOException {
         super(in);

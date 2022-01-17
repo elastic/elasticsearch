@@ -27,12 +27,10 @@ import static org.elasticsearch.client.RequestConverters.createEntity;
 
 final class RollupRequestConverters {
 
-    private RollupRequestConverters() {
-    }
+    private RollupRequestConverters() {}
 
     static Request putJob(final PutRollupJobRequest putRollupJobRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_rollup", "job")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_rollup", "job")
             .addPathPart(putRollupJobRequest.getConfig().getId())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -41,8 +39,7 @@ final class RollupRequestConverters {
     }
 
     static Request startJob(final StartRollupJobRequest startRollupJobRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_rollup", "job")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_rollup", "job")
             .addPathPart(startRollupJobRequest.getJobId())
             .addPathPartAsIs("_start")
             .build();
@@ -50,8 +47,7 @@ final class RollupRequestConverters {
     }
 
     static Request stopJob(final StopRollupJobRequest stopRollupJobRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_rollup", "job")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_rollup", "job")
             .addPathPart(stopRollupJobRequest.getJobId())
             .addPathPartAsIs("_stop")
             .build();
@@ -67,16 +63,14 @@ final class RollupRequestConverters {
     }
 
     static Request getJob(final GetRollupJobRequest getRollupJobRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_rollup", "job")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_rollup", "job")
             .addPathPart(getRollupJobRequest.getJobId())
             .build();
         return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
     static Request deleteJob(final DeleteRollupJobRequest deleteRollupJobRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_rollup", "job")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_rollup", "job")
             .addPathPart(deleteRollupJobRequest.getId())
             .build();
         return new Request(HttpDelete.METHOD_NAME, endpoint);
@@ -87,16 +81,14 @@ final class RollupRequestConverters {
     }
 
     static Request getRollupCaps(final GetRollupCapsRequest getRollupCapsRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_rollup", "data")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_rollup", "data")
             .addPathPart(getRollupCapsRequest.getIndexPattern())
             .build();
         return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
     static Request getRollupIndexCaps(final GetRollupIndexCapsRequest getRollupIndexCapsRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addCommaSeparatedPathParts(getRollupIndexCapsRequest.indices())
+        String endpoint = new RequestConverters.EndpointBuilder().addCommaSeparatedPathParts(getRollupIndexCapsRequest.indices())
             .addPathPartAsIs("_rollup", "data")
             .build();
         return new Request(HttpGet.METHOD_NAME, endpoint);

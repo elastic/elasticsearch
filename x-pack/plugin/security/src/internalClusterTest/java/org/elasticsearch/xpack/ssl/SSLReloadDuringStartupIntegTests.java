@@ -59,6 +59,7 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
         return true;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77490")
     public void testReloadDuringStartup() throws Exception {
         final String node = randomFrom(internalCluster().getNodeNames());
         final Environment env = internalCluster().getInstance(Environment.class, node);

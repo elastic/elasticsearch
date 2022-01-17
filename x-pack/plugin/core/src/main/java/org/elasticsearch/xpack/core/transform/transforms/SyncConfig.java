@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 public interface SyncConfig extends ToXContentObject, NamedWriteable {
 

@@ -1,0 +1,30 @@
+// tag::cloud[]
+From your deployment menu, click **Performance**. The page's **CPU Usage** chart
+shows your deployment's CPU usage as a percentage.
+
+High CPU usage can also deplete your CPU credits. CPU credits let {ess} provide
+smaller clusters with a performance boost when needed. The **CPU credits**
+chart shows your remaining CPU credits, measured in seconds of CPU time.
+
+You can also use the <<cat-nodes,cat nodes API>> to get the current CPU usage
+for each node.
+
+// tag::cpu-usage-cat-nodes[]
+[source,console]
+----
+GET _cat/nodes?v=true&s=cpu:desc
+----
+
+The response's `cpu` column contains the current CPU usage as a percentage. The
+`node` column contains the node's name.
+// end::cpu-usage-cat-nodes[]
+
+// end::cloud[]
+
+// tag::self-managed[]
+
+Use the <<cat-nodes,cat nodes API>> to get the current CPU usage for each node.
+
+include::cpu-usage.asciidoc[tag=cpu-usage-cat-nodes]
+
+// end::self-managed[]

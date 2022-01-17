@@ -26,4 +26,3 @@ public class MapperExtrasClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         return ESClientYamlSuiteTestCase.createParameters();
     }
 }
-

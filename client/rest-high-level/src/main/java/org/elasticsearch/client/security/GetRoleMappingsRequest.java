@@ -23,9 +23,9 @@ public final class GetRoleMappingsRequest implements Validatable {
 
     public GetRoleMappingsRequest(final String... roleMappingNames) {
         if (roleMappingNames != null) {
-           this.roleMappingNames = Collections.unmodifiableSet(Sets.newHashSet(roleMappingNames));
+            this.roleMappingNames = Collections.unmodifiableSet(Sets.newHashSet(roleMappingNames));
         } else {
-           this.roleMappingNames = Collections.emptySet();
+            this.roleMappingNames = Collections.emptySet();
         }
     }
 

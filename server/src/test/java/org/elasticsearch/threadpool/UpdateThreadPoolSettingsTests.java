@@ -9,9 +9,9 @@
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.lang.reflect.Field;
@@ -33,10 +33,12 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         ThreadPool.ThreadPoolType correctThreadPoolType = ThreadPool.THREAD_POOL_TYPES.get(threadPoolName);
         ThreadPool threadPool = null;
         try {
-            threadPool = new ThreadPool(Settings.builder()
-                .put("node.name", "testCorrectThreadPoolTypePermittedInSettings")
-                .put("thread_pool." + threadPoolName + ".type", correctThreadPoolType.getType())
-                .build());
+            threadPool = new ThreadPool(
+                Settings.builder()
+                    .put("node.name", "testCorrectThreadPoolTypePermittedInSettings")
+                    .put("thread_pool." + threadPoolName + ".type", correctThreadPoolType.getType())
+                    .build()
+            );
             ThreadPool.Info info = info(threadPool, threadPoolName);
             if (ThreadPool.Names.SAME.equals(threadPoolName)) {
                 assertNull(info); // we don't report on the "same" thread pool
@@ -54,25 +56,26 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         final int tooBig = randomIntBetween(1 + maxSize, Integer.MAX_VALUE);
 
         // try to create a too big thread pool
-        final IllegalArgumentException initial =
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> {
-                    ThreadPool tp = null;
-                    try {
-                        tp = new ThreadPool(Settings.builder()
-                            .put("node.name", "testIndexingThreadPoolsMaxSize")
-                            .put("thread_pool." + Names.WRITE + ".size", tooBig)
-                            .build());
-                    } finally {
-                        terminateThreadPoolIfNeeded(tp);
-                    }
-                });
+        final IllegalArgumentException initial = expectThrows(IllegalArgumentException.class, () -> {
+            ThreadPool tp = null;
+            try {
+                tp = new ThreadPool(
+                    Settings.builder()
+                        .put("node.name", "testIndexingThreadPoolsMaxSize")
+                        .put("thread_pool." + Names.WRITE + ".size", tooBig)
+                        .build()
+                );
+            } finally {
+                terminateThreadPoolIfNeeded(tp);
+            }
+        });
 
         assertThat(
             initial,
-            hasToString(containsString(
-                "Failed to parse value [" + tooBig + "] for setting [thread_pool." + Names.WRITE + ".size] must be ")));
+            hasToString(
+                containsString("Failed to parse value [" + tooBig + "] for setting [thread_pool." + Names.WRITE + ".size] must be ")
+            )
+        );
     }
 
     private static int getExpectedThreadPoolSize(Settings settings, String name, int size) {
@@ -145,15 +148,14 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             ThreadPoolExecutor oldExecutor = (ThreadPoolExecutor) threadPool.executor(threadPoolName);
             threadPool.executor(threadPoolName).execute(() -> {
-                        try {
-                            shutDownLatch.countDown();
-                            new CountDownLatch(1).await();
-                        } catch (InterruptedException ex) {
-                            latch.countDown();
-                            Thread.currentThread().interrupt();
-                        }
-                    }
-            );
+                try {
+                    shutDownLatch.countDown();
+                    new CountDownLatch(1).await();
+                } catch (InterruptedException ex) {
+                    latch.countDown();
+                    Thread.currentThread().interrupt();
+                }
+            });
             shutDownLatch.await();
             threadPool.shutdownNow();
             latch.await(3, TimeUnit.SECONDS); // if this throws then ThreadPool#shutdownNow did not interrupt
@@ -168,13 +170,12 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         ThreadPool threadPool = null;
         try {
 
-
-            final ScalingExecutorBuilder scaling =
-                new ScalingExecutorBuilder(
-                    "my_pool1",
-                    1,
-                    EsExecutors.allocatedProcessors(Settings.EMPTY),
-                    TimeValue.timeValueMinutes(1));
+            final ScalingExecutorBuilder scaling = new ScalingExecutorBuilder(
+                "my_pool1",
+                1,
+                EsExecutors.allocatedProcessors(Settings.EMPTY),
+                TimeValue.timeValueMinutes(1)
+            );
 
             final FixedExecutorBuilder fixed = new FixedExecutorBuilder(Settings.EMPTY, "my_pool2", 1, 1, false);
 
@@ -183,8 +184,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
             ThreadPoolInfo groups = threadPool.info();
             boolean foundPool1 = false;
             boolean foundPool2 = false;
-            outer:
-            for (ThreadPool.Info info : groups) {
+            outer: for (ThreadPool.Info info : groups) {
                 if ("my_pool1".equals(info.getName())) {
                     foundPool1 = true;
                     assertEquals(info.getThreadPoolType(), ThreadPool.ThreadPoolType.SCALING);

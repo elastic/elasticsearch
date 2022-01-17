@@ -85,9 +85,9 @@ public class GetAsyncResultRequest extends ActionRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetAsyncResultRequest request = (GetAsyncResultRequest) o;
-        return Objects.equals(id, request.id) &&
-            waitForCompletionTimeout.equals(request.waitForCompletionTimeout) &&
-            keepAlive.equals(request.keepAlive);
+        return Objects.equals(id, request.id)
+            && waitForCompletionTimeout.equals(request.waitForCompletionTimeout)
+            && keepAlive.equals(request.keepAlive);
     }
 
     @Override

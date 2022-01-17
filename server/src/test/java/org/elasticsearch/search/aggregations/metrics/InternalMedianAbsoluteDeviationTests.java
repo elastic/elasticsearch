@@ -21,9 +21,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
     @Override
     protected InternalMedianAbsoluteDeviation createTestInstance(String name, Map<String, Object> metadata) {
         final TDigestState valuesSketch = new TDigestState(randomDoubleBetween(20, 1000, true));
-        final int numberOfValues = frequently()
-            ? randomIntBetween(0, 1000)
-            : 0;
+        final int numberOfValues = frequently() ? randomIntBetween(0, 1000) : 0;
         for (int i = 0; i < numberOfValues; i++) {
             valuesSketch.add(randomDouble());
         }
@@ -63,25 +61,23 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
         Map<String, Object> metadata = instance.getMetadata();
 
         switch (between(0, 2)) {
-            case 0:
-                name += randomAlphaOfLengthBetween(2, 10);
-                break;
-            case 1:
+            case 0 -> name += randomAlphaOfLengthBetween(2, 10);
+            case 1 -> {
                 final TDigestState newValuesSketch = new TDigestState(instance.getValuesSketch().compression());
                 final int numberOfValues = between(10, 100);
                 for (int i = 0; i < numberOfValues; i++) {
                     newValuesSketch.add(randomDouble());
                 }
                 valuesSketch = newValuesSketch;
-                break;
-            case 2:
+            }
+            case 2 -> {
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(metadata);
                 }
                 metadata.put(randomAlphaOfLengthBetween(2, 10), randomInt());
-                break;
+            }
         }
 
         return new InternalMedianAbsoluteDeviation(name, metadata, instance.format, valuesSketch);

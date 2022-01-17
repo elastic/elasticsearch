@@ -23,19 +23,18 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.startsWith;
 
 public class VerifierTests extends ESTestCase {
 
     private static final String INDEX_NAME = "test";
-
-    private final EqlParser parser = new EqlParser();
 
     private final IndexResolution index = loadIndexResolution("mapping-default.json");
 
@@ -48,9 +47,12 @@ public class VerifierTests extends ESTestCase {
     }
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
+        EqlParser parser = new EqlParser();
         PreAnalyzer preAnalyzer = new PreAnalyzer();
         Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
-        return analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution));
+
+        LogicalPlan plan = parser.createStatement(eql);
+        return analyzer.analyze(preAnalyzer.preAnalyze(plan, resolution));
     }
 
     private LogicalPlan accept(String eql) {
@@ -94,7 +96,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStartsWithNumber() {
-        assertEquals("1:1: no viable alternative at input '42'", errorParsing("42 where true"));
+        assertThat(errorParsing("42 where true"), startsWith("1:1: mismatched input '42' expecting"));
     }
 
     public void testMissingColumn() {
@@ -110,34 +112,52 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testProcessRelationshipsUnsupported() {
-        assertEquals("2:7: Process relationships are not supported",
-                errorParsing("process where opcode==1 and process_name == \"csrss.exe\"\n" +
-                        "  and descendant of [file where file_name == \"csrss.exe\" and opcode==0]"));
-        assertEquals("2:7: Process relationships are not supported",
-                errorParsing("process where process_name==\"svchost.exe\"\n" +
-                        "  and child of [file where file_name=\"svchost.exe\" and opcode==0]"));
+        assertEquals(
+            "2:7: Process relationships are not supported",
+            errorParsing(
+                "process where opcode==1 and process_name == \"csrss.exe\"\n"
+                    + "  and descendant of [file where file_name == \"csrss.exe\" and opcode==0]"
+            )
+        );
+        assertEquals(
+            "2:7: Process relationships are not supported",
+            errorParsing(
+                "process where process_name==\"svchost.exe\"\n" + "  and child of [file where file_name=\"svchost.exe\" and opcode==0]"
+            )
+        );
     }
 
     // Some functions fail with "Unsupported" message at the parse stage
     public void testArrayFunctionsUnsupported() {
-        assertEquals("1:16: Unknown function [arrayContains], did you mean [stringcontains]?",
-                error("registry where arrayContains(bytes_written_string_list, \"En\")"));
-        assertEquals("1:16: Unknown function [arraySearch]",
-            error("registry where arraySearch(bytes_written_string_list, bytes_written_string, true)"));
-        assertEquals("1:16: Unknown function [arrayCount]",
-            error("registry where arrayCount(bytes_written_string_list, bytes_written_string, true) == 1"));
+        assertEquals(
+            "1:16: Unknown function [arrayContains], did you mean [stringcontains]?",
+            error("registry where arrayContains(bytes_written_string_list, \"En\")")
+        );
+        assertEquals(
+            "1:16: Unknown function [arraySearch]",
+            error("registry where arraySearch(bytes_written_string_list, bytes_written_string, true)")
+        );
+        assertEquals(
+            "1:16: Unknown function [arrayCount]",
+            error("registry where arrayCount(bytes_written_string_list, bytes_written_string, true) == 1")
+        );
     }
 
     // Some functions fail with "Unknown" message at the parse stage
     public void testFunctionParsingUnknown() {
-        assertEquals("1:15: Unknown function [safe]",
-                error("network where safe(process_name)"));
+        assertEquals("1:15: Unknown function [safe]", error("network where safe(process_name)"));
     }
 
     // Test unsupported array indexes
     public void testArrayIndexesUnsupported() {
-        assertEquals("1:84: Array indexes are not supported",
-                errorParsing("registry where length(bytes_written_string_list) > 0 and bytes_written_string_list[0] == \"EN-us"));
+        assertEquals(
+            "1:84: Array indexes are not supported",
+            errorParsing("registry where length(bytes_written_string_list) > 0 and bytes_written_string_list[0] == \"EN-us")
+        );
+    }
+
+    public void testOptionalFieldsUnsupported() {
+        assertEquals("1:1: extraneous input '?' expecting {'any', 'join', 'sequence', STRING, IDENTIFIER}", errorParsing("?x where true"));
     }
 
     // Test valid/supported queries
@@ -160,8 +180,7 @@ public class VerifierTests extends ESTestCase {
         accept("process where (serial_event_id<=8 and not serial_event_id > 7) and (opcode==3 and opcode>2)");
 
         // In statement
-        accept("process where not (exit_code > -1)\n" +
-                "  and serial_event_id in (58, 64, 69, 74, 80, 85, 90, 93, 94)");
+        accept("process where not (exit_code > -1)\n" + "  and serial_event_id in (58, 64, 69, 74, 80, 85, 90, 93, 94)");
 
         // Combination
         accept("file where serial_event_id == 82 and (true == (process_name in (\"svchost.EXE\", \"bad.exe\", \"bad2.exe\")))");
@@ -175,6 +194,14 @@ public class VerifierTests extends ESTestCase {
         accept("file where serial_event_id * 2 == 164");
         accept("file where serial_event_id / 2 == 41");
         accept("file where serial_event_id % 40 == 2");
+
+        // optional fields
+        accept("file where ?foo == 123");
+        accept("file where ?foo == null");
+        accept("file where ?`?foo` == null");
+        accept("file where ?`f?oo` == null");
+        accept("file where serial_event_id == 82 and (true == (?bar in (\"abc\", \"xyz\")))");
+        accept("file where concat(?foo, \"test\", ?bar) == \"onetest!\"");
     }
 
     // Test mapping that doesn\"t have property event.category defined
@@ -187,12 +214,16 @@ public class VerifierTests extends ESTestCase {
         final IndexResolution idxr = loadIndexResolution("mapping-alias.json");
 
         // Check unsupported
-        assertEquals("1:11: Cannot use field [user_name_alias] with unsupported type [alias]",
-                error(idxr, "foo where user_name_alias == \"bob\""));
+        assertEquals(
+            "1:11: Cannot use field [user_name_alias] with unsupported type [alias]",
+            error(idxr, "foo where user_name_alias == \"bob\"")
+        );
 
         // Check alias name typo
-        assertEquals("1:11: Unknown column [user_name_alia], did you mean any of [user_name, user_domain]?",
-                error(idxr, "foo where user_name_alia == \"bob\""));
+        assertEquals(
+            "1:11: Unknown column [user_name_alia], did you mean any of [user_name, user_domain]?",
+            error(idxr, "foo where user_name_alia == \"bob\"")
+        );
     }
 
     // Test all elasticsearch numeric field types
@@ -208,8 +239,10 @@ public class VerifierTests extends ESTestCase {
         accept(idxr, "foo where scaled_float_field == 0");
 
         // Test query against unsupported field type int
-        assertEquals("1:11: Cannot use field [wrong_int_type_field] with unsupported type [int]",
-                error(idxr, "foo where wrong_int_type_field == 0"));
+        assertEquals(
+            "1:11: Cannot use field [wrong_int_type_field] with unsupported type [int]",
+            error(idxr, "foo where wrong_int_type_field == 0")
+        );
     }
 
     public void testNoDoc() {
@@ -260,51 +293,68 @@ public class VerifierTests extends ESTestCase {
 
     public void testRange() {
         final IndexResolution idxr = loadIndexResolution("mapping-range.json");
-        assertEquals("1:11: Cannot use field [integer_range_field] with unsupported type [integer_range]",
-                error(idxr, "foo where integer_range_field == \"\""));
-        assertEquals("1:11: Cannot use field [float_range_field] with unsupported type [float_range]",
-                error(idxr, "foo where float_range_field == \"\""));
-        assertEquals("1:11: Cannot use field [long_range_field] with unsupported type [long_range]",
-                error(idxr, "foo where long_range_field == \"\""));
-        assertEquals("1:11: Cannot use field [double_range_field] with unsupported type [double_range]",
-                error(idxr, "foo where double_range_field == \"\""));
-        assertEquals("1:11: Cannot use field [date_range_field] with unsupported type [date_range]",
-                error(idxr, "foo where date_range_field == \"\""));
-        assertEquals("1:11: Cannot use field [ip_range_field] with unsupported type [ip_range]",
-                error(idxr, "foo where ip_range_field == \"\""));
+        assertEquals(
+            "1:11: Cannot use field [integer_range_field] with unsupported type [integer_range]",
+            error(idxr, "foo where integer_range_field == \"\"")
+        );
+        assertEquals(
+            "1:11: Cannot use field [float_range_field] with unsupported type [float_range]",
+            error(idxr, "foo where float_range_field == \"\"")
+        );
+        assertEquals(
+            "1:11: Cannot use field [long_range_field] with unsupported type [long_range]",
+            error(idxr, "foo where long_range_field == \"\"")
+        );
+        assertEquals(
+            "1:11: Cannot use field [double_range_field] with unsupported type [double_range]",
+            error(idxr, "foo where double_range_field == \"\"")
+        );
+        assertEquals(
+            "1:11: Cannot use field [date_range_field] with unsupported type [date_range]",
+            error(idxr, "foo where date_range_field == \"\"")
+        );
+        assertEquals(
+            "1:11: Cannot use field [ip_range_field] with unsupported type [ip_range]",
+            error(idxr, "foo where ip_range_field == \"\"")
+        );
     }
 
     public void testMixedSet() {
         final IndexResolution idxr = loadIndexResolution("mapping-numeric.json");
-        assertEquals("1:11: 2nd argument of [long_field in (1, \"string\")] must be [long], found value [\"string\"] type [keyword]",
-            error(idxr, "foo where long_field in (1, \"string\")"));
+        assertEquals(
+            "1:11: 2nd argument of [long_field in (1, \"string\")] must be [long], found value [\"string\"] type [keyword]",
+            error(idxr, "foo where long_field in (1, \"string\")")
+        );
     }
 
     public void testObject() {
         final IndexResolution idxr = loadIndexResolution("mapping-object.json");
         accept(idxr, "foo where endgame.pid == 0");
 
-        assertEquals("1:11: Unknown column [endgame.pi], did you mean [endgame.pid]?",
-                error(idxr, "foo where endgame.pi == 0"));
+        assertEquals("1:11: Unknown column [endgame.pi], did you mean [endgame.pid]?", error(idxr, "foo where endgame.pi == 0"));
     }
 
     public void testNested() {
         final IndexResolution idxr = loadIndexResolution("mapping-nested.json");
-        assertEquals("1:11: Cannot use field [processes] type [nested] due to nested fields not being supported yet",
-            error(idxr, "foo where processes == 0"));
-        assertEquals("1:11: Cannot use field [processes.pid] type [long] with unsupported nested type in hierarchy (field [processes])",
-            error(idxr, "foo where processes.pid == 0"));
-        assertEquals("1:11: Unknown column [processe.pid], did you mean any of [processes.pid, processes.path, processes.path.keyword]?",
-                error(idxr, "foo where processe.pid == 0"));
+        assertEquals(
+            "1:11: Cannot use field [processes] type [nested] due to nested fields not being supported yet",
+            error(idxr, "foo where processes == 0")
+        );
+        assertEquals(
+            "1:11: Cannot use field [processes.pid] type [long] with unsupported nested type in hierarchy (field [processes])",
+            error(idxr, "foo where processes.pid == 0")
+        );
+        assertEquals(
+            "1:11: Unknown column [processe.pid], did you mean any of [processes.pid, processes.path, processes.path.keyword]?",
+            error(idxr, "foo where processe.pid == 0")
+        );
         accept(idxr, "foo where long_field == 123");
     }
 
     public void testGeo() {
         final IndexResolution idxr = loadIndexResolution("mapping-geo.json");
-        assertEquals("1:11: Cannot use field [location] with unsupported type [geo_point]",
-                error(idxr, "foo where location == 0"));
-        assertEquals("1:11: Cannot use field [site] with unsupported type [geo_shape]",
-                error(idxr, "foo where site == 0"));
+        assertEquals("1:11: Cannot use field [location] with unsupported type [geo_point]", error(idxr, "foo where location == 0"));
+        assertEquals("1:11: Cannot use field [site] with unsupported type [geo_shape]", error(idxr, "foo where site == 0"));
     }
 
     public void testIP() {
@@ -321,89 +371,132 @@ public class VerifierTests extends ESTestCase {
         final IndexResolution idxr = loadIndexResolution("mapping-multi-field.json");
         accept(idxr, "foo where multi_field.raw == \"bar\"");
 
-        assertEquals("1:11: [multi_field.english == \"bar\"] cannot operate on first argument field of data type [text]: " +
-                        "No keyword/multi-field defined exact matches for [english]; define one or use MATCH/QUERY instead",
-                error(idxr, "foo where multi_field.english == \"bar\""));
+        assertEquals(
+            "1:11: [multi_field.english == \"bar\"] cannot operate on first argument field of data type [text]: "
+                + "No keyword/multi-field defined exact matches for [english]; define one or use MATCH/QUERY instead",
+            error(idxr, "foo where multi_field.english == \"bar\"")
+        );
 
         accept(idxr, "foo where multi_field_options.raw == \"bar\"");
         accept(idxr, "foo where multi_field_options.key == \"bar\"");
         accept(idxr, "foo where multi_field_ambiguous.one == \"bar\"");
         accept(idxr, "foo where multi_field_ambiguous.two == \"bar\"");
 
-        assertEquals("1:11: [multi_field_ambiguous.normalized == \"bar\"] cannot operate on first argument field of data type [keyword]: " +
-                        "Normalized keyword field cannot be used for exact match operations",
-                error(idxr, "foo where multi_field_ambiguous.normalized == \"bar\""));
-        assertEquals("1:11: Cannot use field [multi_field_nested.dep_name] type [text] with unsupported nested type in hierarchy " +
-                        "(field [multi_field_nested])",
-                error(idxr, "foo where multi_field_nested.dep_name == \"bar\""));
-        assertEquals("1:11: Cannot use field [multi_field_nested.dep_id.keyword] type [keyword] with unsupported nested type in " +
-                        "hierarchy (field [multi_field_nested])",
-                error(idxr, "foo where multi_field_nested.dep_id.keyword == \"bar\""));
-        assertEquals("1:11: Cannot use field [multi_field_nested.end_date] type [datetime] with unsupported nested type in " +
-                        "hierarchy (field [multi_field_nested])",
-                error(idxr, "foo where multi_field_nested.end_date == \"\""));
-        assertEquals("1:11: Cannot use field [multi_field_nested.start_date] type [datetime] with unsupported nested type in " +
-                        "hierarchy (field [multi_field_nested])",
-                error(idxr, "foo where multi_field_nested.start_date == \"bar\""));
+        assertEquals(
+            "1:11: [multi_field_ambiguous.normalized == \"bar\"] cannot operate on first argument field of data type [keyword]: "
+                + "Normalized keyword field cannot be used for exact match operations",
+            error(idxr, "foo where multi_field_ambiguous.normalized == \"bar\"")
+        );
+        assertEquals(
+            "1:11: Cannot use field [multi_field_nested.dep_name] type [text] with unsupported nested type in hierarchy "
+                + "(field [multi_field_nested])",
+            error(idxr, "foo where multi_field_nested.dep_name == \"bar\"")
+        );
+        assertEquals(
+            "1:11: Cannot use field [multi_field_nested.dep_id.keyword] type [keyword] with unsupported nested type in "
+                + "hierarchy (field [multi_field_nested])",
+            error(idxr, "foo where multi_field_nested.dep_id.keyword == \"bar\"")
+        );
+        assertEquals(
+            "1:11: Cannot use field [multi_field_nested.end_date] type [datetime] with unsupported nested type in "
+                + "hierarchy (field [multi_field_nested])",
+            error(idxr, "foo where multi_field_nested.end_date == \"\"")
+        );
+        assertEquals(
+            "1:11: Cannot use field [multi_field_nested.start_date] type [datetime] with unsupported nested type in "
+                + "hierarchy (field [multi_field_nested])",
+            error(idxr, "foo where multi_field_nested.start_date == \"bar\"")
+        );
     }
 
     public void testStringFunctionWithText() {
         final IndexResolution idxr = loadIndexResolution("mapping-multi-field.json");
-        assertEquals("1:15: [string(multi_field.english)] cannot operate on field " +
-                "of data type [text]: No keyword/multi-field defined exact matches for [english]; " +
-                "define one or use MATCH/QUERY instead",
-            error(idxr, "process where string(multi_field.english) == \"foo\""));
+        assertEquals(
+            "1:15: [string(multi_field.english)] cannot operate on field "
+                + "of data type [text]: No keyword/multi-field defined exact matches for [english]; "
+                + "define one or use MATCH/QUERY instead",
+            error(idxr, "process where string(multi_field.english) == \"foo\"")
+        );
     }
 
     public void testIncorrectUsageOfStringEquals() {
         final IndexResolution idxr = loadIndexResolution("mapping-default.json");
-        assertEquals("1:11: first argument of [:] must be [string], found value [pid] type [long]; consider using [==] instead",
-            error(idxr, "foo where pid : 123"));
+        assertEquals(
+            "1:11: first argument of [:] must be [string], found value [pid] type [long]; consider using [==] instead",
+            error(idxr, "foo where pid : 123")
+        );
     }
 
     public void testKeysWithDifferentTypes() throws Exception {
-        assertEquals("1:62: Sequence key [md5] type [keyword] is incompatible with key [pid] type [long]",
-            error(index, "sequence " +
-                "[process where true] by pid " +
-                "[process where true] by md5"));
+        assertEquals(
+            "1:62: Sequence key [md5] type [keyword] is incompatible with key [pid] type [long]",
+            error(index, "sequence " + "[process where true] by pid " + "[process where true] by md5")
+        );
     }
 
     public void testKeysWithDifferentButCompatibleTypes() throws Exception {
-        accept(index, "sequence " +
-                "[process where true] by hostname " +
-                "[process where true] by user_domain");
+        accept(index, "sequence " + "[process where true] by hostname " + "[process where true] by user_domain");
     }
 
     public void testKeysWithSimilarYetDifferentTypes() throws Exception {
-        assertEquals("1:69: Sequence key [opcode] type [long] is incompatible with key [@timestamp] type [date]",
-            error(index, "sequence " +
-                "[process where true] by @timestamp " +
-                "[process where true] by opcode"));
+        assertEquals(
+            "1:69: Sequence key [opcode] type [long] is incompatible with key [@timestamp] type [date]",
+            error(index, "sequence " + "[process where true] by @timestamp " + "[process where true] by opcode")
+        );
     }
 
     private LogicalPlan analyzeWithVerifierFunction(Function<String, Collection<String>> versionIncompatibleClusters) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
-        EqlConfiguration eqlConfiguration = new EqlConfiguration(new String[] {"none"},
-            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, emptyMap(), null,
-            TimeValue.timeValueSeconds(30), null, 123, "", new TaskId("test", 123), null, versionIncompatibleClusters);
+        EqlConfiguration eqlConfiguration = new EqlConfiguration(
+            new String[] { "none" },
+            org.elasticsearch.xpack.ql.util.DateUtils.UTC,
+            "nobody",
+            "cluster",
+            null,
+            emptyMap(),
+            null,
+            TimeValue.timeValueSeconds(30),
+            null,
+            123,
+            "",
+            new TaskId("test", 123),
+            null,
+            versionIncompatibleClusters
+        );
         Analyzer analyzer = new Analyzer(eqlConfiguration, new EqlFunctionRegistry(), new Verifier(new Metrics()));
         IndexResolution resolution = IndexResolution.valid(new EsIndex("irrelevant", loadEqlMapping("mapping-default.json")));
-        return analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement("any where true"), resolution));
+        return analyzer.analyze(preAnalyzer.preAnalyze(new EqlParser().createStatement("any where true"), resolution));
     }
 
     public void testRemoteClusterVersionCheck() {
-        assertNotNull(analyzeWithVerifierFunction(x -> Collections.emptySet()));
+        assertNotNull(analyzeWithVerifierFunction(x -> emptySet()));
 
-        Set<String> clusters = new TreeSet<>() {{
-            add("one");
-        }};
+        Set<String> clusters = new TreeSet<>() {
+            {
+                add("one");
+            }
+        };
         VerificationException e = expectThrows(VerificationException.class, () -> analyzeWithVerifierFunction(x -> clusters));
-        assertTrue(e.getMessage().contains("the following remote cluster is incompatible, being on a version different than local "
-            + "cluster's [" + Version.CURRENT + "]: [one]"));
+        assertTrue(
+            e.getMessage()
+                .contains(
+                    "the following remote cluster is incompatible, being on a version different than local "
+                        + "cluster's ["
+                        + Version.CURRENT
+                        + "]: [one]"
+                )
+        );
 
         clusters.add("two");
         e = expectThrows(VerificationException.class, () -> analyzeWithVerifierFunction(x -> clusters));
-        assertTrue(e.getMessage().contains("the following remote clusters are incompatible, being on a version different than local "
-            + "cluster's [" + Version.CURRENT + "]: [one, two]"));
+        assertTrue(
+            e.getMessage()
+                .contains(
+                    "the following remote clusters are incompatible, being on a version different than local "
+                        + "cluster's ["
+                        + Version.CURRENT
+                        + "]: [one, two]"
+                )
+        );
     }
 }

@@ -28,8 +28,7 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * @author jessewilson@google.com (Jesse Wilson)
  */
 public class UniqueAnnotations {
-    private UniqueAnnotations() {
-    }
+    private UniqueAnnotations() {}
 
     private static final AtomicInteger nextUniqueValue = new AtomicInteger(1);
 
@@ -60,8 +59,7 @@ public class UniqueAnnotations {
 
             @Override
             public boolean equals(Object o) {
-                return o instanceof Internal
-                        && ((Internal) o).value() == value();
+                return o instanceof Internal && ((Internal) o).value() == value();
             }
 
             @Override

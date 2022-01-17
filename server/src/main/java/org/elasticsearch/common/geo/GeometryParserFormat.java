@@ -9,12 +9,12 @@
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -80,12 +80,11 @@ public enum GeometryParserFormat {
      * This method automatically recognizes the format by examining the provided {@link XContentParser}.
      */
     public static GeometryParserFormat geometryFormat(XContentParser parser) {
-        switch (parser.currentToken()) {
-            case START_OBJECT:
-            case VALUE_NULL: // We don't know the format of the original geometry - so going with default
-                return GEOJSON;
-            case VALUE_STRING:  return WKT;
-            default: throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
-        }
+        return switch (parser.currentToken()) {
+            // We don't know the format of the original geometry - so going with default
+            case START_OBJECT, VALUE_NULL -> GEOJSON;
+            case VALUE_STRING -> WKT;
+            default -> throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
+        };
     }
 }

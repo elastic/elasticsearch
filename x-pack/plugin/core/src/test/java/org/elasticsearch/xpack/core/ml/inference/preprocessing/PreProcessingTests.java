@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -56,14 +56,13 @@ public abstract class PreProcessingTests<T extends PreProcessor> extends Abstrac
 
     void testProcess(PreProcessor preProcessor, Map<String, Object> fieldValues, Map<String, Matcher<? super Object>> assertions) {
         preProcessor.process(fieldValues);
-        assertions.forEach((fieldName, matcher) ->
-            assertThat(fieldValues.get(fieldName), matcher)
-        );
+        assertions.forEach((fieldName, matcher) -> assertThat(fieldValues.get(fieldName), matcher));
     }
 
     public void testInputOutputFieldOrderConsistency() throws IOException {
-        xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance)
-            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
+        xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance).numberOfTestRuns(
+            NUMBER_OF_TEST_RUNS
+        )
             .supportsUnknownFields(supportsUnknownFields())
             .shuffleFieldsExceptions(getShuffleFieldsExceptions())
             .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())

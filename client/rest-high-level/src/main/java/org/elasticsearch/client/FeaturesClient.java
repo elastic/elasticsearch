@@ -22,7 +22,13 @@ import static java.util.Collections.emptySet;
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Snapshot API.
  * <p>
  * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/features-apis.html">Snapshot API on elastic.co</a>
+ *
+ * @deprecated The High Level Rest Client is deprecated in favor of the
+ * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/introduction.html">
+ * Elasticsearch Java API Client</a>
  */
+@Deprecated(since = "7.16.0", forRemoval = true)
+@SuppressWarnings("removal")
 public class FeaturesClient {
     private final RestHighLevelClient restHighLevelClient;
 
@@ -40,8 +46,7 @@ public class FeaturesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetFeaturesResponse getFeatures(GetFeaturesRequest getFeaturesRequest, RequestOptions options)
-        throws IOException {
+    public GetFeaturesResponse getFeatures(GetFeaturesRequest getFeaturesRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             getFeaturesRequest,
             FeaturesRequestConverters::getFeatures,
@@ -62,8 +67,10 @@ public class FeaturesClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable getFeaturesAsync(
-        GetFeaturesRequest getFeaturesRequest, RequestOptions options,
-        ActionListener<GetFeaturesResponse> listener) {
+        GetFeaturesRequest getFeaturesRequest,
+        RequestOptions options,
+        ActionListener<GetFeaturesResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             getFeaturesRequest,
             FeaturesRequestConverters::getFeatures,
@@ -85,8 +92,7 @@ public class FeaturesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public ResetFeaturesResponse resetFeatures(ResetFeaturesRequest resetFeaturesRequest, RequestOptions options)
-        throws IOException {
+    public ResetFeaturesResponse resetFeatures(ResetFeaturesRequest resetFeaturesRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             resetFeaturesRequest,
             FeaturesRequestConverters::resetFeatures,
@@ -108,8 +114,10 @@ public class FeaturesClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable resetFeaturesAsync(
-        ResetFeaturesRequest resetFeaturesRequest, RequestOptions options,
-        ActionListener<ResetFeaturesResponse> listener) {
+        ResetFeaturesRequest resetFeaturesRequest,
+        RequestOptions options,
+        ActionListener<ResetFeaturesResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             resetFeaturesRequest,
             FeaturesRequestConverters::resetFeatures,

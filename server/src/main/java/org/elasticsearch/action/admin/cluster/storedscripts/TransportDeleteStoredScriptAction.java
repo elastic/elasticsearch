@@ -28,17 +28,34 @@ public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMast
     private final ScriptService scriptService;
 
     @Inject
-    public TransportDeleteStoredScriptAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                             ScriptService scriptService) {
-        super(DeleteStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                DeleteStoredScriptRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportDeleteStoredScriptAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ScriptService scriptService
+    ) {
+        super(
+            DeleteStoredScriptAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            DeleteStoredScriptRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.scriptService = scriptService;
     }
 
     @Override
-    protected void masterOperation(Task task, DeleteStoredScriptRequest request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        DeleteStoredScriptRequest request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) throws Exception {
         scriptService.deleteStoredScript(clusterService, request, listener);
     }
 

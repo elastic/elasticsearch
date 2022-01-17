@@ -9,8 +9,8 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -20,8 +20,7 @@ import java.util.Objects;
 /**
  * Base implementation of a {@link AggregationBuilder}.
  */
-public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationBuilder<AB>>
-    extends AggregationBuilder {
+public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationBuilder<AB>> extends AggregationBuilder {
 
     protected Map<String, Object> metadata;
 
@@ -34,9 +33,11 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
         super(name);
     }
 
-    protected AbstractAggregationBuilder(AbstractAggregationBuilder<AB> clone,
-                                         AggregatorFactories.Builder factoriesBuilder,
-                                         Map<String, Object> metadata) {
+    protected AbstractAggregationBuilder(
+        AbstractAggregationBuilder<AB> clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder);
         this.metadata = metadata;
     }
@@ -130,8 +131,11 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
         return factory;
     }
 
-    protected abstract AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent,
-                                                 AggregatorFactories.Builder subfactoriesBuilder) throws IOException;
+    protected abstract AggregatorFactory doBuild(
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subfactoriesBuilder
+    ) throws IOException;
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -161,6 +165,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
+        @SuppressWarnings("unchecked")
         AbstractAggregationBuilder<AB> other = (AbstractAggregationBuilder<AB>) obj;
 
         return Objects.equals(name, other.name)

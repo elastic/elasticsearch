@@ -19,7 +19,13 @@ public class KibanaUser extends User {
     public static final String ROLE_NAME = UsernamesField.KIBANA_ROLE;
 
     public KibanaUser(boolean enabled) {
-        super(NAME, new String[]{ ROLE_NAME }, null, null,
-            MetadataUtils.getDeprecatedReservedMetadata("Please use the [kibana_system] user instead."), enabled);
+        super(
+            NAME,
+            new String[] { ROLE_NAME },
+            null,
+            null,
+            MetadataUtils.getDeprecatedReservedMetadata("Please use the [kibana_system] user instead."),
+            enabled
+        );
     }
 }

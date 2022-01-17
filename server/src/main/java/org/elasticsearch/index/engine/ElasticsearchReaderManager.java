@@ -8,15 +8,13 @@
 
 package org.elasticsearch.index.engine;
 
-import java.io.IOException;
-import java.util.function.BiConsumer;
-
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.ReferenceManager;
-
 import org.apache.lucene.search.SearcherManager;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.core.SuppressForbidden;
+
+import java.io.IOException;
 
 /**
  * Utility class to safely share {@link ElasticsearchDirectoryReader} instances across
@@ -28,7 +26,6 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
  */
 @SuppressForbidden(reason = "reference counting is required here")
 class ElasticsearchReaderManager extends ReferenceManager<ElasticsearchDirectoryReader> {
-    private final BiConsumer<ElasticsearchDirectoryReader, ElasticsearchDirectoryReader> refreshListener;
 
     /**
      * Creates and returns a new ElasticsearchReaderManager from the given
@@ -36,13 +33,9 @@ class ElasticsearchReaderManager extends ReferenceManager<ElasticsearchDirectory
      * the incoming reference.
      *
      * @param reader            the directoryReader to use for future reopens
-     * @param refreshListener   A consumer that is called every time a new reader is opened
      */
-    ElasticsearchReaderManager(ElasticsearchDirectoryReader reader,
-                               BiConsumer<ElasticsearchDirectoryReader, ElasticsearchDirectoryReader> refreshListener) {
+    ElasticsearchReaderManager(ElasticsearchDirectoryReader reader) {
         this.current = reader;
-        this.refreshListener = refreshListener;
-        refreshListener.accept(current, null);
     }
 
     @Override
@@ -52,11 +45,7 @@ class ElasticsearchReaderManager extends ReferenceManager<ElasticsearchDirectory
 
     @Override
     protected ElasticsearchDirectoryReader refreshIfNeeded(ElasticsearchDirectoryReader referenceToRefresh) throws IOException {
-        final ElasticsearchDirectoryReader reader = (ElasticsearchDirectoryReader) DirectoryReader.openIfChanged(referenceToRefresh);
-        if (reader != null) {
-            refreshListener.accept(reader, referenceToRefresh);
-        }
-        return reader;
+        return (ElasticsearchDirectoryReader) DirectoryReader.openIfChanged(referenceToRefresh);
     }
 
     @Override

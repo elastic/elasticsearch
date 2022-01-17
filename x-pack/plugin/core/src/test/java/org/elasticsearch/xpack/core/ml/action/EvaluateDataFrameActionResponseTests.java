@@ -12,8 +12,8 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction.Response;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AucRocResultTests;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AccuracyResultTests;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AucRocResultTests;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixResultTests;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.PrecisionResultTests;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.RecallResultTests;
@@ -38,33 +38,27 @@ public class EvaluateDataFrameActionResponseTests extends AbstractWireSerializin
     @Override
     protected Response createTestInstance() {
         String evaluationName = randomFrom(OUTLIER_DETECTION, CLASSIFICATION, REGRESSION);
-        List<EvaluationMetricResult> metrics;
-        switch (evaluationName) {
-            case OUTLIER_DETECTION:
-                metrics = randomSubsetOf(
-                    List.of(
-                        AucRocResultTests.createRandom()));
-                break;
-            case CLASSIFICATION:
-                metrics = randomSubsetOf(
-                    List.of(
-                        AucRocResultTests.createRandom(),
-                        AccuracyResultTests.createRandom(),
-                        PrecisionResultTests.createRandom(),
-                        RecallResultTests.createRandom(),
-                        MulticlassConfusionMatrixResultTests.createRandom()));
-                    break;
-            case REGRESSION:
-                metrics = randomSubsetOf(
-                    List.of(
-                        new MeanSquaredError.Result(randomDouble()),
-                        new MeanSquaredLogarithmicError.Result(randomDouble()),
-                        new Huber.Result(randomDouble()),
-                        new RSquared.Result(randomDouble())));
-                break;
-            default:
-                throw new AssertionError("Please add missing \"case\" variant to the \"switch\" statement");
-        }
+        List<EvaluationMetricResult> metrics = switch (evaluationName) {
+            case OUTLIER_DETECTION -> randomSubsetOf(List.of(AucRocResultTests.createRandom()));
+            case CLASSIFICATION -> randomSubsetOf(
+                List.of(
+                    AucRocResultTests.createRandom(),
+                    AccuracyResultTests.createRandom(),
+                    PrecisionResultTests.createRandom(),
+                    RecallResultTests.createRandom(),
+                    MulticlassConfusionMatrixResultTests.createRandom()
+                )
+            );
+            case REGRESSION -> randomSubsetOf(
+                List.of(
+                    new MeanSquaredError.Result(randomDouble()),
+                    new MeanSquaredLogarithmicError.Result(randomDouble()),
+                    new Huber.Result(randomDouble()),
+                    new RSquared.Result(randomDouble())
+                )
+            );
+            default -> throw new AssertionError("Please add missing \"case\" variant to the \"switch\" statement");
+        };
         return new Response(evaluationName, metrics);
     }
 

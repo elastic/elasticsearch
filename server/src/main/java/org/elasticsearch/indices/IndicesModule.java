@@ -14,23 +14,30 @@ import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.BooleanScriptFieldType;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.CompositeRuntimeField;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DateScriptFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
+import org.elasticsearch.index.mapper.DoubleScriptFieldType;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointScriptFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
+import org.elasticsearch.index.mapper.IpScriptFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.KeywordScriptFieldType;
+import org.elasticsearch.index.mapper.LongScriptFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -44,6 +51,7 @@ import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
@@ -53,13 +61,8 @@ import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.index.mapper.BooleanScriptFieldType;
-import org.elasticsearch.index.mapper.DateScriptFieldType;
-import org.elasticsearch.index.mapper.DoubleScriptFieldType;
-import org.elasticsearch.index.mapper.GeoPointScriptFieldType;
-import org.elasticsearch.index.mapper.IpScriptFieldType;
-import org.elasticsearch.index.mapper.KeywordScriptFieldType;
-import org.elasticsearch.index.mapper.LongScriptFieldType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -77,8 +80,12 @@ public class IndicesModule extends AbstractModule {
     private final MapperRegistry mapperRegistry;
 
     public IndicesModule(List<MapperPlugin> mapperPlugins) {
-        this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getRuntimeFields(mapperPlugins),
-            getMetadataMappers(mapperPlugins), getFieldFilter(mapperPlugins));
+        this.mapperRegistry = new MapperRegistry(
+            getMappers(mapperPlugins),
+            getRuntimeFields(mapperPlugins),
+            getMetadataMappers(mapperPlugins),
+            getFieldFilter(mapperPlugins)
+        );
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -92,14 +99,26 @@ public class IndicesModule extends AbstractModule {
 
     public static List<NamedXContentRegistry.Entry> getNamedXContents() {
         return Arrays.asList(
-            new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxAgeCondition.NAME), (p, c) ->
-                MaxAgeCondition.fromXContent(p)),
-            new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxDocsCondition.NAME), (p, c) ->
-                MaxDocsCondition.fromXContent(p)),
-            new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxSizeCondition.NAME), (p, c) ->
-                MaxSizeCondition.fromXContent(p)),
-            new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxPrimaryShardSizeCondition.NAME), (p, c) ->
-                MaxPrimaryShardSizeCondition.fromXContent(p))
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MaxAgeCondition.NAME),
+                (p, c) -> MaxAgeCondition.fromXContent(p)
+            ),
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MaxDocsCondition.NAME),
+                (p, c) -> MaxDocsCondition.fromXContent(p)
+            ),
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MaxSizeCondition.NAME),
+                (p, c) -> MaxSizeCondition.fromXContent(p)
+            ),
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MaxPrimaryShardSizeCondition.NAME),
+                (p, c) -> MaxPrimaryShardSizeCondition.fromXContent(p)
+            )
         );
     }
 
@@ -150,6 +169,7 @@ public class IndicesModule extends AbstractModule {
         runtimeParsers.put(DateFieldMapper.CONTENT_TYPE, DateScriptFieldType.PARSER);
         runtimeParsers.put(KeywordFieldMapper.CONTENT_TYPE, KeywordScriptFieldType.PARSER);
         runtimeParsers.put(GeoPointFieldMapper.CONTENT_TYPE, GeoPointScriptFieldType.PARSER);
+        runtimeParsers.put(CompositeRuntimeField.CONTENT_TYPE, CompositeRuntimeField.PARSER);
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
             for (Map.Entry<String, RuntimeField.Parser> entry : mapperPlugin.getRuntimeFields().entrySet()) {
@@ -175,13 +195,15 @@ public class IndicesModule extends AbstractModule {
         // (so will benefit from "fields: []" early termination
         builtInMetadataMappers.put(IdFieldMapper.NAME, IdFieldMapper.PARSER);
         builtInMetadataMappers.put(RoutingFieldMapper.NAME, RoutingFieldMapper.PARSER);
+        builtInMetadataMappers.put(TimeSeriesIdFieldMapper.NAME, TimeSeriesIdFieldMapper.PARSER);
         builtInMetadataMappers.put(IndexFieldMapper.NAME, IndexFieldMapper.PARSER);
         builtInMetadataMappers.put(SourceFieldMapper.NAME, SourceFieldMapper.PARSER);
         builtInMetadataMappers.put(NestedPathFieldMapper.NAME, NestedPathFieldMapper.PARSER);
         builtInMetadataMappers.put(VersionFieldMapper.NAME, VersionFieldMapper.PARSER);
         builtInMetadataMappers.put(SeqNoFieldMapper.NAME, SeqNoFieldMapper.PARSER);
         builtInMetadataMappers.put(DocCountFieldMapper.NAME, DocCountFieldMapper.PARSER);
-        //_field_names must be added last so that it has a chance to see all the other mappers
+        builtInMetadataMappers.put(DataStreamTimestampFieldMapper.NAME, DataStreamTimestampFieldMapper.PARSER);
+        // _field_names must be added last so that it has a chance to see all the other mappers
         builtInMetadataMappers.put(FieldNamesFieldMapper.NAME, FieldNamesFieldMapper.PARSER);
         return Collections.unmodifiableMap(builtInMetadataMappers);
     }
@@ -233,10 +255,12 @@ public class IndicesModule extends AbstractModule {
         return fieldFilter;
     }
 
-    private static Function<String, Predicate<String>> and(Function<String, Predicate<String>> first,
-                                                           Function<String, Predicate<String>> second) {
-        //the purpose of this method is to not chain no-op field predicates, so that we can easily find out when no plugins plug in
-        //a field filter, hence skip the mappings filtering part as a whole, as it requires parsing mappings into a map.
+    private static Function<String, Predicate<String>> and(
+        Function<String, Predicate<String>> first,
+        Function<String, Predicate<String>> second
+    ) {
+        // the purpose of this method is to not chain no-op field predicates, so that we can easily find out when no plugins plug in
+        // a field filter, hence skip the mappings filtering part as a whole, as it requires parsing mappings into a map.
         if (first == MapperPlugin.NOOP_FIELD_FILTER) {
             return second;
         }

@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.ml.aggs.correlation;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.stream.Stream;
@@ -20,10 +20,12 @@ public class CountCorrelationIndicatorTests extends AbstractSerializingTestCase<
     public static CountCorrelationIndicator randomInstance() {
         double[] expectations = Stream.generate(ESTestCase::randomDouble)
             .limit(randomIntBetween(5, 100))
-            .mapToDouble(Double::doubleValue).toArray();
+            .mapToDouble(Double::doubleValue)
+            .toArray();
         double[] fractions = Stream.generate(ESTestCase::randomDouble)
             .limit(expectations.length)
-            .mapToDouble(Double::doubleValue).toArray();
+            .mapToDouble(Double::doubleValue)
+            .toArray();
         return new CountCorrelationIndicator(expectations, randomBoolean() ? null : fractions, randomLongBetween(1, Long.MAX_VALUE - 1));
     }
 

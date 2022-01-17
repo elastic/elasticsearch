@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.test.rest.transform.text;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestContext;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformByParentObject;
 import org.gradle.api.tasks.Input;
@@ -18,7 +19,7 @@ import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 
 /**
- * A transformation to replace a key/value combination. 
+ * A transformation to replace a key/value combination.
  */
 public class ReplaceTextual implements RestTestTransformByParentObject {
     private final String keyToReplaceName;

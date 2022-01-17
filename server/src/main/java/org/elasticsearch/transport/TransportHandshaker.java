@@ -38,19 +38,27 @@ final class TransportHandshaker {
     private final Version version;
     private final ThreadPool threadPool;
     private final HandshakeRequestSender handshakeRequestSender;
+    private final boolean ignoreDeserializationErrors;
 
-    TransportHandshaker(Version version, ThreadPool threadPool, HandshakeRequestSender handshakeRequestSender) {
+    TransportHandshaker(
+        Version version,
+        ThreadPool threadPool,
+        HandshakeRequestSender handshakeRequestSender,
+        boolean ignoreDeserializationErrors
+    ) {
         this.version = version;
         this.threadPool = threadPool;
         this.handshakeRequestSender = handshakeRequestSender;
+        this.ignoreDeserializationErrors = ignoreDeserializationErrors;
     }
 
     void sendHandshake(long requestId, DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
         numHandshakes.inc();
         final HandshakeResponseHandler handler = new HandshakeResponseHandler(requestId, version, listener);
         pendingHandshakes.put(requestId, handler);
-        channel.addCloseListener(ActionListener.wrap(
-            () -> handler.handleLocalException(new TransportException("handshake failed because connection reset"))));
+        channel.addCloseListener(
+            ActionListener.wrap(() -> handler.handleLocalException(new TransportException("handshake failed because connection reset")))
+        );
         boolean success = false;
         try {
             // for the request we use the minCompatVersion since we don't know what's the version of the node we talk to
@@ -62,7 +70,8 @@ final class TransportHandshaker {
             threadPool.schedule(
                 () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")),
                 timeout,
-                ThreadPool.Names.GENERIC);
+                ThreadPool.Names.GENERIC
+            );
             success = true;
         } catch (Exception e) {
             handler.handleLocalException(new ConnectTransportException(node, "failure to send " + HANDSHAKE_ACTION_NAME, e));
@@ -75,12 +84,26 @@ final class TransportHandshaker {
     }
 
     void handleHandshake(TransportChannel channel, long requestId, StreamInput stream) throws IOException {
-        // Must read the handshake request to exhaust the stream
-        HandshakeRequest handshakeRequest = new HandshakeRequest(stream);
+        try {
+            // Must read the handshake request to exhaust the stream
+            new HandshakeRequest(stream);
+        } catch (Exception e) {
+            assert ignoreDeserializationErrors : e;
+            throw e;
+        }
         final int nextByte = stream.read();
         if (nextByte != -1) {
-            throw new IllegalStateException("Handshake request not fully read for requestId [" + requestId + "], action ["
-                + TransportHandshaker.HANDSHAKE_ACTION_NAME + "], available [" + stream.available() + "]; resetting");
+            final IllegalStateException exception = new IllegalStateException(
+                "Handshake request not fully read for requestId ["
+                    + requestId
+                    + "], action ["
+                    + TransportHandshaker.HANDSHAKE_ACTION_NAME
+                    + "], available ["
+                    + stream.available()
+                    + "]; resetting"
+            );
+            assert ignoreDeserializationErrors : exception;
+            throw exception;
         }
         channel.sendResponse(new HandshakeResponse(this.version));
     }
@@ -118,12 +141,19 @@ final class TransportHandshaker {
         @Override
         public void handleResponse(HandshakeResponse response) {
             if (isDone.compareAndSet(false, true)) {
-                Version version = response.responseVersion;
-                if (currentVersion.isCompatible(version) == false) {
-                    listener.onFailure(new IllegalStateException("Received message from unsupported version: [" + version
-                        + "] minimal compatible version is: [" + currentVersion.minimumCompatibilityVersion() + "]"));
+                Version responseVersion = response.responseVersion;
+                if (currentVersion.isCompatible(responseVersion) == false) {
+                    listener.onFailure(
+                        new IllegalStateException(
+                            "Received message from unsupported version: ["
+                                + responseVersion
+                                + "] minimal compatible version is: ["
+                                + currentVersion.minimumCompatibilityVersion()
+                                + "]"
+                        )
+                    );
                 } else {
-                    listener.onResponse(version);
+                    listener.onResponse(responseVersion);
                 }
             }
         }

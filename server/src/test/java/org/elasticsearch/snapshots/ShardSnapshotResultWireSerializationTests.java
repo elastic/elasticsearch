@@ -10,6 +10,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -40,7 +41,7 @@ public class ShardSnapshotResultWireSerializationTests extends AbstractWireSeria
         assertThat(
             testInstance.toString(),
             allOf(
-                containsString(testInstance.getGeneration()),
+                containsString(testInstance.getGeneration().toString()),
                 containsString(testInstance.getSize().toString()),
                 containsString(Integer.toString(testInstance.getSegmentCount()))
             )
@@ -48,14 +49,14 @@ public class ShardSnapshotResultWireSerializationTests extends AbstractWireSeria
     }
 
     static ShardSnapshotResult randomShardSnapshotResult() {
-        return new ShardSnapshotResult(randomAlphaOfLength(5), new ByteSizeValue(randomNonNegativeLong()), between(0, 1000));
+        return new ShardSnapshotResult(ShardGeneration.newGeneration(), new ByteSizeValue(randomNonNegativeLong()), between(0, 1000));
     }
 
     static ShardSnapshotResult mutateShardSnapshotResult(ShardSnapshotResult instance) {
         switch (between(1, 3)) {
             case 1:
                 return new ShardSnapshotResult(
-                    randomAlphaOfLength(11 - instance.getGeneration().length()),
+                    randomValueOtherThan(instance.getGeneration(), ShardGeneration::newGeneration),
                     instance.getSize(),
                     instance.getSegmentCount()
                 );

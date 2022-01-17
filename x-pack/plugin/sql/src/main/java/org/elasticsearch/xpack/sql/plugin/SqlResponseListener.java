@@ -7,34 +7,33 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.common.xcontent.MediaType;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_ASYNC_ID;
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_ASYNC_PARTIAL;
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_ASYNC_RUNNING;
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_CURSOR;
-import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_TOOK_NANOS;
-import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_ASYNC_ID;
+import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_ASYNC_PARTIAL;
+import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_ASYNC_RUNNING;
+import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_CURSOR;
+import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_TOOK_NANOS;
+import static org.elasticsearch.xpack.sql.action.Protocol.URL_PARAM_DELIMITER;
 
 class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
 
     private final long startNanos = System.nanoTime();
     private final MediaType mediaType;
     private final RestRequest request;
-
 
     SqlResponseListener(RestChannel channel, RestRequest request, SqlQueryRequest sqlRequest) {
         super(channel);
@@ -49,8 +48,11 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
          * parameter should only be checked for CSV, not always.
          */
         if (mediaType != TextFormat.CSV && request.hasParam(URL_PARAM_DELIMITER)) {
-            String message = String.format(Locale.ROOT, "request [%s] contains unrecognized parameter: [" + URL_PARAM_DELIMITER + "]",
-                request.path());
+            String message = String.format(
+                Locale.ROOT,
+                "request [%s] contains unrecognized parameter: [" + URL_PARAM_DELIMITER + "]",
+                request.path()
+            );
             throw new IllegalArgumentException(message);
         }
     }
@@ -66,8 +68,7 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
         RestResponse restResponse;
 
         // XContent branch
-        if (mediaType instanceof XContentType) {
-            XContentType type = (XContentType) mediaType;
+        if (mediaType instanceof XContentType type) {
             XContentBuilder builder = channel.newBuilder(request.getXContentType(), type, true);
             response.toXContent(builder, request);
             restResponse = new BytesRestResponse(RestStatus.OK, builder);
@@ -75,8 +76,7 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
             TextFormat type = (TextFormat) mediaType;
             final String data = type.format(request, response);
 
-            restResponse = new BytesRestResponse(RestStatus.OK, type.contentType(request),
-                data.getBytes(StandardCharsets.UTF_8));
+            restResponse = new BytesRestResponse(RestStatus.OK, type.contentType(request), data.getBytes(StandardCharsets.UTF_8));
 
             if (response.hasCursor()) {
                 restResponse.addHeader(HEADER_NAME_CURSOR, response.cursor());

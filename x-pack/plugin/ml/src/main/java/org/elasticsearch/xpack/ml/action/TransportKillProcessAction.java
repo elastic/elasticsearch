@@ -32,7 +32,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class TransportKillProcessAction extends TransportTasksAction<JobTask,
+public class TransportKillProcessAction extends TransportTasksAction<
+    JobTask,
     KillProcessAction.Request,
     KillProcessAction.Response,
     KillProcessAction.Response> {
@@ -42,20 +43,32 @@ public class TransportKillProcessAction extends TransportTasksAction<JobTask,
     private final AnomalyDetectionAuditor auditor;
 
     @Inject
-    public TransportKillProcessAction(TransportService transportService,
-                                      ClusterService clusterService,
-                                      ActionFilters actionFilters,
-                                      AnomalyDetectionAuditor auditor) {
-        super(KillProcessAction.NAME, clusterService, transportService, actionFilters, KillProcessAction.Request::new,
-            KillProcessAction.Response::new, KillProcessAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME);
+    public TransportKillProcessAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        AnomalyDetectionAuditor auditor
+    ) {
+        super(
+            KillProcessAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            KillProcessAction.Request::new,
+            KillProcessAction.Response::new,
+            KillProcessAction.Response::new,
+            MachineLearning.UTILITY_THREAD_POOL_NAME
+        );
         this.auditor = auditor;
     }
 
     @Override
-    protected KillProcessAction.Response newResponse(KillProcessAction.Request request,
-                                                     List<KillProcessAction.Response> tasks,
-                                                     List<TaskOperationFailure> taskOperationFailures,
-                                                     List<FailedNodeException> failedNodeExceptions) {
+    protected KillProcessAction.Response newResponse(
+        KillProcessAction.Request request,
+        List<KillProcessAction.Response> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    ) {
         org.elasticsearch.ExceptionsHelper.rethrowAndSuppress(
             taskOperationFailures.stream()
                 .map(t -> org.elasticsearch.ExceptionsHelper.convertToElastic(t.getCause()))
@@ -83,10 +96,7 @@ public class TransportKillProcessAction extends TransportTasksAction<JobTask,
         PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         List<PersistentTasksCustomMetadata.PersistentTask<?>> jobTasks;
         if (Strings.isAllOrWildcard(request.getJobId())) {
-            jobTasks = MlTasks.openJobTasks(tasks)
-                .stream()
-                .filter(t -> t.getExecutorNode() != null)
-                .collect(Collectors.toList());
+            jobTasks = MlTasks.openJobTasks(tasks).stream().filter(t -> t.getExecutorNode() != null).collect(Collectors.toList());
 
         } else {
             PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(request.getJobId(), tasks);
@@ -103,14 +113,21 @@ public class TransportKillProcessAction extends TransportTasksAction<JobTask,
             return;
         }
         if (jobTasks.stream().allMatch(t -> nodes.get(t.getExecutorNode()) == null)) {
-            listener.onFailure(ExceptionsHelper.conflictStatusException("Cannot kill process for job {} as" +
-                "executor node {} cannot be found", request.getJobId(), jobTasks.get(0).getExecutorNode()));
+            listener.onFailure(
+                ExceptionsHelper.conflictStatusException(
+                    "Cannot kill process for job {} as" + "executor node {} cannot be found",
+                    request.getJobId(),
+                    jobTasks.get(0).getExecutorNode()
+                )
+            );
             return;
         }
-        request.setNodes(jobTasks.stream()
-            .filter(t -> t.getExecutorNode() != null && nodes.get(t.getExecutorNode()) != null)
-            .map(PersistentTasksCustomMetadata.PersistentTask::getExecutorNode)
-            .toArray(String[]::new));
+        request.setNodes(
+            jobTasks.stream()
+                .filter(t -> t.getExecutorNode() != null && nodes.get(t.getExecutorNode()) != null)
+                .map(PersistentTasksCustomMetadata.PersistentTask::getExecutorNode)
+                .toArray(String[]::new)
+        );
         super.doExecute(task, request, listener);
     }
 

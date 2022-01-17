@@ -14,10 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -25,6 +22,9 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestDocument.Metadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,8 +55,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         this.restApiVersion = restApiVersion;
     }
 
-    SimulatePipelineRequest() {
-    }
+    SimulatePipelineRequest() {}
 
     SimulatePipelineRequest(StreamInput in) throws IOException {
         super(in);
@@ -142,8 +141,13 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
 
     static final String SIMULATED_PIPELINE_ID = "_simulate_pipeline";
 
-    static Parsed parseWithPipelineId(String pipelineId, Map<String, Object> config, boolean verbose, IngestService ingestService,
-                                      RestApiVersion restApiVersion) {
+    static Parsed parseWithPipelineId(
+        String pipelineId,
+        Map<String, Object> config,
+        boolean verbose,
+        IngestService ingestService,
+        RestApiVersion restApiVersion
+    ) {
         if (pipelineId == null) {
             throw new IllegalArgumentException("param [pipeline] is null");
         }
@@ -159,40 +163,45 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         throws Exception {
         Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(null, null, config, Fields.PIPELINE);
         Pipeline pipeline = Pipeline.create(
-            SIMULATED_PIPELINE_ID, pipelineConfig, ingestService.getProcessorFactories(), ingestService.getScriptService()
+            SIMULATED_PIPELINE_ID,
+            pipelineConfig,
+            ingestService.getProcessorFactories(),
+            ingestService.getScriptService()
         );
         List<IngestDocument> ingestDocumentList = parseDocs(config, restApiVersion);
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
     private static List<IngestDocument> parseDocs(Map<String, Object> config, RestApiVersion restApiVersion) {
-        List<Map<String, Object>> docs =
-            ConfigurationUtils.readList(null, null, config, Fields.DOCS);
+        List<Map<String, Object>> docs = ConfigurationUtils.readList(null, null, config, Fields.DOCS);
         if (docs.isEmpty()) {
             throw new IllegalArgumentException("must specify at least one document in [docs]");
         }
         List<IngestDocument> ingestDocumentList = new ArrayList<>();
         for (Object object : docs) {
-            if ((object instanceof Map) ==  false) {
+            if ((object instanceof Map) == false) {
                 throw new IllegalArgumentException("malformed [docs] section, should include an inner object");
             }
+            @SuppressWarnings("unchecked")
             Map<String, Object> dataMap = (Map<String, Object>) object;
-            Map<String, Object> document = ConfigurationUtils.readMap(null, null,
-                dataMap, Fields.SOURCE);
-            String index = ConfigurationUtils.readStringOrIntProperty(null, null,
-                dataMap, Metadata.INDEX.getFieldName(), "_index");
-            String id = ConfigurationUtils.readStringOrIntProperty(null, null,
-                dataMap, Metadata.ID.getFieldName(), "_id");
-            String routing = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
-                dataMap, Metadata.ROUTING.getFieldName());
+            Map<String, Object> document = ConfigurationUtils.readMap(null, null, dataMap, Fields.SOURCE);
+            String index = ConfigurationUtils.readStringOrIntProperty(null, null, dataMap, Metadata.INDEX.getFieldName(), "_index");
+            String id = ConfigurationUtils.readStringOrIntProperty(null, null, dataMap, Metadata.ID.getFieldName(), "_id");
+            String routing = ConfigurationUtils.readOptionalStringOrIntProperty(null, null, dataMap, Metadata.ROUTING.getFieldName());
             if (restApiVersion == RestApiVersion.V_7 && dataMap.containsKey(Metadata.TYPE.getFieldName())) {
-                deprecationLogger.compatibleApiWarning("simulate_pipeline_with_types",
-                    "[types removal] specifying _type in pipeline simulation requests is deprecated");
+                deprecationLogger.compatibleCritical(
+                    "simulate_pipeline_with_types",
+                    "[types removal] specifying _type in pipeline simulation requests is deprecated"
+                );
             }
             Long version = null;
             if (dataMap.containsKey(Metadata.VERSION.getFieldName())) {
-                String versionValue = ConfigurationUtils.readOptionalStringOrLongProperty(null, null,
-                    dataMap, Metadata.VERSION.getFieldName());
+                String versionValue = ConfigurationUtils.readOptionalStringOrLongProperty(
+                    null,
+                    null,
+                    dataMap,
+                    Metadata.VERSION.getFieldName()
+                );
                 if (versionValue != null) {
                     version = Long.valueOf(versionValue);
                 } else {
@@ -201,14 +210,18 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             }
             VersionType versionType = null;
             if (dataMap.containsKey(Metadata.VERSION_TYPE.getFieldName())) {
-                versionType = VersionType.fromString(ConfigurationUtils.readStringProperty(null, null, dataMap,
-                    Metadata.VERSION_TYPE.getFieldName()));
+                versionType = VersionType.fromString(
+                    ConfigurationUtils.readStringProperty(null, null, dataMap, Metadata.VERSION_TYPE.getFieldName())
+                );
             }
-            IngestDocument ingestDocument =
-                new IngestDocument(index, id, routing, version, versionType, document);
+            IngestDocument ingestDocument = new IngestDocument(index, id, routing, version, versionType, document);
             if (dataMap.containsKey(Metadata.IF_SEQ_NO.getFieldName())) {
-                String ifSeqNoValue = ConfigurationUtils.readOptionalStringOrLongProperty(null, null,
-                    dataMap, Metadata.IF_SEQ_NO.getFieldName());
+                String ifSeqNoValue = ConfigurationUtils.readOptionalStringOrLongProperty(
+                    null,
+                    null,
+                    dataMap,
+                    Metadata.IF_SEQ_NO.getFieldName()
+                );
                 if (ifSeqNoValue != null) {
                     Long ifSeqNo = Long.valueOf(ifSeqNoValue);
                     ingestDocument.setFieldValue(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo);
@@ -217,8 +230,12 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
                 }
             }
             if (dataMap.containsKey(Metadata.IF_PRIMARY_TERM.getFieldName())) {
-                String ifPrimaryTermValue = ConfigurationUtils.readOptionalStringOrLongProperty(null, null,
-                    dataMap, Metadata.IF_PRIMARY_TERM.getFieldName());
+                String ifPrimaryTermValue = ConfigurationUtils.readOptionalStringOrLongProperty(
+                    null,
+                    null,
+                    dataMap,
+                    Metadata.IF_PRIMARY_TERM.getFieldName()
+                );
                 if (ifPrimaryTermValue != null) {
                     Long ifPrimaryTerm = Long.valueOf(ifPrimaryTermValue);
                     ingestDocument.setFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm);
@@ -228,7 +245,11 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             }
             if (dataMap.containsKey(Metadata.DYNAMIC_TEMPLATES.getFieldName())) {
                 Map<String, String> dynamicTemplates = ConfigurationUtils.readMap(
-                    null, null, dataMap, Metadata.DYNAMIC_TEMPLATES.getFieldName());
+                    null,
+                    null,
+                    dataMap,
+                    Metadata.DYNAMIC_TEMPLATES.getFieldName()
+                );
                 if (dynamicTemplates != null) {
                     ingestDocument.setFieldValue(Metadata.DYNAMIC_TEMPLATES.getFieldName(), new HashMap<>(dynamicTemplates));
                 } else {

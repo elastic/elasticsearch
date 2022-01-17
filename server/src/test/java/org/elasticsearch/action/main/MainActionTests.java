@@ -43,21 +43,46 @@ public class MainActionTests extends ESTestCase {
                 blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
             } else {
                 blocks = ClusterBlocks.builder()
-                    .addGlobalBlock(new ClusterBlock(randomIntBetween(1, 16), "test global block 400", randomBoolean(), randomBoolean(),
-                        false, RestStatus.BAD_REQUEST, ClusterBlockLevel.ALL))
+                    .addGlobalBlock(
+                        new ClusterBlock(
+                            randomIntBetween(1, 16),
+                            "test global block 400",
+                            randomBoolean(),
+                            randomBoolean(),
+                            false,
+                            RestStatus.BAD_REQUEST,
+                            ClusterBlockLevel.ALL
+                        )
+                    )
                     .build();
             }
         } else {
             blocks = ClusterBlocks.builder()
-                .addGlobalBlock(new ClusterBlock(randomIntBetween(1, 16), "test global block 503", randomBoolean(), randomBoolean(),
-                    false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL))
+                .addGlobalBlock(
+                    new ClusterBlock(
+                        randomIntBetween(1, 16),
+                        "test global block 503",
+                        randomBoolean(),
+                        randomBoolean(),
+                        false,
+                        RestStatus.SERVICE_UNAVAILABLE,
+                        ClusterBlockLevel.ALL
+                    )
+                )
                 .build();
         }
         ClusterState state = ClusterState.builder(clusterName).blocks(blocks).build();
         when(clusterService.state()).thenReturn(state);
 
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null, TransportService
-            .NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
         TransportMainAction action = new TransportMainAction(settings, transportService, mock(ActionFilters.class), clusterService);
         AtomicReference<MainResponse> responseRef = new AtomicReference<>();
         action.doExecute(mock(Task.class), new MainRequest(), new ActionListener<MainResponse>() {

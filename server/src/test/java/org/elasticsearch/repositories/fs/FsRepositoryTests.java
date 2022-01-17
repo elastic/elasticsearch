@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -47,6 +46,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
@@ -57,6 +57,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -79,7 +80,7 @@ public class FsRepositoryTests extends ESTestCase {
             Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                 .put(Environment.PATH_REPO_SETTING.getKey(), repo.toAbsolutePath())
-                .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath())
+                .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
                 .put("location", repo)
                 .put("compress", randomBoolean())
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
@@ -125,7 +126,7 @@ public class FsRepositoryTests extends ESTestCase {
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());
             });
-            final String shardGeneration = future1.actionGet().getGeneration();
+            final ShardGeneration shardGeneration = future1.actionGet().getGeneration();
             Lucene.cleanLuceneIndex(directory);
             expectThrows(org.apache.lucene.index.IndexNotFoundException.class, () -> Lucene.readSegmentInfos(directory));
             DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);

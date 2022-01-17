@@ -19,8 +19,8 @@ public class InMemoryPersistedState implements CoordinationState.PersistedState 
         this.acceptedState = acceptedState;
 
         assert currentTerm >= 0;
-        assert getLastAcceptedState().term() <= currentTerm :
-            "last accepted term " + getLastAcceptedState().term() + " cannot be above current term " + currentTerm;
+        assert getLastAcceptedState().term() <= currentTerm
+            : "last accepted term " + getLastAcceptedState().term() + " cannot be above current term " + currentTerm;
     }
 
     @Override

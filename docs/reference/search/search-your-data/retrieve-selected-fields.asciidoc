@@ -49,14 +49,8 @@ The following search request uses the `fields` parameter to retrieve values
 for the `user.id` field, all fields starting with `http.response.`, and the
 `@timestamp` field.
 
-Using object notation, you can pass a `format` parameter for certain fields to
-apply a custom format for the field's values:
-
-* <<date,`date`>> and <<date_nanos,`date_nanos`>> fields accept a <<mapping-date-format,date format>>
-* <<spatial_datatypes, Spatial fields>> accept either `geojson` for http://www.geojson.org[GeoJSON] (the default) or `wkt` for
-{wikipedia}/Well-known_text_representation_of_geometry[Well Known Text]
-
-Other field types do not support the `format` parameter.
+Using object notation, you can pass a <<search-api-fields,`format`>> argument to
+customize the format of returned date or geospatial values.
 
 [source,console]
 ----
@@ -220,11 +214,11 @@ returning them as a flat list.
         "group" : ["fans"],
         "user": [{
             "first": ["John"],
-            "last": ["Smith"],
+            "last": ["Smith"]
           },
           {
             "first": ["Alice"],
-            "last": ["White"],
+            "last": ["White"]
           }
         ]
       }
@@ -276,10 +270,10 @@ structure of the nested `user` array:
       "_score": 1.0,
       "fields": {
         "user": [{
-            "first": ["John"],
+            "first": ["John"]
           },
           {
-            "first": ["Alice"],
+            "first": ["Alice"]
           }
         ]
       }
@@ -381,6 +375,107 @@ won't be included in the response because `include_unmapped` isn't set to
 // TESTRESPONSE[s/"took" : 2/"took": $body.took/]
 // TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
 // TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
+
+[discrete]
+[[retrieve-metadata-fields]]
+==== Retrieving metadata fields
+By default, document metadata fields like `_id` or `_index` are not returned
+when the requested `fields` option uses wildcard patterns like `*`. However,
+when explicitly requested using the fields name, the `_id`, `_routing`,
+`_ignored`, `_index` and `_version` metadata fields can be retrieved.
+In addition, when you define an <<field-alias, alias field>> with a path to one
+of the above metadata fields, this field will also be retrievable using either
+the alias name or via wildcard patterns that match the alias.
+
+[discrete]
+[[Ignored-field values]]
+==== Ignored field values
+The `fields` section of the response only returns values that were valid when indexed.
+If your search request asks for values from a field that ignored certain
+because they were malformed or too large these values are returned
+separately in an `ignored_field_values` section.
+
+In this example we index a document that has a value which is ignored and
+not added to the index so is shown separately in search results:
+
+[source,console]
+----
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "my-small" : { "type" : "keyword", "ignore_above": 2 }, <1>
+      "my-large" : { "type" : "keyword" }
+    }
+  }
+}
+
+PUT my-index-000001/_doc/1?refresh=true
+{
+  "my-small": ["ok", "bad"], <2>
+  "my-large": "ok content"
+}
+
+POST my-index-000001/_search
+{
+  "fields": ["my-*"],
+  "_source": false
+}
+----
+
+<1> This field has a size restriction
+<2> This document field has a value that exceeds the size restriction so is ignored and not indexed
+
+The response will contain ignored field values under the  `ignored_field_values` path.
+These values are retrieved from the document's original JSON source and are raw so will
+not be formatted or treated in any way, unlike the successfully indexed fields which are
+returned in the `fields` section.
+
+[source,console-result]
+----
+{
+  "took" : 2,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "my-index-000001",
+        "_id" : "1",
+        "_score" : 1.0,
+        "_ignored" : [ "my-small"],
+        "fields" : {
+          "my-large": [
+            "ok content"
+          ],
+          "my-small": [
+            "ok"
+          ]
+        },
+        "ignored_field_values" : {
+          "my-small": [
+            "bad"
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took" : 2/"took": $body.took/]
+// TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
+// TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
+
 
 [discrete]
 [[source-filtering]]

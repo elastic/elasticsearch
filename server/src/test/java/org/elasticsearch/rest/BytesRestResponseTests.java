@@ -13,20 +13,20 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -79,8 +79,10 @@ public class BytesRestResponseTests extends ESTestCase {
         Exception t = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
         BytesRestResponse response = new BytesRestResponse(channel, t);
         String text = response.content().utf8ToString();
-        assertThat(text, containsString("{\"type\":\"exception\",\"reason\":\"an error occurred reading data\"}"));
-        assertThat(text, containsString("{\"type\":\"file_not_found_exception\",\"reason\":\"/foo/bar\"}"));
+        assertThat(text, containsString("""
+            {"type":"exception","reason":"an error occurred reading data"}"""));
+        assertThat(text, containsString("""
+            {"type":"file_not_found_exception","reason":"/foo/bar"}"""));
     }
 
     public void testNonElasticsearchExceptionIsNotShownAsSimpleMessage() throws Exception {
@@ -104,9 +106,12 @@ public class BytesRestResponseTests extends ESTestCase {
         Exception t = new UnknownException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
         BytesRestResponse response = new BytesRestResponse(channel, t);
         String text = response.content().utf8ToString();
-        assertThat(text, containsString("\"type\":\"unknown_exception\",\"reason\":\"an error occurred reading data\""));
-        assertThat(text, containsString("{\"type\":\"file_not_found_exception\""));
-        assertThat(text, containsString("\"stack_trace\":\"org.elasticsearch.ElasticsearchException$1: an error occurred reading data"));
+        assertThat(text, containsString("""
+            "type":"unknown_exception","reason":"an error occurred reading data\""""));
+        assertThat(text, containsString("""
+            {"type":"file_not_found_exception\""""));
+        assertThat(text, containsString("""
+            "stack_trace":"org.elasticsearch.ElasticsearchException$1: an error occurred reading data"""));
     }
 
     public void testGuessRootCause() throws IOException {
@@ -115,13 +120,15 @@ public class BytesRestResponseTests extends ESTestCase {
             Exception e = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
             BytesRestResponse response = new BytesRestResponse(new DetailedExceptionRestChannel(request), e);
             String text = response.content().utf8ToString();
-            assertThat(text, containsString("{\"root_cause\":[{\"type\":\"exception\",\"reason\":\"an error occurred reading data\"}]"));
+            assertThat(text, containsString("""
+                {"root_cause":[{"type":"exception","reason":"an error occurred reading data"}]"""));
         }
         {
             Exception e = new FileNotFoundException("/foo/bar");
             BytesRestResponse response = new BytesRestResponse(new DetailedExceptionRestChannel(request), e);
             String text = response.content().utf8ToString();
-            assertThat(text, containsString("{\"root_cause\":[{\"type\":\"file_not_found_exception\",\"reason\":\"/foo/bar\"}]"));
+            assertThat(text, containsString("""
+                {"root_cause":[{"type":"file_not_found_exception","reason":"/foo/bar"}]"""));
         }
     }
 
@@ -138,19 +145,46 @@ public class BytesRestResponseTests extends ESTestCase {
     public void testConvert() throws IOException {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = new DetailedExceptionRestChannel(request);
-        ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE));
-        ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null, OriginalIndices.NONE));
-        SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",
-            new ShardSearchFailure[] {failure, failure1});
+        ShardSearchFailure failure = new ShardSearchFailure(
+            new ParsingException(1, 2, "foobar", null),
+            new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null)
+        );
+        ShardSearchFailure failure1 = new ShardSearchFailure(
+            new ParsingException(1, 2, "foobar", null),
+            new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null)
+        );
+        SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
+            "search",
+            "all shards failed",
+            new ShardSearchFailure[] { failure, failure1 }
+        );
         BytesRestResponse response = new BytesRestResponse(channel, new RemoteTransportException("foo", ex));
         String text = response.content().utf8ToString();
-        String expected = "{\"error\":{\"root_cause\":[{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}]," +
-            "\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true," +
-            "\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"parsing_exception\"," +
-            "\"reason\":\"foobar\",\"line\":1,\"col\":2}}]},\"status\":400}";
-        assertEquals(expected.trim(), text.trim());
+        String expected = """
+            {
+              "error": {
+                "root_cause": [ { "type": "parsing_exception", "reason": "foobar", "line": 1, "col": 2 } ],
+                "type": "search_phase_execution_exception",
+                "reason": "all shards failed",
+                "phase": "search",
+                "grouped": true,
+                "failed_shards": [
+                  {
+                    "shard": 1,
+                    "index": "foo",
+                    "node": "node_1",
+                    "reason": {
+                      "type": "parsing_exception",
+                      "reason": "foobar",
+                      "line": 1,
+                      "col": 2
+                    }
+                  }
+                ]
+              },
+              "status": 400
+            }""";
+        assertEquals(XContentHelper.stripWhitespace(expected), XContentHelper.stripWhitespace(text));
         String stackTrace = ExceptionsHelper.stackTrace(ex);
         assertThat(stackTrace, containsString("org.elasticsearch.common.ParsingException: foobar"));
     }
@@ -191,7 +225,7 @@ public class BytesRestResponseTests extends ESTestCase {
         boolean addHeadersOrMetadata = false;
 
         switch (randomIntBetween(0, 5)) {
-            case 0:
+            case 0 -> {
                 original = new ElasticsearchException("ElasticsearchException without cause");
                 if (detailed) {
                     addHeadersOrMetadata = randomBoolean();
@@ -199,8 +233,8 @@ public class BytesRestResponseTests extends ESTestCase {
                 } else {
                     reason = "ElasticsearchException[ElasticsearchException without cause]";
                 }
-                break;
-            case 1:
+            }
+            case 1 -> {
                 original = new ElasticsearchException("ElasticsearchException with a cause", new FileNotFoundException("missing"));
                 if (detailed) {
                     addHeadersOrMetadata = randomBoolean();
@@ -210,8 +244,8 @@ public class BytesRestResponseTests extends ESTestCase {
                 } else {
                     reason = "ElasticsearchException[ElasticsearchException with a cause]";
                 }
-                break;
-            case 2:
+            }
+            case 2 -> {
                 original = new ResourceNotFoundException("ElasticsearchException with custom status");
                 status = RestStatus.NOT_FOUND;
                 if (detailed) {
@@ -221,11 +255,15 @@ public class BytesRestResponseTests extends ESTestCase {
                 } else {
                     reason = "ResourceNotFoundException[ElasticsearchException with custom status]";
                 }
-                break;
-            case 3:
+            }
+            case 3 -> {
                 TransportAddress address = buildNewFakeTransportAddress();
-                original = new RemoteTransportException("remote", address, "action",
-                        new ResourceAlreadyExistsException("ElasticsearchWrapperException with a cause that has a custom status"));
+                original = new RemoteTransportException(
+                        "remote",
+                        address,
+                        "action",
+                        new ResourceAlreadyExistsException("ElasticsearchWrapperException with a cause that has a custom status")
+                );
                 status = RestStatus.BAD_REQUEST;
                 if (detailed) {
                     type = "resource_already_exists_exception";
@@ -233,10 +271,12 @@ public class BytesRestResponseTests extends ESTestCase {
                 } else {
                     reason = "RemoteTransportException[[remote][" + address.toString() + "][action]]";
                 }
-                break;
-            case 4:
-                original = new RemoteTransportException("ElasticsearchWrapperException with a cause that has a special treatment",
-                        new IllegalArgumentException("wrong"));
+            }
+            case 4 -> {
+                original = new RemoteTransportException(
+                        "ElasticsearchWrapperException with a cause that has a special treatment",
+                        new IllegalArgumentException("wrong")
+                );
                 status = RestStatus.BAD_REQUEST;
                 if (detailed) {
                     type = "illegal_argument_exception";
@@ -244,8 +284,8 @@ public class BytesRestResponseTests extends ESTestCase {
                 } else {
                     reason = "RemoteTransportException[[ElasticsearchWrapperException with a cause that has a special treatment]]";
                 }
-                break;
-            case 5:
+            }
+            case 5 -> {
                 status = randomFrom(RestStatus.values());
                 original = new ElasticsearchStatusException("ElasticsearchStatusException with random status", status);
                 if (detailed) {
@@ -255,9 +295,8 @@ public class BytesRestResponseTests extends ESTestCase {
                 } else {
                     reason = "ElasticsearchStatusException[ElasticsearchStatusException with random status]";
                 }
-                break;
-            default:
-                throw new UnsupportedOperationException("Failed to generate random exception");
+            }
+            default -> throw new UnsupportedOperationException("Failed to generate random exception");
         }
 
         String message = "Elasticsearch exception [type=" + type + ", reason=" + reason + "]";
@@ -335,8 +374,7 @@ public class BytesRestResponseTests extends ESTestCase {
         }
 
         @Override
-        public void sendResponse(RestResponse response) {
-        }
+        public void sendResponse(RestResponse response) {}
     }
 
     private static class DetailedExceptionRestChannel extends AbstractRestChannel {
@@ -346,7 +384,6 @@ public class BytesRestResponseTests extends ESTestCase {
         }
 
         @Override
-        public void sendResponse(RestResponse response) {
-        }
+        public void sendResponse(RestResponse response) {}
     }
 }

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -19,13 +19,11 @@ import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 class ClientTransformIndexerBuilder {
     private ParentTaskAssigningClient parentTaskClient;
     private TransformServices transformServices;
-    private Map<String, String> fieldMappings;
     private TransformConfig transformConfig;
     private TransformIndexerStats initialStats;
     private IndexerState indexerState = IndexerState.STOPPED;
@@ -53,7 +51,6 @@ class ClientTransformIndexerBuilder {
             parentTaskClient,
             initialStats,
             transformConfig,
-            fieldMappings,
             progress,
             TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? TransformCheckpoint.EMPTY : lastCheckpoint,
             TransformCheckpoint.isNullOrEmpty(nextCheckpoint) ? TransformCheckpoint.EMPTY : nextCheckpoint,
@@ -75,11 +72,6 @@ class ClientTransformIndexerBuilder {
 
     ClientTransformIndexerBuilder setTransformServices(TransformServices transformServices) {
         this.transformServices = transformServices;
-        return this;
-    }
-
-    ClientTransformIndexerBuilder setFieldMappings(Map<String, String> fieldMappings) {
-        this.fieldMappings = fieldMappings;
         return this;
     }
 

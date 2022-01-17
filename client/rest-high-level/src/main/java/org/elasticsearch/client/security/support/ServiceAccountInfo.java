@@ -35,10 +35,8 @@ public final class ServiceAccountInfo {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         ServiceAccountInfo that = (ServiceAccountInfo) o;
         return principal.equals(that.principal) && role.equals(that.role);
     }

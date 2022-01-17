@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -63,7 +64,7 @@ public class TransportNodesActionTests extends ESTestCase {
     private TransportService transportService;
 
     public void testRequestIsSentToEachNode() throws Exception {
-        TransportNodesAction action = getTestTransportNodesAction();
+        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
         TestNodesRequest request = new TestNodesRequest();
         PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
         action.new AsyncAction(null, request, listener).start();
@@ -74,7 +75,7 @@ public class TransportNodesActionTests extends ESTestCase {
     }
 
     public void testNodesSelectors() {
-        TransportNodesAction action = getTestTransportNodesAction();
+        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
         int numSelectors = randomIntBetween(1, 5);
         Set<String> nodeSelectors = new HashSet<>();
         for (int i = 0; i < numSelectors; i++) {
@@ -109,8 +110,10 @@ public class TransportNodesActionTests extends ESTestCase {
             () -> new FailedNodeException(
                 randomAlphaOfLength(8),
                 randomAlphaOfLength(8),
-                new IllegalStateException(randomAlphaOfLength(8))),
-            randomIntBetween(0, 2));
+                new IllegalStateException(randomAlphaOfLength(8))
+            ),
+            randomIntBetween(0, 2)
+        );
 
         List<Object> allResponses = new ArrayList<>(expectedNodeResponses);
         allResponses.addAll(failures);
@@ -130,7 +133,8 @@ public class TransportNodesActionTests extends ESTestCase {
     }
 
     public void testCustomResolving() throws Exception {
-        TransportNodesAction action = getDataNodesOnlyTransportNodesAction(transportService);
+        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action =
+            getDataNodesOnlyTransportNodesAction(transportService);
         TestNodesRequest request = new TestNodesRequest(randomBoolean() ? null : generateRandomStringArray(10, 5, false, true));
         PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
         action.new AsyncAction(null, request, listener).start();
@@ -151,12 +155,8 @@ public class TransportNodesActionTests extends ESTestCase {
 
         TestNodesRequest request = new TestNodesRequest(nodeIds.toArray(new String[0]));
         PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
-        Task cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap()) {
-            @Override
-            public boolean isCancelled() {
-                return true;
-            }
-        };
+        CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        TaskCancelHelper.cancel(cancellableTask, "simulated");
         action.doExecute(cancellableTask, request, listener);
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
         for (List<CapturingTransport.CapturedRequest> requests : capturedRequests.values()) {
@@ -182,7 +182,11 @@ public class TransportNodesActionTests extends ESTestCase {
     }
 
     private enum NodeSelector {
-        LOCAL("_local"), ELECTED_MASTER("_master"), MASTER_ELIGIBLE("master:true"), DATA("data:true"), CUSTOM_ATTRIBUTE("attr:value");
+        LOCAL("_local"),
+        ELECTED_MASTER("_master"),
+        MASTER_ELIGIBLE("master:true"),
+        DATA("data:true"),
+        CUSTOM_ATTRIBUTE("attr:value");
 
         private final String selector;
 
@@ -208,8 +212,14 @@ public class TransportNodesActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = transport.createTransportService(clusterService.getSettings(), THREAD_POOL,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
+        transportService = transport.createTransportService(
+            clusterService.getSettings(),
+            THREAD_POOL,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> clusterService.localNode(),
+            null,
+            Collections.emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
         int numNodes = randomIntBetween(3, 10);
@@ -242,13 +252,13 @@ public class TransportNodesActionTests extends ESTestCase {
 
     public TestTransportNodesAction getTestTransportNodesAction() {
         return new TestTransportNodesAction(
-                THREAD_POOL,
-                clusterService,
-                transportService,
-                new ActionFilters(Collections.emptySet()),
-                TestNodesRequest::new,
-                TestNodeRequest::new,
-                ThreadPool.Names.SAME
+            THREAD_POOL,
+            clusterService,
+            transportService,
+            new ActionFilters(Collections.emptySet()),
+            TestNodesRequest::new,
+            TestNodeRequest::new,
+            ThreadPool.Names.SAME
         );
     }
 
@@ -269,19 +279,40 @@ public class TransportNodesActionTests extends ESTestCase {
         return new DiscoveryNode(node, node, buildNewFakeTransportAddress(), attributes, roles, Version.CURRENT);
     }
 
-    private static class TestTransportNodesAction
-        extends TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> {
+    private static class TestTransportNodesAction extends TransportNodesAction<
+        TestNodesRequest,
+        TestNodesResponse,
+        TestNodeRequest,
+        TestNodeResponse> {
 
-        TestTransportNodesAction(ThreadPool threadPool, ClusterService clusterService, TransportService
-                transportService, ActionFilters actionFilters, Writeable.Reader<TestNodesRequest> request,
-                                 Writeable.Reader<TestNodeRequest> nodeRequest, String nodeExecutor) {
-            super("indices:admin/test", threadPool, clusterService, transportService, actionFilters,
-                request, nodeRequest, nodeExecutor, TestNodeResponse.class);
+        TestTransportNodesAction(
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            Writeable.Reader<TestNodesRequest> request,
+            Writeable.Reader<TestNodeRequest> nodeRequest,
+            String nodeExecutor
+        ) {
+            super(
+                "indices:admin/test",
+                threadPool,
+                clusterService,
+                transportService,
+                actionFilters,
+                request,
+                nodeRequest,
+                nodeExecutor,
+                TestNodeResponse.class
+            );
         }
 
         @Override
-        protected TestNodesResponse newResponse(TestNodesRequest request,
-                                                List<TestNodeResponse> responses, List<FailedNodeException> failures) {
+        protected TestNodesResponse newResponse(
+            TestNodesRequest request,
+            List<TestNodeResponse> responses,
+            List<FailedNodeException> failures
+        ) {
             return new TestNodesResponse(clusterService.getClusterName(), request, responses, failures);
         }
 
@@ -291,7 +322,7 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         @Override
-        protected TestNodeResponse newNodeResponse(StreamInput in) throws IOException {
+        protected TestNodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
             return new TestNodeResponse(in);
         }
 
@@ -302,18 +333,23 @@ public class TransportNodesActionTests extends ESTestCase {
 
     }
 
-    private static class DataNodesOnlyTransportNodesAction
-        extends TestTransportNodesAction {
+    private static class DataNodesOnlyTransportNodesAction extends TestTransportNodesAction {
 
-        DataNodesOnlyTransportNodesAction(ThreadPool threadPool, ClusterService clusterService, TransportService
-            transportService, ActionFilters actionFilters, Writeable.Reader<TestNodesRequest> request,
-                                          Writeable.Reader<TestNodeRequest> nodeRequest, String nodeExecutor) {
+        DataNodesOnlyTransportNodesAction(
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            Writeable.Reader<TestNodesRequest> request,
+            Writeable.Reader<TestNodeRequest> nodeRequest,
+            String nodeExecutor
+        ) {
             super(threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor);
         }
 
         @Override
         protected void resolveRequest(TestNodesRequest request, ClusterState clusterState) {
-            request.setConcreteNodes(clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode.class));
+            request.setConcreteNodes(clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new));
         }
     }
 
@@ -321,6 +357,7 @@ public class TransportNodesActionTests extends ESTestCase {
         TestNodesRequest(StreamInput in) throws IOException {
             super(in);
         }
+
         TestNodesRequest(String... nodesIds) {
             super(nodesIds);
         }
@@ -330,8 +367,12 @@ public class TransportNodesActionTests extends ESTestCase {
 
         private final TestNodesRequest request;
 
-        TestNodesResponse(ClusterName clusterName, TestNodesRequest request, List<TestNodeResponse> nodeResponses,
-                          List<FailedNodeException> failures) {
+        TestNodesResponse(
+            ClusterName clusterName,
+            TestNodesRequest request,
+            List<TestNodeResponse> nodeResponses,
+            List<FailedNodeException> failures
+        ) {
             super(clusterName, nodeResponses, failures);
             this.request = request;
         }
@@ -349,6 +390,7 @@ public class TransportNodesActionTests extends ESTestCase {
 
     private static class TestNodeRequest extends TransportRequest {
         TestNodeRequest() {}
+
         TestNodeRequest(StreamInput in) throws IOException {
             super(in);
         }

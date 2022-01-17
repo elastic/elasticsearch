@@ -2,7 +2,6 @@ package org.elasticsearch.xpack.transform.integration.continuous;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.transform.transforms.DestConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
@@ -64,8 +63,7 @@ public class HistogramGroupByIT extends ContinuousTestCase {
 
     @Override
     public void testIteration(int iteration, Set<String> modifiedEvents) throws IOException {
-        SearchRequest searchRequestSource = new SearchRequest(CONTINUOUS_EVENTS_SOURCE_INDEX).allowPartialSearchResults(false)
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        SearchRequest searchRequestSource = new SearchRequest(CONTINUOUS_EVENTS_SOURCE_INDEX).allowPartialSearchResults(false);
         SearchSourceBuilder sourceBuilderSource = new SearchSourceBuilder().size(0);
         HistogramAggregationBuilder metricBuckets = new HistogramAggregationBuilder("metric").field(metricField)
             .interval(50.0)
@@ -74,8 +72,7 @@ public class HistogramGroupByIT extends ContinuousTestCase {
         searchRequestSource.source(sourceBuilderSource);
         SearchResponse responseSource = search(searchRequestSource);
 
-        SearchRequest searchRequestDest = new SearchRequest(NAME).allowPartialSearchResults(false)
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        SearchRequest searchRequestDest = new SearchRequest(NAME).allowPartialSearchResults(false);
         SearchSourceBuilder sourceBuilderDest = new SearchSourceBuilder().size(10000).sort("metric");
         searchRequestDest.source(sourceBuilderDest);
         SearchResponse responseDest = search(searchRequestDest);

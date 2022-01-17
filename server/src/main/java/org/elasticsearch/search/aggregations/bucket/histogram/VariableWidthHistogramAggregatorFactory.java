@@ -28,7 +28,8 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
             VariableWidthHistogramAggregationBuilder.REGISTRY_KEY,
             CoreValuesSourceType.NUMERIC,
             VariableWidthHistogramAggregator::new,
-                true);
+            true
+        );
     }
 
     private final VariableWidthHistogramAggregatorSupplier aggregatorSupplier;
@@ -36,16 +37,18 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
     private final int shardSize;
     private final int initialBuffer;
 
-    VariableWidthHistogramAggregatorFactory(String name,
-                                            ValuesSourceConfig config,
-                                            int numBuckets,
-                                            int shardSize,
-                                            int initialBuffer,
-                                            AggregationContext context,
-                                            AggregatorFactory parent,
-                                            AggregatorFactories.Builder subFactoriesBuilder,
-                                            Map<String, Object> metadata,
-                                            VariableWidthHistogramAggregatorSupplier aggregatorSupplier) throws IOException{
+    VariableWidthHistogramAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        int numBuckets,
+        int shardSize,
+        int initialBuffer,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        VariableWidthHistogramAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.aggregatorSupplier = aggregatorSupplier;
         this.numBuckets = numBuckets;
@@ -63,13 +66,21 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
                     + "] cannot be nested inside an aggregation that collects more than a single bucket."
             );
         }
-        return aggregatorSupplier
-            .build(name, factories, numBuckets, shardSize, initialBuffer, config, context, parent, metadata);
+        return aggregatorSupplier.build(name, factories, numBuckets, shardSize, initialBuffer, config, context, parent, metadata);
     }
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new VariableWidthHistogramAggregator(name, factories, numBuckets, shardSize, initialBuffer, config,
-            context, parent, metadata);
+        return new VariableWidthHistogramAggregator(
+            name,
+            factories,
+            numBuckets,
+            shardSize,
+            initialBuffer,
+            config,
+            context,
+            parent,
+            metadata
+        );
     }
 }

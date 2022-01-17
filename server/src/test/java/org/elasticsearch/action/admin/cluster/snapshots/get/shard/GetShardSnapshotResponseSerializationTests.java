@@ -41,7 +41,7 @@ public class GetShardSnapshotResponseSerializationTests extends ESTestCase {
     }
 
     private void assertEqualInstances(GetShardSnapshotResponse expectedInstance, GetShardSnapshotResponse newInstance) {
-        assertThat(newInstance.getRepositoryShardSnapshots(), equalTo(expectedInstance.getRepositoryShardSnapshots()));
+        assertThat(newInstance.getLatestShardSnapshot(), equalTo(expectedInstance.getLatestShardSnapshot()));
         assertEquals(expectedInstance.getRepositoryFailures().keySet(), newInstance.getRepositoryFailures().keySet());
         for (Map.Entry<String, RepositoryException> expectedEntry : expectedInstance.getRepositoryFailures().entrySet()) {
             ElasticsearchException expectedException = expectedEntry.getValue();
@@ -61,15 +61,13 @@ public class GetShardSnapshotResponseSerializationTests extends ESTestCase {
     }
 
     private GetShardSnapshotResponse createTestInstance() {
-        Map<String, ShardSnapshotInfo> repositoryShardSnapshots = randomMap(0, randomIntBetween(1, 10), this::repositoryShardSnapshot);
+        ShardSnapshotInfo latestSnapshot = repositoryShardSnapshot();
         Map<String, RepositoryException> repositoryFailures = randomMap(0, randomIntBetween(1, 10), this::repositoryFailure);
 
-        return new GetShardSnapshotResponse(repositoryShardSnapshots, repositoryFailures);
+        return new GetShardSnapshotResponse(latestSnapshot, repositoryFailures);
     }
 
-    private Tuple<String, ShardSnapshotInfo> repositoryShardSnapshot() {
-        String repositoryName = randomString(50);
-
+    private ShardSnapshotInfo repositoryShardSnapshot() {
         final String indexName = randomString(50);
         ShardId shardId = new ShardId(indexName, UUIDs.randomBase64UUID(), randomIntBetween(0, 100));
         Snapshot snapshot = new Snapshot(randomAlphaOfLength(5), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)));
@@ -77,10 +75,7 @@ public class GetShardSnapshotResponseSerializationTests extends ESTestCase {
 
         IndexId indexId = new IndexId(indexName, randomString(25));
         String shardStateIdentifier = randomBoolean() ? randomString(30) : null;
-        return Tuple.tuple(
-            repositoryName,
-            new ShardSnapshotInfo(indexId, shardId, snapshot, indexMetadataIdentifier, shardStateIdentifier)
-        );
+        return new ShardSnapshotInfo(indexId, shardId, snapshot, indexMetadataIdentifier, shardStateIdentifier, randomLongBetween(0, 2048));
     }
 
     private Tuple<String, RepositoryException> repositoryFailure() {

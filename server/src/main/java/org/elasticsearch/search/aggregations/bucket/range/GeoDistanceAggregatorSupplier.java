@@ -29,11 +29,12 @@ public interface GeoDistanceAggregatorSupplier {
         DistanceUnit units,
         ValuesSource valuesSource,
         DocValueFormat format,
-        InternalRange.Factory rangeFactory,
+        @SuppressWarnings("rawtypes") InternalRange.Factory rangeFactory,
         RangeAggregator.Range[] ranges,
         boolean keyed,
         AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
-        Map<String, Object> metadata) throws IOException;
+        Map<String, Object> metadata
+    ) throws IOException;
 }

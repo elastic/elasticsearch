@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 

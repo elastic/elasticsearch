@@ -10,7 +10,7 @@ For example, lets say we have an index of products, and each product holds the l
 price for the product. The mapping could look like:
 
 [source,console,id=nested-aggregation-example]
---------------------------------------------------
+----
 PUT /products
 {
   "mappings": {
@@ -18,21 +18,25 @@ PUT /products
       "resellers": { <1>
         "type": "nested",
         "properties": {
-          "reseller": { "type": "text" },
-          "price": { "type": "double" }
+          "reseller": {
+            "type": "keyword"
+          },
+          "price": {
+            "type": "double"
+          }
         }
       }
     }
   }
 }
---------------------------------------------------
+----
 <1> `resellers` is an array that holds nested documents.
 
 The following request adds a product with two resellers:
 
 [source,console]
---------------------------------------------------
-PUT /products/_doc/0
+----
+PUT /products/_doc/0?refresh
 {
   "name": "LED TV", <1>
   "resellers": [
@@ -46,20 +50,22 @@ PUT /products/_doc/0
     }
   ]
 }
---------------------------------------------------
-// TEST[s/PUT \/products\/_doc\/0/PUT \/products\/_doc\/0\?refresh/]
+----
 // TEST[continued]
+
 <1> We are using a dynamic mapping for the `name` attribute.
 
 
 The following request returns the minimum price a product can be purchased for:
 
 [source,console]
---------------------------------------------------
-GET /products/_search
+----
+GET /products/_search?size=0
 {
   "query": {
-    "match": { "name": "led tv" }
+    "match": {
+      "name": "led tv"
+    }
   },
   "aggs": {
     "resellers": {
@@ -67,13 +73,17 @@ GET /products/_search
         "path": "resellers"
       },
       "aggs": {
-        "min_price": { "min": { "field": "resellers.price" } }
+        "min_price": {
+          "min": {
+            "field": "resellers.price"
+          }
+        }
       }
     }
   }
 }
---------------------------------------------------
-// TEST[s/GET \/products\/_search/GET \/products\/_search\?filter_path=aggregations/]
+----
+// TEST[s/size=0/size=0&filter_path=aggregations/]
 // TEST[continued]
 
 As you can see above, the nested aggregation requires the `path` of the nested documents within the top level documents.
@@ -82,18 +92,84 @@ Then one can define any type of aggregation over these nested documents.
 Response:
 
 [source,console-result]
---------------------------------------------------
+----
 {
   ...
   "aggregations": {
     "resellers": {
       "doc_count": 2,
       "min_price": {
-        "value": 350
+        "value": 350.0
       }
     }
   }
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/\.\.\.//]
-// TESTRESPONSE[s/: [0-9]+/: $body.$_path/]
+
+You can use a <<search-aggregations-bucket-filter-aggregation,`filter`>>
+sub-aggregation to return results for a specific reseller.
+
+[source,console]
+----
+GET /products/_search?size=0
+{
+  "query": {
+    "match": {
+      "name": "led tv"
+    }
+  },
+  "aggs": {
+    "resellers": {
+      "nested": {
+        "path": "resellers"
+      },
+      "aggs": {
+        "filter_reseller": {
+          "filter": {
+            "bool": {
+              "filter": [
+                {
+                  "term": {
+                    "resellers.reseller": "companyB"
+                  }
+                }
+              ]
+            }
+          },
+          "aggs": {
+            "min_price": {
+              "min": {
+                "field": "resellers.price"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----
+// TEST[s/size=0/size=0&filter_path=aggregations/]
+// TEST[continued]
+
+The search returns:
+
+[source,console-result]
+----
+{
+  ...
+  "aggregations": {
+    "resellers": {
+      "doc_count": 2,
+      "filter_reseller": {
+        "doc_count": 1,
+        "min_price": {
+          "value": 500.0
+        }
+      }
+    }
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\.//]

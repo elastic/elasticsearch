@@ -35,17 +35,31 @@ import java.util.List;
 /**
  * ForceMerge index/indices action.
  */
-public class TransportForceMergeAction
-        extends TransportBroadcastByNodeAction<ForceMergeRequest, ForceMergeResponse, TransportBroadcastByNodeAction.EmptyResult> {
+public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
+    ForceMergeRequest,
+    ForceMergeResponse,
+    TransportBroadcastByNodeAction.EmptyResult> {
 
     private final IndicesService indicesService;
     private final ThreadPool threadPool;
 
     @Inject
-    public TransportForceMergeAction(ClusterService clusterService, TransportService transportService, IndicesService indicesService,
-                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(ForceMergeAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                ForceMergeRequest::new, ThreadPool.Names.SAME);
+    public TransportForceMergeAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            ForceMergeAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            ForceMergeRequest::new,
+            ThreadPool.Names.SAME
+        );
         this.indicesService = indicesService;
         this.threadPool = transportService.getThreadPool();
     }
@@ -56,9 +70,15 @@ public class TransportForceMergeAction
     }
 
     @Override
-    protected ForceMergeResponse newResponse(ForceMergeRequest request, int totalShards, int successfulShards, int failedShards,
-                                             List<EmptyResult> responses, List<DefaultShardOperationFailedException> shardFailures,
-                                             ClusterState clusterState) {
+    protected ForceMergeResponse newResponse(
+        ForceMergeRequest request,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<EmptyResult> responses,
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
+    ) {
         return new ForceMergeResponse(totalShards, successfulShards, failedShards, shardFailures);
     }
 
@@ -68,16 +88,19 @@ public class TransportForceMergeAction
     }
 
     @Override
-    protected void shardOperation(ForceMergeRequest request, ShardRouting shardRouting, Task task,
-                                  ActionListener<TransportBroadcastByNodeAction.EmptyResult> listener) {
-        threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(ActionRunnable.run(listener,
-            () -> {
-                assert (task instanceof CancellableTask) == false; // TODO: add cancellation handling here once the task supports it
-                IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex())
-                    .getShard(shardRouting.shardId().id());
-                indexShard.forceMerge(request);
-                listener.onResponse(EmptyResult.INSTANCE);
-            }));
+    protected void shardOperation(
+        ForceMergeRequest request,
+        ShardRouting shardRouting,
+        Task task,
+        ActionListener<TransportBroadcastByNodeAction.EmptyResult> listener
+    ) {
+        assert (task instanceof CancellableTask) == false; // TODO: add cancellation handling here once the task supports it
+        threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(ActionRunnable.supply(listener, () -> {
+            IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex())
+                .getShard(shardRouting.shardId().id());
+            indexShard.forceMerge(request);
+            return EmptyResult.INSTANCE;
+        }));
     }
 
     /**

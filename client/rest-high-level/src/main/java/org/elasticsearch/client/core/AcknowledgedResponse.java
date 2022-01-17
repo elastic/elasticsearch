@@ -8,21 +8,24 @@
 
 package org.elasticsearch.client.core;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class AcknowledgedResponse {
 
     protected static final String PARSE_FIELD_NAME = "acknowledged";
-    private static final ConstructingObjectParser<AcknowledgedResponse, Void> PARSER = AcknowledgedResponse
-        .generateParser("acknowledged_response", AcknowledgedResponse::new, AcknowledgedResponse.PARSE_FIELD_NAME);
+    private static final ConstructingObjectParser<AcknowledgedResponse, Void> PARSER = AcknowledgedResponse.generateParser(
+        "acknowledged_response",
+        AcknowledgedResponse::new,
+        AcknowledgedResponse.PARSE_FIELD_NAME
+    );
 
     private final boolean acknowledged;
 

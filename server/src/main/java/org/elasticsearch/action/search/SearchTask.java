@@ -22,8 +22,14 @@ public class SearchTask extends CancellableTask {
     private final Supplier<String> descriptionSupplier;
     private SearchProgressListener progressListener = SearchProgressListener.NOOP;
 
-    public SearchTask(long id, String type, String action, Supplier<String> descriptionSupplier,
-                      TaskId parentTaskId, Map<String, String> headers) {
+    public SearchTask(
+        long id,
+        String type,
+        String action,
+        Supplier<String> descriptionSupplier,
+        TaskId parentTaskId,
+        Map<String, String> headers
+    ) {
         super(id, type, action, null, parentTaskId, headers);
         this.descriptionSupplier = descriptionSupplier;
     }

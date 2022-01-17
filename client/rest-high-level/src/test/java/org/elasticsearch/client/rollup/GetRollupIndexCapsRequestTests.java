@@ -17,11 +17,11 @@ public class GetRollupIndexCapsRequestTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GetRollupIndexCapsRequest((String[]) null));
         assertThat(e.getMessage(), equalTo("[indices] must not be null or empty"));
 
-        String[] indices = new String[]{};
+        String[] indices = new String[] {};
         e = expectThrows(IllegalArgumentException.class, () -> new GetRollupIndexCapsRequest(indices));
         assertThat(e.getMessage(), equalTo("[indices] must not be null or empty"));
 
-        e = expectThrows(IllegalArgumentException.class, () -> new GetRollupIndexCapsRequest(new String[]{"foo", null}));
+        e = expectThrows(IllegalArgumentException.class, () -> new GetRollupIndexCapsRequest(new String[] { "foo", null }));
         assertThat(e.getMessage(), equalTo("[index] must not be null or empty"));
     }
 }

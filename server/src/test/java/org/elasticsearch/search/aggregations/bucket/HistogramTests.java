@@ -9,8 +9,8 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,7 +47,7 @@ public class HistogramTests extends BaseAggregationTestCase<HistogramAggregation
         }
         if (randomBoolean()) {
             List<BucketOrder> order = randomOrder();
-            if(order.size() == 1 && randomBoolean()) {
+            if (order.size() == 1 && randomBoolean()) {
                 factory.order(order.get(0));
             } else {
                 factory.order(order);
@@ -82,26 +82,19 @@ public class HistogramTests extends BaseAggregationTestCase<HistogramAggregation
     private List<BucketOrder> randomOrder() {
         List<BucketOrder> orders = new ArrayList<>();
         switch (randomInt(4)) {
-            case 0:
-                orders.add(BucketOrder.key(randomBoolean()));
-                break;
-            case 1:
-                orders.add(BucketOrder.count(randomBoolean()));
-                break;
-            case 2:
-                orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomBoolean()));
-                break;
-            case 3:
-                orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20), randomBoolean()));
-                break;
-            case 4:
+            case 0 -> orders.add(BucketOrder.key(randomBoolean()));
+            case 1 -> orders.add(BucketOrder.count(randomBoolean()));
+            case 2 -> orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomBoolean()));
+            case 3 -> orders.add(
+                BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20), randomBoolean())
+            );
+            case 4 -> {
                 int numOrders = randomIntBetween(1, 3);
                 for (int i = 0; i < numOrders; i++) {
                     orders.addAll(randomOrder());
                 }
-                break;
-            default:
-                fail();
+            }
+            default -> fail();
         }
         return orders;
     }

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.termvectors;
 
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -68,7 +69,6 @@ public class MultiTermVectorsShardRequest extends SingleShardRequest<MultiTermVe
     public String preference() {
         return this.preference;
     }
-
 
     public void add(int location, TermVectorsRequest request) {
         this.locations.add(location);

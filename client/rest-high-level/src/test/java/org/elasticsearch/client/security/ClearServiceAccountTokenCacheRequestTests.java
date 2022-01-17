@@ -22,8 +22,11 @@ public class ClearServiceAccountTokenCacheRequestTests extends ESTestCase {
         final String serviceName = randomAlphaOfLengthBetween(3, 8);
         final String[] tokenNames = randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8));
 
-        final ClearServiceAccountTokenCacheRequest clearServiceAccountTokenCacheRequest =
-            new ClearServiceAccountTokenCacheRequest(namespace, serviceName, tokenNames);
+        final ClearServiceAccountTokenCacheRequest clearServiceAccountTokenCacheRequest = new ClearServiceAccountTokenCacheRequest(
+            namespace,
+            serviceName,
+            tokenNames
+        );
 
         assertThat(clearServiceAccountTokenCacheRequest.getNamespace(), equalTo(namespace));
         assertThat(clearServiceAccountTokenCacheRequest.getServiceName(), equalTo(serviceName));
@@ -37,29 +40,33 @@ public class ClearServiceAccountTokenCacheRequestTests extends ESTestCase {
 
         final ClearServiceAccountTokenCacheRequest request = new ClearServiceAccountTokenCacheRequest(namespace, serviceName, tokenNames);
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(request,
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            request,
             original -> new ClearServiceAccountTokenCacheRequest(request.getNamespace(), request.getServiceName(), request.getTokenNames()),
-            this::mutateInstance);
+            this::mutateInstance
+        );
     }
 
     private ClearServiceAccountTokenCacheRequest mutateInstance(ClearServiceAccountTokenCacheRequest request) {
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return new ClearServiceAccountTokenCacheRequest(
-                    randomValueOtherThan(request.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    request.getServiceName(),
-                    request.getTokenNames());
-            case 1:
-                return new ClearServiceAccountTokenCacheRequest(
-                    request.getNamespace(),
-                    randomValueOtherThan(request.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    request.getTokenNames());
-            default:
-                return new ClearServiceAccountTokenCacheRequest(
-                    request.getNamespace(),
-                    request.getServiceName(),
-                    randomValueOtherThanMany(a -> Arrays.equals(a, request.getTokenNames()),
-                        () -> randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8))));
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new ClearServiceAccountTokenCacheRequest(
+                randomValueOtherThan(request.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
+                request.getServiceName(),
+                request.getTokenNames()
+            );
+            case 1 -> new ClearServiceAccountTokenCacheRequest(
+                request.getNamespace(),
+                randomValueOtherThan(request.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)),
+                request.getTokenNames()
+            );
+            default -> new ClearServiceAccountTokenCacheRequest(
+                request.getNamespace(),
+                request.getServiceName(),
+                randomValueOtherThanMany(
+                    a -> Arrays.equals(a, request.getTokenNames()),
+                    () -> randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8))
+                )
+            );
+        };
     }
 }

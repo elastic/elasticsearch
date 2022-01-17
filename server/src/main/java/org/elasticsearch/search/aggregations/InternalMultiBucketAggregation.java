@@ -21,9 +21,10 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public abstract class InternalMultiBucketAggregation<A extends InternalMultiBucketAggregation,
-            B extends InternalMultiBucketAggregation.InternalBucket>
-        extends InternalAggregation implements MultiBucketsAggregation {
+@SuppressWarnings("rawtypes")
+public abstract class InternalMultiBucketAggregation<
+    A extends InternalMultiBucketAggregation,
+    B extends InternalMultiBucketAggregation.InternalBucket> extends InternalAggregation implements MultiBucketsAggregation {
 
     public InternalMultiBucketAggregation(String name, Map<String, Object> metadata) {
         super(name, metadata);
@@ -62,7 +63,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
      * Reduce a list of same-keyed buckets (from multiple shards) to a single bucket. This
      * requires all buckets to have the same key.
      */
-    protected abstract B reduceBucket(List<B> buckets, ReduceContext context);
+    protected abstract B reduceBucket(List<B> buckets, AggregationReduceContext context);
 
     @Override
     public abstract List<B> getBuckets();
@@ -116,16 +117,14 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
      */
     public static int countInnerBucket(Aggregation agg) {
         int size = 0;
-        if (agg instanceof MultiBucketsAggregation) {
-            MultiBucketsAggregation multi = (MultiBucketsAggregation) agg;
+        if (agg instanceof MultiBucketsAggregation multi) {
             for (MultiBucketsAggregation.Bucket bucket : multi.getBuckets()) {
-                ++ size;
+                ++size;
                 for (Aggregation bucketAgg : bucket.getAggregations().asList()) {
                     size += countInnerBucket(bucketAgg);
                 }
             }
-        } else if (agg instanceof SingleBucketAggregation) {
-            SingleBucketAggregation single = (SingleBucketAggregation) agg;
+        } else if (agg instanceof SingleBucketAggregation single) {
             for (Aggregation bucketAgg : single.getAggregations().asList()) {
                 size += countInnerBucket(bucketAgg);
             }
@@ -139,7 +138,10 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
      */
     @Override
     public final InternalAggregation reducePipelines(
-            InternalAggregation reducedAggs, ReduceContext reduceContext, PipelineTree pipelineTree) {
+        InternalAggregation reducedAggs,
+        AggregationReduceContext reduceContext,
+        PipelineTree pipelineTree
+    ) {
         assert reduceContext.isFinalReduce();
         InternalAggregation reduced = this;
         if (pipelineTree.hasSubTrees()) {
@@ -178,13 +180,13 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
         }
     }
 
-    private List<B> reducePipelineBuckets(ReduceContext reduceContext, PipelineTree pipelineTree) {
+    private List<B> reducePipelineBuckets(AggregationReduceContext reduceContext, PipelineTree pipelineTree) {
         List<B> reducedBuckets = new ArrayList<>();
         for (B bucket : getBuckets()) {
             List<InternalAggregation> aggs = new ArrayList<>();
             for (Aggregation agg : bucket.getAggregations()) {
                 PipelineTree subTree = pipelineTree.subTree(agg.getName());
-                aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext, subTree));
+                aggs.add(((InternalAggregation) agg).reducePipelines((InternalAggregation) agg, reduceContext, subTree));
             }
             reducedBuckets.add(createBucket(InternalAggregations.from(aggs), bucket));
         }
@@ -212,8 +214,9 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             }
             InternalAggregation aggregation = aggregations.get(aggName);
             if (aggregation == null) {
-                throw new InvalidAggregationPathException("Cannot find an aggregation named [" + aggName + "] in [" + containingAggName
-                        + "]");
+                throw new InvalidAggregationPathException(
+                    "Cannot find an aggregation named [" + aggName + "] in [" + containingAggName + "]"
+                );
             }
             return aggregation.getProperty(path.subList(1, path.size()));
         }

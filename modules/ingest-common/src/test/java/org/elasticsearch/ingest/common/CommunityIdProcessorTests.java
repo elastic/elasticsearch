@@ -318,10 +318,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
         var source = (Map<String, Object>) event.get("source");
         source.remove("ip");
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> testCommunityIdProcessor(event, 0, null, false)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCommunityIdProcessor(event, 0, null, false));
 
         assertThat(e.getMessage(), containsString("field [ip] not present as part of path [source.ip]"));
     }

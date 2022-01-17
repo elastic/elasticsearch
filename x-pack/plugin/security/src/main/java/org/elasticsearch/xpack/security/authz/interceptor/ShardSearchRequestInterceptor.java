@@ -35,9 +35,11 @@ public class ShardSearchRequestInterceptor extends FieldAndDocumentLevelSecurity
     }
 
     @Override
-    void disableFeatures(IndicesRequest indicesRequest,
-                         Map<String, IndicesAccessControl.IndexAccessControl> indexAccessControlByIndex,
-                         ActionListener<Void> listener) {
+    void disableFeatures(
+        IndicesRequest indicesRequest,
+        Map<String, IndicesAccessControl.IndexAccessControl> indexAccessControlByIndex,
+        ActionListener<Void> listener
+    ) {
         final ShardSearchRequest request = (ShardSearchRequest) indicesRequest;
         // The 7.11.2 version check is needed because request caching has a bug related to DLS/FLS
         // versions before 7.11.2. It is fixed by #69505. See also ESA-2021-08.
@@ -62,8 +64,10 @@ public class ShardSearchRequestInterceptor extends FieldAndDocumentLevelSecurity
         return request instanceof ShardSearchRequest;
     }
 
-    boolean dlsUsesStoredScripts(ShardSearchRequest request,
-                                 Map<String, IndicesAccessControl.IndexAccessControl> indexAccessControlByIndex) {
+    boolean dlsUsesStoredScripts(
+        ShardSearchRequest request,
+        Map<String, IndicesAccessControl.IndexAccessControl> indexAccessControlByIndex
+    ) {
         final String indexName = request.shardId().getIndexName();
         final IndicesAccessControl.IndexAccessControl indexAccessControl = indexAccessControlByIndex.get(indexName);
         assert indexAccessControl != null : "index access control cannot be null";

@@ -37,8 +37,9 @@ public enum AnalyticsValuesSourceType implements ValuesSourceType {
             final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
 
             if ((indexFieldData instanceof IndexHistogramFieldData) == false) {
-                throw new IllegalArgumentException("Expected histogram type on field [" + fieldContext.field() +
-                    "], but got [" + fieldContext.fieldType().typeName() + "]");
+                throw new IllegalArgumentException(
+                    "Expected histogram type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
+                );
             }
             return new HistogramValuesSource.Histogram.Fielddata((IndexHistogramFieldData) indexFieldData);
         }
@@ -53,7 +54,6 @@ public enum AnalyticsValuesSourceType implements ValuesSourceType {
             throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
         }
     };
-
 
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

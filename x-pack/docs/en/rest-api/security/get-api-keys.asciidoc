@@ -78,11 +78,13 @@ API key information. For example:
 {
   "id":"VuaCfGcBCdbkQm-e5aOx",
   "name":"my-api-key",
-  "api_key":"ui2lp2axTNmsyakw9tvNnw"
+  "api_key":"ui2lp2axTNmsyakw9tvNnw",
+  "encoded": "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw=="
 }
 --------------------------------------------------
 // TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
+// TESTRESPONSE[s/VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==/$body.encoded/]
 
 You can use the following example to retrieve the API key by ID:
 
@@ -179,7 +181,7 @@ A successful call returns a JSON structure that contains the information of one 
 {
   "api_keys": [ <1>
     {
-      "id": "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==", <2>
+      "id": "0GF5GXsBCXxz2eDxWwFN", <2>
       "name": "hadoop_myuser_key", <3>
       "creation": 1548550550158, <4>
       "expiration": 1548551550158, <5>
@@ -191,7 +193,7 @@ A successful call returns a JSON structure that contains the information of one 
       }
     },
     {
-      "id": "api-key-id-2",
+      "id": "6wHJmcQpReKBa42EHV5SBw",
       "name": "api-key-name-2",
       "creation": 1548550550158,
       "invalidated": false,

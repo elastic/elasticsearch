@@ -77,8 +77,7 @@ class TestHttpRequest implements HttpRequest {
     }
 
     @Override
-    public void release() {
-    }
+    public void release() {}
 
     @Override
     public HttpRequest releaseAndCopy() {

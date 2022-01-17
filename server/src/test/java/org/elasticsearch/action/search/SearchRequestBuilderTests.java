@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -37,16 +37,21 @@ public class SearchRequestBuilderTests extends ESTestCase {
     public void testSearchSourceBuilderToString() {
         SearchRequestBuilder searchRequestBuilder = makeBuilder();
         searchRequestBuilder.setSource(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
-        assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder()
-            .query(QueryBuilders.termQuery("field", "value")).toString()));
+        assertThat(
+            searchRequestBuilder.toString(),
+            equalTo(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).toString())
+        );
     }
 
     public void testThatToStringDoesntWipeRequestSource() {
-        SearchRequestBuilder searchRequestBuilder = makeBuilder()
-            .setSource(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
+        SearchRequestBuilder searchRequestBuilder = makeBuilder().setSource(
+            new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value"))
+        );
         String preToString = searchRequestBuilder.request().toString();
-        assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder()
-            .query(QueryBuilders.termQuery("field", "value")).toString()));
+        assertThat(
+            searchRequestBuilder.toString(),
+            equalTo(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).toString())
+        );
         String postToString = searchRequestBuilder.request().toString();
         assertThat(preToString, equalTo(postToString));
     }

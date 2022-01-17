@@ -8,8 +8,8 @@
 package org.elasticsearch.gradle.internal.info;
 
 import org.apache.commons.io.IOUtils;
-import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.OS;
+import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
@@ -28,9 +28,7 @@ import org.gradle.internal.jvm.inspection.JvmVendor;
 import org.gradle.jvm.toolchain.internal.InstallationLocation;
 import org.gradle.jvm.toolchain.internal.JavaInstallationRegistry;
 import org.gradle.util.GradleVersion;
-import org.jetbrains.annotations.NotNull;
 
-import javax.inject.Inject;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -48,8 +46,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import javax.inject.Inject;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
@@ -67,7 +68,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         ProviderFactory providers
     ) {
         this.javaInstallationRegistry = javaInstallationRegistry;
-        this.metadataDetector = metadataDetector;
+        this.metadataDetector = new ErrorTraceMetadataDetector(metadataDetector);
         this.providers = providers;
     }
 
@@ -85,6 +86,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"));
 
         File runtimeJavaHome = findRuntimeJavaHome();
+        boolean isRuntimeJavaHomeSet = Jvm.current().getJavaHome().equals(runtimeJavaHome) == false;
 
         File rootDir = project.getRootDir();
         GitInfo gitInfo = GitInfo.gitInfo(rootDir);
@@ -92,8 +94,15 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         BuildParams.init(params -> {
             params.reset();
             params.setRuntimeJavaHome(runtimeJavaHome);
-            params.setRuntimeJavaVersion(determineJavaVersion("runtime java.home", runtimeJavaHome, minimumRuntimeVersion));
-            params.setIsRuntimeJavaHomeSet(Jvm.current().getJavaHome().equals(runtimeJavaHome) == false);
+            // TODO: Temporarily hard-code this to 17 until we upgrade to Gradle 7.3 and bump minimumRuntimeVersion
+            params.setRuntimeJavaVersion(
+                determineJavaVersion(
+                    "runtime java.home",
+                    runtimeJavaHome,
+                    isRuntimeJavaHomeSet ? JavaVersion.VERSION_17 : Jvm.current().getJavaVersion()
+                )
+            );
+            params.setIsRuntimeJavaHomeSet(isRuntimeJavaHomeSet);
             JvmInstallationMetadata runtimeJdkMetaData = metadataDetector.getMetadata(getJavaInstallation(runtimeJavaHome).getLocation());
             params.setRuntimeJavaDetails(formatJavaVendorDetails(runtimeJdkMetaData));
             params.setJavaVersions(getAvailableJavaVersions());
@@ -108,7 +117,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setDefaultParallel(ParallelDetector.findDefaultParallel(project));
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
-            params.setBwcVersions(providers.provider(() -> resolveBwcVersions(rootDir)));
+            AtomicReference<BwcVersions> cache = new AtomicReference<>();
+            params.setBwcVersions(providers.provider(() -> cache.updateAndGet(val -> val == null ? resolveBwcVersions(rootDir) : val)));
         });
 
         // Enforce the minimum compiler version
@@ -345,10 +355,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         return _defaultParallel;
     }
 
-
     public static String getResourceContents(String resourcePath) {
         try (
-                BufferedReader reader = new BufferedReader(new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath)))
+            BufferedReader reader = new BufferedReader(new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath)))
         ) {
             StringBuilder b = new StringBuilder();
             for (String line = reader.readLine(); line != null; line = reader.readLine()) {
@@ -364,5 +373,21 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
     }
 
+    private static class ErrorTraceMetadataDetector implements JvmMetadataDetector {
+        private final JvmMetadataDetector delegate;
+
+        ErrorTraceMetadataDetector(JvmMetadataDetector delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public JvmInstallationMetadata getMetadata(File file) {
+            JvmInstallationMetadata metadata = delegate.getMetadata(file);
+            if (metadata instanceof JvmInstallationMetadata.FailureInstallationMetadata) {
+                throw new GradleException("Jvm Metadata cannot be resolved for " + metadata.getJavaHome().toString());
+            }
+            return metadata;
+        }
+    }
 
 }

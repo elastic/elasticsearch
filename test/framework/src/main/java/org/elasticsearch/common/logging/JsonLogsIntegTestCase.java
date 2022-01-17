@@ -9,8 +9,8 @@
 package org.elasticsearch.common.logging;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ObjectParser;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -60,26 +60,24 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
         JsonLogLine firstLine = findFirstLine();
         assertNotNull(firstLine);
 
-        try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()), getParser() )) {
-            stream.limit(LINES_TO_CHECK)
-                  .forEach(jsonLogLine -> {
-                      assertThat(jsonLogLine.getDataset(), is(not(emptyOrNullString())));
-                      assertThat(jsonLogLine.getTimestamp(), is(not(emptyOrNullString())));
-                      assertThat(jsonLogLine.getLevel(), is(not(emptyOrNullString())));
-                      assertThat(jsonLogLine.getComponent(), is(not(emptyOrNullString())));
-                      assertThat(jsonLogLine.getMessage(), is(not(emptyOrNullString())));
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()), getParser())) {
+            stream.limit(LINES_TO_CHECK).forEach(jsonLogLine -> {
+                assertThat(jsonLogLine.getDataset(), is(not(emptyOrNullString())));
+                assertThat(jsonLogLine.getTimestamp(), is(not(emptyOrNullString())));
+                assertThat(jsonLogLine.getLevel(), is(not(emptyOrNullString())));
+                assertThat(jsonLogLine.getComponent(), is(not(emptyOrNullString())));
+                assertThat(jsonLogLine.getMessage(), is(not(emptyOrNullString())));
 
-                      // all lines should have the same nodeName and clusterName
-                      assertThat(jsonLogLine.getNodeName(), nodeNameMatcher());
-                      assertThat(jsonLogLine.getClusterName(), equalTo(firstLine.getClusterName()));
-                  });
+                // all lines should have the same nodeName and clusterName
+                assertThat(jsonLogLine.getNodeName(), nodeNameMatcher());
+                assertThat(jsonLogLine.getClusterName(), equalTo(firstLine.getClusterName()));
+            });
         }
     }
 
     private JsonLogLine findFirstLine() throws IOException {
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()), getParser())) {
-            return stream.findFirst()
-                         .orElseThrow(() -> new AssertionError("no logs at all?!"));
+            return stream.findFirst().orElseThrow(() -> new AssertionError("no logs at all?!"));
         }
     }
 
@@ -96,7 +94,7 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
             }
             assertNotNull(firstLine);
 
-            //once the nodeId and clusterId are received, they should be the same on remaining lines
+            // once the nodeId and clusterId are received, they should be the same on remaining lines
 
             int i = 0;
             while (iterator.hasNext() && i++ < LINES_TO_CHECK) {
@@ -111,9 +109,11 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
     private Path getLogFile() {
         String logFileString = getLogFileName();
         if (logFileString == null) {
-            fail("tests.logfile must be set to run this test. It is automatically "
-                + "set by gradle. If you must set it yourself then it should be the absolute path to the "
-                + "log file.");
+            fail(
+                "tests.logfile must be set to run this test. It is automatically "
+                    + "set by gradle. If you must set it yourself then it should be the absolute path to the "
+                    + "log file."
+            );
         }
         return Paths.get(logFileString);
     }

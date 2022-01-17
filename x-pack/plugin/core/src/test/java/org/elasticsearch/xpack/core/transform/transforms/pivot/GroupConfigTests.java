@@ -12,14 +12,14 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource.Type;
 
 import java.io.IOException;
@@ -66,7 +66,7 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         return new GroupConfig(source, groups);
     }
 
-    private static SingleGroupSource randomSingleGroupSource(Version version) {
+    public static SingleGroupSource randomSingleGroupSource(Version version) {
         Type type = randomFrom(SingleGroupSource.Type.values());
         switch (type) {
             case TERMS:

@@ -23,11 +23,11 @@ public enum Orientation {
     public static final Orientation CW = Orientation.LEFT;
     public static final Orientation CCW = Orientation.RIGHT;
 
-    public void writeTo (StreamOutput out) throws IOException {
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(this == Orientation.RIGHT);
     }
 
-    public static Orientation readFrom (StreamInput in) throws IOException {
+    public static Orientation readFrom(StreamInput in) throws IOException {
         return in.readBoolean() ? Orientation.RIGHT : Orientation.LEFT;
     }
 
@@ -37,17 +37,10 @@ public enum Orientation {
 
     public static Orientation fromString(String orientation) {
         orientation = orientation.toLowerCase(Locale.ROOT);
-        switch (orientation) {
-            case "right":
-            case "counterclockwise":
-            case "ccw":
-                return Orientation.RIGHT;
-            case "left":
-            case "clockwise":
-            case "cw":
-                return Orientation.LEFT;
-            default:
-                throw new IllegalArgumentException("Unknown orientation [" + orientation + "]");
-        }
+        return switch (orientation) {
+            case "right", "counterclockwise", "ccw" -> Orientation.RIGHT;
+            case "left", "clockwise", "cw" -> Orientation.LEFT;
+            default -> throw new IllegalArgumentException("Unknown orientation [" + orientation + "]");
+        };
     }
 }

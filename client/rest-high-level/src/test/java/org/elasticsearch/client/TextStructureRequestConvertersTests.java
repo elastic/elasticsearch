@@ -8,16 +8,16 @@
 
 package org.elasticsearch.client;
 
-import java.io.ByteArrayOutputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.textstructure.FindStructureRequest;
 import org.elasticsearch.client.textstructure.FindStructureRequestTests;
 import org.elasticsearch.client.textstructure.structurefinder.TextStructure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 public class TextStructureRequestConvertersTests extends ESTestCase {
 
@@ -51,8 +51,10 @@ public class TextStructureRequestConvertersTests extends ESTestCase {
             assertNull(request.getParameters().get("format"));
         }
         if (findStructureRequest.getColumnNames() != null) {
-            assertEquals(findStructureRequest.getColumnNames(),
-                Arrays.asList(Strings.splitStringByCommaToArray(request.getParameters().get("column_names"))));
+            assertEquals(
+                findStructureRequest.getColumnNames(),
+                Arrays.asList(Strings.splitStringByCommaToArray(request.getParameters().get("column_names")))
+            );
         } else {
             assertNull(request.getParameters().get("column_names"));
         }
@@ -72,8 +74,7 @@ public class TextStructureRequestConvertersTests extends ESTestCase {
             assertNull(request.getParameters().get("quote"));
         }
         if (findStructureRequest.getShouldTrimFields() != null) {
-            assertEquals(findStructureRequest.getShouldTrimFields(),
-                Boolean.valueOf(request.getParameters().get("should_trim_fields")));
+            assertEquals(findStructureRequest.getShouldTrimFields(), Boolean.valueOf(request.getParameters().get("should_trim_fields")));
         } else {
             assertNull(request.getParameters().get("should_trim_fields"));
         }

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.rest.dataframe;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -23,9 +23,7 @@ public class RestDeleteDataFrameAnalyticsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(DELETE, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}")
-        );
+        return List.of(new Route(DELETE, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}"));
     }
 
     @Override

@@ -16,32 +16,26 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.common.xcontent.XContentFieldFilter;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
-
     public static final String NAME = "_source";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
 
     public static final String CONTENT_TYPE = "_source";
-    private final Function<Map<String, ?>, Map<String, Object>> filter;
+    private final XContentFieldFilter filter;
+
+    private static final SourceFieldMapper DEFAULT = new SourceFieldMapper(Defaults.ENABLED, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
 
     public static class Defaults {
         public static final String NAME = SourceFieldMapper.NAME;
@@ -63,11 +57,21 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", false, m -> toType(m).enabled, Defaults.ENABLED);
-        private final Parameter<List<String>> includes
-            = Parameter.stringArrayParam("includes", false, m -> Arrays.asList(toType(m).includes), Collections.emptyList());
-        private final Parameter<List<String>> excludes
-            = Parameter.stringArrayParam("excludes", false, m -> Arrays.asList(toType(m).excludes), Collections.emptyList());
+        private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", false, m -> toType(m).enabled, Defaults.ENABLED)
+            // this field mapper may be enabled but once enabled, may not be disabled
+            .setMergeValidator((previous, current, conflicts) -> (previous == current) || (previous && current == false));
+        private final Parameter<List<String>> includes = Parameter.stringArrayParam(
+            "includes",
+            false,
+            m -> Arrays.asList(toType(m).includes),
+            Collections.emptyList()
+        );
+        private final Parameter<List<String>> excludes = Parameter.stringArrayParam(
+            "excludes",
+            false,
+            m -> Arrays.asList(toType(m).excludes),
+            Collections.emptyList()
+        );
 
         public Builder() {
             super(Defaults.NAME);
@@ -80,13 +84,18 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         public SourceFieldMapper build() {
-            return new SourceFieldMapper(enabled.getValue(),
+            if (enabled.getValue() == Defaults.ENABLED && includes.getValue().isEmpty() && excludes.getValue().isEmpty()) {
+                return DEFAULT;
+            }
+            return new SourceFieldMapper(
+                enabled.getValue(),
                 includes.getValue().toArray(String[]::new),
-                excludes.getValue().toArray(String[]::new));
+                excludes.getValue().toArray(String[]::new)
+            );
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new SourceFieldMapper(), c -> new Builder());
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> DEFAULT, c -> new Builder());
 
     static final class SourceFieldType extends MappedFieldType {
 
@@ -122,17 +131,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final String[] includes;
     private final String[] excludes;
 
-    private SourceFieldMapper() {
-        this(Defaults.ENABLED, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
-    }
-
     private SourceFieldMapper(boolean enabled, String[] includes, String[] excludes) {
         super(new SourceFieldType(enabled));
         this.enabled = enabled;
         this.includes = includes;
         this.excludes = excludes;
         final boolean filtered = CollectionUtils.isEmpty(includes) == false || CollectionUtils.isEmpty(excludes) == false;
-        this.filter = enabled && filtered ? XContentMapValues.filter(includes, excludes) : null;
+        this.filter = enabled && filtered
+            ? XContentFieldFilter.newFieldFilter(includes, excludes)
+            : (sourceBytes, contentType) -> sourceBytes;
         this.complete = enabled && CollectionUtils.isEmpty(includes) && CollectionUtils.isEmpty(excludes);
     }
 
@@ -167,19 +174,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public BytesReference applyFilters(@Nullable BytesReference originalSource, @Nullable XContentType contentType) throws IOException {
         if (enabled && originalSource != null) {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
-            if (filter != null) {
-                // we don't update the context source if we filter, we want to keep it as is...
-                Tuple<XContentType, Map<String, Object>> mapTuple =
-                    XContentHelper.convertToMap(originalSource, true, contentType);
-                Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
-                BytesStreamOutput bStream = new BytesStreamOutput();
-                XContentType actualContentType = mapTuple.v1();
-                XContentBuilder builder = XContentFactory.contentBuilder(actualContentType, bStream).map(filteredSource);
-                builder.close();
-                return bStream.bytes();
-            } else {
-                return originalSource;
-            }
+            return filter.apply(originalSource, contentType);
         } else {
             return null;
         }

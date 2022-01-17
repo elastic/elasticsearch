@@ -25,7 +25,7 @@ public class EsAbortPolicy implements XRejectedExecutionHandler {
                     throw new IllegalStateException("forced execution, but expected a size queue");
                 }
                 try {
-                    ((SizeBlockingQueue) queue).forcePut(r);
+                    ((SizeBlockingQueue<Runnable>) queue).forcePut(r);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new IllegalStateException("forced execution, but got interrupted", e);

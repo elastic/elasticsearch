@@ -39,7 +39,6 @@ public class LengthEncodedWriter implements RecordWriter {
         lengthBuffer = ByteBuffer.allocate(4); // 4 == sizeof(int)
     }
 
-
     /**
      * Convert each String in the record array to a length/value encoded pair
      * and write to the outputstream.
@@ -66,7 +65,6 @@ public class LengthEncodedWriter implements RecordWriter {
         }
     }
 
-
     /**
      * Lower level functions to write records individually.
      * After this function is called {@link #writeField(String)}
@@ -78,7 +76,6 @@ public class LengthEncodedWriter implements RecordWriter {
         lengthBuffer.putInt(numFields);
         outputStream.write(lengthBuffer.array());
     }
-
 
     /**
      * Lower level functions to write record fields individually.

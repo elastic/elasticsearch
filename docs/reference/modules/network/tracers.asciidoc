@@ -16,7 +16,7 @@ the `org.elasticsearch.http.HttpTracer` logger to `TRACE`:
 --------------------------------------------------
 PUT _cluster/settings
 {
-   "transient" : {
+   "persistent" : {
       "logger.org.elasticsearch.http.HttpTracer" : "TRACE"
    }
 }
@@ -29,7 +29,7 @@ exclude wildcard patterns. By default every request will be traced.
 --------------------------------------------------
 PUT _cluster/settings
 {
-   "transient" : {
+   "persistent" : {
       "http.tracer.include" : "*",
       "http.tracer.exclude" : ""
    }
@@ -47,7 +47,7 @@ requests and responses. Activate the tracer by setting the level of the
 --------------------------------------------------
 PUT _cluster/settings
 {
-   "transient" : {
+   "persistent" : {
       "logger.org.elasticsearch.transport.TransportService.tracer" : "TRACE"
    }
 }
@@ -61,7 +61,7 @@ fault detection pings:
 --------------------------------------------------
 PUT _cluster/settings
 {
-   "transient" : {
+   "persistent" : {
       "transport.tracer.include" : "*",
       "transport.tracer.exclude" : "internal:coordination/fault_detection/*"
    }

@@ -9,6 +9,7 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
@@ -90,9 +91,11 @@ public interface TestClusterConfiguration {
 
     void extraConfigFile(String destination, File from, PropertyNormalization normalization);
 
-    void extraJarFile(File from);
+    void extraJarFiles(FileCollection from);
 
     void user(Map<String, String> userSpec);
+
+    void rolesFile(File rolesYml);
 
     String getHttpSocketURI();
 

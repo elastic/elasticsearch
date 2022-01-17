@@ -11,18 +11,17 @@ This guide helps beginners learn how to:
 
 [discrete]
 [[run-elasticsearch]]
-=== Step 1. Run {es}
+=== Run {es}
 
 The simplest way to set up {es} is to create a managed deployment with {ess} on
 {ecloud}. If you prefer to manage your own test environment, you can install and
 run {es} using Docker.
 
-include::{es-repo-dir}/tab-widgets/code.asciidoc[]
 include::{es-repo-dir}/tab-widgets/quick-start-install-widget.asciidoc[]
 
 [discrete]
 [[send-requests-to-elasticsearch]]
-=== Step 2. Send requests to {es}
+=== Send requests to {es}
 
 You send data and other requests to {es} using REST APIs. This lets you interact
 with {es} using any client that sends HTTP requests, such as
@@ -33,7 +32,7 @@ include::{es-repo-dir}/tab-widgets/api-call-widget.asciidoc[]
 
 [discrete]
 [[add-data]]
-=== Step 3. Add data
+=== Add data
 
 You add data to {es} as JSON objects called documents. {es} stores these
 documents in searchable indices.
@@ -111,7 +110,7 @@ PUT logs-my_app-default/_bulk
 
 [discrete]
 [[qs-search-data]]
-=== Step 4. Search data
+=== Search data
 
 Indexed documents are available for search in near real-time. The following
 search matches all log entries in `logs-my_app-default` and sorts them by
@@ -484,7 +483,7 @@ To keep exploring, index more data to your data stream and check out <<common-se
 
 [discrete]
 [[clean-up]]
-=== Step 5. Clean up
+=== Clean up
 
 When you're done, delete your test data stream and its backing indices.
 
@@ -507,7 +506,7 @@ include::{es-repo-dir}/tab-widgets/quick-start-cleanup-widget.asciidoc[]
 
 * Use {fleet} and {agent} to collect logs and metrics directly from your data
 sources and send them to {es}. See the
-{fleet-guide}/fleet-quick-start.html[{fleet} quick start guide].
+{observability-guide}/ingest-logs-metrics-uptime.html[Ingest logs, metrics, and uptime data with {agent}].
 
 * Use {kib} to explore, visualize, and manage your {es} data. See the
 {kibana-ref}/get-started.html[{kib} quick start guide].

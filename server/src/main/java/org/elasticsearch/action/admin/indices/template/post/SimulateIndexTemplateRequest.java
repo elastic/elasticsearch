@@ -11,10 +11,10 @@ package org.elasticsearch.action.admin.indices.template.post;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -83,8 +83,7 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
             return false;
         }
         SimulateIndexTemplateRequest that = (SimulateIndexTemplateRequest) o;
-        return indexName.equals(that.indexName) &&
-            Objects.equals(indexTemplateRequest, that.indexTemplateRequest);
+        return indexName.equals(that.indexName) && Objects.equals(indexTemplateRequest, that.indexTemplateRequest);
     }
 
     @Override

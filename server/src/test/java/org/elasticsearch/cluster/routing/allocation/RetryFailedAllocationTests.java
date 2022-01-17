@@ -39,11 +39,15 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        Metadata metadata = Metadata.builder().put(IndexMetadata.builder(INDEX_NAME)
-            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1)).build();
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder(INDEX_NAME).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index(INDEX_NAME)).build();
-        clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
+        clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
         strategy = createAllocationService(Settings.EMPTY);
     }
 
@@ -63,8 +67,8 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
         // Exhaust all replica allocation attempts with shard failures
         for (int i = 0; i < retries; i++) {
             List<FailedShard> failedShards = Collections.singletonList(
-                new FailedShard(getReplica(), "failing-shard::attempt-" + i,
-                    new ElasticsearchException("simulated"), randomBoolean()));
+                new FailedShard(getReplica(), "failing-shard::attempt-" + i, new ElasticsearchException("simulated"), randomBoolean())
+            );
             clusterState = strategy.applyFailedShards(clusterState, failedShards);
             clusterState = strategy.reroute(clusterState, "allocation retry attempt-" + i);
         }
@@ -72,10 +76,14 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
         assertThat("reroute should be a no-op", strategy.reroute(clusterState, "test"), sameInstance(clusterState));
 
         // Now allocate replica with retry_failed flag set
-        AllocationService.CommandsResult result = strategy.reroute(clusterState,
-            new AllocationCommands(new AllocateReplicaAllocationCommand(INDEX_NAME, 0,
-                getPrimary().currentNodeId().equals("node1") ? "node2" : "node1")),
-            false, true);
+        AllocationService.CommandsResult result = strategy.reroute(
+            clusterState,
+            new AllocationCommands(
+                new AllocateReplicaAllocationCommand(INDEX_NAME, 0, getPrimary().currentNodeId().equals("node1") ? "node2" : "node1")
+            ),
+            false,
+            true
+        );
         clusterState = result.getClusterState();
 
         assertEquals(ShardRoutingState.INITIALIZING, getReplica().state());

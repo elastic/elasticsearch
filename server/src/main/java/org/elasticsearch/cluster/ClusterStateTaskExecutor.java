@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 
 import java.util.IdentityHashMap;
@@ -33,11 +34,9 @@ public interface ClusterStateTaskExecutor<T> {
      *
      * Note that this method will be executed using system context.
      *
-     * @param clusterChangedEvent the change event for this cluster state change, containing
-     *                            both old and new states
+     * @param clusterStatePublicationEvent the change event for this cluster state publication, containing both old and new states
      */
-    default void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
-    }
+    default void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {}
 
     /**
      * Builds a concise description of a list of tasks (to be used in logging etc.).
@@ -47,7 +46,16 @@ public interface ClusterStateTaskExecutor<T> {
      * This allows groupd task description but the submitting source.
      */
     default String describeTasks(List<T> tasks) {
-        return String.join(", ", tasks.stream().map(t -> (CharSequence)t.toString()).filter(t -> t.length() > 0)::iterator);
+        final StringBuilder output = new StringBuilder();
+        Strings.collectionToDelimitedStringWithLimit(
+            (Iterable<String>) () -> tasks.stream().map(Object::toString).filter(s -> s.isEmpty() == false).iterator(),
+            ", ",
+            "",
+            "",
+            1024,
+            output
+        );
+        return output.toString();
     }
 
     /**
@@ -109,8 +117,7 @@ public interface ClusterStateTaskExecutor<T> {
             }
 
             ClusterTasksResult<T> build(ClusterTasksResult<T> result, ClusterState previousState) {
-                return new ClusterTasksResult<>(result.resultingState == null ? previousState : result.resultingState,
-                    executionResults);
+                return new ClusterTasksResult<>(result.resultingState == null ? previousState : result.resultingState, executionResults);
             }
         }
     }
@@ -141,4 +148,25 @@ public interface ClusterStateTaskExecutor<T> {
             return failure;
         }
     }
+
+    /**
+     * Creates a task executor that only executes a single task. Use a new instance of this executor to specifically submit a cluster state
+     * update task that should be executed in isolation and not be batched with other state updates.
+     */
+    static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> unbatched() {
+        return new ClusterStateTaskExecutor<>() {
+            @Override
+            public ClusterTasksResult<T> execute(ClusterState currentState, List<T> tasks) throws Exception {
+                assert tasks.size() == 1 : "this only supports a single task but received " + tasks;
+                ClusterState result = tasks.get(0).execute(currentState);
+                return ClusterTasksResult.<T>builder().successes(tasks).build(result);
+            }
+
+            @Override
+            public String describeTasks(List<T> tasks) {
+                return ""; // one of task, source is enough
+            }
+        };
+    }
+
 }

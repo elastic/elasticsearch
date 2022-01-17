@@ -14,9 +14,9 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -42,7 +42,7 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         int numDocs = 22;
         List<BytesReference> modelDefs = new ArrayList<>(numDocs);
 
-        for (int i=0; i<numDocs; i++) {
+        for (int i = 0; i < numDocs; i++) {
             // actual content of the model definition is not important here
             modelDefs.add(new BytesArray(Base64.getEncoder().encode(("model_def_" + i).getBytes(StandardCharsets.UTF_8))));
         }
@@ -50,22 +50,22 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         List<TrainedModelDefinitionDoc> expectedDocs = createModelDefinitionDocs(modelDefs, modelId);
         putModelDefinitions(expectedDocs, InferenceIndexConstants.LATEST_INDEX_NAME, 0);
 
-
-        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client(),
-            client().threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME), xContentRegistry());
+        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(
+            modelId,
+            client(),
+            client().threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+            xContentRegistry()
+        );
         restorer.setSearchSize(5);
         List<TrainedModelDefinitionDoc> actualDocs = new ArrayList<>();
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        restorer.restoreModelDefinition(
-            actualDocs::add,
-            success -> latch.countDown(),
-            failure -> {
-                exceptionHolder.set(failure);
-                latch.countDown();
-            });
+        restorer.restoreModelDefinition(actualDocs::add, success -> latch.countDown(), failure -> {
+            exceptionHolder.set(failure);
+            latch.countDown();
+        });
 
         latch.await();
 
@@ -78,7 +78,7 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         int numDocs = 6;
         List<BytesReference> modelDefs = new ArrayList<>(numDocs);
 
-        for (int i=0; i<numDocs; i++) {
+        for (int i = 0; i < numDocs; i++) {
             // actual content of the model definition is not important here
             modelDefs.add(new BytesArray(Base64.getEncoder().encode(("model_def_" + i).getBytes(StandardCharsets.UTF_8))));
         }
@@ -86,8 +86,12 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         List<TrainedModelDefinitionDoc> expectedDocs = createModelDefinitionDocs(modelDefs, modelId);
         putModelDefinitions(expectedDocs, InferenceIndexConstants.LATEST_INDEX_NAME, 0);
 
-        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client(),
-            client().threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME), xContentRegistry());
+        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(
+            modelId,
+            client(),
+            client().threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+            xContentRegistry()
+        );
         restorer.setSearchSize(5);
         List<TrainedModelDefinitionDoc> actualDocs = new ArrayList<>();
 
@@ -95,19 +99,16 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         AtomicBoolean successValue = new AtomicBoolean(Boolean.TRUE);
         CountDownLatch latch = new CountDownLatch(1);
 
-        restorer.restoreModelDefinition(
-            doc -> {
-                actualDocs.add(doc);
-                return false;
-            },
-            success -> {
-                successValue.set(success);
-                latch.countDown();
-            },
-            failure -> {
-                exceptionHolder.set(failure);
-                latch.countDown();
-            });
+        restorer.restoreModelDefinition(doc -> {
+            actualDocs.add(doc);
+            return false;
+        }, success -> {
+            successValue.set(success);
+            latch.countDown();
+        }, failure -> {
+            exceptionHolder.set(failure);
+            latch.countDown();
+        });
 
         latch.await();
 
@@ -121,29 +122,41 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         String index1 = "foo-1";
         String index2 = "foo-2";
 
-        for (String index : new String[]{index1, index2}) {
-            client().admin().indices().prepareCreate(index)
-                .setMapping(TrainedModelDefinitionDoc.DEFINITION.getPreferredName(), "type=binary",
-                    InferenceIndexConstants.DOC_TYPE.getPreferredName(), "type=keyword",
-                    TrainedModelConfig.MODEL_ID.getPreferredName(), "type=keyword").get();
+        for (String index : new String[] { index1, index2 }) {
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setMapping(
+                    TrainedModelDefinitionDoc.DEFINITION.getPreferredName(),
+                    "type=binary",
+                    InferenceIndexConstants.DOC_TYPE.getPreferredName(),
+                    "type=keyword",
+                    TrainedModelConfig.MODEL_ID.getPreferredName(),
+                    "type=keyword"
+                )
+                .get();
         }
 
         String modelId = "test-multiple-indices";
         int numDocs = 24;
         List<BytesReference> modelDefs = new ArrayList<>(numDocs);
 
-        for (int i=0; i<numDocs; i++) {
+        for (int i = 0; i < numDocs; i++) {
             // actual content of the model definition is not important here
             modelDefs.add(new BytesArray(Base64.getEncoder().encode(("model_def_" + i).getBytes(StandardCharsets.UTF_8))));
         }
 
         List<TrainedModelDefinitionDoc> expectedDocs = createModelDefinitionDocs(modelDefs, modelId);
-        int splitPoint = (numDocs / 2) -1;
+        int splitPoint = (numDocs / 2) - 1;
         putModelDefinitions(expectedDocs.subList(0, splitPoint), index1, 0);
         putModelDefinitions(expectedDocs.subList(splitPoint, numDocs), index2, splitPoint);
 
-        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client(),
-            client().threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME), xContentRegistry());
+        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(
+            modelId,
+            client(),
+            client().threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+            xContentRegistry()
+        );
         restorer.setSearchSize(10);
         restorer.setSearchIndex("foo-*");
 
@@ -151,13 +164,10 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         List<TrainedModelDefinitionDoc> actualDocs = new ArrayList<>();
 
-        restorer.restoreModelDefinition(
-            actualDocs::add,
-            success -> latch.countDown(),
-            failure -> {
-                exceptionHolder.set(failure);
-                latch.countDown();
-            });
+        restorer.restoreModelDefinition(actualDocs::add, success -> latch.countDown(), failure -> {
+            exceptionHolder.set(failure);
+            latch.countDown();
+        });
 
         latch.await();
 
@@ -175,15 +185,16 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
 
         List<TrainedModelDefinitionDoc> docs = new ArrayList<>();
         for (int i = 0; i < compressedDefinitions.size(); i++) {
-            docs.add(new TrainedModelDefinitionDoc.Builder()
-                .setDocNum(i)
-                .setBinaryData(compressedDefinitions.get(i))
-                .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
-                .setTotalDefinitionLength(totalLength)
-                .setDefinitionLength(compressedDefinitions.get(i).length())
-                .setEos(i == compressedDefinitions.size() - 1)
-                .setModelId(modelId)
-                .build());
+            docs.add(
+                new TrainedModelDefinitionDoc.Builder().setDocNum(i)
+                    .setBinaryData(compressedDefinitions.get(i))
+                    .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
+                    .setTotalDefinitionLength(totalLength)
+                    .setDefinitionLength(compressedDefinitions.get(i).length())
+                    .setEos(i == compressedDefinitions.size() - 1)
+                    .setModelId(modelId)
+                    .build()
+            );
         }
 
         return docs;
@@ -201,9 +212,7 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
             }
         }
 
-        BulkResponse bulkResponse = bulkRequestBuilder
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         if (bulkResponse.hasFailures()) {
             int failures = 0;
             for (BulkItemResponse itemResponse : bulkResponse) {

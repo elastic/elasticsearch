@@ -9,9 +9,10 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -74,7 +75,7 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
     }
 
     @Override
-    public InternalWeightedAvg reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalWeightedAvg reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         CompensatedSum sumCompensation = new CompensatedSum(0, 0);
         CompensatedSum weightCompensation = new CompensatedSum(0, 0);
 
@@ -109,8 +110,8 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         InternalWeightedAvg other = (InternalWeightedAvg) obj;
-        return Objects.equals(sum, other.sum) &&
-                Objects.equals(weight, other.weight) &&
-                Objects.equals(format.getWriteableName(), other.format.getWriteableName());
+        return Objects.equals(sum, other.sum)
+            && Objects.equals(weight, other.weight)
+            && Objects.equals(format.getWriteableName(), other.format.getWriteableName());
     }
 }

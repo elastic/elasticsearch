@@ -10,10 +10,10 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,7 +23,6 @@ import java.util.Objects;
  */
 public class GetModelSnapshotsRequest implements Validatable, ToXContentObject {
 
-
     public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
     public static final ParseField SORT = new ParseField("sort");
     public static final ParseField START = new ParseField("start");
@@ -31,8 +30,9 @@ public class GetModelSnapshotsRequest implements Validatable, ToXContentObject {
     public static final ParseField DESC = new ParseField("desc");
 
     public static final ConstructingObjectParser<GetModelSnapshotsRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "get_model_snapshots_request", a -> new GetModelSnapshotsRequest((String) a[0]));
-
+        "get_model_snapshots_request",
+        a -> new GetModelSnapshotsRequest((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -114,7 +114,6 @@ public class GetModelSnapshotsRequest implements Validatable, ToXContentObject {
         this.start = start;
     }
 
-
     public String getEnd() {
         return end;
     }
@@ -162,7 +161,8 @@ public class GetModelSnapshotsRequest implements Validatable, ToXContentObject {
         }
         if (pageParams != null) {
             builder.field(PageParams.PAGE.getPreferredName(), pageParams);
-        }        builder.endObject();
+        }
+        builder.endObject();
         return builder;
     }
 

@@ -12,9 +12,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -40,8 +40,11 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         out.writeMap(indicesAndFilters, StreamOutput::writeString, (o, s) -> s.writeTo(o));
     }
 
-    public ClusterSearchShardsResponse(ClusterSearchShardsGroup[] groups, DiscoveryNode[] nodes,
-                                       Map<String, AliasFilter> indicesAndFilters) {
+    public ClusterSearchShardsResponse(
+        ClusterSearchShardsGroup[] groups,
+        DiscoveryNode[] nodes,
+        Map<String, AliasFilter> indicesAndFilters
+    ) {
         this.groups = groups;
         this.nodes = nodes;
         this.indicesAndFilters = indicesAndFilters;

@@ -22,11 +22,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
@@ -46,9 +46,8 @@ import java.io.IOException;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 
 public abstract class TransportInstanceSingleOperationAction<
-            Request extends InstanceShardOperationRequest<Request>,
-            Response extends ActionResponse
-       > extends HandledTransportAction<Request, Response> {
+    Request extends InstanceShardOperationRequest<Request>,
+    Response extends ActionResponse> extends HandledTransportAction<Request, Response> {
 
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
@@ -57,10 +56,15 @@ public abstract class TransportInstanceSingleOperationAction<
 
     final String shardActionName;
 
-    protected TransportInstanceSingleOperationAction(String actionName, ThreadPool threadPool,
-                                                     ClusterService clusterService, TransportService transportService,
-                                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                     Writeable.Reader<Request> request) {
+    protected TransportInstanceSingleOperationAction(
+        String actionName,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Writeable.Reader<Request> request
+    ) {
         super(actionName, transportService, actionFilters, request);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -196,8 +200,7 @@ public abstract class TransportInstanceSingleOperationAction<
                 public void handleException(TransportException exp) {
                     final Throwable cause = exp.unwrapCause();
                     // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
-                    if (cause instanceof ConnectTransportException || cause instanceof NodeClosedException ||
-                            retryOnFailure(exp)) {
+                    if (cause instanceof ConnectTransportException || cause instanceof NodeClosedException || retryOnFailure(exp)) {
                         retry((Exception) cause);
                     } else {
                         listener.onFailure(exp);
@@ -212,12 +215,22 @@ public abstract class TransportInstanceSingleOperationAction<
                 Exception listenFailure = failure;
                 if (listenFailure == null) {
                     if (shardIt == null) {
-                        listenFailure = new UnavailableShardsException(request.concreteIndex(), -1, "Timeout waiting for [{}], request: {}",
-                            request.timeout(), actionName);
+                        listenFailure = new UnavailableShardsException(
+                            request.concreteIndex(),
+                            -1,
+                            "Timeout waiting for [{}], request: {}",
+                            request.timeout(),
+                            actionName
+                        );
                     } else {
-                        listenFailure = new UnavailableShardsException(shardIt.shardId(),
-                            "[{}] shardIt, [{}] active : Timeout waiting for [{}], request: {}", shardIt.size(), shardIt.sizeActive(),
-                            request.timeout(), actionName);
+                        listenFailure = new UnavailableShardsException(
+                            shardIt.shardId(),
+                            "[{}] shardIt, [{}] active : Timeout waiting for [{}], request: {}",
+                            shardIt.size(),
+                            shardIt.sizeActive(),
+                            request.timeout(),
+                            actionName
+                        );
                     }
                 }
                 listener.onFailure(listenFailure);

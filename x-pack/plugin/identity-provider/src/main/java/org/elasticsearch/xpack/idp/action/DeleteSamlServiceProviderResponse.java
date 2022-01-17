@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -39,10 +39,12 @@ public class DeleteSamlServiceProviderResponse extends ActionResponse implements
     }
 
     public DeleteSamlServiceProviderResponse(DeleteResponse deleteResponse, String entityId) {
-        this(deleteResponse == null ? null : deleteResponse.getId(),
+        this(
+            deleteResponse == null ? null : deleteResponse.getId(),
             deleteResponse == null ? UNASSIGNED_SEQ_NO : deleteResponse.getSeqNo(),
             deleteResponse == null ? UNASSIGNED_PRIMARY_TERM : deleteResponse.getPrimaryTerm(),
-            entityId);
+            entityId
+        );
     }
 
     public DeleteSamlServiceProviderResponse(StreamInput in) throws IOException {

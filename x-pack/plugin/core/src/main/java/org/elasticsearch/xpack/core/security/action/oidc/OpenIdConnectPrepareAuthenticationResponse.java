@@ -10,8 +10,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -79,8 +79,15 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse i
     }
 
     public String toString() {
-        return "{authenticationRequestUrl=" + authenticationRequestUrl + ", state=" + state + ", nonce="
-            + nonce + ", realmName" + realmName + "}";
+        return "{authenticationRequestUrl="
+            + authenticationRequestUrl
+            + ", state="
+            + state
+            + ", nonce="
+            + nonce
+            + ", realmName"
+            + realmName
+            + "}";
     }
 
     @Override
@@ -89,7 +96,7 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse i
         builder.field("redirect", authenticationRequestUrl);
         builder.field("state", state);
         builder.field("nonce", nonce);
-        if(realmName != null){
+        if (realmName != null) {
             builder.field("realm", realmName);
         }
         builder.endObject();

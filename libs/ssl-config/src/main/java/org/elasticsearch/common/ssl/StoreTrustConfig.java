@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.ssl;
 
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessControlException;
@@ -21,6 +20,8 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * A {@link SslTrustConfig} that builds a Trust Manager from a keystore file.
@@ -37,7 +38,7 @@ public final class StoreTrustConfig implements SslTrustConfig {
      * @param path      The path to the keystore file
      * @param password  The password for the keystore
      * @param type      The {@link KeyStore#getType() type} of the keystore (typically "PKCS12" or "jks").
- *                  See {@link KeyStoreUtil#inferKeyStoreType}.
+    *                  See {@link KeyStoreUtil#inferKeyStoreType}.
      * @param algorithm The algorithm to use for the Trust Manager (see {@link javax.net.ssl.TrustManagerFactory#getAlgorithm()}).
      * @param requireTrustAnchors If true, the truststore will be checked to ensure that it contains at least one valid trust anchor.
      * @param configBasePath The base path for the configuration directory
@@ -64,18 +65,15 @@ public final class StoreTrustConfig implements SslTrustConfig {
     public Collection<? extends StoredCertificate> getConfiguredCertificates() {
         final Path path = resolvePath();
         final KeyStore trustStore = readKeyStore(path);
-        return KeyStoreUtil.stream(trustStore, ex -> keystoreException(path, ex))
-            .map(entry -> {
-                final X509Certificate certificate = entry.getX509Certificate();
-                if (certificate != null) {
-                    final boolean hasKey = entry.isKeyEntry();
-                    return new StoredCertificate(certificate, this.truststorePath, this.type, entry.getAlias(), hasKey);
-                } else {
-                    return null;
-                }
-            })
-            .filter(Objects::nonNull)
-            .collect(Collectors.toUnmodifiableList());
+        return KeyStoreUtil.stream(trustStore, ex -> keystoreException(path, ex)).map(entry -> {
+            final X509Certificate certificate = entry.getX509Certificate();
+            if (certificate != null) {
+                final boolean hasKey = entry.isKeyEntry();
+                return new StoredCertificate(certificate, this.truststorePath, this.type, entry.getAlias(), hasKey);
+            } else {
+                return null;
+            }
+        }).filter(Objects::nonNull).collect(Collectors.toUnmodifiableList());
     }
 
     @Override
@@ -112,10 +110,10 @@ public final class StoreTrustConfig implements SslTrustConfig {
     private String getAdditionalErrorDetails() {
         final String extra;
         if (password.length == 0) {
-             extra = "(no password was provided)";
-         } else {
-             extra = "(a keystore password was provided)";
-         }
+            extra = "(no password was provided)";
+        } else {
+            extra = "(a keystore password was provided)";
+        }
         return extra;
     }
 

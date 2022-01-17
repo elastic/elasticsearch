@@ -526,17 +526,17 @@ public class GrokPatternCreatorTests extends TextStructureTestCase {
     }
 
     public void testAdjustForPunctuationGivenCommonPrefix() {
-        Collection<String> snippets = Arrays.asList(
-            "\",\"lab6.localhost\",\"Route Domain\",\"/Common/0\",\"No-lookup\",\"192.168.33.212\",\"No-lookup\",\"192.168.33.132\","
-                + "\"80\",\"46721\",\"/Common/Subnet_33\",\"TCP\",\"0\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"Staged\",\"/Common/policy1\""
-                + ",\"rule1\",\"Accept\",\"\",\"\",\"\",\"0000000000000000\"",
-            "\",\"lab6.localhost\",\"Route Domain\",\"/Common/0\",\"No-lookup\",\"192.168.143.244\",\"No-lookup\",\"192.168.33.106\","
-                + "\"55025\",\"162\",\"/Common/Subnet_33\",\"UDP\",\"0\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"Staged\",\"/Common/policy1\""
-                + ",\"rule1\",\"Accept\",\"\",\"\",\"\",\"0000000000000000\"",
-            "\",\"lab6.localhost\",\"Route Domain\",\"/Common/0\",\"No-lookup\",\"192.168.33.3\",\"No-lookup\",\"224.0.0.102\","
-                + "\"3222\",\"3222\",\"/Common/Subnet_33\",\"UDP\",\"0\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"Staged\",\"/Common/policy1\""
-                + ",\"rule1\",\"Accept\",\"\",\"\",\"\",\"0000000000000000\""
-        );
+        Collection<String> snippets = """
+            ","lab6.localhost","Route Domain","/Common/0","No-lookup","192.168.33.212","No-lookup","192.168.33.132","80","46721",\
+            "/Common/Subnet_33","TCP","0","","","","","","","","Staged","/Common/policy1","rule1","Accept","","","",\
+            "0000000000000000"
+            ","lab6.localhost","Route Domain","/Common/0","No-lookup","192.168.143.244","No-lookup","192.168.33.106","55025","162",\
+            "/Common/Subnet_33","UDP","0","","","","","","","","Staged","/Common/policy1","rule1","Accept","","","",\
+            "0000000000000000"
+            ","lab6.localhost","Route Domain","/Common/0","No-lookup","192.168.33.3","No-lookup","224.0.0.102","3222","3222",\
+            "/Common/Subnet_33","UDP","0","","","","","","","","Staged","/Common/policy1","rule1","Accept","","","",\
+            "0000000000000000"\
+            """.lines().toList();
 
         GrokPatternCreator grokPatternCreator = new GrokPatternCreator(
             explanation,

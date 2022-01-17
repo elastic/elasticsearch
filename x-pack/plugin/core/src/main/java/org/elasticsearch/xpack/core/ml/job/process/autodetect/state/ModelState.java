@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
-
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -51,7 +50,5 @@ public final class ModelState {
         return null;
     }
 
-    private ModelState() {
-    }
+    private ModelState() {}
 }
-

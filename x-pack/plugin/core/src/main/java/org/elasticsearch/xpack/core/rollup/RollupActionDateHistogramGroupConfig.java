@@ -8,29 +8,29 @@ package org.elasticsearch.xpack.core.rollup;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ObjectParser.ValueType;
 
 /**
  * The configuration object for the histograms in the rollup config
@@ -52,7 +52,8 @@ public abstract class RollupActionDateHistogramGroupConfig implements Writeable,
     public static final String CALENDAR_INTERVAL = "calendar_interval";
     public static final String TIME_ZONE = "time_zone";
 
-    public static final String DEFAULT_TIMEZONE = "UTC";
+    // this should really be ZoneOffset.UTC, but the literal UTC timezone is used because it came from Joda
+    public static final String DEFAULT_TIMEZONE = ZoneId.of("UTC").getId();
     private static final String FIELD = "field";
 
     private static final ConstructingObjectParser<RollupActionDateHistogramGroupConfig, Void> PARSER;
@@ -72,10 +73,18 @@ public abstract class RollupActionDateHistogramGroupConfig implements Writeable,
             }
         });
         PARSER.declareString(constructorArg(), new ParseField(FIELD));
-        PARSER.declareField(optionalConstructorArg(), p -> new DateHistogramInterval(p.text()),
-            new ParseField(CALENDAR_INTERVAL), ValueType.STRING);
-        PARSER.declareField(optionalConstructorArg(), p -> new DateHistogramInterval(p.text()),
-            new ParseField(FIXED_INTERVAL), ValueType.STRING);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> new DateHistogramInterval(p.text()),
+            new ParseField(CALENDAR_INTERVAL),
+            ValueType.STRING
+        );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> new DateHistogramInterval(p.text()),
+            new ParseField(FIXED_INTERVAL),
+            ValueType.STRING
+        );
         PARSER.declareString(optionalConstructorArg(), new ParseField(TIME_ZONE));
     }
 
@@ -92,6 +101,7 @@ public abstract class RollupActionDateHistogramGroupConfig implements Writeable,
      */
     public static class FixedInterval extends RollupActionDateHistogramGroupConfig {
         private static final String TYPE_NAME = "fixed_interval";
+
         public FixedInterval(String field, DateHistogramInterval interval) {
             this(field, interval, null);
         }
@@ -118,6 +128,7 @@ public abstract class RollupActionDateHistogramGroupConfig implements Writeable,
      */
     public static class CalendarInterval extends RollupActionDateHistogramGroupConfig {
         private static final String TYPE_NAME = "calendar_interval";
+
         public CalendarInterval(String field, DateHistogramInterval interval) {
             this(field, interval, null);
         }
@@ -125,8 +136,9 @@ public abstract class RollupActionDateHistogramGroupConfig implements Writeable,
         public CalendarInterval(String field, DateHistogramInterval interval, String timeZone) {
             super(field, interval, timeZone);
             if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString()) == null) {
-                throw new IllegalArgumentException("The supplied interval [" + interval +"] could not be parsed " +
-                    "as a calendar interval.");
+                throw new IllegalArgumentException(
+                    "The supplied interval [" + interval + "] could not be parsed " + "as a calendar interval."
+                );
             }
         }
 
@@ -154,9 +166,11 @@ public abstract class RollupActionDateHistogramGroupConfig implements Writeable,
      * @param interval the interval to use for the date histogram (required)
      * @param timeZone the id of time zone to use to calculate the date histogram (optional). When {@code null}, the UTC timezone is used.
      */
-    protected RollupActionDateHistogramGroupConfig(final String field,
-                                                final DateHistogramInterval interval,
-                                                final @Nullable String timeZone) {
+    protected RollupActionDateHistogramGroupConfig(
+        final String field,
+        final DateHistogramInterval interval,
+        final @Nullable String timeZone
+    ) {
         if (field == null || field.isEmpty()) {
             throw new IllegalArgumentException("Field must be a non-null, non-empty string");
         }
@@ -234,8 +248,10 @@ public abstract class RollupActionDateHistogramGroupConfig implements Writeable,
 
     public abstract String getIntervalTypeName();
 
-    public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
-                                                             ActionRequestValidationException validationException) {
+    public void validateMappings(
+        Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
+        ActionRequestValidationException validationException
+    ) {
         Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
         if (fieldCaps != null && fieldCaps.isEmpty() == false) {
             boolean matchesDateType = false;
@@ -245,20 +261,30 @@ public abstract class RollupActionDateHistogramGroupConfig implements Writeable,
                     if (fieldCaps.get(dateType).isAggregatable()) {
                         return;
                     } else {
-                        validationException.addValidationError("The field [" + field + "] must be aggregatable, " +
-                            "but is not.");
+                        validationException.addValidationError("The field [" + field + "] must be aggregatable, " + "but is not.");
                     }
                 }
             }
             if (matchesDateType == false) {
-                validationException.addValidationError("The field referenced by a date_histo group must be one of type [" +
-                    Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES) + "]." +
-                    " Found: " + fieldCaps.keySet().toString() + " for field [" + field + "]");
+                validationException.addValidationError(
+                    "The field referenced by a date_histo group must be one of type ["
+                        + Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES)
+                        + "]."
+                        + " Found: "
+                        + fieldCaps.keySet().toString()
+                        + " for field ["
+                        + field
+                        + "]"
+                );
             }
         } else {
-            validationException.addValidationError("Could not find one of [" +
-                Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES) + "] fields with name [" +
-                field + "].");
+            validationException.addValidationError(
+                "Could not find one of ["
+                    + Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES)
+                    + "] fields with name ["
+                    + field
+                    + "]."
+            );
         }
     }
 

@@ -17,10 +17,10 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.Spliterator;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 
 public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep> {
 
@@ -46,10 +46,12 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
     private IndexMetadata makeMeta(Index index) {
         return IndexMetadata.builder(index.getName())
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            )
             .build();
     }
 
@@ -60,17 +62,10 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         int maxNumSegments = instance.getMaxNumSegments();
 
         switch (between(0, 2)) {
-            case 0:
-                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                maxNumSegments += 1;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 2 -> maxNumSegments += 1;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new SegmentCountStep(key, nextKey, null, maxNumSegments);
@@ -204,8 +199,10 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(indicesSegmentResponse.getStatus()).thenReturn(RestStatus.OK);
         Mockito.when(indicesSegmentResponse.getIndices()).thenReturn(Collections.singletonMap(index.getName(), null));
         Mockito.when(indicesSegmentResponse.getShardFailures())
-            .thenReturn(new DefaultShardOperationFailedException[]{new DefaultShardOperationFailedException(index.getName(),
-                0, new IllegalArgumentException("fake"))});
+            .thenReturn(
+                new DefaultShardOperationFailedException[] {
+                    new DefaultShardOperationFailedException(index.getName(), 0, new IllegalArgumentException("fake")) }
+            );
         Mockito.when(indexSegments.spliterator()).thenReturn(iss);
         Mockito.when(indexShardSegments.getShards()).thenReturn(shardSegmentsArray);
         Mockito.when(shardSegmentsOne.getSegments()).thenReturn(segments);

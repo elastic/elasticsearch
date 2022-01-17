@@ -13,9 +13,8 @@
         kadmind_port = 749
         max_life = 12h 0m 0s
         max_renewable_life = 7d 0h 0m 0s
-        master_key_type = des3-cbc-sha1-kd
-        # This is the only supported enctype for fips 140-2
-        supported_enctypes = des3-cbc-sha1-kd:normal
+        master_key_type = aes256-cts-hmac-sha1-96
+        supported_enctypes = aes256-cts-hmac-sha1-96:normal
     }
 
 [logging]

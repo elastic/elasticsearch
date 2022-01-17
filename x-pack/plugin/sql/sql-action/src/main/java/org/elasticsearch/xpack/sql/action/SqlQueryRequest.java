@@ -8,18 +8,16 @@ package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
@@ -30,17 +28,17 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.DEFAULT_KEEP_ALIVE;
-import static org.elasticsearch.xpack.sql.proto.Protocol.DEFAULT_KEEP_ON_COMPLETION;
-import static org.elasticsearch.xpack.sql.proto.Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.INDEX_INCLUDE_FROZEN_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.KEEP_ALIVE_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.KEEP_ON_COMPLETION_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.MIN_KEEP_ALIVE;
-import static org.elasticsearch.xpack.sql.proto.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.BINARY_FORMAT_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.COLUMNAR_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.DEFAULT_KEEP_ALIVE;
+import static org.elasticsearch.xpack.sql.action.Protocol.DEFAULT_KEEP_ON_COMPLETION;
+import static org.elasticsearch.xpack.sql.action.Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT;
+import static org.elasticsearch.xpack.sql.action.Protocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.INDEX_INCLUDE_FROZEN_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.KEEP_ALIVE_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.KEEP_ON_COMPLETION_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.MIN_KEEP_ALIVE;
+import static org.elasticsearch.xpack.sql.action.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 
 /**
  * Request to perform an sql query
@@ -61,12 +59,19 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         PARSER.declareBoolean(SqlQueryRequest::fieldMultiValueLeniency, FIELD_MULTI_VALUE_LENIENCY);
         PARSER.declareBoolean(SqlQueryRequest::indexIncludeFrozen, INDEX_INCLUDE_FROZEN);
         PARSER.declareBoolean(SqlQueryRequest::binaryCommunication, BINARY_COMMUNICATION);
-        PARSER.declareField(SqlQueryRequest::waitForCompletionTimeout,
-            (p, c) -> TimeValue.parseTimeValue(p.text(), WAIT_FOR_COMPLETION_TIMEOUT_NAME), WAIT_FOR_COMPLETION_TIMEOUT,
-            ObjectParser.ValueType.VALUE);
+        PARSER.declareField(
+            SqlQueryRequest::waitForCompletionTimeout,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), WAIT_FOR_COMPLETION_TIMEOUT_NAME),
+            WAIT_FOR_COMPLETION_TIMEOUT,
+            ObjectParser.ValueType.VALUE
+        );
         PARSER.declareBoolean(SqlQueryRequest::keepOnCompletion, KEEP_ON_COMPLETION);
-        PARSER.declareField(SqlQueryRequest::keepAlive,
-            (p, c) -> TimeValue.parseTimeValue(p.text(), KEEP_ALIVE_NAME), KEEP_ALIVE, ObjectParser.ValueType.VALUE);
+        PARSER.declareField(
+            SqlQueryRequest::keepAlive,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), KEEP_ALIVE_NAME),
+            KEEP_ALIVE,
+            ObjectParser.ValueType.VALUE
+        );
     }
 
     private String cursor = "";
@@ -90,11 +95,26 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         super();
     }
 
-    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, Map<String, Object> runtimeMappings,
-                           ZoneId zoneId, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, Boolean columnar,
-                           String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen,
-                           TimeValue waitForCompletionTimeout, boolean keepOnCompletion, TimeValue keepAlive) {
-        super(query, params, filter, runtimeMappings, zoneId, fetchSize, requestTimeout, pageTimeout, requestInfo);
+    public SqlQueryRequest(
+        String query,
+        List<SqlTypedParamValue> params,
+        QueryBuilder filter,
+        Map<String, Object> runtimeMappings,
+        ZoneId zoneId,
+        String catalog,
+        int fetchSize,
+        TimeValue requestTimeout,
+        TimeValue pageTimeout,
+        Boolean columnar,
+        String cursor,
+        RequestInfo requestInfo,
+        boolean fieldMultiValueLeniency,
+        boolean indexIncludeFrozen,
+        TimeValue waitForCompletionTimeout,
+        boolean keepOnCompletion,
+        TimeValue keepAlive
+    ) {
+        super(query, params, filter, runtimeMappings, zoneId, catalog, fetchSize, requestTimeout, pageTimeout, requestInfo);
         this.cursor = cursor;
         this.columnar = columnar;
         this.fieldMultiValueLeniency = fieldMultiValueLeniency;
@@ -113,10 +133,24 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         return validationException;
     }
 
+    public SqlQueryRequest(StreamInput in) throws IOException {
+        super(in);
+        cursor = in.readString();
+        columnar = in.readOptionalBoolean();
+        fieldMultiValueLeniency = in.readBoolean();
+        indexIncludeFrozen = in.readBoolean();
+        binaryCommunication = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
+            this.waitForCompletionTimeout = in.readOptionalTimeValue();
+            this.keepOnCompletion = in.readBoolean();
+            this.keepAlive = in.readOptionalTimeValue();
+        }
+    }
+
     /**
-     * The key that must be sent back to SQL to access the next page of
-     * results.
-     */
+    * The key that must be sent back to SQL to access the next page of
+    * results.
+    */
     public String cursor() {
         return cursor;
     }
@@ -206,22 +240,20 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SqlQueryTask(id, type, action, getDescription(), parentTaskId, headers, null, null, keepAlive,
-            mode(), version(), columnar());
-    }
-
-    public SqlQueryRequest(StreamInput in) throws IOException {
-        super(in);
-        cursor = in.readString();
-        columnar = in.readOptionalBoolean();
-        fieldMultiValueLeniency = in.readBoolean();
-        indexIncludeFrozen = in.readBoolean();
-        binaryCommunication = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: V_7_14_0
-            this.waitForCompletionTimeout = in.readOptionalTimeValue();
-            this.keepOnCompletion = in.readBoolean();
-            this.keepAlive = in.readOptionalTimeValue();
-        }
+        return new SqlQueryTask(
+            id,
+            type,
+            action,
+            getDescription(),
+            parentTaskId,
+            headers,
+            null,
+            null,
+            keepAlive,
+            mode(),
+            version(),
+            columnar()
+        );
     }
 
     @Override
@@ -232,7 +264,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         out.writeBoolean(fieldMultiValueLeniency);
         out.writeBoolean(indexIncludeFrozen);
         out.writeOptionalBoolean(binaryCommunication);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: V_7_14_0
+        if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
             out.writeOptionalTimeValue(waitForCompletionTimeout);
             out.writeBoolean(keepOnCompletion);
             out.writeOptionalTimeValue(keepAlive);
@@ -241,21 +273,30 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), cursor, columnar, fieldMultiValueLeniency, indexIncludeFrozen, binaryCommunication,
-            waitForCompletionTimeout, keepOnCompletion, keepAlive);
+        return Objects.hash(
+            super.hashCode(),
+            cursor,
+            columnar,
+            fieldMultiValueLeniency,
+            indexIncludeFrozen,
+            binaryCommunication,
+            waitForCompletionTimeout,
+            keepOnCompletion,
+            keepAlive
+        );
     }
 
     @Override
     public boolean equals(Object obj) {
         return super.equals(obj)
-                && Objects.equals(cursor, ((SqlQueryRequest) obj).cursor)
-                && Objects.equals(columnar, ((SqlQueryRequest) obj).columnar)
-                && fieldMultiValueLeniency == ((SqlQueryRequest) obj).fieldMultiValueLeniency
-                && indexIncludeFrozen == ((SqlQueryRequest) obj).indexIncludeFrozen
-                && binaryCommunication == ((SqlQueryRequest) obj).binaryCommunication
-                && Objects.equals(waitForCompletionTimeout, ((SqlQueryRequest) obj).waitForCompletionTimeout)
-                && keepOnCompletion == ((SqlQueryRequest) obj).keepOnCompletion
-                && Objects.equals(keepAlive, ((SqlQueryRequest) obj).keepAlive);
+            && Objects.equals(cursor, ((SqlQueryRequest) obj).cursor)
+            && Objects.equals(columnar, ((SqlQueryRequest) obj).columnar)
+            && fieldMultiValueLeniency == ((SqlQueryRequest) obj).fieldMultiValueLeniency
+            && indexIncludeFrozen == ((SqlQueryRequest) obj).indexIncludeFrozen
+            && binaryCommunication == ((SqlQueryRequest) obj).binaryCommunication
+            && Objects.equals(waitForCompletionTimeout, ((SqlQueryRequest) obj).waitForCompletionTimeout)
+            && keepOnCompletion == ((SqlQueryRequest) obj).keepOnCompletion
+            && Objects.equals(keepAlive, ((SqlQueryRequest) obj).keepAlive);
     }
 
     @Override
@@ -263,17 +304,8 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         return "SQL [" + query() + "][" + filter() + "]";
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // This is needed just to test round-trip compatibility with proto.SqlQueryRequest
-        return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(query(), params(), zoneId(), fetchSize(), requestTimeout(),
-                pageTimeout(), filter(), columnar(), cursor(), requestInfo(), fieldMultiValueLeniency(), indexIncludeFrozen(),
-                binaryCommunication(), runtimeMappings(), waitForCompletionTimeout(), keepOnCompletion(), keepAlive())
-            .toXContent(builder, params);
-    }
-
     public static SqlQueryRequest fromXContent(XContentParser parser) {
-        SqlQueryRequest request = PARSER.apply(parser,  null);
+        SqlQueryRequest request = PARSER.apply(parser, null);
         validateParams(request.params(), request.mode());
         return request;
     }

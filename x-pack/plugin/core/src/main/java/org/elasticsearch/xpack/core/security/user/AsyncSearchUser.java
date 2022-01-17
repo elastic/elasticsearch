@@ -6,9 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 public class AsyncSearchUser extends User {
@@ -16,19 +15,21 @@ public class AsyncSearchUser extends User {
     public static final String NAME = UsernamesField.ASYNC_SEARCH_NAME;
     public static final AsyncSearchUser INSTANCE = new AsyncSearchUser();
     public static final String ROLE_NAME = UsernamesField.ASYNC_SEARCH_ROLE;
-    public static final Role ROLE = Role.builder(new RoleDescriptor(ROLE_NAME,
-            new String[] { "cancel_task" },
-            new RoleDescriptor.IndicesPrivileges[] {
-                    RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + "*")
-                            .privileges("all")
-                            .allowRestrictedIndices(true).build(),
-            },
-            null,
-            null,
-            null,
-            MetadataUtils.DEFAULT_RESERVED_METADATA,
-            null), null).build();
+    public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
+        ROLE_NAME,
+        new String[] { "cancel_task" },
+        new RoleDescriptor.IndicesPrivileges[] {
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(XPackPlugin.ASYNC_RESULTS_INDEX + "*")
+                .privileges("all")
+                .allowRestrictedIndices(true)
+                .build(), },
+        null,
+        null,
+        null,
+        MetadataUtils.DEFAULT_RESERVED_METADATA,
+        null
+    );
 
     private AsyncSearchUser() {
         super(NAME, ROLE_NAME);

@@ -9,9 +9,9 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.user.privileges.Role;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,8 +66,7 @@ public final class GetRolesResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetRolesResponse response = (GetRolesResponse) o;
-        return Objects.equals(roles, response.roles)
-                && Objects.equals(transientMetadataMap, response.transientMetadataMap);
+        return Objects.equals(roles, response.roles) && Objects.equals(transientMetadataMap, response.transientMetadataMap);
     }
 
     @Override

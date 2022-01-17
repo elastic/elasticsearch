@@ -39,8 +39,7 @@ public final class GrantApiKeyRequest extends ActionRequest {
         private SecureString password;
         private SecureString accessToken;
 
-        public Grant() {
-        }
+        public Grant() {}
 
         public Grant(StreamInput in) throws IOException {
             this.type = in.readString();
@@ -149,16 +148,22 @@ public final class GrantApiKeyRequest extends ActionRequest {
         return validationException;
     }
 
-    private ActionRequestValidationException validateRequiredField(String fieldName, CharSequence fieldValue,
-                                                                   ActionRequestValidationException validationException) {
+    private ActionRequestValidationException validateRequiredField(
+        String fieldName,
+        CharSequence fieldValue,
+        ActionRequestValidationException validationException
+    ) {
         if (fieldValue == null || fieldValue.length() == 0) {
             return addValidationError("[" + fieldName + "] is required for grant_type [" + grant.type + "]", validationException);
         }
         return validationException;
     }
 
-    private ActionRequestValidationException validateUnsupportedField(String fieldName, CharSequence fieldValue,
-                                                                      ActionRequestValidationException validationException) {
+    private ActionRequestValidationException validateUnsupportedField(
+        String fieldName,
+        CharSequence fieldValue,
+        ActionRequestValidationException validationException
+    ) {
         if (fieldValue != null && fieldValue.length() > 0) {
             return addValidationError("[" + fieldName + "] is not supported for grant_type [" + grant.type + "]", validationException);
         }

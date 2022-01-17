@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -54,9 +54,18 @@ public class MergeStats implements Writeable, ToXContentFragment {
         totalBytesPerSecAutoThrottle = in.readVLong();
     }
 
-    public void add(long totalMerges, long totalMergeTime, long totalNumDocs, long totalSizeInBytes,
-                        long currentMerges, long currentNumDocs, long currentSizeInBytes,
-                        long stoppedTimeMillis, long throttledTimeMillis, double mbPerSecAutoThrottle) {
+    public void add(
+        long totalMerges,
+        long totalMergeTime,
+        long totalNumDocs,
+        long totalSizeInBytes,
+        long currentMerges,
+        long currentNumDocs,
+        long currentSizeInBytes,
+        long stoppedTimeMillis,
+        long throttledTimeMillis,
+        double mbPerSecAutoThrottle
+    ) {
         this.total += totalMerges;
         this.totalTimeInMillis += totalMergeTime;
         this.totalNumDocs += totalNumDocs;

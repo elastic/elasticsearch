@@ -20,7 +20,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-import static org.apache.lucene.util.automaton.Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+import static org.apache.lucene.util.automaton.Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
 import static org.elasticsearch.xpack.core.security.support.Automatons.pattern;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.core.security.support.Automatons.predicate;
@@ -82,7 +82,9 @@ public class AutomatonsTests extends ESTestCase {
     }
 
     public void testPatternComplexity() {
-        List<String> patterns = Arrays.asList("*", "filebeat*de-tst-chatclassification*",
+        List<String> patterns = Arrays.asList(
+            "*",
+            "filebeat*de-tst-chatclassification*",
             "metricbeat*de-tst-chatclassification*",
             "packetbeat*de-tst-chatclassification*",
             "heartbeat*de-tst-chatclassification*",
@@ -105,19 +107,20 @@ public class AutomatonsTests extends ESTestCase {
             "filebeat*bender-minio-test-1*",
             "metricbeat*bender-minio-test-1*",
             "packetbeat*bender-minio-test-1*",
-            "heartbeat*bender-minio-test-1*");
+            "heartbeat*bender-minio-test-1*"
+        );
         final Automaton automaton = Automatons.patterns(patterns);
         assertTrue(Operations.isTotal(automaton));
         assertTrue(automaton.isDeterministic());
     }
 
     private void assertMatch(Automaton automaton, String text) {
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_MAX_DETERMINIZED_STATES);
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_DETERMINIZE_WORK_LIMIT);
         assertTrue(runAutomaton.run(text));
     }
 
     private void assertMismatch(Automaton automaton, String text) {
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_MAX_DETERMINIZED_STATES);
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_DETERMINIZE_WORK_LIMIT);
         assertFalse(runAutomaton.run(text));
     }
 
@@ -153,12 +156,12 @@ public class AutomatonsTests extends ESTestCase {
             Automatons.updateConfiguration(settings);
             assertEquals(10000, Automatons.getMaxDeterminizedStates());
 
-            final List<String> names = new ArrayList<>(1024);
-            for (int i = 0; i < 1024; i++) {
-                names.add(randomAlphaOfLength(48));
+            final List<String> names = new ArrayList<>(4096);
+            for (int i = 0; i < 4096; i++) {
+                names.add(randomAlphaOfLength(64));
             }
             TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class, () -> Automatons.patterns(names));
-            assertThat(e.getMaxDeterminizedStates(), equalTo(10000));
+            assertThat(e.getDeterminizeWorkLimit(), equalTo(10000));
         } finally {
             Automatons.updateConfiguration(Settings.EMPTY);
             assertEquals(100000, Automatons.getMaxDeterminizedStates());
@@ -183,9 +186,7 @@ public class AutomatonsTests extends ESTestCase {
     }
 
     public void testConfigurationOfCacheSize() {
-        final Settings settings = Settings.builder()
-            .put(Automatons.CACHE_SIZE.getKey(), 2)
-            .build();
+        final Settings settings = Settings.builder().put(Automatons.CACHE_SIZE.getKey(), 2).build();
         Automatons.updateConfiguration(settings);
 
         String pattern1 = "a";
@@ -210,9 +211,7 @@ public class AutomatonsTests extends ESTestCase {
     }
 
     public void testDisableCache() {
-        final Settings settings = Settings.builder()
-            .put(Automatons.CACHE_ENABLED.getKey(), false)
-            .build();
+        final Settings settings = Settings.builder().put(Automatons.CACHE_ENABLED.getKey(), false).build();
         Automatons.updateConfiguration(settings);
 
         final String pattern = randomAlphaOfLengthBetween(5, 10);

@@ -9,6 +9,7 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.channel.Channel;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.CompletableContext;
 import org.elasticsearch.http.HttpChannel;
@@ -16,6 +17,7 @@ import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 
 public class Netty4HttpChannel implements HttpChannel {
 
@@ -34,12 +36,20 @@ public class Netty4HttpChannel implements HttpChannel {
 
     @Override
     public InetSocketAddress getLocalAddress() {
-        return (InetSocketAddress) channel.localAddress();
+        return castAddressOrNull(channel.localAddress());
     }
 
     @Override
     public InetSocketAddress getRemoteAddress() {
-        return (InetSocketAddress) channel.remoteAddress();
+        return castAddressOrNull(channel.remoteAddress());
+    }
+
+    private static InetSocketAddress castAddressOrNull(SocketAddress socketAddress) {
+        if (socketAddress instanceof InetSocketAddress) {
+            return (InetSocketAddress) socketAddress;
+        } else {
+            return null;
+        }
     }
 
     @Override
@@ -63,9 +73,6 @@ public class Netty4HttpChannel implements HttpChannel {
 
     @Override
     public String toString() {
-        return "Netty4HttpChannel{" +
-            "localAddress=" + getLocalAddress() +
-            ", remoteAddress=" + getRemoteAddress() +
-            '}';
+        return "Netty4HttpChannel{" + "localAddress=" + getLocalAddress() + ", remoteAddress=" + getRemoteAddress() + '}';
     }
 }

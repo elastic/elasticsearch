@@ -18,7 +18,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -38,13 +37,13 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(indexVersionCreated).init(this);
+        return new Builder(createdOnOrAfterV8).init(this);
     }
 
     public static class Defaults {
         public static final String NAME = FieldNamesFieldMapper.NAME;
 
-        public static final Explicit<Boolean> ENABLED = new Explicit<>(true, false);
+        public static final Explicit<Boolean> ENABLED = Explicit.IMPLICIT_TRUE;
         public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
@@ -61,20 +60,26 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     public static final String ENABLED_DEPRECATION_MESSAGE =
-        "Disabling _field_names is not necessary because it no longer carries a large index overhead. Support for the `enabled` " +
-        "setting will be removed in a future major version. Please remove it from your mappings and templates.";
-
+        "Disabling _field_names is not necessary because it no longer carries a large index overhead. Support for the `enabled` "
+            + "setting will be removed in a future major version. Please remove it from your mappings and templates.";
 
     static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Explicit<Boolean>> enabled
-            = updateableBoolParam("enabled", m -> toType(m).enabled, Defaults.ENABLED.value());
+        private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam(
+            "enabled",
+            m -> toType(m).enabled,
+            Defaults.ENABLED.value()
+        );
 
-        private final Version indexVersionCreated;
+        private final boolean createdOnOrAfterV8;
 
         Builder(Version indexVersionCreated) {
+            this(indexVersionCreated.onOrAfter(Version.V_8_0_0));
+        }
+
+        Builder(boolean createdOnOrAfterV8) {
             super(Defaults.NAME);
-            this.indexVersionCreated = indexVersionCreated;
+            this.createdOnOrAfterV8 = createdOnOrAfterV8;
         }
 
         @Override
@@ -85,29 +90,44 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         @Override
         public FieldNamesFieldMapper build() {
             if (enabled.getValue().explicit()) {
-                if (indexVersionCreated.onOrAfter(Version.V_8_0_0)) {
-                    throw new MapperParsingException("The `enabled` setting for the `_field_names` field has been deprecated and "
-                        + "removed. Please remove it from your mappings and templates.");
+                if (createdOnOrAfterV8) {
+                    throw new MapperParsingException(
+                        "The `enabled` setting for the `_field_names` field has been deprecated and "
+                            + "removed. Please remove it from your mappings and templates."
+                    );
                 } else {
-                    deprecationLogger.deprecate(DeprecationCategory.TEMPLATES,
-                        "field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
+                    deprecationLogger.warn(DeprecationCategory.TEMPLATES, "field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
                 }
             }
-            FieldNamesFieldType fieldNamesFieldType = new FieldNamesFieldType(enabled.getValue().value());
-            return new FieldNamesFieldMapper(enabled.getValue(), indexVersionCreated, fieldNamesFieldType);
+            if (Defaults.ENABLED.equals(enabled.getValue())) {
+                return createdOnOrAfterV8 ? DEFAULT : DEFAULT_OLD;
+            }
+            return new FieldNamesFieldMapper(enabled.getValue(), createdOnOrAfterV8);
         }
     }
 
+    private static final FieldNamesFieldMapper DEFAULT = new FieldNamesFieldMapper(Defaults.ENABLED, true);
+
+    private static final FieldNamesFieldMapper DEFAULT_OLD = new FieldNamesFieldMapper(Defaults.ENABLED, false);
+
     public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new FieldNamesFieldMapper(Defaults.ENABLED, c.indexVersionCreated(), new FieldNamesFieldType(Defaults.ENABLED.value())),
+        c -> c.indexVersionCreated().onOrAfter(Version.V_8_0_0) ? DEFAULT : DEFAULT_OLD,
         c -> new Builder(c.indexVersionCreated())
     );
 
     public static final class FieldNamesFieldType extends TermBasedFieldType {
 
+        private static final FieldNamesFieldType ENABLED = new FieldNamesFieldType(true);
+
+        private static final FieldNamesFieldType DISABLED = new FieldNamesFieldType(false);
+
         private final boolean enabled;
 
-        public FieldNamesFieldType(boolean enabled) {
+        public static FieldNamesFieldType get(boolean enabled) {
+            return enabled ? ENABLED : DISABLED;
+        }
+
+        private FieldNamesFieldType(boolean enabled) {
             super(Defaults.NAME, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.enabled = enabled;
         }
@@ -136,19 +156,22 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             if (isEnabled() == false) {
                 throw new IllegalStateException("Cannot run [exists] queries if the [_field_names] field is disabled");
             }
-            deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "terms_query_on_field_names",
-                "terms query on the _field_names field is deprecated and will be removed, use exists query instead");
+            deprecationLogger.warn(
+                DeprecationCategory.MAPPINGS,
+                "terms_query_on_field_names",
+                "terms query on the _field_names field is deprecated and will be removed, use exists query instead"
+            );
             return super.termQuery(value, context);
         }
     }
 
     private final Explicit<Boolean> enabled;
-    private final Version indexVersionCreated;
+    private final boolean createdOnOrAfterV8;
 
-    private FieldNamesFieldMapper(Explicit<Boolean> enabled, Version indexVersionCreated, FieldNamesFieldType mappedFieldType) {
-        super(mappedFieldType);
+    private FieldNamesFieldMapper(Explicit<Boolean> enabled, boolean createdOnOrAfterV8) {
+        super(FieldNamesFieldType.get(enabled.value()));
         this.enabled = enabled;
-        this.indexVersionCreated = indexVersionCreated;
+        this.createdOnOrAfterV8 = createdOnOrAfterV8;
     }
 
     @Override
@@ -156,15 +179,12 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         return (FieldNamesFieldType) super.fieldType();
     }
 
-    @Override
-    public void postParse(DocumentParserContext context) throws IOException {
+    public void addFieldNames(DocumentParserContext context, String field) {
         if (enabled.value() == false) {
             return;
         }
-        for (String field : context.getFieldNames()) {
-            assert noDocValues(field, context) : "Field " + field + " should not have docvalues";
-            context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
-        }
+        assert noDocValues(field, context) : "Field " + field + " should not have docvalues";
+        context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
     }
 
     private static boolean noDocValues(String field, DocumentParserContext context) {

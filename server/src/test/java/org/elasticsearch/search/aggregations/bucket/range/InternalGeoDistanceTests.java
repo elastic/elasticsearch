@@ -50,17 +50,19 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
     }
 
     @Override
-    protected InternalGeoDistance createTestInstance(String name,
-                                                     Map<String, Object> metadata,
-                                                     InternalAggregations aggregations,
-                                                     boolean keyed) {
+    protected InternalGeoDistance createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        InternalAggregations aggregations,
+        boolean keyed
+    ) {
         final List<InternalGeoDistance.Bucket> buckets = new ArrayList<>();
         for (int i = 0; i < geoDistanceRanges.size(); ++i) {
             Tuple<Double, Double> range = geoDistanceRanges.get(i);
             int docCount = randomIntBetween(0, 1000);
             double from = range.v1();
             double to = range.v2();
-            buckets.add(new InternalGeoDistance.Bucket("range_" + i, from, to, docCount, aggregations, keyed));
+            buckets.add(new InternalGeoDistance.Bucket("range_" + i, from, from, to, to, docCount, aggregations, keyed));
         }
         return new InternalGeoDistance(name, buckets, keyed, metadata);
     }
@@ -87,28 +89,34 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
         List<InternalGeoDistance.Bucket> buckets = instance.getBuckets();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            keyed = keyed == false;
-            break;
-        case 2:
-            buckets = new ArrayList<>(buckets);
-            double from = randomDouble();
-            buckets.add(new InternalGeoDistance.Bucket("range_a", from, from + randomDouble(), randomNonNegativeLong(),
-                    InternalAggregations.EMPTY, false));
-            break;
-        case 3:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> keyed = keyed == false;
+            case 2 -> {
+                buckets = new ArrayList<>(buckets);
+                double from = randomDouble();
+                double to = from + randomDouble();
+                buckets.add(
+                    new InternalGeoDistance.Bucket(
+                        "range_a",
+                        from,
+                        from,
+                        to,
+                        to,
+                        randomNonNegativeLong(),
+                        InternalAggregations.EMPTY,
+                        false
+                    )
+                );
             }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 3 -> {
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalGeoDistance(name, buckets, keyed, metadata);
     }

@@ -81,13 +81,13 @@ setup:
 
   - is_true: nodes.$node_id
   - is_true: nodes.$node_id.shared_cache
-  - match: { nodes.$node_id.shared_cache.reads: 0 }
-  - match: { nodes.$node_id.shared_cache.bytes_read: "0b" }
-  - match: { nodes.$node_id.shared_cache.bytes_read_in_bytes: 0 }
-  - match: { nodes.$node_id.shared_cache.writes: 0 }
-  - match: { nodes.$node_id.shared_cache.bytes_written: "0b" }
-  - match: { nodes.$node_id.shared_cache.bytes_written_in_bytes: 0 }
-  - match: { nodes.$node_id.shared_cache.evictions: 0 }
+  - gte: { nodes.$node_id.shared_cache.reads: 0 }
+  - gte: { nodes.$node_id.shared_cache.bytes_read: "0b" }
+  - gte: { nodes.$node_id.shared_cache.bytes_read_in_bytes: 0 }
+  - gte: { nodes.$node_id.shared_cache.writes: 0 }
+  - gte: { nodes.$node_id.shared_cache.bytes_written: "0b" }
+  - gte: { nodes.$node_id.shared_cache.bytes_written_in_bytes: 0 }
+  - gte: { nodes.$node_id.shared_cache.evictions: 0 }
   - match: { nodes.$node_id.shared_cache.num_regions: 64 }
   - match: { nodes.$node_id.shared_cache.size: "16mb" }
   - match: { nodes.$node_id.shared_cache.size_in_bytes: 16777216 }

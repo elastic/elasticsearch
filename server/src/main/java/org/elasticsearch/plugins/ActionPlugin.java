@@ -8,9 +8,9 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -69,12 +69,19 @@ public interface ActionPlugin {
     default List<ActionFilter> getActionFilters() {
         return Collections.emptyList();
     }
+
     /**
      * Rest handlers added by this plugin.
      */
-    default List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
+    default List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         return Collections.emptyList();
     }
 
@@ -148,8 +155,7 @@ public interface ActionPlugin {
                 return false;
             }
             ActionHandler<?, ?> other = (ActionHandler<?, ?>) obj;
-            return Objects.equals(action, other.action)
-                    && Objects.equals(transportAction, other.transportAction);
+            return Objects.equals(action, other.action) && Objects.equals(transportAction, other.transportAction);
         }
 
         @Override

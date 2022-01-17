@@ -11,8 +11,8 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,7 +37,9 @@ import java.util.function.DoubleConsumer;
  * Implementation of {@link Histogram}.
  */
 public final class InternalHistogram extends InternalMultiBucketAggregation<InternalHistogram, InternalHistogram.Bucket>
-        implements Histogram, HistogramFactory {
+    implements
+        Histogram,
+        HistogramFactory {
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket, KeyComparable<Bucket> {
 
         final double key;
@@ -45,8 +48,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         private final transient boolean keyed;
         protected final transient DocValueFormat format;
 
-        public Bucket(double key, long docCount, boolean keyed, DocValueFormat format,
-                InternalAggregations aggregations) {
+        public Bucket(double key, long docCount, boolean keyed, DocValueFormat format, InternalAggregations aggregations) {
             this.format = format;
             this.keyed = keyed;
             this.key = key;
@@ -73,9 +75,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             Bucket that = (Bucket) obj;
             // No need to take the keyed and format parameters into account,
             // they are already stored and tested on the InternalHistogram object
-            return key == that.key
-                    && docCount == that.docCount
-                    && Objects.equals(aggregations, that.aggregations);
+            return key == that.key && docCount == that.docCount && Objects.equals(aggregations, that.aggregations);
         }
 
         @Override
@@ -174,10 +174,10 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             }
             EmptyBucketInfo that = (EmptyBucketInfo) obj;
             return interval == that.interval
-                    && offset == that.offset
-                    && minBound == that.minBound
-                    && maxBound == that.maxBound
-                    && Objects.equals(subAggregations, that.subAggregations);
+                && offset == that.offset
+                && minBound == that.minBound
+                && maxBound == that.maxBound
+                && Objects.equals(subAggregations, that.subAggregations);
         }
 
         @Override
@@ -201,7 +201,8 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         EmptyBucketInfo emptyBucketInfo,
         DocValueFormat formatter,
         boolean keyed,
-        Map<String, Object> metadata) {
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         this.buckets = buckets;
         this.order = order;
@@ -269,8 +270,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         return new Bucket(prototype.key, prototype.docCount, prototype.keyed, prototype.format, aggregations);
     }
 
-    private List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-
+    private List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(aggregations.size()) {
             @Override
             protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
@@ -327,7 +327,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     }
 
     @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
+    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         assert buckets.size() > 0;
         List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
         long docCount = 0;
@@ -359,7 +359,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
      */
     private static final int REPORT_EMPTY_EVERY = 10_000;
 
-    private void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
+    private void addEmptyBuckets(List<Bucket> list, AggregationReduceContext reduceContext) {
         /*
          * Make sure we have space for the empty buckets we're going to add by
          * counting all of the empties we plan to add and firing them into
@@ -431,7 +431,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
         boolean alreadyAccountedForBuckets = false;
         if (reduceContext.isFinalReduce()) {
@@ -444,7 +444,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 List<Bucket> reverse = new ArrayList<>(reducedBuckets);
                 Collections.reverse(reverse);
                 reducedBuckets = reverse;
-            } else if (InternalOrder.isKeyAsc(order) ==  false){
+            } else if (InternalOrder.isKeyAsc(order) == false) {
                 // nothing to do when sorting by key ascending, as data is already sorted since shards return
                 // sorted buckets and the merge-sort performed by reduceBuckets maintains order.
                 // otherwise, sorted by compound order or sub-aggregation, we need to fall back to a costly n*log(n) sort
@@ -511,11 +511,11 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
         InternalHistogram that = (InternalHistogram) obj;
         return Objects.equals(buckets, that.buckets)
-                && Objects.equals(emptyBucketInfo, that.emptyBucketInfo)
-                && Objects.equals(format, that.format)
-                && Objects.equals(keyed, that.keyed)
-                && Objects.equals(minDocCount, that.minDocCount)
-                && Objects.equals(order, that.order);
+            && Objects.equals(emptyBucketInfo, that.emptyBucketInfo)
+            && Objects.equals(format, that.format)
+            && Objects.equals(keyed, that.keyed)
+            && Objects.equals(minDocCount, that.minDocCount)
+            && Objects.equals(order, that.order);
     }
 
     @Override

@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.test.rest.transform.headers;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformByParentObject;
 import org.elasticsearch.gradle.internal.test.rest.transform.feature.FeatureInjector;
@@ -19,7 +20,6 @@ import org.gradle.api.tasks.Internal;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**

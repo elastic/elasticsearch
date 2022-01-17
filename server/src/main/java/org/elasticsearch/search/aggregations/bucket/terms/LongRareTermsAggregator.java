@@ -9,9 +9,9 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -53,16 +53,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        super(
-            name,
-            factories,
-            aggregationContext,
-            parent,
-            metadata,
-            maxDocCount,
-            precision,
-            format
-        );
+        super(name, factories, aggregationContext, parent, metadata, maxDocCount, precision, format);
         this.valuesSource = valuesSource;
         this.filter = filter;
         this.bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);

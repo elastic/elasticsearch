@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.sql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
 
 import java.io.IOException;
@@ -183,13 +183,11 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
                     final Source argSource = argSources.get(argIndex);
                     final String valueAsLiteral = asLiteralInQuery(argValue);
                     switch (argSource) {
-                        case LITERAL:
-                            functionCallArgs.add(valueAsLiteral);
-                            break;
-                        case FIELD:
+                        case LITERAL -> functionCallArgs.add(valueAsLiteral);
+                        case FIELD -> {
                             final String argFieldName = (argValue == null ? nullArgPrefix : argPrefix) + (argIndex + 1);
                             functionCallArgs.add(argFieldName);
-                            break;
+                        }
                     }
                     functionCallArgsForAssert.add(valueAsLiteral + "{" + argSource.name().charAt(0) + "}");
                 }

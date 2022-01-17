@@ -26,19 +26,37 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-
-public class TransportShardRefreshAction
-        extends TransportReplicationAction<BasicReplicationRequest, BasicReplicationRequest, ReplicationResponse> {
+public class TransportShardRefreshAction extends TransportReplicationAction<
+    BasicReplicationRequest,
+    BasicReplicationRequest,
+    ReplicationResponse> {
 
     public static final String NAME = RefreshAction.NAME + "[s]";
     public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
 
     @Inject
-    public TransportShardRefreshAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                       IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                       ActionFilters actionFilters) {
-        super(settings, NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-                BasicReplicationRequest::new, BasicReplicationRequest::new, ThreadPool.Names.REFRESH);
+    public TransportShardRefreshAction(
+        Settings settings,
+        TransportService transportService,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ShardStateAction shardStateAction,
+        ActionFilters actionFilters
+    ) {
+        super(
+            settings,
+            NAME,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            BasicReplicationRequest::new,
+            BasicReplicationRequest::new,
+            ThreadPool.Names.REFRESH
+        );
     }
 
     @Override
@@ -47,8 +65,11 @@ public class TransportShardRefreshAction
     }
 
     @Override
-    protected void shardOperationOnPrimary(BasicReplicationRequest shardRequest, IndexShard primary,
-            ActionListener<PrimaryResult<BasicReplicationRequest, ReplicationResponse>> listener) {
+    protected void shardOperationOnPrimary(
+        BasicReplicationRequest shardRequest,
+        IndexShard primary,
+        ActionListener<PrimaryResult<BasicReplicationRequest, ReplicationResponse>> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             primary.refresh("api");
             logger.trace("{} refresh request executed on primary", primary.shardId());
@@ -57,8 +78,7 @@ public class TransportShardRefreshAction
     }
 
     @Override
-    protected void shardOperationOnReplica(BasicReplicationRequest request, IndexShard replica,
-            ActionListener<ReplicaResult> listener) {
+    protected void shardOperationOnReplica(BasicReplicationRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         ActionListener.completeWith(listener, () -> {
             replica.refresh("api");
             logger.trace("{} refresh request executed on replica", replica.shardId());

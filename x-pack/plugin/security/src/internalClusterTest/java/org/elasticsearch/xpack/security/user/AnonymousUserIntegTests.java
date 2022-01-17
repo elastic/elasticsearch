@@ -31,26 +31,22 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous")
-                .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), authorizationExceptionsEnabled)
-                .build();
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous")
+            .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), authorizationExceptionsEnabled)
+            .build();
     }
 
     @Override
     public String configRoles() {
-        return super.configRoles() + "\n" +
-                "anonymous:\n" +
-                "  indices:\n" +
-                "    - names: '*'\n" +
-                "      privileges: [ READ ]\n";
+        return super.configRoles() + "\n" + "anonymous:\n" + "  indices:\n" + "    - names: '*'\n" + "      privileges: [ READ ]\n";
     }
 
     public void testAnonymousViaHttp() throws Exception {
         try {
             getRestClient().performRequest(new Request("GET", "/_nodes"));
             fail("request should have failed");
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             int statusCode = e.getResponse().getStatusLine().getStatusCode();
             Response response = e.getResponse();
             if (authorizationExceptionsEnabled) {

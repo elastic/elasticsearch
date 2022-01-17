@@ -6,11 +6,12 @@
  * This test is also intended to work correctly on FIPS mode because we also want to know if a realm breaks on FIPS.
  */
 
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(project(":client:rest-high-level"))
 }
 
 testClusters.matching { it.name == 'javaRestTest' }.configureEach {
@@ -77,7 +78,7 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.authc.realms.oidc.openid7.claims.principal', 'sub'
   keystore 'xpack.security.authc.realms.oidc.openid7.rp.client_secret', 'this-is-my-secret'
 
-  extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
+  rolesFile file('src/javaRestTest/resources/roles.yml')
   user username: "admin_user", password: "admin-password"
   user username: "security_test_user", password: "security-test-password", role: "security_test_role"
 }

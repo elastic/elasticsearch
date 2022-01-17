@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[histogram]]
 === Histogram field type
 ++++
@@ -23,6 +22,25 @@ same position of the `count` array, these two arrays must have the same length.
 per document. Nested arrays are not supported.
 * `histogram` fields do not support sorting.
 ========
+
+[[histogram-params]]
+==== Parameters
+
+`time_series_metric`::
++
+--
+experimental:[]
+(Optional, string)
+
+.For internal use by Elastic only.
+[%collapsible]
+====
+include::numeric.asciidoc[tag=time_series_metric]
+
+For `histogram` fields, this parameter accepts `histogram`. You can't update
+this parameter for existing fields.
+====
+--
 
 [[histogram-uses]]
 ==== Uses

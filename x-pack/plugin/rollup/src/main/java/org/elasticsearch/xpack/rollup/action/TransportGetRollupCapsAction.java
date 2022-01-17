@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.rollup.action;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -46,7 +47,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
     }
 
     static Map<String, RollableIndexCaps> getCaps(String indexPattern, ImmutableOpenMap<String, IndexMetadata> indices) {
-        Map<String, List<RollupJobCaps> > allCaps = new TreeMap<>();
+        Map<String, List<RollupJobCaps>> allCaps = new TreeMap<>();
         for (ObjectObjectCursor<String, IndexMetadata> entry : indices) {
 
             // Does this index have rollup metadata?
@@ -62,11 +63,10 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
                 }
 
                 jobCaps.forEach(jobCap -> {
-                    String pattern = indexPattern.equals(Metadata.ALL)
-                        ? jobCap.getIndexPattern() : indexPattern;
+                    String pattern = indexPattern.equals(Metadata.ALL) ? jobCap.getIndexPattern() : indexPattern;
 
                     // Do we already have an entry for this index pattern?
-                    List<RollupJobCaps>  indexCaps = allCaps.get(pattern);
+                    List<RollupJobCaps> indexCaps = allCaps.get(pattern);
                     if (indexCaps == null) {
                         indexCaps = new ArrayList<>();
                     }
@@ -79,8 +79,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
         // Convert the mutable lists into the RollableIndexCaps
         return allCaps.entrySet()
             .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey,
-                e -> new RollableIndexCaps(e.getKey(), e.getValue())));
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> new RollableIndexCaps(e.getKey(), e.getValue())));
     }
 
     static Optional<RollupIndexCaps> findRollupIndexCaps(String indexName, IndexMetadata indexMetadata) {

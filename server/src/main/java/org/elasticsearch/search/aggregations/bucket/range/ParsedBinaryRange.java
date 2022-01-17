@@ -8,13 +8,13 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,12 +34,17 @@ public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinary
         return buckets;
     }
 
-    private static final ObjectParser<ParsedBinaryRange, Void> PARSER =
-            new ObjectParser<>(ParsedBinaryRange.class.getSimpleName(), true, ParsedBinaryRange::new);
+    private static final ObjectParser<ParsedBinaryRange, Void> PARSER = new ObjectParser<>(
+        ParsedBinaryRange.class.getSimpleName(),
+        true,
+        ParsedBinaryRange::new
+    );
     static {
-        declareMultiBucketAggregationFields(PARSER,
-                parser -> ParsedBucket.fromXContent(parser, false),
-                parser -> ParsedBucket.fromXContent(parser, true));
+        declareMultiBucketAggregationFields(
+            PARSER,
+            parser -> ParsedBucket.fromXContent(parser, false),
+            parser -> ParsedBucket.fromXContent(parser, true)
+        );
     }
 
     public static ParsedBinaryRange fromXContent(XContentParser parser, String name) throws IOException {
@@ -131,8 +136,12 @@ public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinary
                         bucket.to = parser.text();
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class,
-                            aggregations::add);
+                    XContentParserUtils.parseTypedKeysObject(
+                        parser,
+                        Aggregation.TYPED_KEYS_DELIMITER,
+                        Aggregation.class,
+                        aggregations::add
+                    );
                 }
             }
             bucket.setAggregations(new Aggregations(aggregations));

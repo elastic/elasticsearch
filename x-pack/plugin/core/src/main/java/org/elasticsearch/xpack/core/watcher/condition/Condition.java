@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.watcher.condition;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -23,12 +23,13 @@ public interface Condition extends ToXContentObject {
 
     class Result implements ToXContentObject { // don't make this final - we can't mock final classes :(
 
-        public Map<String,Object> getResolvedValues() {
+        public Map<String, Object> getResolvedValues() {
             return resolveValues;
         }
 
         public enum Status {
-            SUCCESS, FAILURE
+            SUCCESS,
+            FAILURE
         }
 
         private final String type;

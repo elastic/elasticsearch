@@ -44,7 +44,8 @@ public class EvilKeyStoreWrapperTests extends ESTestCase {
                 Locale.ROOT,
                 "unable to create temporary keystore at [%s], write permissions required for [%s] or run [elasticsearch-keystore upgrade]",
                 configDir.resolve("elasticsearch.keystore.tmp"),
-                configDir);
+                configDir
+            );
             assertThat(e, hasToString(containsString(expected)));
             assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
             assertThat(e.getCause(), instanceOf(AccessDeniedException.class));

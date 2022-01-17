@@ -43,7 +43,7 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "_id"
         body: {
           log: "89.160.20.128 - - [08/Sep/2014:02:54:42 +0000] \"GET /presentations/logstash-scale11x/images/ahhh___rage_face_by_samusmmx-d5g5zap.png HTTP/1.1\" 200 175208 \"http://mobile.rivals.com/board_posts.asp?SID=880&mid=198829575&fid=2208&tid=198829575&Team=&TeamId=&SiteId=\" \"Mozilla/5.0 (Linux; Android 4.2.2; VS980 4G Build/JDQ39B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.135 Mobile Safari/537.36\""
@@ -52,7 +52,7 @@
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - length: { _source: 13 }
   - match: { _source.request: "/presentations/logstash-scale11x/images/ahhh___rage_face_by_samusmmx-d5g5zap.png" }
   - match: { _source.agent: "\"Mozilla/5.0 (Linux; Android 4.2.2; VS980 4G Build/JDQ39B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.135 Mobile Safari/537.36\"" }
@@ -101,7 +101,7 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "_id"
         body: {
           log: "89.160.20.128 - - [08/Sep/2014:02:54:42 +0000] \"GET /presentations/logstash-scale11x/images/ahhh___rage_face_by_samusmmx-d5g5zap.png HTTP/1.1\" 200 175208 \"http://mobile.rivals.com/board_posts.asp?SID=880&mid=198829575&fid=2208&tid=198829575&Team=&TeamId=&SiteId=\" \"Mozilla/5.0 (Linux; Android 4.2.2; VS980 4G Build/JDQ39B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.135 Mobile Safari/537.36\""
@@ -110,7 +110,7 @@
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - length: { _source: 7 }
   - match: { _source.url.original: "/presentations/logstash-scale11x/images/ahhh___rage_face_by_samusmmx-d5g5zap.png" }
   - match: { _source.user_agent.original: "Mozilla/5.0 (Linux; Android 4.2.2; VS980 4G Build/JDQ39B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.135 Mobile Safari/537.36" }
@@ -187,7 +187,7 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "_id"
         body: {
           "age" : 33,
@@ -227,7 +227,7 @@
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - length: { _source: 11 }
   - is_false: _source.friends.0.id
   - is_false: _source.friends.1.id

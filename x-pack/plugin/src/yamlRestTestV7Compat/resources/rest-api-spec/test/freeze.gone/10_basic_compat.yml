@@ -9,7 +9,7 @@ setup:
   - do:
       index:
         index: some-test-index-1
-        id: 1
+        id: "1"
         body: { foo: bar }
 
 ---

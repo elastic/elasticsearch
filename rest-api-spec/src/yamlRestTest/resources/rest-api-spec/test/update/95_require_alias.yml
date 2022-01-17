@@ -7,7 +7,7 @@
       catch: missing
       update:
         index:            test_require_alias
-        id:               1
+        id:               "1"
         require_alias:   true
         body:
           doc:            { foo: bar, count: 1 }
@@ -28,7 +28,7 @@
   - do:
       update:
         index:            test_require_alias
-        id:               1
+        id:               "1"
         require_alias:   true
         body:
           doc:            { foo: bar, count: 1 }

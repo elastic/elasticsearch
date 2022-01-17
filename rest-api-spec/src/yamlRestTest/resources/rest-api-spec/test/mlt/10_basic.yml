@@ -17,7 +17,7 @@
   - do:
       index:
           index:  test_1
-          id:     1
+          id:     "1"
           body:   { foo: bar, title: howdy }
 
   - do:
@@ -36,7 +36,7 @@
               more_like_this:
                 like:
                   -
-                    _id: 1
+                    _id: "1"
                 fields: ["title"]
 
   - match: {hits.total: 0}

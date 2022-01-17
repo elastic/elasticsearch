@@ -54,14 +54,14 @@ teardown:
 - do:
     index:
       index: test
-      id: 1
+      id: "1"
       pipeline: "outer"
       body: {}
 
 - do:
     get:
       index: test
-      id: 1
+      id: "1"
 - match: { _source.foo: "bar" }
 - match: { _source.baz: "blub" }
 
@@ -103,7 +103,7 @@ teardown:
     catch: /illegal_state_exception/
     index:
       index: test
-      id: 1
+      id: "1"
       pipeline: "outer"
       body: {}
 - match: { error.root_cause.0.type: "illegal_state_exception" }
@@ -161,7 +161,7 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "outer"
         body: >
           {
@@ -171,13 +171,13 @@ teardown:
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.manager: "john" }
 
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         pipeline: "outer"
         body: >
           {
@@ -187,14 +187,14 @@ teardown:
   - do:
       get:
         index: test
-        id: 2
+        id: "2"
   - match: { _source.manager: "jan" }
 
   - do:
       catch: /illegal_state_exception/
       index:
         index: test
-        id: 3
+        id: "3"
         pipeline: "outer"
         body: >
           {
@@ -266,7 +266,7 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "pipeline1"
         body: >
           {
@@ -275,7 +275,7 @@ teardown:
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - length: { _source.pipelines: 3 }
   - match: { _source.pipelines.0: "pipeline1" }
   - match: { _source.pipelines.1: "another_pipeline" }

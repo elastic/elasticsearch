@@ -30,7 +30,7 @@ setup:
   - do:
       index:
           index:  test_index
-          id:     1
+          id:     "1"
           body:   { foo: bar }
   - do:
       indices.flush:

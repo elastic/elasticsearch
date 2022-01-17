@@ -15,7 +15,7 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body:
           title: "Time, Clocks and the Ordering of Events in a Distributed System"
           abstract: "The concept of one event happening before another..."

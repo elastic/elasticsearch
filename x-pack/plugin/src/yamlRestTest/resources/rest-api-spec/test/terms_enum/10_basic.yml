@@ -180,24 +180,24 @@ setup:
   - do:
       index:
           index:  test_k
-          id:     1
+          id:     "1"
           body:   { foo: "bar_k", "timestamp":"2021-01-01T01:01:01.000Z" }
 
   - do:
       index:
           index:  test_ck
-          id:     2
+          id:     "2"
           body:   { other: "foo", "timestamp":"2020-01-01T01:01:01.000Z"  }
 
   - do:
       index:
           index:  test_f
-          id:     3
+          id:     "3"
           body:   { foo: { bar: "bar_f" }, "timestamp":"2019-01-01T01:01:01.000Z" }
   - do:
       index:
           index:  test_security
-          id:     4
+          id:     "4"
           body:   { foo: "bar_dls"}
 
   - do: #superuser

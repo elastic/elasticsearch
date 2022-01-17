@@ -24,7 +24,7 @@ setup:
   - do:
       index:
         index: "test"
-        id: 1
+        id: "1"
         body:
           my_field1: "brown fox jump"
           my_field2: "xylophone"

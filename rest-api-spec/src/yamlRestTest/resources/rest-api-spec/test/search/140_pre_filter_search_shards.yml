@@ -60,18 +60,18 @@ setup:
   - do:
       index:
         index: index_1
-        id: 1
+        id: "1"
         body: { "created_at": "2016-01-01"}
   - do:
       index:
         index: index_2
-        id: 2
+        id: "2"
         body: { "created_at": "2017-01-01" }
 
   - do:
       index:
         index: index_3
-        id: 3
+        id: "3"
         body: { "created_at": "2018-01-01" }
   - do:
       indices.refresh: {}
@@ -244,18 +244,18 @@ setup:
   - do:
       index:
         index: index_1
-        id: 1
+        id: "1"
         body: { "created_at_not_indexed": "2016-01-01"}
   - do:
       index:
         index: index_2
-        id: 2
+        id: "2"
         body: { "created_at_not_indexed": "2017-01-01" }
 
   - do:
       index:
         index: index_3
-        id: 3
+        id: "3"
         body: { "created_at_not_indexed": "2018-01-01" }
   - do:
       indices.refresh: {}

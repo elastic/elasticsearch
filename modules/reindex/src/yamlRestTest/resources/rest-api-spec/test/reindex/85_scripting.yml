@@ -3,7 +3,7 @@
   - do:
       index:
         index:  twitter
-        id:     1
+        id:     "1"
         body:   { "user": "kimchy" }
   - do:
       indices.refresh: {}
@@ -37,12 +37,12 @@
   - do:
       index:
         index:  twitter
-        id:     1
+        id:     "1"
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        id:     2
+        id:     "2"
         body:   { "user": "blort" }
   - do:
       indices.refresh: {}
@@ -86,12 +86,12 @@
   - do:
       index:
         index:  twitter
-        id:     1
+        id:     "1"
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        id:     2
+        id:     "2"
         body:   { "user": "foo" }
   - do:
       indices.refresh: {}
@@ -113,14 +113,14 @@
   - do:
       get:
         index:   new_twitter
-        id:      1
+        id:      "1"
         routing: kimchy
   - match: { _routing: kimchy }
 
   - do:
       get:
         index:   new_twitter
-        id:      2
+        id:      "2"
         routing: foo
   - match: { _routing: foo }
 
@@ -129,12 +129,12 @@
   - do:
       index:
         index:  twitter
-        id:     1
+        id:     "1"
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        id:     2
+        id:     "2"
         body:   { "user": "foo" }
   - do:
       indices.refresh: {}
@@ -183,12 +183,12 @@
   - do:
       index:
         index:  twitter
-        id:     1
+        id:     "1"
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        id:     2
+        id:     "2"
         body:   { "user": "foo" }
   - do:
       indices.refresh: {}
@@ -216,14 +216,14 @@
   - do:
       index:
         index:        twitter
-        id:           1
+        id:           "1"
         version:      1
         version_type: external
         body:         { "user": "kimchy" }
   - do:
       index:
         index:        new_twitter
-        id:           1
+        id:           "1"
         version:      1
         version_type: external
         body:         { "user": "kimchy" }
@@ -260,12 +260,12 @@
   - do:
       index:
         index:        twitter
-        id:           1
+        id:           "1"
         body:         { "user": "kimchy" }
   - do:
       index:
         index:        new_twitter
-        id:           1
+        id:           "1"
         body:         { "user": "kimchy" }
   - do:
       indices.refresh: {}
@@ -299,12 +299,12 @@
   - do:
       index:
         index:        twitter
-        id:           1
+        id:           "1"
         body:         { "user": "kimchy" }
   - do:
       index:
         index:        twitter
-        id:           2
+        id:           "2"
         body:         { "user": "another" }
   - do:
       indices.refresh: {}
@@ -349,17 +349,17 @@
   - do:
       index:
         index:  index1
-        id:     1
+        id:     "1"
         body:   { "lang": "en", "id": 123 }
   - do:
       index:
         index:  index1
-        id:     2
+        id:     "2"
         body:   { "lang": "en", "id": 456 }
   - do:
       index:
         index:  index1
-        id:     3
+        id:     "3"
         body:   { "lang": "fr", "id": 789 }
   # Destination index
   - do:
@@ -422,7 +422,7 @@
   - do:
       index:
         index:  twitter
-        id:     1
+        id:     "1"
         body:   { "user": "kimchy" }
   - do:
       indices.refresh: {}

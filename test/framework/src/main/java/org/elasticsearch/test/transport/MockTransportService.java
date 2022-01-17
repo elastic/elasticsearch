@@ -40,13 +40,15 @@ import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -100,21 +102,28 @@ public final class MockTransportService extends TransportService {
         ThreadPool threadPool,
         @Nullable ClusterSettings clusterSettings
     ) {
-        MockNioTransport mockTransport = newMockTransport(settings, version, threadPool);
-        return createNewService(settings, mockTransport, version, threadPool, clusterSettings, Collections.emptySet());
+        return createNewService(
+            settings,
+            newMockTransport(settings, version, threadPool),
+            version,
+            threadPool,
+            clusterSettings,
+            Collections.emptySet()
+        );
     }
 
-    public static MockNioTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {
+    public static TcpTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {
         settings = Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        return new MockNioTransport(
+        return new Netty4Transport(
             settings,
             version,
             threadPool,
             new NetworkService(Collections.emptyList()),
             new MockPageCacheRecycler(settings),
             namedWriteableRegistry,
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            new SharedGroupFactory(settings)
         );
     }
 

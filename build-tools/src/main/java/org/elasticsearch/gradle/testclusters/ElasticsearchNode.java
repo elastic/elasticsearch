@@ -674,6 +674,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     paramMap.entrySet().stream().flatMap(entry -> Stream.of(entry.getKey(), entry.getValue())).toArray(String[]::new)
                 )
             );
+
+            // If we added users, then also add the standard test roles
+            rolesFile(getBuildPluginFile("/roles.yml"));
         }
         if (roleFiles.isEmpty() == false) {
             logToProcessStdout("Setting up roles.yml");
@@ -751,8 +754,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         Map<String, String> cred = new LinkedHashMap<>();
         cred.put("useradd", userSpec.getOrDefault("username", "test_user"));
         cred.put("-p", userSpec.getOrDefault("password", "x-pack-test-password"));
-        cred.put("-r", userSpec.getOrDefault("role", "superuser"));
+        cred.put("-r", userSpec.getOrDefault("role", "_es_test_root"));
         credentials.add(cred);
+    }
+
+    private File getBuildPluginFile(String name) {
+        return project.getRootProject().file("build-tools/src/main/resources/" + name);
     }
 
     @Override

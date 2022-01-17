@@ -367,7 +367,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         public DateFieldType(
             String name,
-            boolean isSearchable,
+            boolean isIndexed,
             boolean isStored,
             boolean hasDocValues,
             DateFormatter dateTimeFormatter,
@@ -376,7 +376,7 @@ public final class DateFieldMapper extends FieldMapper {
             FieldValues<Long> scriptValues,
             Map<String, String> meta
         ) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;
@@ -386,6 +386,10 @@ public final class DateFieldMapper extends FieldMapper {
 
         public DateFieldType(String name) {
             this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
+        }
+
+        public DateFieldType(String name, boolean isIndexed) {
+            this(name, isIndexed, false, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, DateFormatter dateFormatter) {
@@ -465,6 +469,11 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isSearchable() {
+            return isIndexed() || hasDocValues();
+        }
+
+        @Override
         public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
             return rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
         }
@@ -480,7 +489,7 @@ public final class DateFieldMapper extends FieldMapper {
             @Nullable DateMathParser forcedDateParser,
             SearchExecutionContext context
         ) {
-            failIfNotIndexed();
+            failIfNotIndexedNorDocValuesFallback(context);
             if (relation == ShapeRelation.DISJOINT) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support DISJOINT ranges");
             }
@@ -496,14 +505,18 @@ public final class DateFieldMapper extends FieldMapper {
                 parser = forcedDateParser;
             }
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
-                Query query = LongPoint.newRangeQuery(name(), l, u);
-                if (hasDocValues()) {
-                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
-                    query = new IndexOrDocValuesQuery(query, dvQuery);
-
-                    if (context.indexSortedOnField(name())) {
-                        query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                Query query;
+                if (isIndexed()) {
+                    query = LongPoint.newRangeQuery(name(), l, u);
+                    if (hasDocValues()) {
+                        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                        query = new IndexOrDocValuesQuery(query, dvQuery);
                     }
+                } else {
+                    query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                }
+                if (hasDocValues() && context.indexSortedOnField(name())) {
+                    query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
                 }
                 return query;
             });
@@ -593,6 +606,10 @@ public final class DateFieldMapper extends FieldMapper {
             DateMathParser dateParser,
             QueryRewriteContext context
         ) throws IOException {
+            if (isIndexed() == false && hasDocValues()) {
+                // we don't have a quick way to run this check on doc values, so fall back to default assuming we are within bounds
+                return Relation.INTERSECTS;
+            }
             byte[] minPackedValue = PointValues.getMinPackedValue(reader, name());
             if (minPackedValue == null) {
                 // no points, so nothing matches

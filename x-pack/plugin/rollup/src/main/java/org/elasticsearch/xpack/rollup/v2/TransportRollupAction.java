@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -241,10 +242,10 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         }, listener::onFailure));
     }
 
@@ -371,7 +372,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 deleteTmpIndex(
                     originalIndexName,
                     tmpIndexName,
@@ -379,7 +380,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     new ElasticsearchException("failed to publish new cluster state with rollup metadata", e)
                 );
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     private void deleteTmpIndex(String originalIndex, String tmpIndex, ActionListener<AcknowledgedResponse> listener, Exception e) {

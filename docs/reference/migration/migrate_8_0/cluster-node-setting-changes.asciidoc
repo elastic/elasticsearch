@@ -925,7 +925,7 @@ The `xpack.monitoring.history.duration` setting will only apply to monitoring in
 collection, not indices created by metricbeat or agent.
 
 *Impact* +
-After upgrading, ensure that the `.monitoring-8-ilm-policy` ILM policy aligns with your desired retention settings.
+After upgrading, insure that the `.monitoring-8-ilm-policy` ILM policy aligns with your desired retention settings.
 
 If you only use
 metricbeat or agent to collect monitoring data, you can also remove any custom `xpack.monitoring.history.duration`

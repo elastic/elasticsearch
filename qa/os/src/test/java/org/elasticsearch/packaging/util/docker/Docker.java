@@ -126,15 +126,19 @@ public class Docker {
      *
      * @param distribution details about the docker image being tested
      * @param builder the command to run
+     * @param restPort the port to expose the REST endpoint on
+     * @param transportPort the port to expose the transport endpoint on
      * @return an installation that models the running container
      */
-    public static Installation runAdditionalContainer(Distribution distribution, DockerRun builder) {
+    public static Installation runAdditionalContainer(Distribution distribution, DockerRun builder, int restPort, int transportPort) {
         // TODO Maybe revisit this as part of https://github.com/elastic/elasticsearch/issues/79688
-        final String command = builder.distribution(distribution).build();
+        final String command = builder.distribution(distribution)
+            .extraArgs("--publish", transportPort + ":9300", "--publish", restPort + ":9200")
+            .build();
         logger.info("Running command: " + command);
         containerId = sh.run(command).stdout.trim();
         waitForElasticsearchToStart();
-        return Installation.ofContainer(dockerShell, distribution);
+        return Installation.ofContainer(dockerShell, distribution, restPort);
     }
 
     /**

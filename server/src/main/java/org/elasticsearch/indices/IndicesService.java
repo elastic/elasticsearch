@@ -203,7 +203,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Settings settings;
     private final PluginsService pluginsService;
     private final NodeEnvironment nodeEnv;
-    private final NamedXContentRegistry xContentRegistry;
     private final XContentParserConfiguration parserConfig;
     private final TimeValue shardsClosedTimeout;
     private final AnalysisRegistry analysisRegistry;
@@ -286,7 +285,6 @@ public class IndicesService extends AbstractLifecycleComponent
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
-        this.xContentRegistry = xContentRegistry;
         this.parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
             .withRegistry(xContentRegistry);
         this.valuesSourceRegistry = valuesSourceRegistry;
@@ -706,7 +704,7 @@ public class IndicesService extends AbstractLifecycleComponent
         return indexModule.newIndexService(
             indexCreationContext,
             nodeEnv,
-            xContentRegistry,
+            parserConfig,
             this,
             circuitBreakerService,
             bigArrays,
@@ -773,7 +771,7 @@ public class IndicesService extends AbstractLifecycleComponent
             recoveryStateFactories
         );
         pluginsService.onIndexModule(indexModule);
-        return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
+        return indexModule.newIndexMapperService(parserConfig, mapperRegistry, scriptService);
     }
 
     /**
@@ -1628,9 +1626,7 @@ public class IndicesService extends AbstractLifecycleComponent
         CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
             try (
                 InputStream inputStream = bytes.streamInput();
-                XContentParser parser = XContentFactory.xContentType(inputStream)
-                    .xContent()
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, inputStream)
+                XContentParser parser = XContentFactory.xContentType(inputStream).xContent().createParser(parserConfig, inputStream)
             ) {
                 return parseInnerQueryBuilder(parser);
             }

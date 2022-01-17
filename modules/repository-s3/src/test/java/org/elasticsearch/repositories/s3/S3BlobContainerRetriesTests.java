@@ -477,8 +477,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         @Override
         public void close() throws IOException {
             super.close();
-            if (in instanceof S3RetryingInputStream) {
-                final S3RetryingInputStream s3Stream = (S3RetryingInputStream) in;
+            if (in instanceof final S3RetryingInputStream s3Stream) {
                 assertTrue(
                     "Stream "
                         + toString()

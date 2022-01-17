@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -364,7 +365,15 @@ public class ClusterStateChanges {
         return runTasks(
             joinTaskExecutor,
             clusterState,
-            nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason")).collect(Collectors.toList())
+            nodes.stream()
+                .map(
+                    node -> new JoinTaskExecutor.Task(
+                        node,
+                        "dummy reason",
+                        ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
+                    )
+                )
+                .collect(Collectors.toList())
         );
     }
 
@@ -372,7 +381,17 @@ public class ClusterStateChanges {
         List<JoinTaskExecutor.Task> joinNodes = new ArrayList<>();
         joinNodes.add(JoinTaskExecutor.newBecomeMasterTask());
         joinNodes.add(JoinTaskExecutor.newFinishElectionTask());
-        joinNodes.addAll(nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason")).collect(Collectors.toList()));
+        joinNodes.addAll(
+            nodes.stream()
+                .map(
+                    node -> new JoinTaskExecutor.Task(
+                        node,
+                        "dummy reason",
+                        ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
+                    )
+                )
+                .collect(Collectors.toList())
+        );
 
         return runTasks(joinTaskExecutor, clusterState, joinNodes);
     }
@@ -462,7 +481,7 @@ public class ClusterStateChanges {
             ClusterStateUpdateTask task = (ClusterStateUpdateTask) invocationOnMock.getArguments()[1];
             result[0] = task.execute(state);
             return null;
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
         runnable.run();
         assertThat(result[0], notNullValue());
         return result[0];

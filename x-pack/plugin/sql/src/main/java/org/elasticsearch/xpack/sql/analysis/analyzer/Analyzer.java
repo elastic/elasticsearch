@@ -884,7 +884,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
             });
 
-            return condition.transformDown(UnresolvedAttribute.class, u -> {
+            // traverse bottom up to ensure that the transformation is not applied to children of inserted aliases.
+            // Instead, the inserted aliases should be resolved by another round of name resolution.
+            return condition.transformUp(UnresolvedAttribute.class, u -> {
                 boolean qualified = u.qualifier() != null;
                 for (Alias alias : aliases) {
                     // don't replace field with their own aliases (it creates infinite cycles)

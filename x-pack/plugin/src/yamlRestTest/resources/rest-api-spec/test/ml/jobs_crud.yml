@@ -39,6 +39,56 @@
         allow_no_match: false
 
 ---
+"Test put job deprecated bucket span":
+  - skip:
+      features:
+        - "warnings"
+
+  - do:
+      warnings:
+        - 'bucket_span 1.5d [129600s] is not an integral multiple of the number of seconds in 1d [86400s]. This is now deprecated.'
+      ml.put_job:
+        job_id: job-deprecated-bucket-span-1.5d
+        body:  >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span": "36h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - match: { job_id: "job-deprecated-bucket-span-1.5d" }
+  - match: { analysis_config.bucket_span: "36h" }
+  - match: { analysis_limits.model_memory_limit: "1024mb" }
+  - match: { analysis_limits.categorization_examples_limit: 4 }
+
+  - do:
+      warnings:
+        - 'bucket_span 19m [1140s] is not an integral divisor of the number of seconds in 1d [86400s]. This is now deprecated.'
+      ml.put_job:
+        job_id: job-deprecated-bucket-span-19m
+        body:  >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span": "19m",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - match: { job_id: "job-deprecated-bucket-span-19m" }
+  - match: { analysis_config.bucket_span: "19m" }
+  - match: { analysis_limits.model_memory_limit: "1024mb" }
+  - match: { analysis_limits.categorization_examples_limit: 4 }
+
+---
 "Test job crud apis":
 
   - do:
@@ -96,6 +146,10 @@
 
 ---
 "Test put job with model_prune_window":
+  - skip:
+      features:
+        - "warnings"
+
   - do:
       ml.put_job:
         job_id: job-model-prune-window
@@ -132,6 +186,8 @@
   - is_true: create_time
 
   - do:
+      warnings:
+        - 'bucket_span 1.6d [144000s] is not an integral multiple of the number of seconds in 1d [86400s]. This is now deprecated.'
       ml.put_job:
         job_id: job-default-model-prune-window-40h
         body: >
@@ -183,6 +239,8 @@
 # is the closest multiple of the bucket span greater than or equal to 30
 # days (43200m)
   - do:
+      warnings:
+        - 'bucket_span 17m [1020s] is not an integral divisor of the number of seconds in 1d [86400s]. This is now deprecated.'
       ml.put_job:
         job_id: job-default-model-prune-window_with_odd_bucket_span
         body: >

@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -86,7 +87,8 @@ public class MetadataCreateDataStreamService {
                     firstBackingIndexRef.set(clusterState.metadata().dataStreams().get(request.name).getIndices().get(0).getName());
                     return clusterState;
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -97,21 +99,23 @@ public class MetadataCreateDataStreamService {
     public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest<
         CreateDataStreamClusterStateUpdateRequest> {
 
+        private final boolean performReroute;
         private final String name;
         private final long startTime;
         private final SystemDataStreamDescriptor descriptor;
 
         public CreateDataStreamClusterStateUpdateRequest(String name) {
-            this(name, System.currentTimeMillis(), null, TimeValue.ZERO, TimeValue.ZERO);
+            this(name, System.currentTimeMillis(), null, TimeValue.ZERO, TimeValue.ZERO, true);
         }
 
         public CreateDataStreamClusterStateUpdateRequest(
             String name,
             SystemDataStreamDescriptor systemDataStreamDescriptor,
             TimeValue masterNodeTimeout,
-            TimeValue timeout
+            TimeValue timeout,
+            boolean performReroute
         ) {
-            this(name, System.currentTimeMillis(), systemDataStreamDescriptor, masterNodeTimeout, timeout);
+            this(name, System.currentTimeMillis(), systemDataStreamDescriptor, masterNodeTimeout, timeout, performReroute);
         }
 
         public CreateDataStreamClusterStateUpdateRequest(
@@ -119,17 +123,23 @@ public class MetadataCreateDataStreamService {
             long startTime,
             SystemDataStreamDescriptor systemDataStreamDescriptor,
             TimeValue masterNodeTimeout,
-            TimeValue timeout
+            TimeValue timeout,
+            boolean performReroute
         ) {
             this.name = name;
             this.startTime = startTime;
             this.descriptor = systemDataStreamDescriptor;
+            this.performReroute = performReroute;
             masterNodeTimeout(masterNodeTimeout);
             ackTimeout(timeout);
         }
 
         public boolean isSystem() {
             return descriptor != null;
+        }
+
+        public boolean performReroute() {
+            return performReroute;
         }
 
         public SystemDataStreamDescriptor getSystemDataStreamDescriptor() {
@@ -201,7 +211,10 @@ public class MetadataCreateDataStreamService {
                 "initialize_data_stream",
                 firstBackingIndexName,
                 firstBackingIndexName
-            ).dataStreamName(dataStreamName).systemDataStreamDescriptor(systemDataStreamDescriptor).nameResolvedInstant(request.startTime);
+            ).dataStreamName(dataStreamName)
+                .systemDataStreamDescriptor(systemDataStreamDescriptor)
+                .nameResolvedInstant(request.startTime)
+                .performReroute(request.performReroute());
 
             if (isSystem) {
                 createIndexRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);

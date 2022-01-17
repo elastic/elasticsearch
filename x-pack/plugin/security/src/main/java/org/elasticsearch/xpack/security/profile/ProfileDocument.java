@@ -48,7 +48,7 @@ public record ProfileDocument(
     }
 
     static final ConstructingObjectParser<ProfileDocumentUser, Void> PROFILE_USER_PARSER = new ConstructingObjectParser<>(
-        "profile_document_user",
+        "user_profile_document_user",
         false,
         (args, v) -> new ProfileDocumentUser(
             (String) args[0],
@@ -61,13 +61,13 @@ public record ProfileDocument(
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<Access, Void> ACCESS_PARSER = new ConstructingObjectParser<>(
-        "profile_access",
+        "user_profile_document_access",
         false,
         (args, v) -> new Access((List<String>) args[0], (Map<String, Object>) args[1])
     );
 
-    static final ConstructingObjectParser<ProfileDocument, Void> PARSER = new ConstructingObjectParser<>(
-        "profile_document",
+    static final ConstructingObjectParser<ProfileDocument, Void> PROFILE_PARSER = new ConstructingObjectParser<>(
+        "user_profile_document",
         false,
         (args, v) -> new ProfileDocument(
             (String) args[0],
@@ -77,6 +77,12 @@ public record ProfileDocument(
             (Access) args[4],
             (BytesReference) args[5]
         )
+    );
+
+    static final ConstructingObjectParser<ProfileDocument, Void> PARSER = new ConstructingObjectParser<>(
+        "user_profile_document_container",
+        true,
+        (args, v) -> (ProfileDocument) args[0]
     );
 
     static {
@@ -92,12 +98,14 @@ public record ProfileDocument(
         ACCESS_PARSER.declareStringArray(constructorArg(), new ParseField("roles"));
         ACCESS_PARSER.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("applications"));
 
-        PARSER.declareString(constructorArg(), new ParseField("uid"));
-        PARSER.declareBoolean(constructorArg(), new ParseField("enabled"));
-        PARSER.declareLong(constructorArg(), new ParseField("last_synchronized"));
-        PARSER.declareObject(constructorArg(), (p, c) -> PROFILE_USER_PARSER.parse(p, null), new ParseField("user"));
-        PARSER.declareObject(constructorArg(), (p, c) -> ACCESS_PARSER.parse(p, null), new ParseField("access"));
+        PROFILE_PARSER.declareString(constructorArg(), new ParseField("uid"));
+        PROFILE_PARSER.declareBoolean(constructorArg(), new ParseField("enabled"));
+        PROFILE_PARSER.declareLong(constructorArg(), new ParseField("last_synchronized"));
+        PROFILE_PARSER.declareObject(constructorArg(), (p, c) -> PROFILE_USER_PARSER.parse(p, null), new ParseField("user"));
+        PROFILE_PARSER.declareObject(constructorArg(), (p, c) -> ACCESS_PARSER.parse(p, null), new ParseField("access"));
         ObjectParserHelper<ProfileDocument, Void> parserHelper = new ObjectParserHelper<>();
-        parserHelper.declareRawObject(PARSER, constructorArg(), new ParseField("application_data"));
+        parserHelper.declareRawObject(PROFILE_PARSER, constructorArg(), new ParseField("application_data"));
+
+        PARSER.declareObject(constructorArg(), (p, c) -> PROFILE_PARSER.parse(p, null), new ParseField("user_profile"));
     }
 }

@@ -598,7 +598,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertEquals(TEXT_FIELD_NAME, tqb.fieldName);
         assertEquals(new BytesRef("value"), tqb.value);
     }
-    
+
     public void testRewriteWithFuzziness() throws IOException {
         // If we've configured fuzziness then we can't rewrite to a term query
         MatchQueryBuilder queryBuilder = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "value");

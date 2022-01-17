@@ -91,18 +91,4 @@ public final class Allocators {
             Version.CURRENT
         );
     }
-
-    public static DiscoveryNode newNodeWithHostInfo(String nodeId, Map<String, String> attributes, String hostId) {
-        return new DiscoveryNode(
-            nodeId,
-            nodeId,
-            nodeId,
-            hostId,
-            hostId,
-            new TransportAddress(TransportAddress.META_ADDRESS, portGenerator.incrementAndGet()),
-            attributes,
-            Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
-    }
 }

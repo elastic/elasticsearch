@@ -828,6 +828,74 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertThat(executionState.getFailedStepRetryCount(), is(1));
     }
 
+ public void testMoveToFailedStepDoesntRefreshCachedPhaseWhenUnsafe() {
+        String initialPhaseDefinition = "" +
+            "{\n" +
+            "        \"policy\" : \"my-policy\",\n" +
+            "        \"phase_definition\" : {\n" +
+            "          \"min_age\" : \"20m\",\n" +
+            "          \"actions\" : {\n" +
+            "            \"rollover\" : {\n" +
+            "              \"max_age\" : \"5s\"\n" +
+            "            },\n" +
+            "            \"set_priority\" : {\n" +
+            "              \"priority\" : 150\n" +
+            "            }\n" +
+            "          }\n" +
+            "        },\n" +
+            "        \"version\" : 1,\n" +
+            "        \"modified_date_in_millis\" : 1578521007076\n" +
+            "}\n";
+        String failedStep = "check-rollover-ready";
+        LifecycleExecutionState.Builder currentExecutionState = LifecycleExecutionState.builder()
+            .setPhase("hot")
+            .setAction("rollover")
+            .setStep(ErrorStep.NAME)
+            .setFailedStep(failedStep)
+            // the phase definition contains the rollover action, but the actual policy does not contain rollover anymore
+            .setPhaseDefinition(initialPhaseDefinition);
+
+        IndexMetadata meta = buildIndexMetadata("my-policy", currentExecutionState);
+        String indexName = meta.getIndex().getName();
+
+        Map<String, LifecycleAction> actions = new HashMap<>();
+        actions.put("set_priority", new SetPriorityAction(100));
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
+        Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
+        LifecyclePolicy currentPolicy = new LifecyclePolicy("my-policy", phases);
+
+        List<LifecyclePolicyMetadata> policyMetadatas = new ArrayList<>();
+        policyMetadatas.add(
+            new LifecyclePolicyMetadata(currentPolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+        );
+
+        Step.StepKey errorStepKey = new Step.StepKey("hot", RolloverAction.NAME, ErrorStep.NAME);
+        PolicyStepsRegistry stepsRegistry = createOneStepPolicyStepRegistry("my-policy", new ErrorStep(errorStepKey));
+
+        ClusterState clusterState = buildClusterState(
+            indexName,
+            Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "my-policy"),
+            currentExecutionState.build(),
+            policyMetadatas
+        );
+        ClusterState newState = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(
+            clusterState,
+            indexName,
+            ESTestCase::randomNonNegativeLong,
+            stepsRegistry,
+            false
+        );
+
+        IndexMetadata indexMetadata = newState.metadata().index(indexName);
+        LifecycleExecutionState nextLifecycleExecutionState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        assertThat(
+            "we musn't refresh the cache definition if the failed step is not part of the real policy anymore",
+            nextLifecycleExecutionState.getPhaseDefinition(),
+            is(initialPhaseDefinition)
+        );
+        assertThat(nextLifecycleExecutionState.getStep(), is(failedStep));
+    }
+
     public void testRefreshPhaseJson() {
         LifecycleExecutionState.Builder exState = LifecycleExecutionState.builder()
             .setPhase("hot")

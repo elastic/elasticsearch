@@ -828,24 +828,24 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertThat(executionState.getFailedStepRetryCount(), is(1));
     }
 
- public void testMoveToFailedStepDoesntRefreshCachedPhaseWhenUnsafe() {
-        String initialPhaseDefinition = "" +
-            "{\n" +
-            "        \"policy\" : \"my-policy\",\n" +
-            "        \"phase_definition\" : {\n" +
-            "          \"min_age\" : \"20m\",\n" +
-            "          \"actions\" : {\n" +
-            "            \"rollover\" : {\n" +
-            "              \"max_age\" : \"5s\"\n" +
-            "            },\n" +
-            "            \"set_priority\" : {\n" +
-            "              \"priority\" : 150\n" +
-            "            }\n" +
-            "          }\n" +
-            "        },\n" +
-            "        \"version\" : 1,\n" +
-            "        \"modified_date_in_millis\" : 1578521007076\n" +
-            "}\n";
+    public void testMoveToFailedStepDoesntRefreshCachedPhaseWhenUnsafe() {
+        String initialPhaseDefinition = ""
+            + "{\n"
+            + "        \"policy\" : \"my-policy\",\n"
+            + "        \"phase_definition\" : {\n"
+            + "          \"min_age\" : \"20m\",\n"
+            + "          \"actions\" : {\n"
+            + "            \"rollover\" : {\n"
+            + "              \"max_age\" : \"5s\"\n"
+            + "            },\n"
+            + "            \"set_priority\" : {\n"
+            + "              \"priority\" : 150\n"
+            + "            }\n"
+            + "          }\n"
+            + "        },\n"
+            + "        \"version\" : 1,\n"
+            + "        \"modified_date_in_millis\" : 1578521007076\n"
+            + "}\n";
         String failedStep = "check-rollover-ready";
         LifecycleExecutionState.Builder currentExecutionState = LifecycleExecutionState.builder()
             .setPhase("hot")

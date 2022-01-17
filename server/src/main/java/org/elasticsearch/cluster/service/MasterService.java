@@ -152,10 +152,7 @@ public class MasterService extends AbstractLifecycleComponent {
             threadPool.generic()
                 .execute(
                     () -> tasks.forEach(
-                        task -> ((UpdateTask) task).listener.onFailure(
-                            task.source,
-                            new ProcessClusterEventTimeoutException(timeout, task.source)
-                        )
+                        task -> ((UpdateTask) task).listener.onFailure(new ProcessClusterEventTimeoutException(timeout, task.source))
                     )
                 );
         }
@@ -498,7 +495,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         void publishingFailed(FailedToCommitClusterStateException t) {
-            nonFailedTasks.forEach(task -> task.listener.onFailure(task.source(), t));
+            nonFailedTasks.forEach(task -> task.listener.onFailure(t));
         }
 
         void processedDifferentClusterState(ClusterState previousClusterState, ClusterState newClusterState) {
@@ -535,7 +532,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 assert executionResults.containsKey(updateTask.task) : "missing " + updateTask;
                 final ClusterStateTaskExecutor.TaskResult taskResult = executionResults.get(updateTask.task);
                 if (taskResult.isSuccess() == false) {
-                    updateTask.listener.onFailure(updateTask.source(), taskResult.getFailure());
+                    updateTask.listener.onFailure(taskResult.getFailure());
                 }
             }
         }
@@ -606,24 +603,21 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
+        public void onFailure(Exception e) {
             try (ThreadContext.StoredContext ignore = context.get()) {
-                listener.onFailure(source, e);
+                listener.onFailure(e);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
-                logger.error(() -> new ParameterizedMessage("exception thrown by listener notifying of failure from [{}]", source), inner);
+                logger.error("exception thrown by listener notifying of failure", inner);
             }
         }
 
         @Override
-        public void onNoLongerMaster(String source) {
+        public void onNoLongerMaster() {
             try (ThreadContext.StoredContext ignore = context.get()) {
-                listener.onNoLongerMaster(source);
+                listener.onNoLongerMaster();
             } catch (Exception e) {
-                logger.error(
-                    () -> new ParameterizedMessage("exception thrown by listener while notifying no longer master from [{}]", source),
-                    e
-                );
+                logger.error("exception thrown by listener while notifying no longer master", e);
             }
         }
 
@@ -897,7 +891,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         void onNoLongerMaster() {
-            updateTasks.forEach(task -> task.listener.onNoLongerMaster(task.source()));
+            updateTasks.forEach(task -> task.listener.onNoLongerMaster());
         }
     }
 

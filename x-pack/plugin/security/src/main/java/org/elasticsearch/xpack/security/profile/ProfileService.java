@@ -98,9 +98,9 @@ public class ProfileService {
             final SearchRequest searchRequest = client.prepareSearch(SECURITY_PROFILE_ALIAS)
                 .setQuery(
                     QueryBuilders.boolQuery()
-                        .must(QueryBuilders.termQuery("user.username", authentication.getUser().principal()))
+                        .must(QueryBuilders.termQuery("user_profile.user.username", authentication.getUser().principal()))
                         // TODO: this will be replaced by domain lookup and reverse lookup
-                        .must(QueryBuilders.termQuery("user.realm.name", authentication.getSourceRealm().getName()))
+                        .must(QueryBuilders.termQuery("user_profile.user.realm.name", authentication.getSourceRealm().getName()))
                 )
                 .request();
             frozenProfileIndex.checkIndexVersionThenExecute(

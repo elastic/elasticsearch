@@ -201,7 +201,7 @@ public final class EnrichStore {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 handler.accept(e);
             }
         }, ClusterStateTaskExecutor.unbatched());

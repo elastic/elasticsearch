@@ -22,6 +22,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.Term;
@@ -143,7 +145,9 @@ public class AggregationDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(response);
 
         assertThat(extractor.hasNext(), is(true));
-        Optional<InputStream> stream = extractor.next();
+        DataExtractor.Result result = extractor.next();
+        assertThat(result.searchInterval(), equalTo(new SearchInterval(1000L, 4000L)));
+        Optional<InputStream> stream = result.data();
         assertThat(stream.isPresent(), is(true));
         String expectedStream = """
             {"time":1999,"airline":"a","responsetime":11.0,"doc_count":1} \
@@ -177,7 +181,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(response);
 
         assertThat(extractor.hasNext(), is(true));
-        assertThat(extractor.next().isPresent(), is(false));
+        assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
 
         assertThat(capturedSearchRequests.size(), equalTo(1));
@@ -190,7 +194,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(response);
 
         assertThat(extractor.hasNext(), is(true));
-        assertThat(extractor.next().isPresent(), is(false));
+        assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
 
         assertThat(capturedSearchRequests.size(), equalTo(1));
@@ -202,7 +206,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(response);
 
         assertThat(extractor.hasNext(), is(true));
-        assertThat(extractor.next().isPresent(), is(false));
+        assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
 
         assertThat(capturedSearchRequests.size(), equalTo(1));
@@ -258,7 +262,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(response);
 
         assertThat(extractor.hasNext(), is(true));
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(2400L));
+        assertThat(countMatches('{', asString(extractor.next().data().get())), equalTo(2400L));
         histogramBuckets = new ArrayList<>(buckets);
         for (int i = 0; i < buckets; i++) {
             histogramBuckets.add(

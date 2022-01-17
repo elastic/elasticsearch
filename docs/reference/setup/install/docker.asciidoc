@@ -59,7 +59,7 @@ ifeval::["{release-state}"!="unreleased"]
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-docker run -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" {docker-image}
+docker run -p 9200:9200 -e "discovery.type=single-node" {docker-image}
 --------------------------------------------
 
 endif::[]

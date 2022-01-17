@@ -17,6 +17,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -51,15 +52,15 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
-                throw new AssertionError(source, e);
+            public void onFailure(Exception e) {
+                throw new AssertionError("update state", e);
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 future.onResponse(null);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
         future.actionGet();
     }
 

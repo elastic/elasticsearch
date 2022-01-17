@@ -21,12 +21,12 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -93,7 +93,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             }
 
             @Override
-            public void onFailure(final String source, final Exception e) {
+            public void onFailure(final Exception e) {
                 listener.onFailure(e);
             }
 
@@ -220,7 +220,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 }
             }
 
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     @Override
@@ -269,7 +269,6 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
         // Remove ccr custom metadata
         newIndexMetadata.removeCustom(Ccr.CCR_CUSTOM_METADATA_KEY);
 
-        Metadata newMetadata = Metadata.builder(current.metadata()).put(newIndexMetadata).build();
-        return ClusterState.builder(current).metadata(newMetadata).build();
+        return current.copyAndUpdateMetadata(metadata -> metadata.put(newIndexMetadata));
     }
 }

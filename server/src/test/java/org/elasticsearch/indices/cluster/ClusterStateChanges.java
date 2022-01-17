@@ -20,7 +20,6 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -125,7 +124,6 @@ public class ClusterStateChanges {
     private final ShardStateAction.ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
 
     // transport actions
-    private final TransportCloseIndexAction transportCloseIndexAction;
     private final TransportOpenIndexAction transportOpenIndexAction;
     private final TransportDeleteIndexAction transportDeleteIndexAction;
     private final TransportUpdateSettingsAction transportUpdateSettingsAction;
@@ -265,17 +263,6 @@ public class ClusterStateChanges {
             new IndexSettingProviders(Set.of())
         );
 
-        transportCloseIndexAction = new TransportCloseIndexAction(
-            SETTINGS,
-            transportService,
-            clusterService,
-            threadPool,
-            indexStateService,
-            clusterSettings,
-            actionFilters,
-            indexNameExpressionResolver,
-            destructiveOperations
-        );
         transportOpenIndexAction = new TransportOpenIndexAction(
             transportService,
             clusterService,

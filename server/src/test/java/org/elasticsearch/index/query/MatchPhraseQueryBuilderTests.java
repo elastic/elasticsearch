@@ -202,6 +202,65 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
         assertEquals(new BytesRef("value"), tqb.value);
     }
 
+    public void testRewriteToTermQueryWithAnalyzer() throws IOException {
+        MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder(TEXT_FIELD_NAME, "value");
+        queryBuilder.analyzer("keyword");
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryBuilder rewritten = queryBuilder.rewrite(context);
+        assertThat(rewritten, instanceOf(TermQueryBuilder.class));
+        TermQueryBuilder tqb = (TermQueryBuilder) rewritten;
+        assertEquals(TEXT_FIELD_NAME, tqb.fieldName);
+        assertEquals(new BytesRef("value"), tqb.value);
+    }
+
+    public void testRewritesWithZeroTermsQuery() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        {
+            MatchPhraseQueryBuilder qb = new MatchPhraseQueryBuilder(KEYWORD_FIELD_NAME, "");
+            qb.zeroTermsQuery(ZeroTermsQueryOption.ALL);
+            assertThat(qb.rewrite(context), instanceOf(MatchAllQueryBuilder.class));
+        }
+        {
+            MatchPhraseQueryBuilder qb = new MatchPhraseQueryBuilder(KEYWORD_FIELD_NAME, "");
+            qb.zeroTermsQuery(ZeroTermsQueryOption.NONE);
+            assertThat(qb.rewrite(context), instanceOf(MatchNoneQueryBuilder.class));
+        }
+        {
+            MatchPhraseQueryBuilder qb = new MatchPhraseQueryBuilder(KEYWORD_FIELD_NAME, "");
+            // default value is NONE
+            assertThat(qb.rewrite(context), instanceOf(MatchNoneQueryBuilder.class));
+        }
+        {
+            MatchPhraseQueryBuilder qb = new MatchPhraseQueryBuilder(KEYWORD_FIELD_NAME, "");
+            qb.zeroTermsQuery(ZeroTermsQueryOption.NULL);
+            assertThat(qb.rewrite(context), instanceOf(MatchNoneQueryBuilder.class));
+        }
+        {
+            MatchPhraseQueryBuilder qb = new MatchPhraseQueryBuilder(TEXT_FIELD_NAME, "");
+            qb.analyzer("keyword");
+            qb.zeroTermsQuery(ZeroTermsQueryOption.ALL);
+            assertThat(qb.rewrite(context), instanceOf(MatchAllQueryBuilder.class));
+        }
+        {
+            MatchPhraseQueryBuilder qb = new MatchPhraseQueryBuilder(TEXT_FIELD_NAME, "");
+            qb.analyzer("keyword");
+            qb.zeroTermsQuery(ZeroTermsQueryOption.NONE);
+            assertThat(qb.rewrite(context), instanceOf(MatchNoneQueryBuilder.class));
+        }
+        {
+            MatchPhraseQueryBuilder qb = new MatchPhraseQueryBuilder(TEXT_FIELD_NAME, "");
+            qb.analyzer("keyword");
+            // default value is NONE
+            assertThat(qb.rewrite(context), instanceOf(MatchNoneQueryBuilder.class));
+        }
+        {
+            MatchPhraseQueryBuilder qb = new MatchPhraseQueryBuilder(TEXT_FIELD_NAME, "");
+            qb.analyzer("keyword");
+            qb.zeroTermsQuery(ZeroTermsQueryOption.NULL);
+            assertThat(qb.rewrite(context), instanceOf(MatchNoneQueryBuilder.class));
+        }
+    }
+
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         QueryBuilder query = new MatchPhraseQueryBuilder("_index", "does_not_exist");
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();

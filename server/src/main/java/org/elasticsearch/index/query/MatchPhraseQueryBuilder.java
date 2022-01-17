@@ -8,12 +8,13 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -158,19 +159,31 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         }
         // If we're using the default keyword analyzer then we can rewrite this to a TermQueryBuilder
         // and possibly shortcut
-        if (analyzer != null) {
-            if (sec.getIndexAnalyzers().get(analyzer) == Lucene.KEYWORD_ANALYZER) {
-                TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
-                return termQueryBuilder.rewrite(queryRewriteContext);
+        // If we're using a keyword analyzer then we can rewrite this to a TermQueryBuilder
+        // and possibly shortcut
+        NamedAnalyzer configuredAnalyzer = configuredAnalyzer(sec);
+        if (configuredAnalyzer != null && configuredAnalyzer.analyzer() instanceof KeywordAnalyzer) {
+            if (value.toString().isEmpty()) {
+                if (zeroTermsQuery == ZeroTermsQueryOption.ALL) {
+                    return new MatchAllQueryBuilder();
+                }
+                return new MatchNoneQueryBuilder();
             }
-        } else {
-            MappedFieldType mft = sec.getFieldType(fieldName);
-            if (mft != null && mft.getTextSearchInfo().getSearchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
-                TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
-                return termQueryBuilder.rewrite(queryRewriteContext);
-            }
+            TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
+            return termQueryBuilder.rewrite(sec);
         }
         return this;
+    }
+
+    private NamedAnalyzer configuredAnalyzer(SearchExecutionContext context) {
+        if (analyzer != null) {
+            return context.getIndexAnalyzers().get(analyzer);
+        }
+        MappedFieldType mft = context.getFieldType(fieldName);
+        if (mft != null) {
+            return mft.getTextSearchInfo().getSearchAnalyzer();
+        }
+        return null;
     }
 
     @Override

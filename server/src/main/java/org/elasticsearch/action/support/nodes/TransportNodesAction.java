@@ -267,6 +267,11 @@ public abstract class TransportNodesAction<
             }
         }
 
+        // For testing purposes
+        AtomicReferenceArray<Object> getResponses() {
+            return responses;
+        }
+
         private void onOperation(int idx, NodeResponse nodeResponse) {
             responses.set(idx, nodeResponse);
             if (counter.incrementAndGet() == responses.length()) {

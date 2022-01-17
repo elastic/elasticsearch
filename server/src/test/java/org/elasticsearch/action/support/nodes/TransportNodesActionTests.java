@@ -173,6 +173,33 @@ public class TransportNodesActionTests extends ESTestCase {
         expectThrows(ExecutionException.class, TaskCancelledException.class, listener::get);
     }
 
+    public void testDiscardingResultUponCancellation() {
+        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
+        List<String> nodeIds = new ArrayList<>();
+        for (DiscoveryNode node : clusterService.state().nodes()) {
+            nodeIds.add(node.getId());
+        }
+
+        TestNodesRequest request = new TestNodesRequest(nodeIds.toArray(new String[0]));
+        PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
+        CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse>.AsyncAction asyncAction =
+            action.new AsyncAction(cancellableTask, request, listener);
+        asyncAction.start();
+        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
+        for (List<CapturingTransport.CapturedRequest> requests : capturedRequests.values()) {
+            for (CapturingTransport.CapturedRequest capturedRequest : requests) {
+                transport.handleResponse(capturedRequest.requestId, new TestNodeResponse(capturedRequest.node));
+            }
+        }
+        TaskCancelHelper.cancel(cancellableTask, "simulated");
+        AtomicReferenceArray<Object> responses = asyncAction.getResponses();
+        for (int i = 0; i < responses.length(); i++) {
+            assertNull(responses.get(i));
+        }
+        assertTrue(listener.isDone());
+    }
+
     private <T> List<T> mockList(Supplier<T> supplier, int size) {
         List<T> failures = new ArrayList<>(size);
         for (int i = 0; i < size; ++i) {

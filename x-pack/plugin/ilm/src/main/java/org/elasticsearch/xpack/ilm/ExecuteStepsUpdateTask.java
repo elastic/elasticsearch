@@ -13,13 +13,13 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ilm.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 
@@ -210,7 +210,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
         IndexMetadata indexMetadata = newState.metadata().index(index);
         if (indexMetadata != null) {
 
-            LifecycleExecutionState exState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+            LifecycleExecutionState exState = indexMetadata.getLifecycleExecutionState();
             if (ErrorStep.NAME.equals(exState.getStep()) && this.failure != null) {
                 lifecycleRunner.registerFailedOperation(indexMetadata, failure);
             } else {

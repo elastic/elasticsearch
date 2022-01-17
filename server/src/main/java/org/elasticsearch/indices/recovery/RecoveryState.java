@@ -486,10 +486,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeVInt(recovered);
-            out.writeVInt(total);
-            out.writeVInt(totalOnStart);
-            out.writeVInt(totalLocal);
+            synchronized (this) {
+                out.writeVInt(recovered);
+                out.writeVInt(total);
+                out.writeVInt(totalOnStart);
+                out.writeVInt(totalLocal);
+            }
         }
 
         public synchronized void reset() {

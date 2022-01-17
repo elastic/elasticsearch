@@ -33,7 +33,7 @@ import static org.mockito.Mockito.when;
 public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
 
     public void testRemovingNonExistentNodes() throws Exception {
-        final NodeRemovalClusterStateTaskExecutor executor = new NodeRemovalClusterStateTaskExecutor(null, logger);
+        final NodeRemovalClusterStateTaskExecutor executor = new NodeRemovalClusterStateTaskExecutor(null);
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         final int nodes = randomIntBetween(2, 16);
         for (int i = 0; i < nodes; i++) {
@@ -46,13 +46,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
             removeBuilder.add(node(i));
         }
         final List<NodeRemovalClusterStateTaskExecutor.Task> tasks = StreamSupport.stream(removeBuilder.build().spliterator(), false)
-            .map(
-                node -> new NodeRemovalClusterStateTaskExecutor.Task(
-                    node,
-                    randomBoolean() ? "left" : "failed",
-                    e -> { throw new AssertionError(e); }
-                )
-            )
+            .map(node -> new NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed", () -> {}))
             .collect(Collectors.toList());
 
         final ClusterStateTaskExecutor.ClusterTasksResult<NodeRemovalClusterStateTaskExecutor.Task> result = executor.execute(
@@ -69,7 +63,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         );
 
         final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
-        final NodeRemovalClusterStateTaskExecutor executor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger) {
+        final NodeRemovalClusterStateTaskExecutor executor = new NodeRemovalClusterStateTaskExecutor(allocationService) {
             @Override
             protected ClusterState remainingNodesClusterState(ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
                 remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder));
@@ -86,13 +80,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
             final DiscoveryNode node = node(i);
             builder.add(node);
             if (first || randomBoolean()) {
-                tasks.add(
-                    new NodeRemovalClusterStateTaskExecutor.Task(
-                        node,
-                        randomBoolean() ? "left" : "failed",
-                        e -> { throw new AssertionError(e); }
-                    )
-                );
+                tasks.add(new NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed", () -> {}));
             }
             first = false;
         }

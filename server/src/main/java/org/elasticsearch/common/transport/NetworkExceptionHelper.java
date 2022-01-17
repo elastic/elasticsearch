@@ -48,6 +48,8 @@ public class NetworkExceptionHelper {
                 // We received a packet with the RST flag set. This is often caused by some broken middleware (a firewall device or similar)
                 // which injects a RST into an established connection due to an ill-considered timeout. However it can also happen with
                 // older TLS versions even if the connection is closed cleanly. Since it could be benign, we report it at INFO level.
+                // We expect connection resets in tests (because we set SO_LINGER to 0 to avoid having too many connections in TIME_WAIT
+                // state which exhausts the available set of ports) so in this case we push it down to DEBUG instead.
                 return rstOnClose ? Level.DEBUG : Level.INFO;
             }
             if (message.contains("Broken pipe")) {

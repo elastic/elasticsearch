@@ -162,7 +162,7 @@ public class AuthorizationService {
         this.settings = settings;
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
-        this.authzIndicesTimerFactory = new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings);
+        this.authzIndicesTimerFactory = new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings());
     }
 
     public void checkPrivileges(

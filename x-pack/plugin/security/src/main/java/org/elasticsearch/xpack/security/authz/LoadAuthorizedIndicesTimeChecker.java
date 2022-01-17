@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -16,7 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 
 import java.util.Collection;
-import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -71,8 +72,9 @@ class LoadAuthorizedIndicesTimeChecker implements Consumer<Collection<String>> {
 
     static final Setting<Boolean> LOGGING_ENABLED_SETTING = Setting.boolSetting(
         "xpack.security.authz.timer.enabled",
-        true,
-        Setting.Property.NodeScope
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
     static final Setting<TimeValue> DEBUG_THRESHOLD_SETTING = Setting.timeSetting(
         "xpack.security.authz.timer.threshold.debug",
@@ -131,43 +133,42 @@ class LoadAuthorizedIndicesTimeChecker implements Consumer<Collection<String>> {
 
     static class Factory {
         private final Logger logger;
-        private final boolean loggingEnabled;
+        private volatile boolean loggingEnabled;
         private final Thresholds thresholds;
 
-        Factory(Logger logger, Settings settings) {
+        Factory(Logger logger, Settings settings, ClusterSettings clusterSettings) {
             this.logger = logger;
             this.loggingEnabled = LOGGING_ENABLED_SETTING.get(settings);
+            clusterSettings.addSettingsUpdateConsumer(LOGGING_ENABLED_SETTING, enabled -> this.loggingEnabled = enabled);
 
             TimeValue debugThreshold = DEBUG_THRESHOLD_SETTING.get(settings);
             TimeValue infoThreshold = INFO_THRESHOLD_SETTING.get(settings);
             TimeValue warnThreshold = WARN_THRESHOLD_SETTING.get(settings);
 
-            if (loggingEnabled) {
-                if (infoThreshold.compareTo(debugThreshold) < 0) {
-                    throw new SettingsException(
-                        "Setting [{}] ({}) cannot be less than the setting [{}] ({})",
-                        INFO_THRESHOLD_SETTING.getKey(),
-                        infoThreshold,
-                        DEBUG_THRESHOLD_SETTING.getKey(),
-                        debugThreshold
-                    );
-                }
-                if (warnThreshold.compareTo(infoThreshold) < 0) {
-                    throw new SettingsException(
-                        "Setting [{}] ({}) cannot be less than the setting [{}] ({})",
-                        WARN_THRESHOLD_SETTING.getKey(),
-                        warnThreshold,
-                        INFO_THRESHOLD_SETTING.getKey(),
-                        infoThreshold
-                    );
-                }
+            if (infoThreshold.compareTo(debugThreshold) < 0) {
+                throw new SettingsException(
+                    "Setting [{}] ({}) cannot be less than the setting [{}] ({})",
+                    INFO_THRESHOLD_SETTING.getKey(),
+                    infoThreshold,
+                    DEBUG_THRESHOLD_SETTING.getKey(),
+                    debugThreshold
+                );
+            }
+            if (warnThreshold.compareTo(infoThreshold) < 0) {
+                throw new SettingsException(
+                    "Setting [{}] ({}) cannot be less than the setting [{}] ({})",
+                    WARN_THRESHOLD_SETTING.getKey(),
+                    warnThreshold,
+                    INFO_THRESHOLD_SETTING.getKey(),
+                    infoThreshold
+                );
             }
 
             this.thresholds = new Thresholds(debugThreshold, infoThreshold, warnThreshold);
         }
 
-        public static Collection<Setting<?>> getSettings() {
-            return List.of(LOGGING_ENABLED_SETTING, DEBUG_THRESHOLD_SETTING, INFO_THRESHOLD_SETTING, WARN_THRESHOLD_SETTING);
+        public static Set<Setting<?>> getSettings() {
+            return Set.of(LOGGING_ENABLED_SETTING, DEBUG_THRESHOLD_SETTING, INFO_THRESHOLD_SETTING, WARN_THRESHOLD_SETTING);
         }
 
         public Consumer<Collection<String>> newTimer(AuthorizationEngine.RequestInfo requestInfo) {

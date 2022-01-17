@@ -598,7 +598,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getRoleDescriptors().get(0), equalTo(superuserRoleDescriptor));
 
         assertThat(result.getLimitedByRoleDescriptors().size(), is(1));
-        // Limited role descriptor should always be the update superuser descriptor
+        // Limited role descriptor should always be the updated superuser role descriptor
         assertThat(result.getLimitedByRoleDescriptors().get(0), equalTo(SUPERUSER_ROLE_DESCRIPTOR));
     }
 

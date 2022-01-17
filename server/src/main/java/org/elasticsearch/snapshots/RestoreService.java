@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
@@ -78,6 +79,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1294,6 +1296,11 @@ public class RestoreService implements ClusterStateApplier {
                     request.indexSettings(),
                     request.ignoreIndexSettings()
                 );
+                if (snapshotIndexMetadata.getCreationVersion().before(
+                    currentState.getNodes().getMaxNodeVersion().minimumIndexCompatibilityVersion())) {
+                    // adapt mappings so that they can be read
+                    snapshotIndexMetadata = convertLegacyIndex(snapshotIndexMetadata);
+                }
                 try {
                     snapshotIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(snapshotIndexMetadata, minIndexCompatibilityVersion);
                 } catch (Exception ex) {
@@ -1580,6 +1587,46 @@ public class RestoreService implements ClusterStateApplier {
         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             listener.onResponse(new RestoreCompletionResponse(restoreUUID, snapshot, restoreInfo));
         }
+    }
+
+    private IndexMetadata convertLegacyIndex(IndexMetadata snapshotIndexMetadata) {
+        MappingMetadata mappingMetadata = snapshotIndexMetadata.mapping();
+        Map<String, Object> loadedMappingSource = mappingMetadata.sourceAsMap();
+
+        // store old mapping under _meta/legacy-mapping
+        Map<String, Object> legacyMapping = new LinkedHashMap<>();
+        boolean sourceOnlySnapshot = snapshotIndexMetadata.getSettings().getAsBoolean("index.source_only", false);
+        if (sourceOnlySnapshot) {
+            // actual mapping is under "_meta", and keyed by _type
+            Object sourceOnlyMeta = loadedMappingSource.get("_meta");
+            if (sourceOnlyMeta instanceof Map<?, ?> sourceOnlyMetaMap) {
+                if (sourceOnlyMetaMap.size() == 1) {
+                    if (sourceOnlyMetaMap.values().iterator().next() instanceof Map<?, ?> sourceOnlyLegacyMapping) {
+                        legacyMapping.put("legacy-mapping", sourceOnlyLegacyMapping);
+                    }
+                }
+            }
+        } else {
+            legacyMapping.put("legacy-mapping", loadedMappingSource);
+        }
+
+        Map<String, Object> newMappingSource = new LinkedHashMap<>();
+        newMappingSource.put("_meta", legacyMapping);
+
+        // copy over _meta fields of original index into proper place?
+        // preserve legacy runtime fields
+        Object legacyRuntimeFields = loadedMappingSource.get("runtime");
+        if (legacyRuntimeFields instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> legRuntimeFields = (Map<String, Object>) legacyRuntimeFields;
+            newMappingSource.put("runtime", legRuntimeFields);
+        }
+        Map<String, Object> newMapping = new LinkedHashMap<>();
+        newMapping.put(mappingMetadata.type(), newMappingSource);
+        // TODO: _routing? Perhaps we don't need to obey any routing here as stuff is read-only anyway and get API will be disabled
+        return IndexMetadata.builder(snapshotIndexMetadata)
+            .putMapping(new MappingMetadata(mappingMetadata.type(), newMapping))
+            .build();
     }
 
     private static IndexMetadata.Builder restoreToCreateNewIndex(IndexMetadata snapshotIndexMetadata, String renamedIndexName) {

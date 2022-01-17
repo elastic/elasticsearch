@@ -25,11 +25,13 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CloseIndexRequest;
+import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -60,7 +62,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class OldRepositoryAccessIT extends ESRestTestCase {
     @Override
@@ -290,6 +294,40 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 )
                 .getStatus()
         );
+
+        MappingMetadata mapping = client.indices().getMapping(new GetMappingsRequest().indices("restored_test"), RequestOptions.DEFAULT)
+            .mappings().get("restored_test");
+        logger.info("mapping for {}: {}", mapping.type(), mapping.source().string());
+        Map<String, Object> root = mapping.sourceAsMap();
+        assertThat(root, hasKey("_meta"));
+        assertThat(root.get("_meta"), instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> meta = (Map<String, Object>) root.get("_meta");
+        assertThat(meta, hasKey("legacy-mapping"));
+        assertThat(meta.get("legacy-mapping"), instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> legacyMapping = (Map<String, Object>) meta.get("legacy-mapping");
+        assertThat(legacyMapping, hasKey("properties"));
+        assertThat(legacyMapping.get("properties"), instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> propertiesMapping = (Map<String, Object>) legacyMapping.get("properties");
+        assertThat(propertiesMapping, hasKey("val"));
+        assertThat(propertiesMapping.get("val"), instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> valMapping = (Map<String, Object>) propertiesMapping.get("val");
+        assertThat(valMapping, hasKey("type"));
+        assertEquals("long", valMapping.get("type"));
+
+//        assertThat(root, hasKey("runtime"));
+//        assertThat(root.get("runtime"), instanceOf(Map.class));
+//        @SuppressWarnings("unchecked")
+//        Map<String, Object> runtimeMapping = (Map<String, Object>) root.get("runtime");
+//        assertThat(runtimeMapping, hasKey("val"));
+//        assertThat(runtimeMapping.get("val"), instanceOf(Map.class));
+//        @SuppressWarnings("unchecked")
+//        Map<String, Object> valRuntimeMapping = (Map<String, Object>) runtimeMapping.get("val");
+//        assertThat(valRuntimeMapping, hasKey("type"));
+//        assertEquals("long", valRuntimeMapping.get("type"));
 
         // run a search against the index
         assertDocs("restored_test", numDocs, expectedIds, client, sourceOnlyRepository);

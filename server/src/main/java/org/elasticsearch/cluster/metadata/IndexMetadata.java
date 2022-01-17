@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.LegacyMappingConverter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -60,6 +61,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1899,8 +1901,19 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         }
                         builder.settings(settings);
                     } else if ("mappings".equals(currentFieldName)) {
-                        // don't try to parse these for now
-                        parser.skipChildren();
+                        MapBuilder<String, Object> mappingSourceBuilder = MapBuilder.<String, Object>newMapBuilder();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (token == XContentParser.Token.START_OBJECT) {
+                                String mappingType = currentFieldName;
+                                mappingSourceBuilder.put(mappingType, parser.mapOrdered());
+                            } else {
+                                throw new IllegalArgumentException("Unexpected token: " + token);
+                            }
+                        }
+                        Map<String, Object> mapping = mappingSourceBuilder.map();
+                        handleLegacyMapping(builder, mapping);
                     } else if ("in_sync_allocations".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
@@ -1925,7 +1938,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("mappings".equals(currentFieldName)) {
                         // don't try to parse these for now
-                        parser.skipChildren();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            Map<String, Object> mapping;
+                            if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                                CompressedXContent compressedXContent = new CompressedXContent(parser.binaryValue());
+                                mapping = XContentHelper.convertToMap(compressedXContent.compressedReference(), true).v2();
+                            } else {
+                                mapping = parser.mapOrdered();
+                            }
+                            handleLegacyMapping(builder, mapping);
+                        }
                     } else {
                         parser.skipChildren();
                     }
@@ -1949,11 +1971,43 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
 
-            builder.putMapping(MappingMetadata.EMPTY_MAPPINGS); // just make sure it's not empty so that _source can be read
+            if (builder.mapping() == null) {
+                builder.putMapping(MappingMetadata.EMPTY_MAPPINGS); // just make sure it's not empty so that _source can be read
+            }
 
             IndexMetadata indexMetadata = builder.build();
             assert indexMetadata.getCreationVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion());
             return indexMetadata;
+        }
+
+        private static void handleLegacyMapping(Builder builder, Map<String, Object> mapping) {
+            //Map<String, Object> adaptedMapping = new
+
+            // we don't need to obey any routing here stuff is read-only anyway and get is disabled
+            // final String mapping = "{ \"_doc\" : { \"enabled\": false, \"_meta\": " + mmd.source().string() + " } }";
+
+//            LegacyMappingConverter legacyMappingConverter = new LegacyMappingConverter();
+//            @SuppressWarnings("unchecked")
+//            Map<String, Object> newMapping = (Map<String, Object>) legacyMappingConverter.extractNewMapping(mapping, true);
+//            mapping = newMapping;
+
+            if (mapping.size() == 1) {
+                String mappingType = mapping.keySet().iterator().next();
+//                @SuppressWarnings("unchecked")
+//                Map<String, Object> typelessMapping = (Map<String, Object>) mapping.get(mappingType);
+//                Map<String, ?> runtimeFieldMapping = legacyMappingConverter.extractRuntimeFieldMapping(typelessMapping);
+//                if (runtimeFieldMapping.isEmpty() == false) {
+//                    // TODO: only add those runtime fields that don't already exist
+//                    LinkedHashMap<String, Object> newTypelessMapping = new LinkedHashMap<>();
+//                    newTypelessMapping.put("runtime", runtimeFieldMapping);
+//                    newTypelessMapping.putAll(typelessMapping);
+//                    mapping.put(mappingType, newTypelessMapping);
+//                }
+                builder.putMapping(new MappingMetadata(mappingType, mapping));
+            } else if (mapping.size() > 1) {
+                // TODO: handle this better
+                throw new RuntimeException("can't handle multiple types");
+            }
         }
     }
 

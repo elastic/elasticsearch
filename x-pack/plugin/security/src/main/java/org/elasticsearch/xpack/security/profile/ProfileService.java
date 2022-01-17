@@ -35,7 +35,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -197,7 +196,7 @@ public class ProfileService {
         final BulkRequest bulkRequest = toSingleItemBulkRequest(
             client.prepareIndex(SECURITY_PROFILE_ALIAS)
                 .setId(docId)
-                .setSource(profileDocument.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
+                .setSource(wrapProfileDocument(profileDocument))
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                 .request()
         );
@@ -226,7 +225,7 @@ public class ProfileService {
         doUpdate(
             buildUpdateRequest(
                 profileDocument.uid(),
-                profileDocument.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS),
+                wrapProfileDocument(profileDocument),
                 RefreshPolicy.WAIT_UNTIL,
                 versionedDocument.primaryTerm,
                 versionedDocument.seqNo
@@ -294,6 +293,14 @@ public class ProfileService {
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, XContentType.JSON)) {
             return ProfileDocument.fromXContent(parser);
         }
+    }
+
+    XContentBuilder wrapProfileDocument(ProfileDocument profileDocument) throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        builder.field("user_profile", profileDocument);
+        builder.endObject();
+        return builder;
     }
 
     /**

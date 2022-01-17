@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 

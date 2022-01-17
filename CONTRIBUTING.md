@@ -545,7 +545,18 @@ unexpected consequences of a delayed response from a remote node.
 
 `TRACE` logs will normally only make sense when read alongside the code, and
 typically they will be read as a whole sequence of messages rather than in
-isolation.
+isolation. For example, the `InternalClusterInfoService` uses `TRACE` logs to
+record certain key events in its periodic refresh process:
+
+    logger.trace("starting async refresh");
+    // ...
+    logger.trace("received node stats response");
+    // ...
+    logger.trace("received indices stats response");
+    // ...
+    logger.trace("stats all received, computing cluster info and notifying listeners");
+    // ...
+    logger.trace("notifying [{}] of new cluster info", listener);
 
 Even though `TRACE` logs may be very verbose, you should still exercise some
 judgement when deciding when to use them. In many cases it will be easier to
@@ -572,11 +583,22 @@ that you expect Elasticsearch to encounter. In some cases it works well to
 collect information over a period of time and then log a complete summary,
 rather than recording every step of a process in its own message.
 
+For example, the `Coordinator` uses `DEBUG` logs to record a change in mode,
+including various internal details for context, because this event is fairly
+rare but not important enough to notify users by default:
+
+    logger.debug(
+        "{}: coordinator becoming CANDIDATE in term {} (was {}, lastKnownLeader was [{}])",
+        method,
+        getCurrentTerm(),
+        mode,
+        lastKnownLeader
+    );
+
 It's possible that the reader of `DEBUG` logs is also reading the code, but
-that is less likely than for `TRACE` logs. You should strive to avoid
-terminology that only makes sense when reading the code, and also aim for
-messages at this level to be self-contained rather than intending them to be
-read as a sequence.
+that is less likely than for `TRACE` logs. Strive to avoid terminology that
+only makes sense when reading the code, and also aim for messages at this level
+to be self-contained rather than intending them to be read as a sequence.
 
 It's often useful to log exceptions and other deviations from the "happy path"
 at `DEBUG` level. Exceptions logged at `DEBUG` should generally include the
@@ -590,6 +612,16 @@ cluster, such as an index being created or deleted, or a snapshot starting or
 completing. Users will mostly ignore log messages at `INFO` level, but may use
 these messages to construct a high-level timeline of events leading up to an
 incident.
+
+For example, the `MetadataIndexTemplateService` uses `INFO` logs to record when
+an index template is created or updated:
+
+    logger.info(
+        "{} index template [{}] for index patterns {}",
+        existing == null ? "adding" : "updating",
+        name,
+        template.indexPatterns()
+    );
 
 `INFO`-level logging is enabled by default so its target audience is the
 general population of users and administrators. You should use user-facing
@@ -617,10 +649,21 @@ any logs at this level really do indicate a problem that needs addressing.
 As with the `INFO` level, you should use user-facing terminology at the `WARN`
 level, and also ensure that messages are self-contained. Strive to make them
 actionable too since you should be logging at this level when the user should
-take some investigative action. Unlike at the `INFO` level, it is often
-appropriate to log an exception, complete with stack trace, at `WARN` level.
-Although the stack trace may not be useful to the user, it may contain
-information that is vital for a developer to fully understand the problem.
+take some investigative action.
+
+For example, the `DiskThresholdMonitor` uses `WARN` logs to record that a disk
+threshold has been breached:
+
+    logger.warn(
+        "flood stage disk watermark [{}] exceeded on {}, all indices on this node will be marked read-only",
+        diskThresholdSettings.describeFloodStageThreshold(),
+        usage
+    );
+
+Unlike at the `INFO` level, it is often appropriate to log an exception,
+complete with stack trace, at `WARN` level. Although the stack trace may not be
+useful to the user, it may contain information that is vital for a developer to
+fully understand the problem.
 
 In a situation where occasional transient failures are expected and handled,
 but a persistent failure requires the user's attention, consider implementing a

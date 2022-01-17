@@ -9,7 +9,7 @@ A bucket aggregation that groups documents based on the network or sub-network o
 [[ipprefix-agg-ex]]
 ==== Example
 
-For example consider the following index:
+For example, consider the following index:
 [source,console]
 ----------------------------------------------
 PUT network-traffic
@@ -44,7 +44,7 @@ POST /network-traffic/_bulk?refresh
 ----------------------------------------------
 // TESTSETUP
 
-The following aggregation groups documents into buckets. Each bucket identifies a different sub-network. The sub-network is calculated applying a netmask with prefix length of `24` to each IP address in the `ipv4` field:
+The following aggregation groups documents into buckets. Each bucket identifies a different sub-network. The sub-network is calculated by applying a netmask with prefix length of `24` to each IP address in the `ipv4` field:
 
 [source,console,id=ip-prefix-ipv4-example]
 --------------------------------------------------
@@ -121,7 +121,7 @@ GET /network-traffic/_search
 --------------------------------------------------
 // TEST
 
-Response:
+If `is_ipv6` is `true`, the response doesn't include a `netmask` for each bucket.
 
 [source,console-result]
 --------------------------------------------------
@@ -156,12 +156,62 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-The `netmask` field is not returned in the response when flag `is_ipv6` is set to `true`.
+[role="child_attributes"]
+[[ip-prefix-agg-params]]
+==== Parameters
+
+`field`::
+(Required, string)
+The document IP address field to aggregate on. The field mapping type must be <<ip,`ip`>>.
+
+`prefix_len`::
+(Required, integer)
+Length of the network prefix. For IPv4 addresses, the accepted range is `[0, 32]`. For IPv6 addresses, the accepted range is `[0, 128]`.
+
+`is_ipv6`::
+(Optional, boolean)
+Defines whether the prefix applies to IPv6 addresses. Just specifying the `prefix_len` parameter is not enough to know if an IP prefix applies to IPv4 or IPv6 addresses. Defaults to `false`.
+
+`append_prefix_len`::
+(Optional, boolean)
+Defines whether the prefix length is appended to IP address keys in the response. Defaults to `false`.
+
+`keyed`::
+(Optional, boolean)
+Defines whether buckets are returned as a hash rather than an array in the response. Defaults to `false`.
+
+`min_doc_count`::
+(Optional, integer)
+Defines the minimum number of documents for buckets to be included in the response. Defaults to `1`.
+
+
+[[ipprefix-agg-response]]
+==== Response body
+
+`key`::
+(string)
+The IPv6 or IPv4 subnet.
+
+`prefix_len`::
+(integer)
+The length of the prefix used to aggregate the bucket.
+
+`doc_count`::
+(integer)
+Number of documents matching a specific IP prefix.
+
+`is_ipv6`::
+(boolean)
+Defines whether the netmask is an IPv6 netmask.
+
+`netmask`::
+(string)
+The IPv4 netmask. If `is_ipv6` is `true` in the request, this field is missing in the response.
 
 [[ipprefix-agg-keyed-response]]
 ==== Keyed Response
 
-Set the `keyed` flag of `true` to associate an unique IP address key with each bucket and return sub-networks as a hash rather than an array:
+Set the `keyed` flag of `true` to associate an unique IP address key with each bucket and return sub-networks as a hash rather than an array.
 
 Example:
 
@@ -221,7 +271,7 @@ Response:
 [[ipprefix-agg-append-prefix-length]]
 ==== Append the prefix length to the IP address key
 
-Set the `append_prefix_len` flag to `true` to catenate IP address keys with the prefix length of the sub-network:
+Set the `append_prefix_len` flag to `true` to catenate IP address keys with the prefix length of the sub-network.
 
 Example:
 
@@ -335,54 +385,3 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-[role="child_attributes"]
-[[ip-prefix-agg-params]]
-==== Parameters
-
-`field`::
-(Required, string)
-The document IP address field to aggregate on. The field mapping type must be `IP`.
-
-`prefix_len`::
-(Required, integer)
-The length of the network prefix. For IPv4 addresses the accepted range is `[0, 32]`. For Ipv6 addresses the accepted range is `[0, 128]`.
-
-`is_ipv6`::
-(Optional, boolean)
-Defines whether the prefix applies to IPv6 addresses. Just specifying the `prefix_len` parameter is not enough to know if an IP prefix applies to IPv4 or IPv6 addresses. Defaults to `false`.
-
-`append_prefix_len`::
-(Optional, boolean)
-Defines whether the prefix length is appended to IP address keys in the response. Defaults to `false`.
-
-`keyed`::
-(Optional, boolean)
-Defines whether buckets are returned as a hash rather than an array in the response. Defaults to `false`.
-
-`min_doc_count`::
-(Optional, integer)
-Defines the minimum number of documents for buckets to be included in the response. Defaults to `1`.
-
-
-[[ipprefix-agg-response]]
-==== Response body
-
-`key`::
-(string)
-The IPv6 or IPv4 subnet.
-
-`prefix_len`::
-(integer)
-The length of the prefix used to aggregate the bucket.
-
-`doc_count`::
-(integer)
-Number of documents matching a specific IP prefix.
-
-`is_ipv6`::
-(boolean)
-Defines whether the netmask is an IPv6 netmask.
-
-`netmask`::
-(string)
-The IPv4 netmask. If `is_ipv6` is `true` in the request, this field is missing in the response.

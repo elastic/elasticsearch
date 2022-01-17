@@ -157,7 +157,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     public void testUpdatePolicyToNotContainFailedStep() throws Exception {
-        createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE);
+        createNewSingletonPolicy(client(), policy, "delete", new DeleteAction(true));
         createIndexWithSettings(
             client(),
             index,

@@ -192,7 +192,8 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         final ActivateProfileRequest activateProfileRequest = new ActivateProfileRequest();
         activateProfileRequest.getGrant().setType("password");
         activateProfileRequest.getGrant().setUsername(username);
-        activateProfileRequest.getGrant().setPassword(password);
+        // clone the secureString because activate action closes it afterwards
+        activateProfileRequest.getGrant().setPassword(password.clone());
 
         final ActivateProfileResponse activateProfileResponse = client().execute(ActivateProfileAction.INSTANCE, activateProfileRequest)
             .actionGet();

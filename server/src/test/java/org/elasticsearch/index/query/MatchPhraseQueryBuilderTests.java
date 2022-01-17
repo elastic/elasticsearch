@@ -16,6 +16,7 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -196,6 +197,9 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
         SearchExecutionContext context = createSearchExecutionContext();
         QueryBuilder rewritten = queryBuilder.rewrite(context);
         assertThat(rewritten, instanceOf(TermQueryBuilder.class));
+        TermQueryBuilder tqb = (TermQueryBuilder) rewritten;
+        assertEquals(KEYWORD_FIELD_NAME, tqb.fieldName);
+        assertEquals(new BytesRef("value"), tqb.value);
     }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {

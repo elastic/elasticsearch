@@ -582,6 +582,9 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         SearchExecutionContext context = createSearchExecutionContext();
         QueryBuilder rewritten = queryBuilder.rewrite(context);
         assertThat(rewritten, instanceOf(TermQueryBuilder.class));
+        TermQueryBuilder tqb = (TermQueryBuilder) rewritten;
+        assertEquals(KEYWORD_FIELD_NAME, tqb.fieldName);
+        assertEquals(new BytesRef("value"), tqb.value);
         assertThat(rewritten.boost(), equalTo(2f));
     }
 

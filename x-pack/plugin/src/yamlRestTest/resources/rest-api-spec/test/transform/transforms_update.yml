@@ -207,6 +207,51 @@ setup:
   - match: { transforms.0.frequency: "5s" }
 
 ---
+"Test update retention policy":
+  - do:
+      transform.get_transform:
+        transform_id: "updating-airline-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "updating-airline-transform" }
+  - match: { transforms.0.retention_policy: null }
+
+  - do:
+      transform.update_transform:
+        transform_id: "updating-airline-transform"
+        body: >
+          {
+            "retention_policy": {
+              "time": {
+                "field": "time",
+                "max_age": "24h"
+              }
+            }
+          }
+
+  - do:
+      transform.get_transform:
+        transform_id: "updating-airline-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "updating-airline-transform" }
+  - match: { transforms.0.retention_policy.time.field: "time" }
+  - match: { transforms.0.retention_policy.time.max_age: "24h" }
+
+  - do:
+      transform.update_transform:
+        transform_id: "updating-airline-transform"
+        body: >
+          {
+            "retention_policy": null
+          }
+
+  - do:
+      transform.get_transform:
+        transform_id: "updating-airline-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "updating-airline-transform" }
+  - match: { transforms.0.retention_policy: null }
+
+---
 "Test transform where dest is included in source":
   - do:
       catch: /Destination index \[airline-data-by-airline\] is included in source expression \[airline-data/

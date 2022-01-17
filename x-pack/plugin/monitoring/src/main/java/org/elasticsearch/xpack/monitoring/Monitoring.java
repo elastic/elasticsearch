@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -13,6 +15,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -41,6 +45,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsAction;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.action.TransportMonitoringBulkAction;
 import org.elasticsearch.xpack.monitoring.action.TransportMonitoringMigrateAlertsAction;
@@ -73,6 +78,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
@@ -82,6 +88,8 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
  * - transport clients: only action/transport actions are bound
  */
 public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin {
+
+    private static final Logger logger = LogManager.getLogger(Monitoring.class);
 
     /**
      * The ability to automatically cleanup ".watcher_history*" indices while also cleaning up Monitoring indices.
@@ -263,6 +271,25 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return map -> {
+            final Set<String> monitoringTemplateNames = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
+                .map(MonitoringTemplateUtils::templateName)
+                .collect(Collectors.toSet());
+
+            map.entrySet().removeIf(entry -> {
+                String templateName = entry.getKey();
+                if (monitoringTemplateNames.contains(templateName) || templateName.startsWith("apm-6.")) {
+                    ImmutableOpenMap<String, CompressedXContent> mappings = entry.getValue().getMappings();
+                    if (mappings != null && mappings.get("doc") != null) {
+                        // this is either an old APM mapping that still uses the `doc` type so let's remove it as the later 7.x APM versions
+                        // would've installed an APM template (versioned) that doesn't contain any type, or similarly, a monitoring template
+                        // that wasn't updated (probably because the LocalExporter is disabled)
+                        logger.info("removing typed legacy template [{}]", templateName);
+                        return true;
+                    }
+                }
+                return false;
+            });
+
             // this template was not migrated to typeless due to the possibility of the old /_monitoring/bulk API being used
             // see {@link org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils#OLD_TEMPLATE_VERSION}
             // however the bulk API is not typed (the type field is for the docs, a field inside the docs) so it's safe to remove this

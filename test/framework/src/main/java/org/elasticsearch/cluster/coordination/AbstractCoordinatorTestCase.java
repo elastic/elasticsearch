@@ -1390,7 +1390,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 final int eventId = history.invoke(new Tuple<>(key, value));
                 return submitUpdateTask("new value [" + value + "]", cs -> setValue(cs, key, value), new ClusterStateTaskListener() {
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         history.respond(eventId, value(oldState, key));
                     }
 
@@ -1413,7 +1413,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 final int eventId = history.invoke(new Tuple<>(key, null));
                 submitUpdateTask("read value", cs -> ClusterState.builder(cs).build(), new ClusterStateTaskListener() {
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         history.respond(eventId, value(newState, key));
                     }
 
@@ -1456,13 +1456,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         }
 
                         @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             updateCommittedStates();
                             ClusterState state = committedStatesByVersion.get(newState.version());
                             assertNotNull("State not committed : " + newState, state);
                             assertStateEquals(state, newState);
                             logger.trace("successfully published: [{}]", newState);
-                            taskListener.clusterStateProcessed(source, oldState, newState);
+                            taskListener.clusterStateProcessed(oldState, newState);
                         }
                     }, ClusterStateTaskExecutor.unbatched());
                 }).run();

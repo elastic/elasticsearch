@@ -335,7 +335,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         final ClusterService masterClusterService = internalCluster().clusterService(master);
         masterClusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 latch.countDown();
             }
 

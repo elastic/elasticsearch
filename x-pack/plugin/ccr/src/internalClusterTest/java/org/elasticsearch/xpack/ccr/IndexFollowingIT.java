@@ -1287,7 +1287,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 settingVersionOnLeader.set(newState.metadata().index("leader").getSettingsVersion());
                 latch.countDown();
             }

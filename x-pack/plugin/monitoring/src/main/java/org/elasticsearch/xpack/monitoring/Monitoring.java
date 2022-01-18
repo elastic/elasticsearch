@@ -277,7 +277,6 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return map -> {
-            // Check that each required template exists, with the correct version
             List<IndexTemplateMetadata> monitoringTemplates = createMonitoringTemplates(getMissingMonitoringTemplateIds(map));
             for (IndexTemplateMetadata newTemplate : monitoringTemplates) {
                 map.put(newTemplate.getName(), newTemplate);
@@ -311,25 +310,23 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
      * Other ids are ignored.
      */
     static List<IndexTemplateMetadata> createMonitoringTemplates(List<String> missingTemplateIds) {
-        List<IndexTemplateMetadata> createdTemplates = new ArrayList<>();
-        if (missingTemplateIds.isEmpty() == false) {
-            for (String templateId : missingTemplateIds) {
-                try {
-                    final String templateName = MonitoringTemplateUtils.templateName(templateId);
-                    final String templateSource = MonitoringTemplateUtils.loadTemplate(templateId);
-                    try (
-                        XContentParser parser = XContentType.JSON.xContent()
-                            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, templateSource)
-                    ) {
-                        IndexTemplateMetadata updatedTemplate = IndexTemplateMetadata.Builder.fromXContent(parser, templateName);
-                        logger.info("updated template [{}] to version [{}]", templateName, MonitoringTemplateUtils.TEMPLATE_VERSION);
-                        createdTemplates.add(updatedTemplate);
-                    } catch (IOException e) {
-                        logger.error("unable to update template [" + templateName + "]", e);
-                    }
-                } catch (Exception e) {
-                    logger.error("unable to create monitoring template", e);
+        List<IndexTemplateMetadata> createdTemplates = new ArrayList<>(missingTemplateIds.size());
+        for (String templateId : missingTemplateIds) {
+            try {
+                final String templateName = MonitoringTemplateUtils.templateName(templateId);
+                final String templateSource = MonitoringTemplateUtils.loadTemplate(templateId);
+                try (
+                    XContentParser parser = XContentType.JSON.xContent()
+                        .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, templateSource)
+                ) {
+                    IndexTemplateMetadata updatedTemplate = IndexTemplateMetadata.Builder.fromXContent(parser, templateName);
+                    logger.info("created template [{}] with version [{}]", templateName, MonitoringTemplateUtils.TEMPLATE_VERSION);
+                    createdTemplates.add(updatedTemplate);
+                } catch (IOException e) {
+                    logger.error("unable to create template [" + templateName + "]", e);
                 }
+            } catch (Exception e) {
+                logger.error("unable to create monitoring template", e);
             }
         }
         return createdTemplates;

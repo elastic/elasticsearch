@@ -49,7 +49,7 @@ public class WellKnownBinary {
 
     private static void toWKB(Geometry geometry, ByteArrayOutputStream out, ByteBuffer scratch) {
         out.write(scratch.order() == ByteOrder.BIG_ENDIAN ? 0 : 1);
-        geometry.visit(new GeometryVisitor<>() {
+        geometry.visit(new GeometryVisitor<Void, RuntimeException>() {
             @Override
             public Void visit(Point point) {
                 if (point.isEmpty()) {

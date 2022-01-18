@@ -28,7 +28,7 @@ public final class NodeMetadata {
 
     static final String NODE_ID_KEY = "node_id";
     static final String NODE_VERSION_KEY = "node_version";
-    private static final String OLDEST_INDEX_VERSION_KEY = "oldest_index_version";
+    static final String OLDEST_INDEX_VERSION_KEY = "oldest_index_version";
 
     private final String nodeId;
 

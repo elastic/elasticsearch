@@ -480,9 +480,14 @@ public final class NodeEnvironment implements Closeable {
      * @param nodePaths
      * @throws IOException
      */
-    private static void checkForIndexCompatibility(Logger logger, NodePath... nodePaths) throws IOException {
+    static void checkForIndexCompatibility(Logger logger, NodePath... nodePaths) throws IOException {
         final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
         NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(paths);
+
+        // We are upgrading the cluster, but we didn't find any previous metadata. Possibly corrupted state.
+        if (metadata == null) {
+            return;
+        }
 
         logger.info("oldest index version recorded in NodeMetadata {}", metadata.oldestIndexVersion());
 

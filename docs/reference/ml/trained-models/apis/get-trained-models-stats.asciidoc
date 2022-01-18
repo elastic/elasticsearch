@@ -204,7 +204,7 @@ The current routing state and reason for the current routing state for this allo
 --
 
 `start_time`:::
-(integer)
+(long)
 The epoch timestamp when the allocation started.
 
 `rejected_execution_count`:::

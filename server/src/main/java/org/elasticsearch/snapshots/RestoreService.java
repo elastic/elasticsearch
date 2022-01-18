@@ -50,7 +50,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -129,7 +128,6 @@ import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VAL
 public class RestoreService implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(RestoreService.class);
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestoreService.class);
 
     public static final Setting<Boolean> REFRESH_REPO_UUID_ON_RESTORE_SETTING = Setting.boolSetting(
         "snapshot.refresh_repo_uuid_on_restore",
@@ -298,7 +296,7 @@ public class RestoreService implements ClusterStateApplier {
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
 
         // Make sure that we can restore from this snapshot
-        validateSnapshotRestorable(repository.getMetadata(), snapshotInfo);
+        validateSnapshotRestorable(request, repository.getMetadata(), snapshotInfo);
 
         // Get the global state if necessary
         Metadata globalMetadata = null;
@@ -959,7 +957,7 @@ public class RestoreService implements ClusterStateApplier {
      *  @param repository      repository name
      * @param snapshotInfo    snapshot metadata
      */
-    private static void validateSnapshotRestorable(final RepositoryMetadata repository, final SnapshotInfo snapshotInfo) {
+    static void validateSnapshotRestorable(RestoreSnapshotRequest request, RepositoryMetadata repository, SnapshotInfo snapshotInfo) {
         if (snapshotInfo.state().restorable() == false) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
@@ -984,6 +982,12 @@ public class RestoreService implements ClusterStateApplier {
                     + "] which is below the current versions minimum index compatibility version ["
                     + Version.CURRENT.minimumIndexCompatibilityVersion()
                     + "]"
+            );
+        }
+        if (request.includeGlobalState() && snapshotInfo.includeGlobalState() == Boolean.FALSE) {
+            throw new SnapshotRestoreException(
+                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
+                "cannot restore global state since the snapshot was created without global state"
             );
         }
     }

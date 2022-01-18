@@ -68,8 +68,8 @@ public class CloseToAssertion extends Assertion {
     @Override
     protected void doAssert(Object actualValue, Object expectedValue) {
         logger.trace("assert that [{}] is close to [{}] with error [{}] (field [{}])", actualValue, expectedValue, error, getField());
-        if (actualValue instanceof Number) {
-            assertThat(((Number) actualValue).doubleValue(), closeTo((Double) expectedValue, error));
+        if (actualValue instanceof Number actualValueNumber) {
+            assertThat(actualValueNumber.doubleValue(), closeTo((Double) expectedValue, error));
         } else {
             throw new AssertionError("excpected a value close to " + expectedValue + " but got " + actualValue + ", which is not a number");
         }

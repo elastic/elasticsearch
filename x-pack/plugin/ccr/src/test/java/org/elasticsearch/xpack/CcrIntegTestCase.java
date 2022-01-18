@@ -82,7 +82,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
@@ -165,8 +164,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             ESIntegTestCase.TestSeedPlugin.class,
             MockHttpTransport.TestPlugin.class,
             MockTransportService.TestPlugin.class,
-            MockNioTransportPlugin.class,
-            InternalSettingsPlugin.class
+            InternalSettingsPlugin.class,
+            getTestTransportPlugin()
         );
 
         InternalTestCluster leaderCluster = new InternalTestCluster(

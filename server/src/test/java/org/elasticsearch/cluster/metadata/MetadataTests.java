@@ -1067,6 +1067,16 @@ public class MetadataTests extends ESTestCase {
         assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
     }
 
+    public void testCopyAndUpdate() throws IOException {
+        var metadata = Metadata.builder().clusterUUID(UUIDs.base64UUID()).build();
+        var newClusterUuid = UUIDs.base64UUID();
+
+        var copy = metadata.copyAndUpdate(builder -> builder.clusterUUID(newClusterUuid));
+
+        assertThat(copy, not(sameInstance(metadata)));
+        assertThat(copy.clusterUUID(), equalTo(newClusterUuid));
+    }
+
     public void testBuilderRemoveCustomIf() {
         var custom1 = new TestCustomMetadata();
         var custom2 = new TestCustomMetadata();

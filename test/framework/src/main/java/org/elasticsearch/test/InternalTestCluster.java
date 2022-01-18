@@ -523,6 +523,10 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
+        // RST all closing connections in tests (by setting SO_LINGER to 0) so we don't leave too many connections in TIME_WAIT state and
+        // run out of ports.
+        builder.put(TransportSettings.RST_ON_CLOSE.getKey(), true);
+
         // randomize tcp settings
         if (random.nextBoolean()) {
             builder.put(TransportSettings.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);
@@ -1076,8 +1080,7 @@ public final class InternalTestCluster extends TestCluster {
         // clear all rules for mock transport services
         for (NodeAndClient nodeAndClient : nodes.values()) {
             TransportService transportService = nodeAndClient.node.injector().getInstance(TransportService.class);
-            if (transportService instanceof MockTransportService) {
-                final MockTransportService mockTransportService = (MockTransportService) transportService;
+            if (transportService instanceof final MockTransportService mockTransportService) {
                 mockTransportService.clearAllRules();
             }
         }

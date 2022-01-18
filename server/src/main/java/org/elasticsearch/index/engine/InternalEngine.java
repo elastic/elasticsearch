@@ -1359,6 +1359,7 @@ public class InternalEngine extends Engine {
             }
         } else {
             try (Searcher searcher = acquireSearcher("assert doc doesn't exist", SearcherScope.INTERNAL)) {
+                searcher.setQueryCache(null); // so that it does not interfere with tests that check caching behavior
                 final long docsWithId = searcher.count(new TermQuery(index.uid()));
                 if (docsWithId > 0) {
                     throw new AssertionError("doc [" + index.id() + "] exists [" + docsWithId + "] times in index");

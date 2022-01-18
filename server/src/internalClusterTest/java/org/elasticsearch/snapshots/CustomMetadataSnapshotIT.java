@@ -50,10 +50,15 @@ public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startNode();
         createIndex("test-idx");
         logger.info("--> add custom persistent metadata");
+
+        boolean isSnapshottableMetadataInitialized = randomBoolean();
+
         updateClusterState(currentState -> {
             ClusterState.Builder builder = ClusterState.builder(currentState);
             Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
-            metadataBuilder.putCustom(SnapshottableMetadata.TYPE, new SnapshottableMetadata("before_snapshot_s"));
+            if (isSnapshottableMetadataInitialized) {
+                metadataBuilder.putCustom(SnapshottableMetadata.TYPE, new SnapshottableMetadata("before_snapshot_s"));
+            }
             metadataBuilder.putCustom(NonSnapshottableMetadata.TYPE, new NonSnapshottableMetadata("before_snapshot_ns"));
             metadataBuilder.putCustom(SnapshottableGatewayMetadata.TYPE, new SnapshottableGatewayMetadata("before_snapshot_s_gw"));
             metadataBuilder.putCustom(NonSnapshottableGatewayMetadata.TYPE, new NonSnapshottableGatewayMetadata("before_snapshot_ns_gw"));
@@ -111,7 +116,11 @@ public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
         ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         logger.info("Cluster state: {}", clusterState);
         Metadata metadata = clusterState.getMetadata();
-        assertThat(metadata.<SnapshottableMetadata>custom(SnapshottableMetadata.TYPE).getData(), equalTo("before_snapshot_s"));
+        if (isSnapshottableMetadataInitialized) {
+            assertThat(metadata.<SnapshottableMetadata>custom(SnapshottableMetadata.TYPE).getData(), equalTo("before_snapshot_s"));
+        } else {
+            assertThat(metadata.<SnapshottableMetadata>custom(SnapshottableMetadata.TYPE), nullValue());
+        }
         assertThat(metadata.<NonSnapshottableMetadata>custom(NonSnapshottableMetadata.TYPE).getData(), equalTo("after_snapshot_ns"));
         assertThat(
             metadata.<SnapshottableGatewayMetadata>custom(SnapshottableGatewayMetadata.TYPE).getData(),

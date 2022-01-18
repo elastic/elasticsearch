@@ -43,10 +43,11 @@ public class FastGeometric {
     //
     // Note this is log base 2.
     private static float fastLog2(float x) {
+        assert x >= 0f : "Error generating fast log as provided value was less than 0";
         int xBits = Float.floatToIntBits(x);
         int log2x = ((xBits >>> 23) & 0xFF) - 127;
         int xMantissa = xBits & 0x7FFFFF;
-        return (LOOKUP_TABLE_FOR_FAST_LOG_2[xMantissa >>> SHIFT] + log2x);
+        return LOOKUP_TABLE_FOR_FAST_LOG_2[xMantissa >>> SHIFT] + log2x;
     }
 
     private final IntSupplier rng;

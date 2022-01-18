@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.randomsample;
 
+import com.carrotsearch.hppc.BitMixer;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.ConjunctionUtils;
@@ -20,11 +22,11 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.xpack.ml.math.FastGeometric;
-import org.elasticsearch.xpack.ml.math.PCG;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.SplittableRandom;
 import java.util.function.IntSupplier;
 
 /**
@@ -33,28 +35,32 @@ import java.util.function.IntSupplier;
 public final class RandomSamplingQuery extends Query {
 
     private final double p;
-    private final boolean cacheable;
     private final Query query;
+    private final SplittableRandom splittableRandom;
     private final int seed;
-    private final long hash;
+    private final int hash;
 
     /**
      * @param p         The sampling probability e.g. 0.05 == 5% probability a document will match
      * @param seed      The seed from the builder
      * @param hash      A unique hash so that if the same seed is used between multiple queries, unique random number streams
      *                  can be generated
-     * @param cacheable True if the seed is static (provided by the user) so that we can cache the query, false otherwise
      * @param query     An additional filter to apply to the resulting document set
      */
-    public RandomSamplingQuery(double p, int seed, long hash, boolean cacheable, Query query) {
+    public RandomSamplingQuery(double p, int seed, int hash, Query query) {
         if (p <= 0.0 || p >= 1.0) {
             throw new IllegalArgumentException("RandomSampling probability must be between 0.0 and 1.0");
         }
         this.p = p;
+        this.query = query;
         this.seed = seed;
         this.hash = hash;
-        this.cacheable = cacheable;
-        this.query = query;
+        this.splittableRandom = new SplittableRandom(BitMixer.mix(hash, seed));
+    }
+
+    @Override
+    public String toString(String field) {
+        return "RandomSamplingQuery{" + "p=" + p + ", query=" + query + ", seed=" + seed + ", hash=" + hash + '}';
     }
 
     @Override
@@ -62,20 +68,20 @@ public final class RandomSamplingQuery extends Query {
         if (query == null) {
             return new ConstantScoreWeight(this, boost) {
                 @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return true;
+                }
+
+                @Override
                 public Scorer scorer(LeafReaderContext context) {
-                    final PCG pcg = new PCG(seed, hash);
+                    final SplittableRandom random = splittableRandom.split();
                     int maxDoc = context.reader().maxDoc();
                     return new ConstantScoreScorer(
                         this,
                         score(),
                         ScoreMode.COMPLETE_NO_SCORES,
-                        new RandomSamplingIterator(maxDoc, p, pcg::nextInt)
+                        new RandomSamplingIterator(maxDoc, p, random::nextInt)
                     );
-                }
-
-                @Override
-                public boolean isCacheable(LeafReaderContext ctx) {
-                    return cacheable;
                 }
             };
         } else {
@@ -83,13 +89,13 @@ public final class RandomSamplingQuery extends Query {
             return new ConstantScoreWeight(query, boost) {
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {
-                    final PCG pcg = new PCG(seed, hash);
+                    final SplittableRandom random = splittableRandom.split();
                     int maxDoc = context.reader().maxDoc();
                     Scorer scorer = new ConstantScoreScorer(
                         this,
                         score(),
                         ScoreMode.COMPLETE_NO_SCORES,
-                        new RandomSamplingIterator(maxDoc, p, pcg::nextInt)
+                        new RandomSamplingIterator(maxDoc, p, random::nextInt)
                     );
                     Scorer queryScorer = innerWeight.scorer(context);
                     if (queryScorer == null) {
@@ -105,7 +111,7 @@ public final class RandomSamplingQuery extends Query {
 
                 @Override
                 public boolean isCacheable(LeafReaderContext ctx) {
-                    return cacheable;
+                    return true;
                 }
             };
         }
@@ -159,20 +165,15 @@ public final class RandomSamplingQuery extends Query {
     }
 
     @Override
-    public String toString(String field) {
-        return "RandomSamplingQuery{" + "p=" + p + ", cacheable=" + cacheable + ", query=" + query + '}';
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RandomSamplingQuery that = (RandomSamplingQuery) o;
-        return Double.compare(that.p, p) == 0 && cacheable == that.cacheable && Objects.equals(query, that.query);
+        return Double.compare(that.p, p) == 0 && seed == that.seed && hash == that.seed && Objects.equals(query, that.query);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(p, cacheable, query);
+        return Objects.hash(p, seed, hash, query);
     }
 }

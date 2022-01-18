@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ml.math;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.SplittableRandom;
+
 import static org.hamcrest.Matchers.closeTo;
 
 public class FastGeometricTests extends ESTestCase {
@@ -18,7 +20,7 @@ public class FastGeometricTests extends ESTestCase {
 
     public void testGeometricSeries() {
         for (double p : PROBABILITIES) {
-            final PCG rng = new PCG(randomLong());
+            final SplittableRandom rng = new SplittableRandom(randomLong());
             final int size = 32;
 
             double[] expected = new double[size];

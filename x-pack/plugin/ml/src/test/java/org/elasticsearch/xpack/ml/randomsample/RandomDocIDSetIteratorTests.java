@@ -9,18 +9,19 @@ package org.elasticsearch.xpack.ml.randomsample;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.math.PCG;
+
+import java.util.SplittableRandom;
 
 public class RandomDocIDSetIteratorTests extends ESTestCase {
 
     public void testRandomSampler() {
         int maxDoc = 10000;
-        PCG pcg = new PCG(randomInt());
+        SplittableRandom random = new SplittableRandom(randomInt());
 
         for (int i = 1; i < 100; i++) {
             double p = i / 100.0;
             int count = 0;
-            RandomSamplingQuery.RandomSamplingIterator iter = new RandomSamplingQuery.RandomSamplingIterator(maxDoc, p, pcg::nextInt);
+            RandomSamplingQuery.RandomSamplingIterator iter = new RandomSamplingQuery.RandomSamplingIterator(maxDoc, p, random::nextInt);
             while (iter.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                 count += 1;
             }

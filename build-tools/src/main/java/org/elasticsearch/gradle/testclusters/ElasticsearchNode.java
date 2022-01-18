@@ -768,7 +768,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             : project.getGradle()
                 .getIncludedBuilds()
                 .stream()
-                .filter(b -> b.getName().equals("elasticsearch"))
+                .filter(b -> {
+                    System.out.println("b.getName() = " + b.getName());
+                    System.out.println("b.getProjectDir() = " + b.getProjectDir());
+                    return b.getName().equals("elasticsearch");
+                })
                 .map(i -> new File(i.getProjectDir(), "build-tools/src/main/resources/" + name))
                 .findFirst()
                 .orElseThrow(() -> new GradleException("Cannot resolve build plugin file " + name +

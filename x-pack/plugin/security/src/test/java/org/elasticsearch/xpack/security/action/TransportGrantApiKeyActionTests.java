@@ -23,12 +23,12 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.TokenServiceMock;
 import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
-import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.junit.After;
 import org.junit.Before;
 
@@ -39,6 +39,7 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -52,7 +53,6 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
     private TransportGrantApiKeyAction action;
     private ApiKeyGenerator apiKeyGenerator;
     private AuthenticationService authenticationService;
-    private TokenServiceMock tokenServiceMock;
     private ThreadPool threadPool;
 
     @Before
@@ -61,7 +61,6 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         authenticationService = mock(AuthenticationService.class);
 
         threadPool = new TestThreadPool("TP-" + getTestName());
-        tokenServiceMock = SecurityMocks.tokenService(true, threadPool);
         final ThreadContext threadContext = threadPool.getThreadContext();
 
         action = new TransportGrantApiKeyAction(
@@ -69,8 +68,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             mock(ActionFilters.class),
             threadContext,
             apiKeyGenerator,
-            authenticationService,
-            tokenServiceMock.tokenService
+            authenticationService
         );
     }
 
@@ -118,15 +116,14 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         assertThat(future.actionGet(), sameInstance(response));
     }
 
-    public void testGrantApiKeyWithInvalidUsernamePassword() throws Exception {
+    public void testGrantApiKeyWithAccessToken() throws Exception {
         final String username = randomAlphaOfLengthBetween(4, 12);
-        final SecureString password = new SecureString(randomAlphaOfLengthBetween(8, 24).toCharArray());
         final Authentication authentication = buildAuthentication(username);
 
         final GrantApiKeyRequest request = mockRequest();
-        request.getGrant().setType("password");
-        request.getGrant().setUsername(username);
-        request.getGrant().setPassword(password);
+        request.getGrant().setType("access_token");
+        final SecureString bearerString = new SecureString(randomAlphaOfLength(20).toCharArray());
+        request.getGrant().setAccessToken(bearerString);
 
         final CreateApiKeyResponse response = mockResponse(request);
 
@@ -136,18 +133,67 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
 
             assertThat(args[0], equalTo(GrantApiKeyAction.NAME));
             assertThat(args[1], sameInstance(request));
-            assertThat(args[2], instanceOf(UsernamePasswordToken.class));
-            UsernamePasswordToken token = (UsernamePasswordToken) args[2];
-            assertThat(token.principal(), equalTo(username));
-            assertThat(token.credentials(), equalTo(password));
+            assertThat(args[2], instanceOf(BearerToken.class));
+            assertThat(((BearerToken) args[2]).credentials(), equalTo(bearerString));
 
+            @SuppressWarnings("unchecked")
+            ActionListener<Authentication> listener = (ActionListener<Authentication>) args[args.length - 1];
+            listener.onResponse(authentication);
+
+            return null;
+        }).when(authenticationService).authenticate(eq(GrantApiKeyAction.NAME), same(request), any(BearerToken.class), anyActionListener());
+
+        setupApiKeyGenerator(authentication, request, response);
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        action.doExecute(null, request, future);
+
+        assertThat(future.actionGet(), sameInstance(response));
+    }
+
+    public void testGrantApiKeyWithInvalidatedCredentials() {
+        final GrantApiKeyRequest request = mockRequest();
+        if (randomBoolean()) {
+            request.getGrant().setType("password");
+            final String username = randomAlphaOfLengthBetween(4, 12);
+            final SecureString password = new SecureString(randomAlphaOfLengthBetween(8, 24).toCharArray());
+            request.getGrant().setUsername(username);
+            request.getGrant().setPassword(password);
+        } else {
+            request.getGrant().setType("access_token");
+            final SecureString bearerString = new SecureString(randomAlphaOfLength(20).toCharArray());
+            request.getGrant().setAccessToken(bearerString);
+        }
+
+        final String username = randomAlphaOfLengthBetween(4, 12);
+        final Authentication authentication = buildAuthentication(username);
+
+        final CreateApiKeyResponse response = mockResponse(request);
+
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            assertThat(args, arrayWithSize(4));
+
+            assertThat(args[0], equalTo(GrantApiKeyAction.NAME));
+            assertThat(args[1], sameInstance(request));
+            final GrantApiKeyRequest grantApiKeyRequest = (GrantApiKeyRequest) args[1];
+            assertThat(request.getGrant().getType(), oneOf("password", "access_token"));
+            if (grantApiKeyRequest.getGrant().getType().equals("password")) {
+                assertThat(args[2], instanceOf(UsernamePasswordToken.class));
+                UsernamePasswordToken token = (UsernamePasswordToken) args[2];
+                assertThat(token.principal(), equalTo(request.getGrant().getUsername()));
+                assertThat(token.credentials(), equalTo(request.getGrant().getPassword()));
+            } else {
+                assertThat(args[2], instanceOf(BearerToken.class));
+                assertThat(((BearerToken) args[2]).credentials(), equalTo(grantApiKeyRequest.getGrant().getAccessToken()));
+            }
             @SuppressWarnings("unchecked")
             ActionListener<Authentication> listener = (ActionListener<Authentication>) args[args.length - 1];
             listener.onFailure(new ElasticsearchSecurityException("authentication failed for testing"));
 
             return null;
         }).when(authenticationService)
-            .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(UsernamePasswordToken.class), anyActionListener());
+            .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(AuthenticationToken.class), anyActionListener());
 
         setupApiKeyGenerator(authentication, request, response);
 
@@ -157,51 +203,6 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         final ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, future::actionGet);
         assertThat(exception, throwableWithMessage("authentication failed for testing"));
 
-        verifyNoMoreInteractions(apiKeyGenerator);
-    }
-
-    public void testGrantApiKeyWithAccessToken() throws Exception {
-        final String username = randomAlphaOfLengthBetween(4, 12);
-        final TokenServiceMock.MockToken token = tokenServiceMock.mockAccessToken();
-        final Authentication authentication = buildAuthentication(username);
-
-        final GrantApiKeyRequest request = mockRequest();
-        request.getGrant().setType("access_token");
-        request.getGrant().setAccessToken(token.encodedToken);
-
-        final CreateApiKeyResponse response = mockResponse(request);
-
-        tokenServiceMock.defineToken(token, authentication);
-        setupApiKeyGenerator(authentication, request, response);
-
-        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
-        action.doExecute(null, request, future);
-
-        assertThat(future.actionGet(), sameInstance(response));
-        verifyNoMoreInteractions(authenticationService);
-    }
-
-    public void testGrantApiKeyWithInvalidatedAccessToken() throws Exception {
-        final String username = randomAlphaOfLengthBetween(4, 12);
-        final TokenServiceMock.MockToken token = tokenServiceMock.mockAccessToken();
-        final Authentication authentication = buildAuthentication(username);
-
-        final GrantApiKeyRequest request = mockRequest();
-        request.getGrant().setType("access_token");
-        request.getGrant().setAccessToken(token.encodedToken);
-
-        final CreateApiKeyResponse response = mockResponse(request);
-
-        tokenServiceMock.defineToken(token, authentication, false);
-        setupApiKeyGenerator(authentication, request, response);
-
-        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
-        action.doExecute(null, request, future);
-
-        final ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, future::actionGet);
-        assertThat(exception, throwableWithMessage("token expired"));
-
-        verifyNoMoreInteractions(authenticationService);
         verifyNoMoreInteractions(apiKeyGenerator);
     }
 

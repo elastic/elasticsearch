@@ -465,7 +465,7 @@ public class DoSection implements ExecutableSection {
             if (warnings.next().endsWith(RestPutIndexTemplateAction.DEPRECATION_WARNING + "\"")) {
                 logger.warn(
                     "Test [{}] uses deprecated legacy index templates and should be updated to use composable templates",
-                    (testPath == null ? "<unknown>" : testPath) + ":" + getLocation().lineNumber
+                    (testPath == null ? "<unknown>" : testPath) + ":" + getLocation().lineNumber()
                 );
                 warnings.remove();
             }
@@ -637,36 +637,16 @@ public class DoSection implements ExecutableSection {
      * first and then running the "left" selector on the results of the "right"
      * selector.
      */
-    private static class ComposeNodeSelector implements NodeSelector {
-        private final NodeSelector lhs;
-        private final NodeSelector rhs;
-
-        private ComposeNodeSelector(NodeSelector lhs, NodeSelector rhs) {
-            this.lhs = Objects.requireNonNull(lhs, "lhs is required");
-            this.rhs = Objects.requireNonNull(rhs, "rhs is required");
+    private record ComposeNodeSelector(NodeSelector lhs, NodeSelector rhs) implements NodeSelector {
+        private ComposeNodeSelector {
+            Objects.requireNonNull(lhs, "lhs is required");
+            Objects.requireNonNull(rhs, "rhs is required");
         }
 
         @Override
         public void select(Iterable<Node> nodes) {
             rhs.select(nodes);
             lhs.select(nodes);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            ComposeNodeSelector that = (ComposeNodeSelector) o;
-            return Objects.equals(lhs, that.lhs) && Objects.equals(rhs, that.rhs);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(lhs, rhs);
         }
 
         @Override

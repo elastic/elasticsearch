@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -322,15 +323,15 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         }
 
                         @Override
-                        public void onFailure(String source, Exception e) {
+                        public void onFailure(Exception e) {
                             handler.accept(e);
                         }
 
                         @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             handler.accept(null);
                         }
-                    });
+                    }, ClusterStateTaskExecutor.unbatched());
                 }
 
             };

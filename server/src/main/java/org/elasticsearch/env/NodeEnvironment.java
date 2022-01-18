@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -252,16 +251,6 @@ public final class NodeEnvironment implements Closeable {
      * @param environment global environment
      */
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
-        this(settings, environment, NamedXContentRegistry.EMPTY);
-    }
-
-    /**
-     * Setup the environment.
-     * @param settings settings from elasticsearch.yml
-     * @param environment global environment
-     * @param xContentRegistry content registry for parsing persisted content
-     */
-    public NodeEnvironment(Settings settings, Environment environment, NamedXContentRegistry xContentRegistry) throws IOException {
         boolean success = false;
 
         try {
@@ -297,7 +286,7 @@ public final class NodeEnvironment implements Closeable {
 
             ensureAtomicMoveSupported(nodePaths);
 
-            if (upgradeLegacyNodeFolders(logger, settings, environment, nodeLock, xContentRegistry)) {
+            if (upgradeLegacyNodeFolders(logger, settings, environment, nodeLock)) {
                 assertCanWrite();
             }
 
@@ -336,13 +325,8 @@ public final class NodeEnvironment implements Closeable {
      * Upgrades all data paths that have been written to by an older ES version to the 8.0+ compatible folder layout,
      * removing the "nodes/${lockId}" folder prefix
      */
-    private static boolean upgradeLegacyNodeFolders(
-        Logger logger,
-        Settings settings,
-        Environment environment,
-        NodeLock nodeLock,
-        NamedXContentRegistry xContentRegistry
-    ) throws IOException {
+    private static boolean upgradeLegacyNodeFolders(Logger logger, Settings settings, Environment environment, NodeLock nodeLock)
+        throws IOException {
         boolean upgradeNeeded = false;
 
         // check if we can do an auto-upgrade
@@ -405,9 +389,7 @@ public final class NodeEnvironment implements Closeable {
             throw new IllegalStateException(message, e);
         }
 
-        if (xContentRegistry.equals(NamedXContentRegistry.EMPTY) == false) {
-            checkForIndexCompatibility(settings, xContentRegistry, logger, legacyNodeLock.getNodePaths());
-        }
+        checkForIndexCompatibility(logger, legacyNodeLock.getNodePaths());
 
         // move contents from legacy path to new path
         assert nodeLock.getNodePaths().length == legacyNodeLock.getNodePaths().length;
@@ -494,37 +476,20 @@ public final class NodeEnvironment implements Closeable {
     /**
      * Checks to see if we can upgrade to this version based on the existing index state. Upgrading
      * from older versions can cause irreversible changes if allowed.
-     * @param settings
-     * @param xContentRegistry
      * @param logger
      * @param nodePaths
      * @throws IOException
      */
-    private static void checkForIndexCompatibility(
-        Settings settings,
-        NamedXContentRegistry xContentRegistry,
-        Logger logger,
-        NodePath... nodePaths
-    ) throws IOException {
+    private static void checkForIndexCompatibility(Logger logger, NodePath... nodePaths) throws IOException {
         final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
         NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(paths);
 
-        PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
-            paths,
-            metadata.nodeId(),
-            xContentRegistry,
-            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            () -> TimeValue.nsecToMSec(System.nanoTime())
-        );
+        logger.info("oldest index version recorded in NodeMetadata {}", metadata.oldestIndexVersion());
 
-        PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState();
-
-        logger.info("oldest index version recorded in ClusterState {}", onDiskState.metadata.oldestIndexVersion());
-
-        if (onDiskState.metadata.oldestIndexVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+        if (metadata.oldestIndexVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
             throw new IllegalStateException(
                 "cannot upgrade node because incompatible indices created with version ["
-                    + onDiskState.metadata.oldestIndexVersion()
+                    + metadata.oldestIndexVersion()
                     + "] exist, while the minimum compatible index version is ["
                     + Version.CURRENT.minimumIndexCompatibilityVersion()
                     + "]. "
@@ -616,7 +581,11 @@ public final class NodeEnvironment implements Closeable {
             final NodeMetadata legacyMetadata = NodeMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths);
             if (legacyMetadata == null) {
                 assert nodeIds.isEmpty() : nodeIds;
-                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT);
+                Version oldestIndexVersion = legacyMetadata.oldestIndexVersion();
+                if (oldestIndexVersion == null) {
+                    oldestIndexVersion = Version.CURRENT;
+                }
+                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT, oldestIndexVersion);
             } else {
                 assert nodeIds.equals(Collections.singleton(legacyMetadata.nodeId())) : nodeIds + " doesn't match " + legacyMetadata;
                 metadata = legacyMetadata;

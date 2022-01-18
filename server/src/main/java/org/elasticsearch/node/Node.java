@@ -381,13 +381,6 @@ public class Node implements Closeable {
             );
             final Settings settings = pluginsService.updatedSettings();
 
-            NamedXContentRegistry tmpContentRegistry = new NamedXContentRegistry(
-                Stream.of(
-                    pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getNamedXContent().stream()),
-                    ClusterModule.getNamedXWriteables().stream()
-                ).flatMap(Function.identity()).collect(toList())
-            );
-
             /*
              * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
              * values, no matter they ask for them from.
@@ -395,7 +388,7 @@ public class Node implements Closeable {
             this.environment = new Environment(settings, initialEnvironment.configFile());
 
             Environment.assertEquivalent(initialEnvironment, this.environment);
-            nodeEnvironment = new NodeEnvironment(tmpSettings, environment, tmpContentRegistry);
+            nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
             logger.info(
                 "node name [{}], node ID [{}], cluster name [{}], roles {}",
                 NODE_NAME_SETTING.get(tmpSettings),

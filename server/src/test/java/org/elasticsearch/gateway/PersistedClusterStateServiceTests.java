@@ -545,7 +545,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         writeState(writer, newTerm, newState, clusterState);
                     } else {
-                        writer.commit(newTerm, newState.version());
+                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion().id);
                     }
                 }).getMessage(), containsString("simulated"));
                 assertFalse(writer.isOpen());
@@ -596,7 +596,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         writeState(writer, newTerm, newState, clusterState);
                     } else {
-                        writer.commit(newTerm, newState.version());
+                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion().id);
                     }
                 }).getMessage(), containsString("simulated"));
                 assertFalse(writer.isOpen());

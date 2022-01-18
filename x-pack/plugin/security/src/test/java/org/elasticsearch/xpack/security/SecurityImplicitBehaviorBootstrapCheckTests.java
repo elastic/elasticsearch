@@ -30,7 +30,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
             Version.V_8_0_0,
             () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
         );
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, Version.CURRENT);
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(
             createTestContext(Settings.EMPTY, createLicensesMetadata(previousVersion, randomFrom("basic", "trial")))
@@ -59,7 +59,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
             Version.V_8_0_0,
             () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
         );
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, Version.CURRENT);
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(
             createTestContext(Settings.EMPTY, createLicensesMetadata(previousVersion, randomFrom("gold", "platinum")))
@@ -72,7 +72,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
             Version.V_8_0_0,
             () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
         );
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, Version.CURRENT);
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(
             createTestContext(
@@ -85,7 +85,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
 
     public void testUpgradeFrom8xWithImplicitSecuritySettings() throws Exception {
         final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, null);
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, Version.CURRENT);
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(
             createTestContext(Settings.EMPTY, createLicensesMetadata(previousVersion, randomFrom("basic", "trial")))
@@ -95,7 +95,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
 
     public void testUpgradeFrom8xWithExplicitSecuritySettings() throws Exception {
         final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, null);
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, Version.CURRENT);
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(
             createTestContext(

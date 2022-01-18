@@ -733,7 +733,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 shardStatusBefore.generation(),
                 ActionListener.wrap(
                     shardSnapshotResult -> innerUpdateSnapshotState(
-                        new ShardSnapshotUpdate(target, repoShardId, ShardSnapshotStatus.success(localNodeId, shardSnapshotResult)),
+                        target,
+                        null,
+                        repoShardId,
+                        ShardSnapshotStatus.success(localNodeId, shardSnapshotResult),
                         ActionListener.runBefore(
                             ActionListener.wrap(
                                 v -> logger.trace(
@@ -751,15 +754,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         )
                     ),
                     e -> innerUpdateSnapshotState(
-                        new ShardSnapshotUpdate(
-                            target,
-                            repoShardId,
-                            new ShardSnapshotStatus(
-                                localNodeId,
-                                ShardState.FAILED,
-                                "failed to clone shard snapshot",
-                                shardStatusBefore.generation()
-                            )
+                        target,
+                        null,
+                        repoShardId,
+                        new ShardSnapshotStatus(
+                            localNodeId,
+                            ShardState.FAILED,
+                            "failed to clone shard snapshot",
+                            shardStatusBefore.generation()
                         ),
                         ActionListener.runBefore(
                             ActionListener.wrap(
@@ -3290,32 +3292,41 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *
      * Package private for testing
      */
-    static final class ShardSnapshotUpdate {
+    static final class ShardSnapshotUpdate implements ClusterStateTaskListener {
 
         private final Snapshot snapshot;
-
         private final ShardId shardId;
-
         private final RepositoryShardId repoShardId;
-
         private final ShardSnapshotStatus updatedState;
+        private final ActionListener<ClusterState> listener;
 
-        ShardSnapshotUpdate(Snapshot snapshot, RepositoryShardId repositoryShardId, ShardSnapshotStatus updatedState) {
-            this.snapshot = snapshot;
-            this.shardId = null;
-            this.updatedState = updatedState;
-            this.repoShardId = repositoryShardId;
-        }
-
-        ShardSnapshotUpdate(Snapshot snapshot, ShardId shardId, ShardSnapshotStatus updatedState) {
+        ShardSnapshotUpdate(
+            Snapshot snapshot,
+            ShardId shardId,
+            RepositoryShardId repoShardId,
+            ShardSnapshotStatus updatedState,
+            ActionListener<ClusterState> listener
+        ) {
+            assert shardId != null ^ repoShardId != null;
             this.snapshot = snapshot;
             this.shardId = shardId;
+            this.repoShardId = repoShardId;
             this.updatedState = updatedState;
-            repoShardId = null;
+            this.listener = listener;
         }
 
         public boolean isClone() {
             return repoShardId != null;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            listener.onResponse(newState);
         }
 
         @Override
@@ -3353,46 +3364,43 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    /**
-     * Updates the shard status in the cluster state
-     *
-     * @param update shard snapshot status update
-     */
-    private void innerUpdateSnapshotState(ShardSnapshotUpdate update, ActionListener<Void> listener) {
+    private void innerUpdateSnapshotState(
+        Snapshot snapshot,
+        ShardId shardId,
+        RepositoryShardId repoShardId,
+        ShardSnapshotStatus updatedState,
+        ActionListener<Void> listener
+    ) {
+        var update = new ShardSnapshotUpdate(
+            snapshot,
+            shardId,
+            repoShardId,
+            updatedState,
+            listener.delegateFailure((delegate, newState) -> {
+                try {
+                    delegate.onResponse(null);
+                } finally {
+                    // Maybe this state update completed the snapshot. If we are not already ending it because of a concurrent
+                    // state update we check if its state is completed and end it if it is.
+                    final SnapshotsInProgress snapshotsInProgress = newState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+                    if (endingSnapshots.contains(snapshot) == false) {
+                        final SnapshotsInProgress.Entry updatedEntry = snapshotsInProgress.snapshot(snapshot);
+                        // If the entry is still in the cluster state and is completed, try finalizing the snapshot in the repo
+                        if (updatedEntry != null && updatedEntry.state().completed()) {
+                            endSnapshot(updatedEntry, newState.metadata(), null);
+                        }
+                    }
+                    startExecutableClones(snapshotsInProgress, snapshot.getRepository());
+                }
+            })
+        );
         logger.trace("received updated snapshot restore state [{}]", update);
         clusterService.submitStateUpdateTask(
             "update snapshot state",
             update,
             ClusterStateTaskConfig.build(Priority.NORMAL),
             SHARD_STATE_EXECUTOR,
-            new ClusterStateTaskListener() {
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    try {
-                        listener.onResponse(null);
-                    } finally {
-                        // Maybe this state update completed the snapshot. If we are not already ending it because of a concurrent
-                        // state update we check if its state is completed and end it if it is.
-                        final SnapshotsInProgress snapshotsInProgress = newState.custom(
-                            SnapshotsInProgress.TYPE,
-                            SnapshotsInProgress.EMPTY
-                        );
-                        if (endingSnapshots.contains(update.snapshot) == false) {
-                            final SnapshotsInProgress.Entry updatedEntry = snapshotsInProgress.snapshot(update.snapshot);
-                            // If the entry is still in the cluster state and is completed, try finalizing the snapshot in the repo
-                            if (updatedEntry != null && updatedEntry.state().completed()) {
-                                endSnapshot(updatedEntry, newState.metadata(), null);
-                            }
-                        }
-                        startExecutableClones(snapshotsInProgress, update.snapshot.getRepository());
-                    }
-                }
-            }
+            update
         );
     }
 
@@ -3457,7 +3465,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             ActionListener<ActionResponse.Empty> listener
         ) {
             innerUpdateSnapshotState(
-                new ShardSnapshotUpdate(request.snapshot(), request.shardId(), request.status()),
+                request.snapshot(),
+                request.shardId(),
+                null,
+                request.status(),
                 listener.map(v -> ActionResponse.Empty.INSTANCE)
             );
         }

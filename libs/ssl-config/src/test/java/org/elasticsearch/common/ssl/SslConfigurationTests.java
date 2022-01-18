@@ -48,12 +48,12 @@ public class SslConfigurationTests extends ESTestCase {
             protocols
         );
 
-        assertThat(configuration.getTrustConfig(), is(trustConfig));
-        assertThat(configuration.getKeyConfig(), is(keyConfig));
-        assertThat(configuration.getVerificationMode(), is(verificationMode));
-        assertThat(configuration.getClientAuth(), is(clientAuth));
+        assertThat(configuration.trustConfig(), is(trustConfig));
+        assertThat(configuration.keyConfig(), is(keyConfig));
+        assertThat(configuration.verificationMode(), is(verificationMode));
+        assertThat(configuration.clientAuth(), is(clientAuth));
         assertThat(configuration.getCipherSuites(), is(ciphers));
-        assertThat(configuration.getSupportedProtocols(), is(protocols));
+        assertThat(configuration.supportedProtocols(), is(protocols));
 
         assertThat(configuration.toString(), containsString("TEST-TRUST"));
         assertThat(configuration.toString(), containsString("TEST-KEY"));
@@ -84,12 +84,12 @@ public class SslConfigurationTests extends ESTestCase {
             configuration,
             orig -> new SslConfiguration(
                 true,
-                orig.getTrustConfig(),
-                orig.getKeyConfig(),
-                orig.getVerificationMode(),
-                orig.getClientAuth(),
+                orig.trustConfig(),
+                orig.keyConfig(),
+                orig.verificationMode(),
+                orig.clientAuth(),
                 orig.getCipherSuites(),
-                orig.getSupportedProtocols()
+                orig.supportedProtocols()
             ),
             this::mutateSslConfiguration
         );
@@ -99,37 +99,37 @@ public class SslConfigurationTests extends ESTestCase {
         return switch (randomIntBetween(1, 4)) {
             case 1 -> new SslConfiguration(
                 true,
-                orig.getTrustConfig(),
-                orig.getKeyConfig(),
-                randomValueOtherThan(orig.getVerificationMode(), () -> randomFrom(SslVerificationMode.values())),
-                orig.getClientAuth(),
+                orig.trustConfig(),
+                orig.keyConfig(),
+                randomValueOtherThan(orig.verificationMode(), () -> randomFrom(SslVerificationMode.values())),
+                orig.clientAuth(),
                 orig.getCipherSuites(),
-                orig.getSupportedProtocols()
+                orig.supportedProtocols()
             );
             case 2 -> new SslConfiguration(
                 true,
-                orig.getTrustConfig(),
-                orig.getKeyConfig(),
-                orig.getVerificationMode(),
-                randomValueOtherThan(orig.getClientAuth(), () -> randomFrom(SslClientAuthenticationMode.values())),
+                orig.trustConfig(),
+                orig.keyConfig(),
+                orig.verificationMode(),
+                randomValueOtherThan(orig.clientAuth(), () -> randomFrom(SslClientAuthenticationMode.values())),
                 orig.getCipherSuites(),
-                orig.getSupportedProtocols()
+                orig.supportedProtocols()
             );
             case 3 -> new SslConfiguration(
                 true,
-                orig.getTrustConfig(),
-                orig.getKeyConfig(),
-                orig.getVerificationMode(),
-                orig.getClientAuth(),
+                orig.trustConfig(),
+                orig.keyConfig(),
+                orig.verificationMode(),
+                orig.clientAuth(),
                 DEFAULT_CIPHERS,
-                orig.getSupportedProtocols()
+                orig.supportedProtocols()
             );
             default -> new SslConfiguration(
                 true,
-                orig.getTrustConfig(),
-                orig.getKeyConfig(),
-                orig.getVerificationMode(),
-                orig.getClientAuth(),
+                orig.trustConfig(),
+                orig.keyConfig(),
+                orig.verificationMode(),
+                orig.clientAuth(),
                 orig.getCipherSuites(),
                 Arrays.asList(VALID_PROTOCOLS)
             );

@@ -89,7 +89,7 @@ public class JoinHelperTests extends ESTestCase {
         CapturedRequest[] capturedRequests1 = capturingTransport.getCapturedRequestsAndClear();
         assertThat(capturedRequests1.length, equalTo(1));
         CapturedRequest capturedRequest1 = capturedRequests1[0];
-        assertEquals(node1, capturedRequest1.node);
+        assertEquals(node1, capturedRequest1.node());
 
         assertTrue(joinHelper.isJoinPending());
 
@@ -101,7 +101,7 @@ public class JoinHelperTests extends ESTestCase {
         CapturedRequest[] capturedRequests2 = capturingTransport.getCapturedRequestsAndClear();
         assertThat(capturedRequests2.length, equalTo(1));
         CapturedRequest capturedRequest2 = capturedRequests2[0];
-        assertEquals(node2, capturedRequest2.node);
+        assertEquals(node2, capturedRequest2.node());
 
         // check that sending another join to node1 is a noop as the previous join is still in progress
         joinHelper.sendJoinRequest(node1, 0L, optionalJoin1);
@@ -115,7 +115,7 @@ public class JoinHelperTests extends ESTestCase {
         CapturedRequest[] capturedRequests1a = capturingTransport.getCapturedRequestsAndClear();
         assertThat(capturedRequests1a.length, equalTo(1));
         CapturedRequest capturedRequest1a = capturedRequests1a[0];
-        assertEquals(node1, capturedRequest1a.node);
+        assertEquals(node1, capturedRequest1a.node());
 
         // check that sending another join to node2 works if the optionalJoin is different
         Optional<Join> optionalJoin2a = optionalJoin2.isPresent() && randomBoolean()
@@ -125,7 +125,7 @@ public class JoinHelperTests extends ESTestCase {
         CapturedRequest[] capturedRequests2a = capturingTransport.getCapturedRequestsAndClear();
         assertThat(capturedRequests2a.length, equalTo(1));
         CapturedRequest capturedRequest2a = capturedRequests2a[0];
-        assertEquals(node2, capturedRequest2a.node);
+        assertEquals(node2, capturedRequest2a.node());
 
         // complete all the joins and check that isJoinPending is updated
         assertTrue(joinHelper.isJoinPending());
@@ -147,9 +147,9 @@ public class JoinHelperTests extends ESTestCase {
 
     private void completeJoinRequest(CapturingTransport capturingTransport, CapturedRequest request, boolean mightSucceed) {
         if (mightSucceed && randomBoolean()) {
-            capturingTransport.handleResponse(request.requestId, TransportResponse.Empty.INSTANCE);
+            capturingTransport.handleResponse(request.requestId(), TransportResponse.Empty.INSTANCE);
         } else {
-            capturingTransport.handleRemoteError(request.requestId, new CoordinationStateRejectedException("dummy"));
+            capturingTransport.handleRemoteError(request.requestId(), new CoordinationStateRejectedException("dummy"));
         }
     }
 
@@ -313,7 +313,7 @@ public class JoinHelperTests extends ESTestCase {
         CapturedRequest[] capturedRequests1a = capturingTransport.getCapturedRequestsAndClear();
         assertThat(capturedRequests1a.length, equalTo(1));
         CapturedRequest capturedRequest1a = capturedRequests1a[0];
-        assertEquals(node1, capturedRequest1a.node);
+        assertEquals(node1, capturedRequest1a.node());
     }
 
     private static class HandshakingCapturingTransport extends CapturingTransport {

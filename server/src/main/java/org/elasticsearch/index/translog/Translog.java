@@ -455,7 +455,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     static long findEarliestLastModifiedAge(long currentTime, Iterable<TranslogReader> readers, TranslogWriter writer) throws IOException {
         long earliestTime = currentTime;
-        for (BaseTranslogReader r : readers) {
+        for (TranslogReader r : readers) {
             earliestTime = Math.min(r.getLastModifiedTime(), earliestTime);
         }
         return Math.max(0, currentTime - Math.min(earliestTime, writer.getLastModifiedTime()));

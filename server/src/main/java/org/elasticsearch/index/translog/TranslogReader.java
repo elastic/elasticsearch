@@ -18,6 +18,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -32,7 +33,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     private final int totalOperations;
     private final Checkpoint checkpoint;
     protected final AtomicBoolean closed = new AtomicBoolean(false);
-
+    protected long lastModifiedTime;
     /**
      * Create a translog writer against the specified translog file channel.
      *
@@ -46,6 +47,11 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
         this.length = checkpoint.offset;
         this.totalOperations = checkpoint.numOps;
         this.checkpoint = checkpoint;
+        try {
+            this.lastModifiedTime = Files.getLastModifiedTime(path).toMillis();
+        } catch (IOException e) {
+            this.lastModifiedTime = -1;
+        }
     }
 
     /**
@@ -145,5 +151,13 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
         if (isClosed()) {
             throw new AlreadyClosedException(toString() + " is already closed");
         }
+    }
+
+    @Override
+    public long getLastModifiedTime() throws IOException {
+        if(this.lastModifiedTime == -1) {
+            return super.getLastModifiedTime();
+        }
+        return this.lastModifiedTime;
     }
 }

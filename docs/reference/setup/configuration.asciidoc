@@ -113,6 +113,7 @@ Cluster and node settings can be categorized based on how they are configured:
 Dynamic::
 +
 --
+// tag::cluster-setting-precedence[]
 You can configure and update dynamic settings on a running cluster using the
 <<cluster-update-settings,cluster update settings API>>. You can also configure
 dynamic settings locally on an unstarted or shut down node using
@@ -149,6 +150,7 @@ nodes.
 ====
 
 include::{es-repo-dir}/cluster/update-settings.asciidoc[tag=transient-settings-warning]
+// end::cluster-setting-precedence[]
 --
 
 [[static-cluster-setting]]

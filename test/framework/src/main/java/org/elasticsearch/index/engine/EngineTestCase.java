@@ -1242,9 +1242,9 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
             }
             docs.sort(
-                Comparator.comparingLong(DocIdSeqNoAndSource::getSeqNo)
-                    .thenComparingLong(DocIdSeqNoAndSource::getPrimaryTerm)
-                    .thenComparing((DocIdSeqNoAndSource::getId))
+                Comparator.comparingLong(DocIdSeqNoAndSource::seqNo)
+                    .thenComparingLong(DocIdSeqNoAndSource::primaryTerm)
+                    .thenComparing((DocIdSeqNoAndSource::id))
             );
             return docs;
         }

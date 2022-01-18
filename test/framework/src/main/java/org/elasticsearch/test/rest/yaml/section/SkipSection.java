@@ -131,11 +131,11 @@ public class SkipSection {
     }
 
     public Version getLowerVersion() {
-        return versionRanges.get(0).getLower();
+        return versionRanges.get(0).lower();
     }
 
     public Version getUpperVersion() {
-        return versionRanges.get(versionRanges.size() - 1).getUpper();
+        return versionRanges.get(versionRanges.size() - 1).upper();
     }
 
     public List<String> getFeatures() {

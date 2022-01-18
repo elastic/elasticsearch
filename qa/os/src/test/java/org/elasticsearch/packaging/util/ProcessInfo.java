@@ -22,27 +22,15 @@ import static org.hamcrest.Matchers.hasSize;
  * works in Linux containers. At the moment that isn't a problem, because we only publish Docker images
  * for Linux.
  */
-public class ProcessInfo {
-    public final int pid;
-    public final int uid;
-    public final int gid;
-    public final String username;
-    public final String group;
-
-    public ProcessInfo(int pid, int uid, int gid, String username, String group) {
-        this.pid = pid;
-        this.uid = uid;
-        this.gid = gid;
-        this.username = username;
-        this.group = group;
-    }
+public record ProcessInfo(int pid, int uid, int gid, String username, String group) {
 
     /**
      * Fetches process information about <code>command</code>, using <code>sh</code> to execute commands.
+     *
      * @return a populated <code>ProcessInfo</code> object
      */
     public static ProcessInfo getProcessInfo(Shell sh, String command) {
-        final List<String> processes = sh.run("pgrep " + command).stdout.lines().collect(Collectors.toList());
+        final List<String> processes = sh.run("pgrep " + command).stdout().lines().collect(Collectors.toList());
 
         assertThat("Expected a single process", processes, hasSize(1));
 
@@ -52,7 +40,7 @@ public class ProcessInfo {
         int uid = -1;
         int gid = -1;
 
-        for (String line : sh.run("cat /proc/" + pid + "/status | grep '^[UG]id:'").stdout.split("\\n")) {
+        for (String line : sh.run("cat /proc/" + pid + "/status | grep '^[UG]id:'").stdout().split("\\n")) {
             final String[] fields = line.split("\\s+");
 
             if (fields[0].equals("Uid:")) {
@@ -62,8 +50,8 @@ public class ProcessInfo {
             }
         }
 
-        final String username = sh.run("getent passwd " + uid + " | cut -f1 -d:").stdout.trim();
-        final String group = sh.run("getent group " + gid + " | cut -f1 -d:").stdout.trim();
+        final String username = sh.run("getent passwd " + uid + " | cut -f1 -d:").stdout().trim();
+        final String group = sh.run("getent group " + gid + " | cut -f1 -d:").stdout().trim();
 
         return new ProcessInfo(pid, uid, gid, username, group);
     }

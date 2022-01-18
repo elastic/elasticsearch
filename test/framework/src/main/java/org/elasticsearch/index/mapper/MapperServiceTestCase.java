@@ -572,12 +572,25 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService) {
-        final SimilarityService similarityService = new SimilarityService(mapperService.getIndexSettings(), null, Map.of());
+        return createSearchExecutionContext(mapperService, null, Settings.EMPTY);
+    }
+
+    protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService, IndexSearcher searcher) {
+        return createSearchExecutionContext(mapperService, searcher, Settings.EMPTY);
+    }
+
+    protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService, IndexSearcher searcher, Settings settings) {
+        Settings mergedSettings = Settings.builder().put(mapperService.getIndexSettings().getSettings()).put(settings).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder(mapperService.getIndexSettings().getIndexMetadata())
+            .settings(mergedSettings)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        final SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         final long nowInMillis = randomNonNegativeLong();
         return new SearchExecutionContext(
             0,
             0,
-            mapperService.getIndexSettings(),
+            indexSettings,
             null,
             (ft, idxName, lookup) -> ft.fielddataBuilder(idxName, lookup)
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
@@ -588,7 +601,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             parserConfig(),
             writableRegistry(),
             null,
-            null,
+            searcher,
             () -> nowInMillis,
             null,
             null,

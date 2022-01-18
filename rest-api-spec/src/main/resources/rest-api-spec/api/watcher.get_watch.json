@@ -1,0 +1,30 @@
+{
+  "watcher.get_watch":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-get-watch.html",
+      "description":"Retrieves a watch by its ID."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_watcher/watch/{id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"Watch ID"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
+  }
+}

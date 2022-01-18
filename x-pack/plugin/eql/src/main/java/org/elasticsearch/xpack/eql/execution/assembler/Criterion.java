@@ -1,71 +1,108 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.execution.search.Ordinal;
+import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
+import org.elasticsearch.xpack.eql.execution.search.Timestamp;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.util.List;
 
-public class Criterion {
+public class Criterion<Q extends QueryRequest> {
 
-    private final SearchSourceBuilder searchSource;
-    private final List<HitExtractor> keyExtractors;
-    private final HitExtractor timestampExtractor;
-    private final HitExtractor tiebreakerExtractor;
+    private final int stage;
+    private final Q queryRequest;
+    private final List<HitExtractor> keys;
+    private final HitExtractor timestamp;
+    private final HitExtractor tiebreaker;
+    private final HitExtractor implicitTiebreaker;
 
-    public Criterion(SearchSourceBuilder searchSource, List<HitExtractor> searchAfterExractors, HitExtractor timestampExtractor,
-                     HitExtractor tiebreakerExtractor) {
-        this.searchSource = searchSource;
-        this.keyExtractors = searchAfterExractors;
-        this.timestampExtractor = timestampExtractor;
-        this.tiebreakerExtractor = tiebreakerExtractor;
+    private final boolean descending;
+    private final int keySize;
+
+    public Criterion(
+        int stage,
+        Q queryRequest,
+        List<HitExtractor> keys,
+        HitExtractor timestamp,
+        HitExtractor tiebreaker,
+        HitExtractor implicitTiebreaker,
+        boolean descending
+    ) {
+        this.stage = stage;
+        this.queryRequest = queryRequest;
+        this.keys = keys;
+        this.timestamp = timestamp;
+        this.tiebreaker = tiebreaker;
+        this.implicitTiebreaker = implicitTiebreaker;
+
+        this.descending = descending;
+
+        this.keySize = keys.size();
     }
 
-    public SearchSourceBuilder searchSource() {
-        return searchSource;
+    public int keySize() {
+        return keySize;
     }
 
-    public List<HitExtractor> keyExtractors() {
-        return keyExtractors;
+    public int stage() {
+        return stage;
     }
 
-    public HitExtractor timestampExtractor() {
-        return timestampExtractor;
+    public boolean descending() {
+        return descending;
     }
 
-    public HitExtractor tiebreakerExtractor() {
-        return tiebreakerExtractor;
+    public Q queryRequest() {
+        return queryRequest;
     }
 
-    public long timestamp(SearchHit hit) {
-        Object ts = timestampExtractor.extract(hit);
-        if (ts instanceof Number) {
-            return ((Number) ts).longValue();
+    public Object[] key(SearchHit hit) {
+        Object[] key = null;
+        if (keySize > 0) {
+            Object[] docKeys = new Object[keySize];
+            for (int i = 0; i < keySize; i++) {
+                docKeys[i] = keys.get(i).extract(hit);
+            }
+            key = docKeys;
         }
-        throw new EqlIllegalArgumentException("Expected timestamp as long but got {}", ts);
+        return key;
     }
 
     @SuppressWarnings({ "unchecked" })
-    public Comparable<Object> tiebreaker(SearchHit hit) {
-        if (tiebreakerExtractor == null) {
-            return null;
+    public Ordinal ordinal(SearchHit hit) {
+        Object ts = timestamp.extract(hit);
+        if (ts instanceof Timestamp == false) {
+            throw new EqlIllegalArgumentException("Expected timestamp as a Timestamp but got {}", ts.getClass());
         }
-        Object tb = tiebreakerExtractor.extract(hit);
-        if (tb instanceof Comparable) {
-            return (Comparable<Object>) tb;
+
+        Comparable<Object> tbreaker = null;
+        if (tiebreaker != null) {
+            Object tb = tiebreaker.extract(hit);
+            if (tb != null && tb instanceof Comparable == false) {
+                throw new EqlIllegalArgumentException("Expected tiebreaker to be Comparable but got {}", tb);
+            }
+            tbreaker = (Comparable<Object>) tb;
         }
-        throw new EqlIllegalArgumentException("Expected tiebreaker to be Comparable but got {}", tb);
+
+        Object implicitTbreaker = implicitTiebreaker.extract(hit);
+        if (implicitTbreaker instanceof Number == false) {
+            throw new EqlIllegalArgumentException("Expected _shard_doc/implicit tiebreaker as long but got [{}]", implicitTbreaker);
+        }
+        long timebreakerValue = ((Number) implicitTbreaker).longValue();
+        return new Ordinal((Timestamp) ts, tbreaker, timebreakerValue);
     }
 
-    public void fromMarkers(Object[] markers) {
-        // TODO: this is likely to be rewritten afterwards
-        searchSource.searchAfter(markers);
+    @Override
+    public String toString() {
+        return "[" + stage + "][" + descending + "]";
     }
 }

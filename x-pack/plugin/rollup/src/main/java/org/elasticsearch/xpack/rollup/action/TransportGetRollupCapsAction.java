@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.action;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -13,7 +15,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
@@ -46,7 +47,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
     }
 
     static Map<String, RollableIndexCaps> getCaps(String indexPattern, ImmutableOpenMap<String, IndexMetadata> indices) {
-        Map<String, List<RollupJobCaps> > allCaps = new TreeMap<>();
+        Map<String, List<RollupJobCaps>> allCaps = new TreeMap<>();
         for (ObjectObjectCursor<String, IndexMetadata> entry : indices) {
 
             // Does this index have rollup metadata?
@@ -62,11 +63,10 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
                 }
 
                 jobCaps.forEach(jobCap -> {
-                    String pattern = indexPattern.equals(Metadata.ALL)
-                        ? jobCap.getIndexPattern() : indexPattern;
+                    String pattern = indexPattern.equals(Metadata.ALL) ? jobCap.getIndexPattern() : indexPattern;
 
                     // Do we already have an entry for this index pattern?
-                    List<RollupJobCaps>  indexCaps = allCaps.get(pattern);
+                    List<RollupJobCaps> indexCaps = allCaps.get(pattern);
                     if (indexCaps == null) {
                         indexCaps = new ArrayList<>();
                     }
@@ -79,8 +79,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
         // Convert the mutable lists into the RollableIndexCaps
         return allCaps.entrySet()
             .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey,
-                e -> new RollableIndexCaps(e.getKey(), e.getValue())));
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> new RollableIndexCaps(e.getKey(), e.getValue())));
     }
 
     static Optional<RollupIndexCaps> findRollupIndexCaps(String indexName, IndexMetadata indexMetadata) {
@@ -98,8 +97,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
             return Optional.empty();
         }
 
-        RollupIndexCaps caps = RollupIndexCaps.parseMetadataXContent(
-            new BytesArray(rollupMapping.source().uncompressed()), indexName);
+        RollupIndexCaps caps = RollupIndexCaps.parseMetadataXContent(rollupMapping.source().uncompressed(), indexName);
 
         if (caps.hasCaps()) {
             return Optional.of(caps);

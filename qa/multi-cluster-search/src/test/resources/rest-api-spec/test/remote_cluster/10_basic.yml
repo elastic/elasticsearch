@@ -1,48 +1,7 @@
 ---
-"Index data and search on the old cluster":
+"Index data and search on the remote cluster":
   - skip:
       features: allowed_warnings
-
-  - do:
-      allowed_warnings:
-        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
-      indices.put_index_template:
-        name: my-template1
-        body:
-          index_patterns: [simple-data-stream1]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
-          data_stream:
-            timestamp_field: '@timestamp'
-  - do:
-      allowed_warnings:
-        - "index template [my-template2] has index patterns [simple-data-stream2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
-      indices.put_index_template:
-        name: my-template2
-        body:
-          index_patterns: [simple-data-stream2]
-          template:
-            mappings:
-              properties:
-                '@timestamp2':
-                  type: date
-          data_stream:
-            timestamp_field: '@timestamp2'
-
-  - do:
-      indices.create_data_stream:
-        name: simple-data-stream1
-
-  - do:
-      indices.create_data_stream:
-        name: simple-data-stream2
-
-  - do:
-      indices.rollover:
-        alias: "simple-data-stream2"
 
   - do:
       indices.create:
@@ -50,6 +9,7 @@
         body:
           settings:
             index:
+              number_of_shards: 1
               number_of_replicas: 0
           mappings:
             properties:
@@ -66,6 +26,11 @@
   - do:
         indices.create:
           index: field_caps_empty_index
+          body:
+            settings:
+              index:
+                number_of_shards: 1
+                number_of_replicas: 0
 
   - do:
         indices.create:
@@ -117,18 +82,6 @@
                       nested2:
                         type: keyword
                         doc_values: false
-
-  - do:
-      indices.create:
-        index: closed_index
-        body:
-          aliases:
-            aliased_closed_index: {}
-
-  - do:
-      indices.close:
-        index: closed_index
-
   - do:
       indices.create:
         index: test_index
@@ -199,3 +152,69 @@
   - match: { hits.total: 2 }
   - match: { hits.hits.0._source.filter_field: 1 }
   - match: { hits.hits.0._index: "test_index" }
+
+---
+tsdb:
+  - skip:
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+
+  - do:
+      indices.create:
+        index: tsdb
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset, k8s.pod.uid]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      ip:
+                        type: ip
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                          rx:
+                            type: long
+
+  - do:
+      bulk:
+        refresh: true
+        index: tsdb
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'

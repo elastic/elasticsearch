@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * Request builder that is used to populate a {@link InvalidateTokenRequest}
  */
-public final class InvalidateTokenRequestBuilder
-        extends ActionRequestBuilder<InvalidateTokenRequest, InvalidateTokenResponse> {
+public final class InvalidateTokenRequestBuilder extends ActionRequestBuilder<InvalidateTokenRequest, InvalidateTokenResponse> {
 
     public InvalidateTokenRequestBuilder(ElasticsearchClient client) {
         super(client, InvalidateTokenAction.INSTANCE, new InvalidateTokenRequest());

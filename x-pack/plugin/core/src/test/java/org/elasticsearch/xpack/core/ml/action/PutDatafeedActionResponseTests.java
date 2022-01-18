@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -22,7 +23,9 @@ public class PutDatafeedActionResponseTests extends AbstractWireSerializingTestC
     @Override
     protected Response createTestInstance() {
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(
-                DatafeedConfigTests.randomValidDatafeedId(), randomAlphaOfLength(10));
+            DatafeedConfigTests.randomValidDatafeedId(),
+            randomAlphaOfLength(10)
+        );
         datafeedConfig.setIndices(Arrays.asList(randomAlphaOfLength(10)));
         return new Response(datafeedConfig.build());
     }

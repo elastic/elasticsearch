@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -22,10 +11,10 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,10 +28,22 @@ public final class MoveDecision extends AbstractAllocationDecision {
     /** a constant representing no decision taken */
     public static final MoveDecision NOT_TAKEN = new MoveDecision(null, null, AllocationDecision.NO_ATTEMPT, null, null, 0);
     /** cached decisions so we don't have to recreate objects for common decisions when not in explain mode. */
-    private static final MoveDecision CACHED_STAY_DECISION =
-        new MoveDecision(Decision.YES, null, AllocationDecision.NO_ATTEMPT, null, null, 0);
-    private static final MoveDecision CACHED_CANNOT_MOVE_DECISION =
-        new MoveDecision(Decision.NO, null, AllocationDecision.NO, null, null, 0);
+    private static final MoveDecision CACHED_STAY_DECISION = new MoveDecision(
+        Decision.YES,
+        null,
+        AllocationDecision.NO_ATTEMPT,
+        null,
+        null,
+        0
+    );
+    private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(
+        Decision.NO,
+        null,
+        AllocationDecision.NO,
+        null,
+        null,
+        0
+    );
 
     @Nullable
     AllocationDecision allocationDecision;
@@ -52,8 +53,14 @@ public final class MoveDecision extends AbstractAllocationDecision {
     private final Decision clusterRebalanceDecision;
     private final int currentNodeRanking;
 
-    private MoveDecision(Decision canRemainDecision, Decision clusterRebalanceDecision, AllocationDecision allocationDecision,
-                         DiscoveryNode assignedNode, List<NodeAllocationResult> nodeDecisions, int currentNodeRanking) {
+    private MoveDecision(
+        Decision canRemainDecision,
+        Decision clusterRebalanceDecision,
+        AllocationDecision allocationDecision,
+        DiscoveryNode assignedNode,
+        List<NodeAllocationResult> nodeDecisions,
+        int currentNodeRanking
+    ) {
         super(assignedNode, nodeDecisions);
         this.allocationDecision = allocationDecision;
         this.canRemainDecision = canRemainDecision;
@@ -100,8 +107,12 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * @param nodeDecisions the node-level decisions that comprised the final decision, non-null iff explain is true
      * @return the {@link MoveDecision} for moving the shard to another node
      */
-    public static MoveDecision cannotRemain(Decision canRemainDecision, AllocationDecision allocationDecision, DiscoveryNode assignedNode,
-                                            List<NodeAllocationResult> nodeDecisions) {
+    public static MoveDecision cannotRemain(
+        Decision canRemainDecision,
+        AllocationDecision allocationDecision,
+        DiscoveryNode assignedNode,
+        List<NodeAllocationResult> nodeDecisions
+    ) {
         assert canRemainDecision != null;
         assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#stay instead";
         if (nodeDecisions == null && allocationDecision == AllocationDecision.NO) {
@@ -116,17 +127,25 @@ public final class MoveDecision extends AbstractAllocationDecision {
     /**
      * Creates a move decision for when rebalancing the shard is not allowed.
      */
-    public static MoveDecision cannotRebalance(Decision canRebalanceDecision, AllocationDecision allocationDecision, int currentNodeRanking,
-                                               List<NodeAllocationResult> nodeDecisions) {
+    public static MoveDecision cannotRebalance(
+        Decision canRebalanceDecision,
+        AllocationDecision allocationDecision,
+        int currentNodeRanking,
+        List<NodeAllocationResult> nodeDecisions
+    ) {
         return new MoveDecision(null, canRebalanceDecision, allocationDecision, null, nodeDecisions, currentNodeRanking);
     }
 
     /**
      * Creates a decision for whether to move the shard to a different node to form a better cluster balance.
      */
-    public static MoveDecision rebalance(Decision canRebalanceDecision, AllocationDecision allocationDecision,
-                                         @Nullable DiscoveryNode assignedNode, int currentNodeRanking,
-                                         List<NodeAllocationResult> nodeDecisions) {
+    public static MoveDecision rebalance(
+        Decision canRebalanceDecision,
+        AllocationDecision allocationDecision,
+        @Nullable DiscoveryNode assignedNode,
+        int currentNodeRanking,
+        List<NodeAllocationResult> nodeDecisions
+    ) {
         return new MoveDecision(null, canRebalanceDecision, allocationDecision, assignedNode, nodeDecisions, currentNodeRanking);
     }
 
@@ -139,8 +158,14 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * Creates a new move decision from this decision, plus adding a remain decision.
      */
     public MoveDecision withRemainDecision(Decision canRemainDecision) {
-        return new MoveDecision(canRemainDecision, clusterRebalanceDecision, allocationDecision,
-                                   targetNode, nodeDecisions, currentNodeRanking);
+        return new MoveDecision(
+            canRemainDecision,
+            clusterRebalanceDecision,
+            allocationDecision,
+            targetNode,
+            nodeDecisions,
+            currentNodeRanking
+        );
     }
 
     /**
@@ -226,8 +251,10 @@ public final class MoveDecision extends AbstractAllocationDecision {
             if (allocationDecision == AllocationDecision.AWAITING_INFO) {
                 explanation = "cannot rebalance as information about existing copies of this shard in the cluster is still being gathered";
             } else if (clusterRebalanceDecision.type() == Type.NO) {
-                explanation = "rebalancing is not allowed" + (atLeastOneNodeWithYesDecision() ? ", even though there " +
-                              "is at least one node on which the shard can be allocated" : "");
+                explanation = "rebalancing is not allowed"
+                    + (atLeastOneNodeWithYesDecision()
+                        ? ", even though there " + "is at least one node on which the shard can be allocated"
+                        : "");
             } else if (clusterRebalanceDecision.type() == Type.THROTTLE) {
                 explanation = "rebalancing is throttled";
             } else {
@@ -239,8 +266,8 @@ public final class MoveDecision extends AbstractAllocationDecision {
                         explanation = "can rebalance shard";
                     }
                 } else {
-                    explanation = "cannot rebalance as no target node exists that can both allocate this shard " +
-                                      "and improve the cluster balance";
+                    explanation = "cannot rebalance as no target node exists that can both allocate this shard "
+                        + "and improve the cluster balance";
                 }
             }
         } else {
@@ -302,9 +329,9 @@ public final class MoveDecision extends AbstractAllocationDecision {
         }
         MoveDecision that = (MoveDecision) other;
         return Objects.equals(allocationDecision, that.allocationDecision)
-                   && Objects.equals(canRemainDecision, that.canRemainDecision)
-                   && Objects.equals(clusterRebalanceDecision, that.clusterRebalanceDecision)
-                   && currentNodeRanking == that.currentNodeRanking;
+            && Objects.equals(canRemainDecision, that.canRemainDecision)
+            && Objects.equals(clusterRebalanceDecision, that.clusterRebalanceDecision)
+            && currentNodeRanking == that.currentNodeRanking;
     }
 
     @Override

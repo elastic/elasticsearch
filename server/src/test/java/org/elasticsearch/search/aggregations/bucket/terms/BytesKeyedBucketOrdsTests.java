@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -24,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
@@ -39,11 +29,11 @@ public class BytesKeyedBucketOrdsTests extends ESTestCase {
     private final MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
 
     public void testExplicitCollectsFromSingleBucket() {
-        collectsFromSingleBucketCase(BytesKeyedBucketOrds.build(bigArrays, true));
+        collectsFromSingleBucketCase(BytesKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE));
     }
 
     public void testSurpriseCollectsFromSingleBucket() {
-        collectsFromSingleBucketCase(BytesKeyedBucketOrds.build(bigArrays, false));
+        collectsFromSingleBucketCase(BytesKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY));
     }
 
     private void collectsFromSingleBucketCase(BytesKeyedBucketOrds ords) {
@@ -106,7 +96,7 @@ public class BytesKeyedBucketOrdsTests extends ESTestCase {
     }
 
     public void testCollectsFromManyBuckets() {
-        try (BytesKeyedBucketOrds ords = BytesKeyedBucketOrds.build(bigArrays, false)) {
+        try (BytesKeyedBucketOrds ords = BytesKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY)) {
             // Test a few explicit values
             assertThat(ords.add(0, SHIP_1), equalTo(0L));
             assertThat(ords.add(1, SHIP_1), equalTo(1L));
@@ -121,8 +111,10 @@ public class BytesKeyedBucketOrdsTests extends ESTestCase {
             OwningBucketOrdAndValue[] values = new OwningBucketOrdAndValue[scaledRandomIntBetween(1, 10000)];
             long maxOwningBucketOrd = scaledRandomIntBetween(0, values.length);
             for (int i = 0; i < values.length; i++) {
-                values[i] = randomValueOtherThanMany(seen::contains, () ->
-                        new OwningBucketOrdAndValue(randomLongBetween(0, maxOwningBucketOrd), new BytesRef(Long.toString(randomLong()))));
+                values[i] = randomValueOtherThanMany(
+                    seen::contains,
+                    () -> new OwningBucketOrdAndValue(randomLongBetween(0, maxOwningBucketOrd), new BytesRef(Long.toString(randomLong())))
+                );
                 seen.add(values[i]);
             }
             for (int i = 0; i < values.length; i++) {
@@ -180,7 +172,7 @@ public class BytesKeyedBucketOrdsTests extends ESTestCase {
 
         @Override
         public String toString() {
-            return owningBucketOrd + "/" + value; 
+            return owningBucketOrd + "/" + value;
         }
 
         @Override
@@ -189,7 +181,7 @@ public class BytesKeyedBucketOrdsTests extends ESTestCase {
                 return false;
             }
             OwningBucketOrdAndValue other = (OwningBucketOrdAndValue) obj;
-            return owningBucketOrd == other.owningBucketOrd && value == other.value; 
+            return owningBucketOrd == other.owningBucketOrd && value == other.value;
         }
 
         @Override

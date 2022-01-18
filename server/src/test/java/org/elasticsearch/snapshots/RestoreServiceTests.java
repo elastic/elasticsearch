@@ -1,37 +1,49 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
-import static org.mockito.Matchers.eq;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class RestoreServiceTests extends ESTestCase {
@@ -41,7 +53,7 @@ public class RestoreServiceTests extends ESTestCase {
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
 
-        DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
+        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), indices);
 
         Metadata.Builder metadata = mock(Metadata.Builder.class);
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
@@ -64,7 +76,7 @@ public class RestoreServiceTests extends ESTestCase {
         String renamedBackingIndexName = DataStream.getDefaultBackingIndexName(renamedDataStreamName, 1);
         List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
 
-        DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
+        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), indices);
 
         Metadata.Builder metadata = mock(Metadata.Builder.class);
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
@@ -87,7 +99,7 @@ public class RestoreServiceTests extends ESTestCase {
         String renamedBackingIndexName = DataStream.getDefaultBackingIndexName(renamedDataStreamName, 1);
         List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
 
-        DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
+        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), indices);
 
         Metadata.Builder metadata = mock(Metadata.Builder.class);
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
@@ -108,5 +120,106 @@ public class RestoreServiceTests extends ESTestCase {
 
         assertEquals(renamedDataStreamName, renamedDataStream.getName());
         assertEquals(Collections.singletonList(renamedIndex), renamedDataStream.getIndices());
+    }
+
+    public void testRefreshRepositoryUuidsDoesNothingIfDisabled() {
+        final PlainActionFuture<Void> listener = new PlainActionFuture<>();
+        final RepositoriesService repositoriesService = mock(RepositoriesService.class);
+        RestoreService.refreshRepositoryUuids(false, repositoriesService, listener);
+        assertTrue(listener.isDone());
+        verifyNoMoreInteractions(repositoriesService);
+    }
+
+    public void testRefreshRepositoryUuidsRefreshesAsNeeded() throws Exception {
+        final PlainActionFuture<Void> listener = new PlainActionFuture<>();
+
+        final int repositoryCount = between(1, 5);
+        final Map<String, Repository> repositories = new HashMap<>(repositoryCount);
+        final Set<String> pendingRefreshes = new HashSet<>();
+        final List<Runnable> finalAssertions = new ArrayList<>();
+        while (repositories.size() < repositoryCount) {
+            final String repositoryName = randomAlphaOfLength(10);
+            switch (between(1, 3)) {
+                case 1 -> {
+                    final Repository notBlobStoreRepo = mock(Repository.class);
+                    repositories.put(repositoryName, notBlobStoreRepo);
+                    finalAssertions.add(() -> verifyNoMoreInteractions(notBlobStoreRepo));
+                }
+                case 2 -> {
+                    final Repository freshBlobStoreRepo = mock(BlobStoreRepository.class);
+                    repositories.put(repositoryName, freshBlobStoreRepo);
+                    when(freshBlobStoreRepo.getMetadata()).thenReturn(
+                        new RepositoryMetadata(repositoryName, randomAlphaOfLength(3), Settings.EMPTY).withUuid(UUIDs.randomBase64UUID())
+                    );
+                    doThrow(new AssertionError("repo UUID already known")).when(freshBlobStoreRepo).getRepositoryData(any());
+                }
+                case 3 -> {
+                    final Repository staleBlobStoreRepo = mock(BlobStoreRepository.class);
+                    repositories.put(repositoryName, staleBlobStoreRepo);
+                    pendingRefreshes.add(repositoryName);
+                    when(staleBlobStoreRepo.getMetadata()).thenReturn(
+                        new RepositoryMetadata(repositoryName, randomAlphaOfLength(3), Settings.EMPTY)
+                    );
+                    doAnswer(invocationOnMock -> {
+                        assertTrue(pendingRefreshes.remove(repositoryName));
+                        @SuppressWarnings("unchecked")
+                        ActionListener<RepositoryData> repositoryDataListener = (ActionListener<RepositoryData>) invocationOnMock
+                            .getArguments()[0];
+                        if (randomBoolean()) {
+                            repositoryDataListener.onResponse(null);
+                        } else {
+                            repositoryDataListener.onFailure(new Exception("simulated"));
+                        }
+                        return null;
+                    }).when(staleBlobStoreRepo).getRepositoryData(any());
+                }
+            }
+        }
+
+        final RepositoriesService repositoriesService = mock(RepositoriesService.class);
+        when(repositoriesService.getRepositories()).thenReturn(repositories);
+        RestoreService.refreshRepositoryUuids(true, repositoriesService, listener);
+        assertNull(listener.get(0L, TimeUnit.SECONDS));
+        assertThat(pendingRefreshes, empty());
+        finalAssertions.forEach(Runnable::run);
+    }
+
+    public void testNotAllowToRestoreGlobalStateFromSnapshotWithoutOne() {
+
+        var request = new RestoreSnapshotRequest().includeGlobalState(true);
+        var repository = new RepositoryMetadata("name", "type", Settings.EMPTY);
+        var snapshot = new Snapshot("repository", new SnapshotId("name", "uuid"));
+
+        var snapshotInfo = createSnapshotInfo(snapshot, Boolean.FALSE);
+
+        var exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.validateSnapshotRestorable(request, repository, snapshotInfo)
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("[name:name/uuid] cannot restore global state since the snapshot was created without global state")
+        );
+    }
+
+    private static SnapshotInfo createSnapshotInfo(Snapshot snapshot, Boolean includeGlobalState) {
+        var shards = randomIntBetween(0, 100);
+        return new SnapshotInfo(
+            snapshot,
+            List.of(),
+            List.of(),
+            List.of(),
+            randomAlphaOfLengthBetween(10, 100),
+            Version.CURRENT,
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            shards,
+            shards,
+            List.of(),
+            includeGlobalState,
+            Map.of(),
+            SnapshotState.SUCCESS,
+            Map.of()
+        );
     }
 }

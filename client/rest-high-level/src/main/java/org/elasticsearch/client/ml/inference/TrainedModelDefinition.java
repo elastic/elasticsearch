@@ -1,31 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.inference;
 
 import org.elasticsearch.client.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,17 +28,19 @@ public class TrainedModelDefinition implements ToXContentObject {
     public static final ParseField TRAINED_MODEL = new ParseField("trained_model");
     public static final ParseField PREPROCESSORS = new ParseField("preprocessors");
 
-    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME,
-            true,
-            TrainedModelDefinition.Builder::new);
+    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, true, TrainedModelDefinition.Builder::new);
     static {
-        PARSER.declareNamedObject(TrainedModelDefinition.Builder::setTrainedModel,
+        PARSER.declareNamedObject(
+            TrainedModelDefinition.Builder::setTrainedModel,
             (p, c, n) -> p.namedObject(TrainedModel.class, n, null),
-            TRAINED_MODEL);
-        PARSER.declareNamedObjects(TrainedModelDefinition.Builder::setPreProcessors,
+            TRAINED_MODEL
+        );
+        PARSER.declareNamedObjects(
+            TrainedModelDefinition.Builder::setPreProcessors,
             (p, c, n) -> p.namedObject(PreProcessor.class, n, null),
             (trainedModelDefBuilder) -> {/* Does not matter client side*/ },
-            PREPROCESSORS);
+            PREPROCESSORS
+        );
     }
 
     public static TrainedModelDefinition.Builder fromXContent(XContentParser parser) throws IOException {
@@ -67,16 +58,14 @@ public class TrainedModelDefinition implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        NamedXContentObjectHelper.writeNamedObjects(builder,
+        NamedXContentObjectHelper.writeNamedObjects(
+            builder,
             params,
             false,
             TRAINED_MODEL.getPreferredName(),
-            Collections.singletonList(trainedModel));
-        NamedXContentObjectHelper.writeNamedObjects(builder,
-            params,
-            true,
-            PREPROCESSORS.getPreferredName(),
-            preProcessors);
+            Collections.singletonList(trainedModel)
+        );
+        NamedXContentObjectHelper.writeNamedObjects(builder, params, true, PREPROCESSORS.getPreferredName(), preProcessors);
         builder.endObject();
         return builder;
     }
@@ -99,8 +88,7 @@ public class TrainedModelDefinition implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TrainedModelDefinition that = (TrainedModelDefinition) o;
-        return Objects.equals(trainedModel, that.trainedModel) &&
-            Objects.equals(preProcessors, that.preProcessors);
+        return Objects.equals(trainedModel, that.trainedModel) && Objects.equals(preProcessors, that.preProcessors);
     }
 
     @Override

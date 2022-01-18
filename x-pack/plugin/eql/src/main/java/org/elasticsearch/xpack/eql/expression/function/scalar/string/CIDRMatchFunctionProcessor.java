@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.network.CIDRUtils;
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.util.Check;
 
@@ -62,11 +65,15 @@ public class CIDRMatchFunctionProcessor implements Processor {
 
         String[] arr = new String[addresses.size()];
         int i = 0;
-        for (Object address: addresses) {
+        for (Object address : addresses) {
             Check.isString(address);
-            arr[i++] = (String)address;
+            arr[i++] = (String) address;
         }
-        return CIDRUtils.isInRange((String)source, arr);
+        try {
+            return CIDRUtils.isInRange((String) source, arr);
+        } catch (IllegalArgumentException e) {
+            throw new EqlIllegalArgumentException(e.getMessage());
+        }
     }
 
     protected Processor source() {
@@ -76,7 +83,6 @@ public class CIDRMatchFunctionProcessor implements Processor {
     public List<Processor> addresses() {
         return addresses;
     }
-
 
     @Override
     public int hashCode() {
@@ -94,7 +100,6 @@ public class CIDRMatchFunctionProcessor implements Processor {
         }
 
         CIDRMatchFunctionProcessor other = (CIDRMatchFunctionProcessor) obj;
-        return Objects.equals(source(), other.source())
-                && Objects.equals(addresses(), other.addresses());
+        return Objects.equals(source(), other.source()) && Objects.equals(addresses(), other.addresses());
     }
 }

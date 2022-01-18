@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 
 import java.lang.reflect.Method;
 
@@ -58,6 +47,8 @@ import java.lang.reflect.Method;
  * be {@code boolean needs_score()}.
  */
 public final class ScriptContext<FactoryType> {
+    /** The default compilation rate limit for contexts with compilation rate limiting enabled */
+    public static final Tuple<Integer, TimeValue> DEFAULT_COMPILATION_RATE_LIMIT = new Tuple<>(150, TimeValue.timeValueMinutes(5));
 
     /** A unique identifier for this context. */
     public final String name;
@@ -77,12 +68,21 @@ public final class ScriptContext<FactoryType> {
     /** The default expiration of a script in the cache for the context, if not overridden */
     public final TimeValue cacheExpireDefault;
 
-    /** The default max compilation rate for scripts in this context.  Script compilation is throttled if this is exceeded */
-    public final Tuple<Integer, TimeValue> maxCompilationRateDefault;
+    /** Is compilation rate limiting enabled for this context? */
+    public final boolean compilationRateLimited;
+
+    /** Determines if the script can be stored as part of the cluster state. */
+    public final boolean allowStoredScript;
 
     /** Construct a context with the related instance and compiled classes with caller provided cache defaults */
-    public ScriptContext(String name, Class<FactoryType> factoryClazz, int cacheSizeDefault, TimeValue cacheExpireDefault,
-                        Tuple<Integer, TimeValue> maxCompilationRateDefault) {
+    public ScriptContext(
+        String name,
+        Class<FactoryType> factoryClazz,
+        int cacheSizeDefault,
+        TimeValue cacheExpireDefault,
+        boolean compilationRateLimited,
+        boolean allowStoredScript
+    ) {
         this.name = name;
         this.factoryClazz = factoryClazz;
         Method newInstanceMethod = findMethod("FactoryType", factoryClazz, "newInstance");
@@ -92,28 +92,39 @@ public final class ScriptContext<FactoryType> {
             statefulFactoryClazz = newFactoryMethod.getReturnType();
             newInstanceMethod = findMethod("StatefulFactoryType", statefulFactoryClazz, "newInstance");
             if (newInstanceMethod == null) {
-                throw new IllegalArgumentException("Could not find method newInstance StatefulFactoryType class ["
-                    + statefulFactoryClazz.getName() + "] for script context [" + name + "]");
+                throw new IllegalArgumentException(
+                    "Could not find method newInstance StatefulFactoryType class ["
+                        + statefulFactoryClazz.getName()
+                        + "] for script context ["
+                        + name
+                        + "]"
+                );
             }
         } else if (newInstanceMethod != null) {
             assert newFactoryMethod == null;
             statefulFactoryClazz = null;
         } else {
-            throw new IllegalArgumentException("Could not find method newInstance or method newFactory on FactoryType class ["
-                + factoryClazz.getName() + "] for script context [" + name + "]");
+            throw new IllegalArgumentException(
+                "Could not find method newInstance or method newFactory on FactoryType class ["
+                    + factoryClazz.getName()
+                    + "] for script context ["
+                    + name
+                    + "]"
+            );
         }
         instanceClazz = newInstanceMethod.getReturnType();
 
         this.cacheSizeDefault = cacheSizeDefault;
         this.cacheExpireDefault = cacheExpireDefault;
-        this.maxCompilationRateDefault = maxCompilationRateDefault;
+        this.compilationRateLimited = compilationRateLimited;
+        this.allowStoredScript = allowStoredScript;
     }
 
     /** Construct a context with the related instance and compiled classes with defaults for cacheSizeDefault, cacheExpireDefault and
-     *  maxCompilationRateDefault */
+     *  compilationRateLimited and allow scripts of this context to be stored scripts */
     public ScriptContext(String name, Class<FactoryType> factoryClazz) {
         // cache size default, cache expire default, max compilation rate are defaults from ScriptService.
-        this(name, factoryClazz, 100, TimeValue.timeValueMillis(0), new Tuple<>(75, TimeValue.timeValueMinutes(5)));
+        this(name, factoryClazz, 100, TimeValue.timeValueMillis(0), true, true);
     }
 
     /** Returns a method with the given name, or throws an exception if multiple are found. */
@@ -122,8 +133,17 @@ public final class ScriptContext<FactoryType> {
         for (Method method : clazz.getMethods()) {
             if (method.getName().equals(methodName)) {
                 if (foundMethod != null) {
-                    throw new IllegalArgumentException("Cannot have multiple " + methodName + " methods on " + type + " class ["
-                        + clazz.getName() + "] for script context [" + name + "]");
+                    throw new IllegalArgumentException(
+                        "Cannot have multiple "
+                            + methodName
+                            + " methods on "
+                            + type
+                            + " class ["
+                            + clazz.getName()
+                            + "] for script context ["
+                            + name
+                            + "]"
+                    );
                 }
                 foundMethod = method;
             }

@@ -1,25 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionPre78;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 
@@ -48,14 +47,14 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
         private final boolean deferValidation;
         private TransformConfig config;
 
-        public Request(TransformConfigUpdate update, String id, boolean deferValidation) {
+        public Request(TransformConfigUpdate update, String id, boolean deferValidation, TimeValue timeout) {
             this.update = update;
             this.id = id;
             this.deferValidation = deferValidation;
+            this.setTimeout(timeout);
         }
 
-        // use fromStreamWithBWC, this can be changed back to public after BWC is not required anymore
-        private Request(StreamInput in) throws IOException {
+        public Request(StreamInput in) throws IOException {
             super(in);
             this.update = new TransformConfigUpdate(in);
             this.id = in.readString();
@@ -65,16 +64,13 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             }
         }
 
-        public static Request fromStreamWithBWC(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-                return new Request(in);
-            }
-            UpdateTransformActionPre78.Request r = new UpdateTransformActionPre78.Request(in);
-            return new Request(r.getUpdate(), r.getId(), r.isDeferValidation());
-        }
-
-        public static Request fromXContent(final XContentParser parser, final String id, final boolean deferValidation) {
-            return new Request(TransformConfigUpdate.fromXContent(parser), id, deferValidation);
+        public static Request fromXContent(
+            final XContentParser parser,
+            final String id,
+            final boolean deferValidation,
+            final TimeValue timeout
+        ) {
+            return new Request(TransformConfigUpdate.fromXContent(parser), id, deferValidation, timeout);
         }
 
         /**
@@ -130,27 +126,22 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-                super.writeTo(out);
-                update.writeTo(out);
-                out.writeString(id);
-                out.writeBoolean(deferValidation);
-                if (config == null) {
-                    out.writeBoolean(false);
-                } else {
-                    out.writeBoolean(true);
-                    config.writeTo(out);
-                }
-                return;
+            super.writeTo(out);
+            update.writeTo(out);
+            out.writeString(id);
+            out.writeBoolean(deferValidation);
+            if (config == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                config.writeTo(out);
             }
-
-            UpdateTransformActionPre78.Request r = new UpdateTransformActionPre78.Request(update, id, deferValidation);
-            r.writeTo(out);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(update, id, deferValidation, config);
+            // the base class does not implement hashCode, therefore we need to hash timeout ourselves
+            return Objects.hash(getTimeout(), update, id, deferValidation, config);
         }
 
         @Override
@@ -162,10 +153,13 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 return false;
             }
             Request other = (Request) obj;
+
+            // the base class does not implement equals, therefore we need to check timeout ourselves
             return Objects.equals(update, other.update)
                 && this.deferValidation == other.deferValidation
                 && this.id.equals(other.id)
-                && Objects.equals(config, other.config);
+                && Objects.equals(config, other.config)
+                && getTimeout().equals(other.getTimeout());
         }
     }
 
@@ -179,18 +173,9 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             this.config = config;
         }
 
-        // use fromStreamWithBWC, this can be changed back to public after BWC is not required anymore
-        private Response(StreamInput in) throws IOException {
+        public Response(StreamInput in) throws IOException {
             super(in);
             this.config = new TransformConfig(in);
-        }
-
-        public static Response fromStreamWithBWC(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-                return new Response(in);
-            }
-            UpdateTransformActionPre78.Response r = new UpdateTransformActionPre78.Response(in);
-            return new Response(r.getConfig());
         }
 
         public TransformConfig getConfig() {
@@ -199,14 +184,8 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-                super.writeTo(out);
-                config.writeTo(out);
-                return;
-            }
-
-            UpdateTransformActionPre78.Response r = new UpdateTransformActionPre78.Response(config);
-            r.writeTo(out);
+            super.writeTo(out);
+            config.writeTo(out);
         }
 
         @Override

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.config;
 
@@ -14,8 +15,8 @@ import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneId;
 import java.time.zone.ZoneRulesException;
 import java.util.HashMap;
 import java.util.Map;
@@ -26,6 +27,7 @@ import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomHistog
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomRollupJobConfig;
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomTermsGroupConfig;
 import static org.hamcrest.Matchers.equalTo;
+
 //TODO split this into dedicated unit test classes (one for each config object)
 public class ConfigTests extends ESTestCase {
 
@@ -51,14 +53,15 @@ public class ConfigTests extends ESTestCase {
     }
 
     public void testNoDateHisto() {
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> new GroupConfig(null, randomHistogramGroupConfig(random()), randomTermsGroupConfig(random())));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new GroupConfig(null, randomHistogramGroupConfig(random()), randomTermsGroupConfig(random()))
+        );
         assertThat(e.getMessage(), equalTo("Date histogram must not be null"));
     }
 
     public void testEmptyDateHistoField() {
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> new CalendarInterval(null, DateHistogramInterval.HOUR));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new CalendarInterval(null, DateHistogramInterval.HOUR));
         assertThat(e.getMessage(), equalTo("Field must be a non-null, non-empty string"));
 
         e = expectThrows(IllegalArgumentException.class, () -> new CalendarInterval("", DateHistogramInterval.HOUR));
@@ -72,27 +75,31 @@ public class ConfigTests extends ESTestCase {
 
     public void testNullTimeZone() {
         DateHistogramGroupConfig config = new CalendarInterval("foo", DateHistogramInterval.HOUR, null, null);
-        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+        assertThat(config.getTimeZone(), equalTo(ZoneId.of("UTC").getId()));
     }
 
     public void testEmptyTimeZone() {
         DateHistogramGroupConfig config = new CalendarInterval("foo", DateHistogramInterval.HOUR, null, "");
-        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+        assertThat(config.getTimeZone(), equalTo(ZoneId.of("UTC").getId()));
     }
 
     public void testDefaultTimeZone() {
         DateHistogramGroupConfig config = new CalendarInterval("foo", DateHistogramInterval.HOUR);
-        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+        assertThat(config.getTimeZone(), equalTo(ZoneId.of("UTC").getId()));
     }
 
     public void testUnkownTimeZone() {
-        Exception e = expectThrows(ZoneRulesException.class,
-            () -> new CalendarInterval("foo", DateHistogramInterval.HOUR, null, "FOO"));
+        Exception e = expectThrows(ZoneRulesException.class, () -> new CalendarInterval("foo", DateHistogramInterval.HOUR, null, "FOO"));
         assertThat(e.getMessage(), equalTo("Unknown time-zone ID: FOO"));
     }
 
     public void testObsoleteTimeZone() {
-        DateHistogramGroupConfig config = new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR, null, "Canada/Mountain");
+        DateHistogramGroupConfig config = new DateHistogramGroupConfig.FixedInterval(
+            "foo",
+            DateHistogramInterval.HOUR,
+            null,
+            "Canada/Mountain"
+        );
         assertThat(config.getTimeZone(), equalTo("Canada/Mountain"));
     }
 

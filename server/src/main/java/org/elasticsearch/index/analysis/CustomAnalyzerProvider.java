@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.analysis;
@@ -38,15 +27,16 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
 
     private Analyzer customAnalyzer;
 
-    public CustomAnalyzerProvider(IndexSettings indexSettings,
-                                  String name, Settings settings) {
+    public CustomAnalyzerProvider(IndexSettings indexSettings, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.analyzerSettings = settings;
     }
 
-    void build(final Map<String, TokenizerFactory> tokenizers,
-               final Map<String, CharFilterFactory> charFilters,
-               final Map<String, TokenFilterFactory> tokenFilters) {
+    void build(
+        final Map<String, TokenizerFactory> tokenizers,
+        final Map<String, CharFilterFactory> charFilters,
+        final Map<String, TokenFilterFactory> tokenFilters
+    ) {
         customAnalyzer = create(name(), analyzerSettings, tokenizers, charFilters, tokenFilters);
     }
 
@@ -54,9 +44,13 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
      * Factory method that either returns a plain {@link ReloadableCustomAnalyzer} if the components used for creation are supporting index
      * and search time use, or a {@link ReloadableCustomAnalyzer} if the components are intended for search time use only.
      */
-    private static Analyzer create(String name, Settings analyzerSettings, Map<String, TokenizerFactory> tokenizers,
-            Map<String, CharFilterFactory> charFilters,
-            Map<String, TokenFilterFactory> tokenFilters) {
+    private static Analyzer create(
+        String name,
+        Settings analyzerSettings,
+        Map<String, TokenizerFactory> tokenizers,
+        Map<String, CharFilterFactory> charFilters,
+        Map<String, TokenFilterFactory> tokenFilters
+    ) {
         int positionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
         positionIncrementGap = analyzerSettings.getAsInt("position_increment_gap", positionIncrementGap);
         int offsetGap = analyzerSettings.getAsInt("offset_gap", -1);
@@ -64,8 +58,13 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
         if (components.analysisMode().equals(AnalysisMode.SEARCH_TIME)) {
             return new ReloadableCustomAnalyzer(components, positionIncrementGap, offsetGap);
         } else {
-            return new CustomAnalyzer(components.getTokenizerFactory(), components.getCharFilters(),
-                    components.getTokenFilters(), positionIncrementGap, offsetGap);
+            return new CustomAnalyzer(
+                components.getTokenizerFactory(),
+                components.getCharFilters(),
+                components.getTokenFilters(),
+                positionIncrementGap,
+                offsetGap
+            );
         }
     }
 

@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.Version;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
@@ -28,26 +18,22 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Stream;
 
-public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
+public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> implements Accountable, RawIndexingDataTransportRequest {
 
-    public static final Version COMPACT_SHARD_ID_VERSION = Version.V_7_9_0;
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
-    private BulkItemRequest[] items;
+    private final BulkItemRequest[] items;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
-        items = new BulkItemRequest[in.readVInt()];
-        final ShardId itemShardId = in.getVersion().onOrAfter(COMPACT_SHARD_ID_VERSION) ? shardId : null;
-        for (int i = 0; i < items.length; i++) {
-            if (in.readBoolean()) {
-                items[i] = new BulkItemRequest(itemShardId, in);
-            }
-        }
+        items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
@@ -98,21 +84,14 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(items.length);
-        if (out.getVersion().onOrAfter(COMPACT_SHARD_ID_VERSION)) {
-            for (BulkItemRequest item : items) {
-                if (item != null) {
-                    out.writeBoolean(true);
-                    item.writeThin(out);
-                } else {
-                    out.writeBoolean(false);
-                }
+        out.writeArray((o, item) -> {
+            if (item != null) {
+                o.writeBoolean(true);
+                item.writeThin(o);
+            } else {
+                o.writeBoolean(false);
             }
-        } else {
-            for (BulkItemRequest item : items) {
-                out.writeOptionalWriteable(item);
-            }
-        }
+        }, items);
     }
 
     @Override
@@ -121,20 +100,20 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
         StringBuilder b = new StringBuilder("BulkShardRequest [");
         b.append(shardId).append("] containing [");
         if (items.length > 1) {
-          b.append(items.length).append("] requests");
+            b.append(items.length).append("] requests");
         } else {
             b.append(items[0].request()).append("]");
         }
 
         switch (getRefreshPolicy()) {
-        case IMMEDIATE:
-            b.append(" and a refresh");
-            break;
-        case WAIT_UNTIL:
-            b.append(" blocking until refresh");
-            break;
-        case NONE:
-            break;
+            case IMMEDIATE:
+                b.append(" and a refresh");
+                break;
+            case WAIT_UNTIL:
+                b.append(" blocking until refresh");
+                break;
+            case NONE:
+                break;
         }
         return b.toString();
     }
@@ -163,5 +142,10 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
                 ((ReplicationRequest<?>) item.request()).onRetry();
             }
         }
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + Stream.of(items).mapToLong(Accountable::ramBytesUsed).sum();
     }
 }

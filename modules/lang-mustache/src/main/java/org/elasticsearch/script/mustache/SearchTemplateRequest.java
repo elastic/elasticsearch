@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script.mustache;
@@ -23,17 +12,17 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -86,13 +75,13 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchTemplateRequest request1 = (SearchTemplateRequest) o;
-        return simulate == request1.simulate &&
-            explain == request1.explain &&
-            profile == request1.profile &&
-            Objects.equals(request, request1.request) &&
-            scriptType == request1.scriptType &&
-            Objects.equals(script, request1.script) &&
-            Objects.equals(scriptParams, request1.scriptParams);
+        return simulate == request1.simulate
+            && explain == request1.explain
+            && profile == request1.profile
+            && Objects.equals(request, request1.request)
+            && scriptType == request1.scriptType
+            && Objects.equals(script, request1.script)
+            && Objects.equals(scriptParams, request1.scriptParams);
     }
 
     @Override
@@ -183,9 +172,7 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
     private static final ObjectParser<SearchTemplateRequest, Void> PARSER;
     static {
         PARSER = new ObjectParser<>("search_template");
-        PARSER.declareField((parser, request, s) ->
-                request.setScriptParams(parser.map())
-            , PARAMS_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField((parser, request, s) -> request.setScriptParams(parser.map()), PARAMS_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareString((request, s) -> {
             request.setScriptType(ScriptType.STORED);
             request.setScript(s);
@@ -195,7 +182,7 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         PARSER.declareField((parser, request, value) -> {
             request.setScriptType(ScriptType.INLINE);
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                //convert the template to json which is the only supported XContentType (see CustomMustacheFactory#createEncoder)
+                // convert the template to json which is the only supported XContentType (see CustomMustacheFactory#createEncoder)
                 try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                     request.setScript(Strings.toString(builder.copyCurrentStructure(parser)));
                 } catch (IOException e) {

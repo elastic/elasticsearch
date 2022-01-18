@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http.nio;
@@ -33,10 +22,11 @@ import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
@@ -44,9 +34,6 @@ import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpRequest;
-import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.http.nio.cors.NioCorsHandler;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.SocketChannelContext;
@@ -64,18 +51,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -104,8 +83,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         channel = mock(NioHttpChannel.class);
         taskScheduler = mock(TaskScheduler.class);
 
-        CorsHandler.Config corsConfig = CorsHandler.disabled();
-        handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, corsConfig, taskScheduler, System::nanoTime);
+        handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, taskScheduler, System::nanoTime);
         handler.channelActive();
     }
 
@@ -211,135 +189,17 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         }
     }
 
-    public void testCorsEnabledWithoutAllowOrigins() throws IOException {
-        // Set up an HTTP transport with only the CORS enabled setting
-        Settings settings = Settings.builder()
-            .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
-            .build();
-        FullHttpResponse response = executeCorsRequest(settings, "remote-host", "request-host");
-        try {
-            // inspect response and validate
-            assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), nullValue());
-        } finally {
-            response.release();
-        }
-    }
-
-    public void testCorsEnabledWithAllowOrigins() throws IOException {
-        final String originValue = "remote-host";
-        // create an HTTP transport with CORS enabled and allow origin configured
-        Settings settings = Settings.builder()
-            .put(SETTING_CORS_ENABLED.getKey(), true)
-            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originValue)
-            .build();
-        FullHttpResponse response = executeCorsRequest(settings, originValue, "request-host");
-        try {
-            // inspect response and validate
-            assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-            String allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
-            assertThat(allowedOrigins, is(originValue));
-        } finally {
-            response.release();
-        }
-    }
-
-    public void testCorsAllowOriginWithSameHost() throws IOException {
-        String originValue = "remote-host";
-        String host = "remote-host";
-        // create an HTTP transport with CORS enabled
-        Settings settings = Settings.builder()
-            .put(SETTING_CORS_ENABLED.getKey(), true)
-            .build();
-        FullHttpResponse response = executeCorsRequest(settings, originValue, host);
-        String allowedOrigins;
-        try {
-            // inspect response and validate
-            assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-            allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
-            assertThat(allowedOrigins, is(originValue));
-        } finally {
-            response.release();
-        }
-        originValue = "http://" + originValue;
-        response = executeCorsRequest(settings, originValue, host);
-        try {
-            assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-            allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
-            assertThat(allowedOrigins, is(originValue));
-        } finally {
-            response.release();
-        }
-
-        originValue = originValue + ":5555";
-        host = host + ":5555";
-        response = executeCorsRequest(settings, originValue, host);
-        try {
-            assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-            allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
-            assertThat(allowedOrigins, is(originValue));
-        } finally {
-            response.release();
-        }
-        originValue = originValue.replace("http", "https");
-        response = executeCorsRequest(settings, originValue, host);
-        try {
-            assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-            allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
-            assertThat(allowedOrigins, is(originValue));
-        } finally {
-            response.release();
-        }
-    }
-
-    public void testThatStringLiteralWorksOnMatch() throws IOException {
-        final String originValue = "remote-host";
-        Settings settings = Settings.builder()
-            .put(SETTING_CORS_ENABLED.getKey(), true)
-            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originValue)
-            .put(SETTING_CORS_ALLOW_METHODS.getKey(), "get, options, post")
-            .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
-            .build();
-        FullHttpResponse response = executeCorsRequest(settings, originValue, "request-host");
-        try {
-            // inspect response and validate
-            assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-            String allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
-            assertThat(allowedOrigins, is(originValue));
-            assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS), equalTo("true"));
-        } finally {
-            response.release();
-        }
-    }
-
-    public void testThatAnyOriginWorks() throws IOException {
-        final String originValue = NioCorsHandler.ANY_ORIGIN;
-        Settings settings = Settings.builder()
-            .put(SETTING_CORS_ENABLED.getKey(), true)
-            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originValue)
-            .build();
-        FullHttpResponse response = executeCorsRequest(settings, originValue, "request-host");
-        try {
-            // inspect response and validate
-            assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-            String allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
-            assertThat(allowedOrigins, is(originValue));
-            assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS), nullValue());
-        } finally {
-            response.release();
-        }
-    }
-
     @SuppressWarnings("unchecked")
     public void testReadTimeout() throws IOException {
         TimeValue timeValue = TimeValue.timeValueMillis(500);
         Settings settings = Settings.builder().put(SETTING_HTTP_READ_TIMEOUT.getKey(), timeValue).build();
         HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
 
-        CorsHandler.Config corsConfig = CorsHandler.disabled();
-        TaskScheduler taskScheduler = new TaskScheduler();
+        CorsHandler corsHandler = CorsHandler.disabled();
+        TaskScheduler realScheduler = new TaskScheduler();
 
         Iterator<Integer> timeValues = Arrays.asList(0, 2, 4, 6, 8).iterator();
-        handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, corsConfig, taskScheduler, timeValues::next);
+        handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, realScheduler, timeValues::next);
         handler.channelActive();
 
         prepareHandlerForResponse(handler);
@@ -347,31 +207,31 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         HttpWriteOperation writeOperation0 = new HttpWriteOperation(context, emptyGetResponse(0), mock(BiConsumer.class));
         ((ChannelPromise) handler.writeToBytes(writeOperation0).get(0).getListener()).setSuccess();
 
-        taskScheduler.pollTask(timeValue.getNanos() + 1).run();
+        realScheduler.pollTask(timeValue.getNanos() + 1).run();
         // There was a read. Do not close.
         verify(transport, times(0)).onException(eq(channel), any(HttpReadTimeoutException.class));
 
         prepareHandlerForResponse(handler);
         prepareHandlerForResponse(handler);
 
-        taskScheduler.pollTask(timeValue.getNanos() + 3).run();
+        realScheduler.pollTask(timeValue.getNanos() + 3).run();
         // There was a read. Do not close.
         verify(transport, times(0)).onException(eq(channel), any(HttpReadTimeoutException.class));
 
         HttpWriteOperation writeOperation1 = new HttpWriteOperation(context, emptyGetResponse(1), mock(BiConsumer.class));
         ((ChannelPromise) handler.writeToBytes(writeOperation1).get(0).getListener()).setSuccess();
 
-        taskScheduler.pollTask(timeValue.getNanos() + 5).run();
+        realScheduler.pollTask(timeValue.getNanos() + 5).run();
         // There has not been a read, however there is still an inflight request. Do not close.
         verify(transport, times(0)).onException(eq(channel), any(HttpReadTimeoutException.class));
 
         HttpWriteOperation writeOperation2 = new HttpWriteOperation(context, emptyGetResponse(2), mock(BiConsumer.class));
         ((ChannelPromise) handler.writeToBytes(writeOperation2).get(0).getListener()).setSuccess();
 
-        taskScheduler.pollTask(timeValue.getNanos() + 7).run();
+        realScheduler.pollTask(timeValue.getNanos() + 7).run();
         // No reads and no inflight requests, close
         verify(transport, times(1)).onException(eq(channel), any(HttpReadTimeoutException.class));
-        assertNull(taskScheduler.pollTask(timeValue.getNanos() + 9));
+        assertNull(realScheduler.pollTask(timeValue.getNanos() + 9));
     }
 
     private static HttpPipelinedResponse emptyGetResponse(int sequence) {
@@ -382,34 +242,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         return httpResponse;
     }
 
-    private FullHttpResponse executeCorsRequest(final Settings settings, final String originValue, final String host) throws IOException {
-        HttpHandlingSettings httpSettings = HttpHandlingSettings.fromSettings(settings);
-        CorsHandler.Config corsConfig = CorsHandler.fromSettings(settings);
-        HttpReadWriteHandler handler = new HttpReadWriteHandler(channel, transport, httpSettings, corsConfig, taskScheduler,
-            System::nanoTime);
-        handler.channelActive();
-        prepareHandlerForResponse(handler);
-        DefaultFullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
-        if (originValue != null) {
-            httpRequest.headers().add(HttpHeaderNames.ORIGIN, originValue);
-        }
-        httpRequest.headers().add(HttpHeaderNames.HOST, host);
-        HttpPipelinedRequest pipelinedRequest = new HttpPipelinedRequest(0, new NioHttpRequest(httpRequest));
-        BytesArray content = new BytesArray("content");
-        HttpResponse response = pipelinedRequest.createResponse(RestStatus.OK, content);
-        response.addHeader("Content-Length", Integer.toString(content.length()));
-
-        SocketChannelContext context = mock(SocketChannelContext.class);
-        List<FlushOperation> flushOperations = handler.writeToBytes(handler.createWriteOperation(context, response, (v, e) -> {}));
-        handler.close();
-        FlushOperation flushOperation = flushOperations.get(0);
-        ((ChannelPromise) flushOperation.getListener()).setSuccess();
-        return responseDecoder.decode(Unpooled.wrappedBuffer(flushOperation.getBuffersToWrite()));
-    }
-
-
-
-    private void prepareHandlerForResponse(HttpReadWriteHandler handler) throws IOException {
+    private void prepareHandlerForResponse(HttpReadWriteHandler readWriteHandler) throws IOException {
         HttpMethod method = randomBoolean() ? HttpMethod.GET : HttpMethod.HEAD;
         HttpVersion version = randomBoolean() ? HttpVersion.HTTP_1_0 : HttpVersion.HTTP_1_1;
         String uri = "http://localhost:9090/" + randomAlphaOfLength(8);
@@ -417,7 +250,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         io.netty.handler.codec.http.HttpRequest request = new DefaultFullHttpRequest(version, method, uri);
         ByteBuf buf = requestEncoder.encode(request);
         try {
-            handler.consumeReads(toChannelBuffer(buf));
+            readWriteHandler.consumeReads(toChannelBuffer(buf));
         } finally {
             buf.release();
         }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
@@ -17,12 +18,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
 
 public class ShortCircuitingRenormalizerTests extends ESTestCase {
 
@@ -76,8 +76,10 @@ public class ShortCircuitingRenormalizerTests extends ESTestCase {
 
             // The quantiles immediately before the intermediate wait for idle must have been processed
             int intermediateWaitPoint = TEST_SIZE / 2 - 1;
-            assertTrue(quantilesUsed + " should contain " + intermediateWaitPoint,
-                    quantilesUsed.contains(Integer.toString(intermediateWaitPoint)));
+            assertTrue(
+                quantilesUsed + " should contain " + intermediateWaitPoint,
+                quantilesUsed.contains(Integer.toString(intermediateWaitPoint))
+            );
         } finally {
             threadpool.shutdown();
         }

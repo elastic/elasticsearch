@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
@@ -48,11 +49,11 @@ public class TopHitsAgg extends LeafAgg {
     AggregationBuilder toBuilder() {
         // Sort missing values (NULLs) as last to get the first/last non-null value
         List<SortBuilder<?>> sortBuilderList = new ArrayList<>(2);
-        if (sortSource!= null) {
+        if (sortSource != null) {
             if (sortSource.fieldName() != null) {
                 sortBuilderList.add(
                     new FieldSortBuilder(sortSource.fieldName()).order(sortOrder)
-                        .missing(LAST.position())
+                        .missing(LAST.searchOrder())
                         .unmappedType(sortFieldDataType.esType())
                 );
             } else if (sortSource.script() != null) {
@@ -69,7 +70,7 @@ public class TopHitsAgg extends LeafAgg {
 
         if (source().fieldName() != null) {
             sortBuilderList.add(
-                new FieldSortBuilder(source().fieldName()).order(sortOrder).missing(LAST.position()).unmappedType(fieldDataType.esType())
+                new FieldSortBuilder(source().fieldName()).order(sortOrder).missing(LAST.searchOrder()).unmappedType(fieldDataType.esType())
             );
         } else {
             sortBuilderList.add(
@@ -109,9 +110,9 @@ public class TopHitsAgg extends LeafAgg {
             return false;
         }
         TopHitsAgg that = (TopHitsAgg) o;
-        return Objects.equals(sortSource, that.sortSource) &&
-                sortOrder==that.sortOrder &&
-                Objects.equals(fieldDataType, that.fieldDataType) &&
-                Objects.equals(sortFieldDataType, that.sortFieldDataType);
+        return Objects.equals(sortSource, that.sortSource)
+            && sortOrder == that.sortOrder
+            && Objects.equals(fieldDataType, that.fieldDataType)
+            && Objects.equals(sortFieldDataType, that.sortFieldDataType);
     }
 }

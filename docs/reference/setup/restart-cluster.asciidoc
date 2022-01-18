@@ -9,7 +9,7 @@ nodes in the cluster while in the case of
 time, so the service remains uninterrupted.
 
 
-[float]
+[discrete]
 [[restart-cluster-full]]
 === Full-cluster restart
 
@@ -36,8 +36,7 @@ POST /_flush
 . *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
 +
 --
-{ml-cap} features require a platinum license or higher. For more information about Elastic
-license levels, see https://www.elastic.co/subscriptions[the subscription page].
+{ml-cap} features require specific {subscriptions}[subscriptions].
 
 You have two options to handle {ml} jobs and {dfeeds} when you shut down a
 cluster:
@@ -167,7 +166,7 @@ the datafeeds from {kib} or with the <<ml-open-job,open jobs>> and
 // end::restart_ml[]
 
 
-[float]
+[discrete]
 [[restart-cluster-rolling]]
 === Rolling restart
 
@@ -210,7 +209,7 @@ GET _cat/nodes
 . *Reenable shard allocation.*
 +
 --
-Once the node has joined the cluster, remove the
+For data nodes, once the node has joined the cluster, remove the
 `cluster.routing.allocation.enable` setting to enable shard allocation and start
 using the node:
 

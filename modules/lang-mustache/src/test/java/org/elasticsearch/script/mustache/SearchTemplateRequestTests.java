@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script.mustache;
@@ -48,10 +37,10 @@ public class SearchTemplateRequestTests extends AbstractWireSerializingTestCase<
     protected SearchTemplateRequest mutateInstance(SearchTemplateRequest instance) throws IOException {
         List<Consumer<SearchTemplateRequest>> mutators = new ArrayList<>();
 
-        mutators.add(request -> request.setScriptType(
-            randomValueOtherThan(request.getScriptType(), () -> randomFrom(ScriptType.values()))));
-        mutators.add(request -> request.setScript(
-            randomValueOtherThan(request.getScript(), () -> randomAlphaOfLength(50))));
+        mutators.add(
+            request -> request.setScriptType(randomValueOtherThan(request.getScriptType(), () -> randomFrom(ScriptType.values())))
+        );
+        mutators.add(request -> request.setScript(randomValueOtherThan(request.getScript(), () -> randomAlphaOfLength(50))));
 
         mutators.add(request -> {
             Map<String, Object> mutatedScriptParams = new HashMap<>(request.getScriptParams());
@@ -60,19 +49,24 @@ public class SearchTemplateRequestTests extends AbstractWireSerializingTestCase<
             request.setScriptParams(mutatedScriptParams);
         });
 
-        mutators.add(request -> request.setProfile(!request.isProfile()));
-        mutators.add(request -> request.setExplain(!request.isExplain()));
-        mutators.add(request -> request.setSimulate(!request.isSimulate()));
+        mutators.add(request -> request.setProfile(request.isProfile() == false));
+        mutators.add(request -> request.setExplain(request.isExplain() == false));
+        mutators.add(request -> request.setSimulate(request.isSimulate() == false));
 
-        mutators.add(request -> request.setRequest(randomValueOtherThan(request.getRequest(),
-                () -> RandomSearchRequestGenerator.randomSearchRequest(SearchSourceBuilder::searchSource))));
+        mutators.add(
+            request -> request.setRequest(
+                randomValueOtherThan(
+                    request.getRequest(),
+                    () -> RandomSearchRequestGenerator.randomSearchRequest(SearchSourceBuilder::searchSource)
+                )
+            )
+        );
 
         SearchTemplateRequest mutatedInstance = copyInstance(instance);
         Consumer<SearchTemplateRequest> mutator = randomFrom(mutators);
         mutator.accept(mutatedInstance);
         return mutatedInstance;
     }
-
 
     public static SearchTemplateRequest createRandomRequest() {
         SearchTemplateRequest request = new SearchTemplateRequest();
@@ -89,8 +83,7 @@ public class SearchTemplateRequestTests extends AbstractWireSerializingTestCase<
         request.setProfile(randomBoolean());
         request.setSimulate(randomBoolean());
 
-        request.setRequest(RandomSearchRequestGenerator.randomSearchRequest(
-            SearchSourceBuilder::searchSource));
+        request.setRequest(RandomSearchRequestGenerator.randomSearchRequest(SearchSourceBuilder::searchSource));
         return request;
     }
 }

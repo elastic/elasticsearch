@@ -1,184 +1,170 @@
 [[snapshots-register-repository]]
 == Register a snapshot repository
-
 ++++
-<titleabbrev>Register repository</titleabbrev>
+<titleabbrev>Register a repository</titleabbrev>
 ++++
 
-You must register a snapshot repository before you can perform snapshot and
-restore operations. We recommend creating a new snapshot repository for each
-major version. The valid repository settings depend on the repository type.
+This guide shows you how to register a snapshot repository. A snapshot
+repository is an off-cluster storage location for your snapshots. You must
+register a repository before you can take or restore snapshots.
 
-If you register same snapshot repository with multiple clusters, only
-one cluster should have write access to the repository. All other clusters
-connected to that repository should set the repository to `readonly` mode.
+In this guide, you’ll learn how to:
 
-IMPORTANT: The snapshot format can change across major versions, so if you have
-clusters on different versions trying to write the same repository, snapshots
-written by one version may not be visible to the other and the repository could
-be corrupted. While setting the repository to `readonly` on all but one of the
-clusters should work with multiple clusters differing by one major version, it
-is not a supported configuration.
+* Register a snapshot repository
+* Verify that a repository is functional
+* Clean up a repository to remove unneeded files
 
-[source,console]
------------------------------------
-PUT /_snapshot/my_backup
-{
-  "type": "fs",
-  "settings": {
-    "location": "my_backup_location"
-  }
-}
------------------------------------
-// TESTSETUP
+[discrete]
+[[snapshot-repo-prereqs]]
+=== Prerequisites
 
-To retrieve information about a registered repository, use a GET request:
+// tag::kib-snapshot-prereqs[]
+* To use {kib}'s **Snapshot and Restore** feature, you must have the following
+permissions:
 
-[source,console]
------------------------------------
-GET /_snapshot/my_backup
------------------------------------
+** <<privileges-list-cluster,Cluster privileges>>: `monitor`, `manage_slm`,
+`cluster:admin/snapshot`, and `cluster:admin/repository`
 
-which returns:
+** <<privileges-list-indices,Index privilege>>: `all` on the `monitor` index
+// end::kib-snapshot-prereqs[]
 
-[source,console-result]
------------------------------------
-{
-  "my_backup": {
-    "type": "fs",
-    "settings": {
-      "location": "my_backup_location"
-    }
-  }
-}
------------------------------------
+include::apis/put-repo-api.asciidoc[tag=put-repo-api-prereqs]
 
-To retrieve information about multiple repositories, specify a comma-delimited
-list of repositories. You can also use the * wildcard when
-specifying repository names. For example, the following request retrieves
-information about all of the snapshot repositories that start with `repo` or
-contain `backup`:
+[discrete]
+[[snapshot-repo-considerations]]
+=== Considerations
 
-[source,console]
------------------------------------
-GET /_snapshot/repo*,*backup*
------------------------------------
+When registering a snapshot repository, keep the following in mind:
 
-To retrieve information about all registered snapshot repositories, omit the
-repository name or specify `_all`:
+* Each snapshot repository is separate and independent. {es} doesn't share
+data between repositories.
 
-[source,console]
------------------------------------
-GET /_snapshot
------------------------------------
-
-or
-
-[source,console]
------------------------------------
-GET /_snapshot/_all
------------------------------------
-
-You can unregister a repository using the <<delete-snapshot-repo-api,delete
-snapshot repository API>>:
-
-[source,console]
------------------------------------
-DELETE /_snapshot/my_backup
------------------------------------
-
-When a repository is unregistered, {es} only removes the reference to the
-location where the repository is storing the snapshots. The snapshots themselves
-are left untouched and in place.
-
-[float]
-[[snapshots-filesystem-repository]]
-=== Shared file system repository
-
-The shared file system repository (`"type": "fs"`) uses the shared file system to store snapshots. In order to register
-the shared file system repository it is necessary to mount the same shared filesystem to the same location on all
-master and data nodes. This location (or one of its parent directories) must be registered in the `path.repo`
-setting on all master and data nodes.
-
-Assuming that the shared filesystem is mounted to `/mount/backups/my_fs_backup_location`, the following setting should
-be added to `elasticsearch.yml` file:
-
-[source,yaml]
---------------
-path.repo: ["/mount/backups", "/mount/longterm_backups"]
---------------
-
-The `path.repo` setting supports Microsoft Windows UNC paths as long as at least server name and share are specified as
-a prefix and back slashes are properly escaped:
-
-[source,yaml]
---------------
-path.repo: ["\\\\MY_SERVER\\Snapshots"]
---------------
-
-After all nodes are restarted, the following command can be used to register the shared file system repository with
-the name `my_fs_backup`:
-
-[source,console]
------------------------------------
-PUT /_snapshot/my_fs_backup
-{
-    "type": "fs",
-    "settings": {
-        "location": "/mount/backups/my_fs_backup_location",
-        "compress": true
-    }
-}
------------------------------------
-// TEST[skip:no access to absolute path]
-
-If the repository location is specified as a relative path this path will be resolved against the first path specified
-in `path.repo`:
-
-[source,console]
------------------------------------
-PUT /_snapshot/my_fs_backup
-{
-    "type": "fs",
-    "settings": {
-        "location": "my_fs_backup_location",
-        "compress": true
-    }
-}
------------------------------------
-// TEST[continued]
-
-The following settings are supported:
-
-[horizontal]
-`location`:: Location of the snapshots. Mandatory.
-`compress`:: Turns on compression of the snapshot files. Compression is applied only to metadata files (index mapping and settings). Data files are not compressed. Defaults to `true`.
-`chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. Specify the chunk size as a value and
-unit, for example: `1GB`, `10MB`, `5KB`, `500B`. Defaults to `null` (unlimited chunk size).
-`max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `40mb` per second.
-`max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `40mb` per second.
-`readonly`:: Makes repository read-only.  Defaults to `false`.
-
-[float]
-[[snapshots-read-only-repository]]
-=== Read-only URL repository
-
+* {blank}
++
+--
+// tag::multi-cluster-repo[]
 If you register the same snapshot repository with multiple clusters, only one
-cluster should have write access to the repository. Having multiple clusters
-write to the repository at the same time risks corrupting the contents of the
-repository.
+cluster should have write access to the repository. On other clusters, register
+the repository as read-only.
 
-To reduce this risk, you can use URL repositories (`"type": "url"`) to give one
-or more clusters read-only access to a shared file system repository. As URL
-repositories are always read-only, they are a safer and more convenient
-alternative to registering a read-only shared filesystem repository.
+This prevents multiple clusters from writing to the repository at the same time
+and corrupting the repository’s contents. It also prevents {es} from caching the
+repository's contents, which means that changes made by other clusters will
+become visible straight away.
+// end::multi-cluster-repo[]
+--
 
-The URL specified in the `url` parameter should point to the root of the shared
-filesystem repository.
+* Use a different snapshot repository for each major version of {es}. Mixing
+snapshots from different major versions can corrupt a repository’s contents.
+
+[discrete]
+[[manage-snapshot-repos]]
+=== Manage snapshot repositories
+
+You can register and manage snapshot repositories in two ways:
+
+* {kib}'s **Snapshot and Restore** feature
+* {es}'s <<snapshot-restore-repo-apis,snapshot repository management APIs>>
+
+To manage repositories in {kib}, go to the main menu and click **Stack
+Management** > **Snapshot and Restore** > **Repositories**. To register a
+snapshot repository, click **Register repository**.
+
+[discrete]
+[[snapshot-repo-types]]
+=== Snapshot repository types
+
+Supported snapshot repository types vary based on your deployment type.
+
+[discrete]
+[[ess-repo-types]]
+==== {ess} repository types
+
+{ess-trial}[{ess} deployments] automatically register the
+{cloud}/ec-snapshot-restore.html[`found-snapshots`] repository. {ess} uses this
+repository and the `cloud-snapshot-policy` to take periodic snapshots of your
+cluster. You can also use the `found-snapshots` repository for your own
+<<automate-snapshots-slm,{slm-init} policies>> or to store searchable snapshots.
+
+The `found-snapshots` repository is specific to each deployment. However, you
+can restore snapshots from another deployment's `found-snapshots` repository if
+the deployments are under the same account and in the same region. See
+{cloud}/ec_share_a_repository_across_clusters.html[Share a repository across
+clusters].
+
+{ess} deployments also support the following repository types:
+
+* {cloud}/ec-aws-custom-repository.html[AWS S3]
+* {cloud}/ec-gcs-snapshotting.html[Google Cloud Storage (GCS)]
+* {cloud}/ec-azure-snapshotting.html[Microsoft Azure]
+* <<snapshots-source-only-repository>>
+
+[discrete]
+[[self-managed-repo-types]]
+==== Self-managed repository types
+
+If you run the {es} on your own hardware, you can use the following built-in
+snapshot repository types:
+
+* <<repository-s3,AWS S3>>
+* <<repository-gcs,Google Cloud Storage>>
+* <<repository-azure,Azure>>
+* <<snapshots-filesystem-repository,Shared file system>>
+* <<snapshots-read-only-repository>>
+* <<snapshots-source-only-repository>>
+
+[[snapshots-repository-plugins]]
+Other repository types are available through official plugins:
+
+* {plugins}/repository-hdfs.html[Hadoop Distributed File System (HDFS)]
+
+You can also use alternative implementations of these repository types, such as
+MinIO, as long as they're compatible. To verify a repository's compatibility,
+see <<snapshots-repository-verification>>.
+
+[discrete]
+[[snapshots-filesystem-repository]]
+==== Shared file system repository
+
+// tag::on-prem-repo-type[]
+NOTE: This repository type is only available if you run {es} on your own
+hardware. If you use {ess}, see <<ess-repo-types>>.
+// end::on-prem-repo-type[]
+
+Use a shared file system repository to store snapshots on a
+shared file system.
+
+To register a shared file system repository, first mount the file system to the
+same location on all master and data nodes. Then add the file system's
+path or parent directory to the `path.repo` setting in `elasticsearch.yml` for
+each master and data node. For running clusters, this requires a
+<<restart-cluster-rolling,rolling restart>> of each node.
+
+IMPORTANT: By default, a network file system (NFS) uses user IDs (UIDs) and
+group IDs (GIDs) to match accounts across nodes. If your shared file system is
+an NFS and your nodes don't use the same UIDs and GIDs, update your NFS
+configuration to account for this.
+
+Supported `path.repo` values vary by platform:
+
+include::{es-repo-dir}/tab-widgets/register-fs-repo-widget.asciidoc[]
+
+[discrete]
+[[snapshots-read-only-repository]]
+==== Read-only URL repository
+
+include::register-repository.asciidoc[tag=on-prem-repo-type]
+
+You can use a URL repository to give a cluster read-only access to a shared file
+system. Since URL repositories are always read-only, they're a safer and more
+convenient alternative to registering a read-only shared filesystem repository.
+
+Use {kib} or the <<put-snapshot-repo-api,create snapshot repository API>> to
+register a URL repository.
 
 [source,console]
 ----
-PUT /_snapshot/my_read_only_url_repository
+PUT _snapshot/my_read_only_url_repository
 {
   "type": "url",
   "settings": {
@@ -188,49 +174,28 @@ PUT /_snapshot/my_read_only_url_repository
 ----
 // TEST[skip:no access to url file path]
 
-The `url` parameter supports the following protocols:
-
-* `file`
-* `ftp`
-* `http`
-* `https`
-* `jar`
-
-URLs using the `file` protocol must point to the location of a shared filesystem
-accessible to all master and data nodes in the cluster. This location must be
-registered in the `path.repo` setting, similar to a
-<<snapshots-filesystem-repository,shared file system repository>>.
-
-URLs using the `ftp`, `http`, or `https` protocols must be explicitly allowed with the
-`repositories.url.allowed_urls` setting. This setting supports wildcards (`*`)
-in place of a host, path, query, or fragment in the URL. For example:
-
-[source,yaml]
-----
-repositories.url.allowed_urls: ["http://www.example.org/root/*", "https://*.mydomain.com/*?*#*"]
-----
-
-NOTE: URLs using the `ftp`, `http`, `https`, or `jar` protocols do not need to
-be registered in the `path.repo` setting.
-
-[float]
-[role="xpack"]
-[testenv="basic"]
+[discrete]
 [[snapshots-source-only-repository]]
-=== Source only repository
+==== Source-only repository
 
-A source repository enables you to create minimal, source-only snapshots that take up to 50% less space on disk.
-Source only snapshots contain stored fields and index metadata. They do not include index or doc values structures
-and are not searchable when restored. After restoring a source-only snapshot, you must <<docs-reindex,reindex>>
-the data into a new index.
+You can use a source-only repository to take minimal, source-only snapshots that
+use up to 50% less disk space than regular snapshots.
 
-Source repositories delegate to another snapshot repository for storage.
+Unlike other repository types, a source-only repository doesn't directly store
+snapshots. It delegates storage to another registered snapshot repository.
+
+When you take a snapshot using a source-only repository, {es} creates a
+source-only snapshot in the delegated storage repository. This snapshot only
+contains stored fields and metadata. It doesn't include index or doc values
+structures and isn't immediately searchable when restored. To search the
+restored data, you first have to <<docs-reindex,reindex>> it into a new data
+stream or index.
 
 [IMPORTANT]
 ==================================================
 
-Source only snapshots are only supported if the `_source` field is enabled and no source-filtering is applied.
-When you restore a source only snapshot:
+Source-only snapshots are only supported if the `_source` field is enabled and no source-filtering is applied.
+When you restore a source-only snapshot:
 
  * The restored index is read-only and can only serve `match_all` search or scroll requests to enable reindexing.
 
@@ -241,11 +206,13 @@ When you restore a source only snapshot:
 
 ==================================================
 
-When you create a source repository, you must specify the type and name of the delegate repository
-where the snapshots will be stored:
+Before registering a source-only repository, use {kib} or the
+<<put-snapshot-repo-api,create snapshot repository API>> to register a snapshot
+repository of another type to use for storage. Then register the source-only
+repository and specify the delegated storage repository in the request.
 
 [source,console]
------------------------------------
+----
 PUT _snapshot/my_src_only_repository
 {
   "type": "source",
@@ -254,75 +221,83 @@ PUT _snapshot/my_src_only_repository
     "location": "my_backup_location"
   }
 }
------------------------------------
+----
 // TEST[continued]
 
-[float]
-[[snapshots-repository-plugins]]
-=== Repository plugins
-
-Other repository backends are available in these official plugins:
-
-* {plugins}/repository-s3.html[repository-s3] for S3 repository support
-* {plugins}/repository-hdfs.html[repository-hdfs] for HDFS repository support in Hadoop environments
-* {plugins}/repository-azure.html[repository-azure] for Azure storage repositories
-* {plugins}/repository-gcs.html[repository-gcs] for Google Cloud Storage repositories
-
-[float]
+[discrete]
 [[snapshots-repository-verification]]
-=== Repository verification
-When a repository is registered, it's immediately verified on all master and data nodes to make sure that it is functional
-on all nodes currently present in the cluster. The `verify` parameter can be used to explicitly disable the repository
-verification when registering or updating a repository:
+=== Verify a repository
+
+When you register a snapshot repository, {es} automatically verifies that the
+repository is available and functional on all master and data nodes.
+
+To disable this verification, set the <<put-snapshot-repo-api,create snapshot
+repository API>>'s `verify` query parameter to `false`. You can't disable
+repository verification in {kib}.
 
 [source,console]
------------------------------------
-PUT /_snapshot/my_unverified_backup?verify=false
+----
+PUT _snapshot/my_unverified_backup?verify=false
 {
   "type": "fs",
   "settings": {
     "location": "my_unverified_backup_location"
   }
 }
------------------------------------
+----
 // TEST[continued]
 
-The verification process can also be executed manually by running the following command:
+If wanted, you can manually run the repository verification check. To verify a
+repository in {kib}, go to the **Repositories** list page and click the name of
+a repository. Then click **Verify repository**. You can also use the
+<<verify-snapshot-repo-api,verify snapshot repository API>>.
 
 [source,console]
------------------------------------
-POST /_snapshot/my_unverified_backup/_verify
------------------------------------
+----
+POST _snapshot/my_unverified_backup/_verify
+----
 // TEST[continued]
 
-It returns a list of nodes where repository was successfully verified or an error message if verification process failed.
+If successful, the request returns a list of nodes used to verify the
+repository. If verification fails, the request returns an error.
 
-[float]
+You can test a repository more thoroughly using the
+<<repo-analysis-api,repository analysis API>>.
+
+[discrete]
 [[snapshots-repository-cleanup]]
-=== Repository cleanup
+=== Clean up a repository
+
 Repositories can over time accumulate data that is not referenced by any existing snapshot. This is a result of the data safety guarantees
 the snapshot functionality provides in failure scenarios during snapshot creation and the decentralized nature of the snapshot creation
 process. This unreferenced data does in no way negatively impact the performance or safety of a snapshot repository but leads to higher
-than necessary storage use. In order to clean up this unreferenced data, users can call the cleanup endpoint for a repository which will
-trigger a complete accounting of the repositories contents and subsequent deletion of all unreferenced data that was found.
+than necessary storage use. To remove this unreferenced data, you can run a cleanup operation on the repository. This will
+trigger a complete accounting of the repository's contents and delete any unreferenced data.
+
+To run the repository cleanup operation in {kib}, go to the **Repositories**
+list page and click the name of a repository. Then click **Clean up
+repository**.
+
+You can also use the <<clean-up-snapshot-repo-api,clean up snapshot repository
+API>>.
 
 [source,console]
------------------------------------
-POST /_snapshot/my_repository/_cleanup
------------------------------------
+----
+POST _snapshot/my_repository/_cleanup
+----
 // TEST[continued]
 
-The response to a cleanup request looks as follows:
+The API returns:
 
 [source,console-result]
---------------------------------------------------
+----
 {
   "results": {
     "deleted_bytes": 20,
     "deleted_blobs": 5
   }
 }
---------------------------------------------------
+----
 
 Depending on the concrete repository implementation the numbers shown for bytes free as well as the number of blobs removed will either
 be an approximation or an exact result. Any non-zero value for the number of blobs removed implies that unreferenced blobs were found and
@@ -331,3 +306,39 @@ subsequently cleaned up.
 Please note that most of the cleanup operations executed by this endpoint are automatically executed when deleting any snapshot from a
 repository. If you regularly delete snapshots, you will in most cases not get any or only minor space savings from using this functionality
 and should lower your frequency of invoking it accordingly.
+
+[discrete]
+[[snapshots-repository-backup]]
+=== Back up a repository
+
+You may wish to make an independent backup of your repository, for instance so
+that you have an archive copy of its contents that you can use to recreate the
+repository in its current state at a later date.
+
+You must ensure that {es} does not write to the repository while you are taking
+the backup of its contents. You can do this by unregistering it, or registering
+it with `readonly: true`, on all your clusters. If {es} writes any data to the
+repository during the backup then the contents of the backup may not be
+consistent and it may not be possible to recover any data from it in future.
+
+Alternatively, if your repository supports it, you may take an atomic snapshot
+of the underlying filesystem and then take a backup of this filesystem
+snapshot. It is very important that the filesystem snapshot is taken
+atomically.
+
+WARNING: You cannot use filesystem snapshots of individual nodes as a backup
+mechanism. You must use the {es} snapshot and restore feature to copy the
+cluster contents to a separate repository. Then, if desired, you can take a
+filesystem snapshot of this repository.
+
+When restoring a repository from a backup, you must not register the repository
+with {es} until the repository contents are fully restored. If you alter the
+contents of a repository while it is registered with {es} then the repository
+may become unreadable or may silently lose some of its contents.
+
+
+include::repository-s3.asciidoc[]
+
+include::repository-gcs.asciidoc[]
+
+include::repository-azure.asciidoc[]

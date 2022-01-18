@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
@@ -19,7 +20,6 @@ public abstract class NamedExpression extends Expression {
     private final String name;
     private final NameId id;
     private final boolean synthetic;
-
 
     public NamedExpression(Source source, String name, List<Expression> children, NameId id) {
         this(source, name, children, id, false);
@@ -62,14 +62,14 @@ public abstract class NamedExpression extends Expression {
 
         NamedExpression other = (NamedExpression) obj;
         return Objects.equals(synthetic, other.synthetic)
-                /*
-                 * It is important that the line below be `name`
-                 * and not `name()` because subclasses might override
-                 * `name()` in ways that are not compatible with
-                 * equality. Specifically the `Unresolved` subclasses.
-                 */
-                && Objects.equals(name, other.name)
-                && Objects.equals(children(), other.children());
+            /*
+             * It is important that the line below be `name`
+             * and not `name()` because subclasses might override
+             * `name()` in ways that are not compatible with
+             * equality. Specifically the `Unresolved` subclasses.
+             */
+            && Objects.equals(name, other.name)
+            && Objects.equals(children(), other.children());
     }
 
     @Override

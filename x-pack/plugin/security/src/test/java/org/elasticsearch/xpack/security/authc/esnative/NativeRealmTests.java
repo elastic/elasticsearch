@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
@@ -26,11 +27,23 @@ import static org.mockito.Mockito.when;
 public class NativeRealmTests extends ESTestCase {
 
     private final String concreteSecurityIndexName = randomFrom(
-        RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7);
+        RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6,
+        RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7
+    );
 
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
         return new SecurityIndexManager.State(
-            Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus, IndexMetadata.State.OPEN);
+            Instant.now(),
+            true,
+            true,
+            true,
+            null,
+            concreteSecurityIndexName,
+            indexStatus,
+            IndexMetadata.State.OPEN,
+            null,
+            "my_uuid"
+        );
     }
 
     public void testCacheClearOnIndexHealthChange() {
@@ -40,8 +53,10 @@ public class NativeRealmTests extends ESTestCase {
         final AtomicInteger numInvalidation = new AtomicInteger(0);
         int expectedInvalidation = 0;
         RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("native", "native");
-        Settings settings = Settings.builder().put("path.home", createTempDir())
-            .put(RealmSettings.realmSettingPrefix(realmId) + "order", 0).build();
+        Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(RealmSettings.realmSettingPrefix(realmId) + "order", 0)
+            .build();
         RealmConfig config = new RealmConfig(realmId, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
         final NativeRealm nativeRealm = new NativeRealm(config, mock(NativeUsersStore.class), threadPool) {
             @Override
@@ -76,8 +91,9 @@ public class NativeRealmTests extends ESTestCase {
 
         // green to yellow or yellow to green
         previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        currentState = dummyState(previousState.indexHealth == ClusterHealthStatus.GREEN ?
-            ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
+        currentState = dummyState(
+            previousState.indexHealth == ClusterHealthStatus.GREEN ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN
+        );
         nativeRealm.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(expectedInvalidation, numInvalidation.get());
     }

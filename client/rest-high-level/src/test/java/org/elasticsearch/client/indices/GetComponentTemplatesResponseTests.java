@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.indices;
@@ -24,8 +13,9 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,10 +31,8 @@ public class GetComponentTemplatesResponseTests extends ESTestCase {
             this::createParser,
             GetComponentTemplatesResponseTests::createTestInstance,
             GetComponentTemplatesResponseTests::toXContent,
-            GetComponentTemplatesResponse::fromXContent)
-            .supportsUnknownFields(true)
-            .randomFieldsExcludeFilter(a -> true)
-            .test();
+            GetComponentTemplatesResponse::fromXContent
+        ).supportsUnknownFields(true).randomFieldsExcludeFilter(a -> true).test();
     }
 
     public static Template randomTemplate() {
@@ -67,8 +55,10 @@ public class GetComponentTemplatesResponseTests extends ESTestCase {
         if (randomBoolean()) {
             return Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4));
         } else {
-            return Collections.singletonMap(randomAlphaOfLength(5),
-                Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4)));
+            return Collections.singletonMap(
+                randomAlphaOfLength(5),
+                Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4))
+            );
         }
     }
 
@@ -90,7 +80,7 @@ public class GetComponentTemplatesResponseTests extends ESTestCase {
             builder.startObject();
             builder.field("name", e.getKey());
             builder.field("component_template");
-            e.getValue().toXContent(builder, null);
+            e.getValue().toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
         }
         builder.endArray();
@@ -128,8 +118,6 @@ public class GetComponentTemplatesResponseTests extends ESTestCase {
     }
 
     private static Settings randomSettings() {
-        return Settings.builder()
-            .put(randomAlphaOfLength(4), randomAlphaOfLength(10))
-            .build();
+        return Settings.builder().put(randomAlphaOfLength(4), randomAlphaOfLength(10)).build();
     }
 }

@@ -1,5 +1,5 @@
 [[token-count]]
-=== Token count datatype
+=== Token count field type
 ++++
 <titleabbrev>Token count</titleabbrev>
 ++++
@@ -12,7 +12,7 @@ For instance:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -29,13 +29,13 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 { "name": "John Smith" }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 { "name": "Rachel Alice Williams" }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "term": {
@@ -83,7 +83,7 @@ Defaults to `true`.
 <<null-value,`null_value`>>::
 
     Accepts a numeric value of the same `type` as the field which is
-    substituted for any explicit `null` values.  Defaults to `null`, which
+    substituted for any explicit `null` values. Defaults to `null`, which
     means the field is treated as missing.
 
 <<mapping-store,`store`>>::

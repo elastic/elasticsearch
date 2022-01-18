@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
@@ -26,7 +27,7 @@ public class ConcatFunctionPipe extends Pipe {
     }
 
     @Override
-    public final Pipe replaceChildren(List<Pipe> newChildren) {
+    public final ConcatFunctionPipe replaceChildren(List<Pipe> newChildren) {
         return new ConcatFunctionPipe(source(), expression(), newChildren);
     }
 
@@ -41,7 +42,7 @@ public class ConcatFunctionPipe extends Pipe {
             return this;
         }
 
-        return replaceChildren(newValues);
+        return replaceChildrenSameSize(newValues);
     }
 
     @Override
@@ -79,10 +80,14 @@ public class ConcatFunctionPipe extends Pipe {
     @Override
     public ConcatFunctionProcessor asProcessor() {
         List<Processor> processors = new ArrayList<>(values.size());
-        for (Pipe p: values) {
+        for (Pipe p : values) {
             processors.add(p.asProcessor());
         }
         return new ConcatFunctionProcessor(processors);
+    }
+
+    List<Pipe> values() {
+        return values;
     }
 
     @Override
@@ -100,6 +105,6 @@ public class ConcatFunctionPipe extends Pipe {
             return false;
         }
 
-        return Objects.equals(values, ((ConcatFunctionPipe) obj).values);
+        return Objects.equals(values(), ((ConcatFunctionPipe) obj).values());
     }
 }

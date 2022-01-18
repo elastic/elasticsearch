@@ -1,10 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.movingPercentiles;
-
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -19,7 +19,6 @@ import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-
 
 public abstract class MovingPercentilesAbstractAggregatorTests extends AggregatorTestCase {
 
@@ -47,24 +46,28 @@ public abstract class MovingPercentilesAbstractAggregatorTests extends Aggregato
         "2017-01-17T22:55:46",
         "2017-01-18T22:55:46",
         "2017-01-19T22:55:46",
-        "2017-01-20T22:55:46");
-
+        "2017-01-20T22:55:46"
+    );
 
     public void testMatchAllDocs() throws IOException {
         check(randomIntBetween(0, 10), randomIntBetween(1, 25));
     }
 
     private void check(int shift, int window) throws IOException {
-        MovingPercentilesPipelineAggregationBuilder builder =
-            new MovingPercentilesPipelineAggregationBuilder("MovingPercentiles", "percentiles", window);
+        MovingPercentilesPipelineAggregationBuilder builder = new MovingPercentilesPipelineAggregationBuilder(
+            "MovingPercentiles",
+            "percentiles",
+            window
+        );
         builder.setShift(shift);
 
         Query query = new MatchAllDocsQuery();
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
         aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(DATE_FIELD);
 
-        aggBuilder.subAggregation(new PercentilesAggregationBuilder("percentiles").field(VALUE_FIELD)
-            .percentilesConfig(getPercentileConfig()));
+        aggBuilder.subAggregation(
+            new PercentilesAggregationBuilder("percentiles").field(VALUE_FIELD).percentilesConfig(getPercentileConfig())
+        );
         aggBuilder.subAggregation(builder);
 
         executeTestCase(window, shift, query, aggBuilder);
@@ -72,9 +75,8 @@ public abstract class MovingPercentilesAbstractAggregatorTests extends Aggregato
 
     protected abstract PercentilesConfig getPercentileConfig();
 
-    protected abstract void executeTestCase(int window, int shift, Query query,
-                                 DateHistogramAggregationBuilder aggBuilder) throws IOException;
-
+    protected abstract void executeTestCase(int window, int shift, Query query, DateHistogramAggregationBuilder aggBuilder)
+        throws IOException;
 
     protected int clamp(int index, int length) {
         if (index < 0) {

@@ -1,46 +1,32 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fetch;
 
-import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.termvectors.TermVectorsRequest;
-import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,9 +38,9 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.client.Requests.indexRequest;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.client.internal.Requests.indexRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2)
@@ -67,33 +53,43 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testPlugin() throws Exception {
         client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setMapping(
-                        jsonBuilder()
-                                .startObject().startObject("_doc")
-                                .startObject("properties")
-                                .startObject("test")
-                                .field("type", "text").field("term_vector", "yes")
-                                .endObject()
-                                .endObject()
-                                .endObject().endObject()).get();
+            .indices()
+            .prepareCreate("test")
+            .setMapping(
+                jsonBuilder().startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("test")
+                    .field("type", "text")
+                    .field("term_vector", "yes")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+            .get();
 
-        client().index(
-                indexRequest("test").id("1")
-                        .source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())).actionGet();
+        client().index(indexRequest("test").id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject()))
+            .actionGet();
 
         client().admin().indices().prepareRefresh().get();
 
-         SearchResponse response = client().prepareSearch().setSource(new SearchSourceBuilder()
-                 .ext(Collections.singletonList(new TermVectorsFetchBuilder("test")))).get();
+        SearchResponse response = client().prepareSearch()
+            .setSource(new SearchSourceBuilder().ext(Collections.singletonList(new TermVectorsFetchBuilder("test"))))
+            .get();
         assertSearchResponse(response);
-        assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"),
-                equalTo(2));
-        assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("am"),
-                equalTo(2));
-        assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("sam"),
-                equalTo(1));
+        assertThat(
+            ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"),
+            equalTo(2)
+        );
+        assertThat(
+            ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("am"),
+            equalTo(2)
+        );
+        assertThat(
+            ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("sam"),
+            equalTo(1)
+        );
     }
 
     public static class FetchTermVectorsPlugin extends Plugin implements SearchPlugin {
@@ -104,8 +100,9 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
 
         @Override
         public List<SearchExtSpec<?>> getSearchExts() {
-            return Collections.singletonList(new SearchExtSpec<>(TermVectorsFetchSubPhase.NAME,
-                    TermVectorsFetchBuilder::new, TermVectorsFetchBuilder::fromXContent));
+            return Collections.singletonList(
+                new SearchExtSpec<>(TermVectorsFetchSubPhase.NAME, TermVectorsFetchBuilder::new, TermVectorsFetchBuilder::fromXContent)
+            );
         }
     }
 
@@ -113,8 +110,22 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         private static final String NAME = "term_vectors_fetch";
 
         @Override
-        public void hitExecute(SearchContext context, HitContext hitContext) {
-            TermVectorsFetchBuilder fetchSubPhaseBuilder = (TermVectorsFetchBuilder)context.getSearchExt(NAME);
+        public FetchSubPhaseProcessor getProcessor(FetchContext searchContext) {
+            return new FetchSubPhaseProcessor() {
+                @Override
+                public void setNextReader(LeafReaderContext readerContext) {
+
+                }
+
+                @Override
+                public void process(HitContext hitContext) throws IOException {
+                    hitExecute(searchContext, hitContext);
+                }
+            };
+        }
+
+        private void hitExecute(FetchContext context, HitContext hitContext) throws IOException {
+            TermVectorsFetchBuilder fetchSubPhaseBuilder = (TermVectorsFetchBuilder) context.getSearchExt(NAME);
             if (fetchSubPhaseBuilder == null) {
                 return;
             }
@@ -124,19 +135,18 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 hitField = new DocumentField(NAME, new ArrayList<>(1));
                 hitContext.hit().setDocumentField(NAME, hitField);
             }
-            TermVectorsRequest termVectorsRequest = new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(),
-                    hitContext.hit().getId());
-            TermVectorsResponse termVector = TermVectorsService.getTermVectors(context.indexShard(), termVectorsRequest);
-            try {
+            Terms terms = hitContext.reader().getTermVector(hitContext.docId(), field);
+            if (terms != null) {
+                TermsEnum te = terms.iterator();
                 Map<String, Integer> tv = new HashMap<>();
-                TermsEnum terms = termVector.getFields().terms(field).iterator();
                 BytesRef term;
-                while ((term = terms.next()) != null) {
-                    tv.put(term.utf8ToString(), terms.postings(null, PostingsEnum.ALL).freq());
+                PostingsEnum pe = null;
+                while ((term = te.next()) != null) {
+                    pe = te.postings(pe, PostingsEnum.FREQS);
+                    pe.nextDoc();
+                    tv.put(term.utf8ToString(), pe.freq());
                 }
                 hitField.getValues().add(tv);
-            } catch (IOException e) {
-                LogManager.getLogger(FetchSubPhasePluginIT.class).info("Swallowed exception", e);
             }
         }
     }

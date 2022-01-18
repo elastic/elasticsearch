@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.matrix.stats;
 
@@ -80,25 +69,25 @@ public class RunningStats implements Writeable, Cloneable {
     public RunningStats(StreamInput in) throws IOException {
         this();
         // read doc count
-        docCount = (Long)in.readGenericValue();
+        docCount = (Long) in.readGenericValue();
         // read fieldSum
-        fieldSum = convertIfNeeded((Map<String, Double>)in.readGenericValue());
+        fieldSum = convertIfNeeded((Map<String, Double>) in.readGenericValue());
         // counts
-        counts = convertIfNeeded((Map<String, Long>)in.readGenericValue());
+        counts = convertIfNeeded((Map<String, Long>) in.readGenericValue());
         // means
-        means = convertIfNeeded((Map<String, Double>)in.readGenericValue());
+        means = convertIfNeeded((Map<String, Double>) in.readGenericValue());
         // variances
-        variances = convertIfNeeded((Map<String, Double>)in.readGenericValue());
+        variances = convertIfNeeded((Map<String, Double>) in.readGenericValue());
         // skewness
-        skewness = convertIfNeeded((Map<String, Double>)in.readGenericValue());
+        skewness = convertIfNeeded((Map<String, Double>) in.readGenericValue());
         // kurtosis
-        kurtosis = convertIfNeeded((Map<String, Double>)in.readGenericValue());
+        kurtosis = convertIfNeeded((Map<String, Double>) in.readGenericValue());
         // read covariances
-        covariances = convertIfNeeded((Map<String, HashMap<String, Double>>)in.readGenericValue());
+        covariances = convertIfNeeded((Map<String, HashMap<String, Double>>) in.readGenericValue());
     }
 
     // Convert Map to HashMap if it isn't
-    private static <K, V> HashMap<K, V> convertIfNeeded(Map<K,V> map) {
+    private static <K, V> HashMap<K, V> convertIfNeeded(Map<K, V> map) {
         if (map instanceof HashMap) {
             return (HashMap<K, V>) map;
         } else {
@@ -222,7 +211,7 @@ public class RunningStats implements Writeable, Cloneable {
                 this.counts.put(fieldName, other.counts.get(fieldName).longValue());
                 this.fieldSum.put(fieldName, other.fieldSum.get(fieldName).doubleValue());
                 this.variances.put(fieldName, other.variances.get(fieldName).doubleValue());
-                this.skewness.put(fieldName , other.skewness.get(fieldName).doubleValue());
+                this.skewness.put(fieldName, other.skewness.get(fieldName).doubleValue());
                 this.kurtosis.put(fieldName, other.kurtosis.get(fieldName).doubleValue());
                 if (other.covariances.containsKey(fieldName)) {
                     this.covariances.put(fieldName, other.covariances.get(fieldName));
@@ -325,14 +314,14 @@ public class RunningStats implements Writeable, Cloneable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RunningStats that = (RunningStats) o;
-        return docCount == that.docCount &&
-            Objects.equals(fieldSum, that.fieldSum) &&
-            Objects.equals(counts, that.counts) &&
-            Objects.equals(means, that.means) &&
-            Objects.equals(variances, that.variances) &&
-            Objects.equals(skewness, that.skewness) &&
-            Objects.equals(kurtosis, that.kurtosis) &&
-            Objects.equals(covariances, that.covariances);
+        return docCount == that.docCount
+            && Objects.equals(fieldSum, that.fieldSum)
+            && Objects.equals(counts, that.counts)
+            && Objects.equals(means, that.means)
+            && Objects.equals(variances, that.variances)
+            && Objects.equals(skewness, that.skewness)
+            && Objects.equals(kurtosis, that.kurtosis)
+            && Objects.equals(covariances, that.covariances);
     }
 
     @Override

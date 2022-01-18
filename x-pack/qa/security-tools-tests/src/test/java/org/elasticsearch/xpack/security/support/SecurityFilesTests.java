@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.support;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -79,18 +81,17 @@ public class SecurityFilesTests extends ESTestCase {
         Files.write(path, "foo".getBytes(StandardCharsets.UTF_8));
 
         final Visitor innerVisitor = new Visitor(path);
-        final RuntimeException re = expectThrows(RuntimeException.class, () -> SecurityFiles.writeFileAtomically(
-                path,
-                Collections.singletonMap("foo", "bar"),
-                e -> {
-                    try {
-                        Files.walkFileTree(path.getParent(), innerVisitor);
-                    } catch (final IOException inner) {
-                        throw new UncheckedIOException(inner);
-                    }
-                    throw new RuntimeException(e.getKey() + " " + e.getValue());
+        final RuntimeException re = expectThrows(
+            RuntimeException.class,
+            () -> SecurityFiles.writeFileAtomically(path, Collections.singletonMap("foo", "bar"), e -> {
+                try {
+                    Files.walkFileTree(path.getParent(), innerVisitor);
+                } catch (final IOException inner) {
+                    throw new UncheckedIOException(inner);
                 }
-        ));
+                throw new RuntimeException(e.getKey() + " " + e.getValue());
+            })
+        );
 
         assertThat(re, hasToString(containsString("foo bar")));
 

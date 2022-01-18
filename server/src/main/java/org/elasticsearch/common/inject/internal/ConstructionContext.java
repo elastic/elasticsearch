@@ -65,7 +65,7 @@ public class ConstructionContext<T> {
         // the implementation type, I'll be able to get away with one proxy
         // instance (as opposed to one per caller).
 
-        if (!expectedType.isInterface()) {
+        if (expectedType.isInterface() == false) {
             throw errors.cannotSatisfyCircularDependency(expectedType).toException();
         }
 
@@ -73,16 +73,15 @@ public class ConstructionContext<T> {
             invocationHandlers = new ArrayList<>();
         }
 
-        DelegatingInvocationHandler<T> invocationHandler
-                = new DelegatingInvocationHandler<>();
+        DelegatingInvocationHandler<T> invocationHandler = new DelegatingInvocationHandler<>();
         invocationHandlers.add(invocationHandler);
 
         // ES: Replace, since we don't use bytecode gen, just get the type class loader, or system if its null
-        //ClassLoader classLoader = BytecodeGen.getClassLoader(expectedType);
-        ClassLoader classLoader = expectedType.getClassLoader() == null ?
-            ClassLoader.getSystemClassLoader() : expectedType.getClassLoader();
-        return expectedType.cast(Proxy.newProxyInstance(classLoader,
-                new Class[]{expectedType}, invocationHandler));
+        // ClassLoader classLoader = BytecodeGen.getClassLoader(expectedType);
+        ClassLoader classLoader = expectedType.getClassLoader() == null
+            ? ClassLoader.getSystemClassLoader()
+            : expectedType.getClassLoader();
+        return expectedType.cast(Proxy.newProxyInstance(classLoader, new Class<?>[] { expectedType }, invocationHandler));
     }
 
     public void setProxyDelegates(T delegate) {
@@ -98,13 +97,14 @@ public class ConstructionContext<T> {
         T delegate;
 
         @Override
-        public Object invoke(Object proxy, Method method, Object[] args)
-                throws Throwable {
+        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
             if (delegate == null) {
-                throw new IllegalStateException("This is a proxy used to support"
+                throw new IllegalStateException(
+                    "This is a proxy used to support"
                         + " circular references involving constructors. The object we're"
                         + " proxying is not constructed yet. Please wait until after"
-                        + " injection has completed to use this object.");
+                        + " injection has completed to use this object."
+                );
             }
 
             try {

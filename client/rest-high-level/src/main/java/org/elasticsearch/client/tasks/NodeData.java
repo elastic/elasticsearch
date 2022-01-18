@@ -1,31 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.tasks;
+
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 class NodeData {
 
@@ -35,7 +25,7 @@ class NodeData {
     private String host;
     private String ip;
     private final List<String> roles = new ArrayList<>();
-    private final Map<String,String> attributes = new HashMap<>();
+    private final Map<String, String> attributes = new HashMap<>();
     private final List<TaskInfo> tasks = new ArrayList<>();
 
     NodeData(String nodeId) {
@@ -47,7 +37,7 @@ class NodeData {
     }
 
     public void setAttributes(Map<String, String> attributes) {
-        if(attributes!=null){
+        if (attributes != null) {
             this.attributes.putAll(attributes);
         }
     }
@@ -65,7 +55,7 @@ class NodeData {
     }
 
     void setRoles(List<String> roles) {
-        if(roles!=null){
+        if (roles != null) {
             this.roles.addAll(roles);
         }
     }
@@ -103,37 +93,49 @@ class NodeData {
     }
 
     void setTasks(List<TaskInfo> tasks) {
-        if(tasks!=null){
+        if (tasks != null) {
             this.tasks.addAll(tasks);
         }
     }
 
     @Override
     public String toString() {
-        return "NodeData{" +
-            "nodeId='" + nodeId + '\'' +
-            ", name='" + name + '\'' +
-            ", transportAddress='" + transportAddress + '\'' +
-            ", host='" + host + '\'' +
-            ", ip='" + ip + '\'' +
-            ", roles=" + roles +
-            ", attributes=" + attributes +
-            '}';
+        return "NodeData{"
+            + "nodeId='"
+            + nodeId
+            + '\''
+            + ", name='"
+            + name
+            + '\''
+            + ", transportAddress='"
+            + transportAddress
+            + '\''
+            + ", host='"
+            + host
+            + '\''
+            + ", ip='"
+            + ip
+            + '\''
+            + ", roles="
+            + roles
+            + ", attributes="
+            + attributes
+            + '}';
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof NodeData)) return false;
+        if ((o instanceof NodeData) == false) return false;
         NodeData nodeData = (NodeData) o;
-        return Objects.equals(getNodeId(), nodeData.getNodeId()) &&
-            Objects.equals(getName(), nodeData.getName()) &&
-            Objects.equals(getTransportAddress(), nodeData.getTransportAddress()) &&
-            Objects.equals(getHost(), nodeData.getHost()) &&
-            Objects.equals(getIp(), nodeData.getIp()) &&
-            Objects.equals(getRoles(), nodeData.getRoles()) &&
-            Objects.equals(getAttributes(), nodeData.getAttributes()) &&
-            Objects.equals(getTasks(), nodeData.getTasks());
+        return Objects.equals(getNodeId(), nodeData.getNodeId())
+            && Objects.equals(getName(), nodeData.getName())
+            && Objects.equals(getTransportAddress(), nodeData.getTransportAddress())
+            && Objects.equals(getHost(), nodeData.getHost())
+            && Objects.equals(getIp(), nodeData.getIp())
+            && Objects.equals(getRoles(), nodeData.getRoles())
+            && Objects.equals(getAttributes(), nodeData.getAttributes())
+            && Objects.equals(getTasks(), nodeData.getTasks());
     }
 
     @Override
@@ -150,10 +152,7 @@ class NodeData {
         parser.declareString(NodeData::setHost, new ParseField("host"));
         parser.declareString(NodeData::setIp, new ParseField("ip"));
         parser.declareStringArray(NodeData::setRoles, new ParseField("roles"));
-        parser.declareField(NodeData::setAttributes,
-           (p, c) -> p.mapStrings(),
-           new ParseField("attributes"),
-           ObjectParser.ValueType.OBJECT);
+        parser.declareField(NodeData::setAttributes, (p, c) -> p.mapStrings(), new ParseField("attributes"), ObjectParser.ValueType.OBJECT);
         parser.declareNamedObjects(NodeData::setTasks, TaskInfo.PARSER, new ParseField("tasks"));
         PARSER = (XContentParser p, Void v, String nodeId) -> parser.parse(p, new NodeData(nodeId), null);
     }

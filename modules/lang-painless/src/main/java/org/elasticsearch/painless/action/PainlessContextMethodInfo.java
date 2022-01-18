@@ -1,35 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.action;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -46,14 +35,8 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<PainlessContextMethodInfo, Void> PARSER = new ConstructingObjectParser<>(
-            PainlessContextMethodInfo.class.getCanonicalName(),
-            (v) ->
-                    new PainlessContextMethodInfo(
-                            (String)v[0],
-                            (String)v[1],
-                            (String)v[2],
-                            (List<String>)v[3]
-                    )
+        PainlessContextMethodInfo.class.getCanonicalName(),
+        (v) -> new PainlessContextMethodInfo((String) v[0], (String) v[1], (String) v[2], (List<String>) v[3])
     );
 
     static {
@@ -70,10 +53,10 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
 
     public PainlessContextMethodInfo(PainlessMethod painlessMethod) {
         this(
-                painlessMethod.javaMethod.getDeclaringClass().getName(),
-                painlessMethod.javaMethod.getName(),
-                painlessMethod.returnType.getName(),
-                painlessMethod.typeParameters.stream().map(Class::getName).collect(Collectors.toList())
+            painlessMethod.javaMethod.getDeclaringClass().getName(),
+            painlessMethod.javaMethod.getName(),
+            PainlessContextTypeInfo.getType(painlessMethod.returnType.getName()),
+            painlessMethod.typeParameters.stream().map(c -> PainlessContextTypeInfo.getType(c.getName())).collect(Collectors.toList())
         );
     }
 
@@ -124,10 +107,10 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PainlessContextMethodInfo that = (PainlessContextMethodInfo) o;
-        return Objects.equals(declaring, that.declaring) &&
-                Objects.equals(name, that.name) &&
-                Objects.equals(rtn, that.rtn) &&
-                Objects.equals(parameters, that.parameters);
+        return Objects.equals(declaring, that.declaring)
+            && Objects.equals(name, that.name)
+            && Objects.equals(rtn, that.rtn)
+            && Objects.equals(parameters, that.parameters);
     }
 
     @Override
@@ -137,12 +120,19 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return "PainlessContextMethodInfo{" +
-                "declaring='" + declaring + '\'' +
-                ", name='" + name + '\'' +
-                ", rtn='" + rtn + '\'' +
-                ", parameters=" + parameters +
-                '}';
+        return "PainlessContextMethodInfo{"
+            + "declaring='"
+            + declaring
+            + '\''
+            + ", name='"
+            + name
+            + '\''
+            + ", rtn='"
+            + rtn
+            + '\''
+            + ", parameters="
+            + parameters
+            + '}';
     }
 
     public String getDeclaring() {

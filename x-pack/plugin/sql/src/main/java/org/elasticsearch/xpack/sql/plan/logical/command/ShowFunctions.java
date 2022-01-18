@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
@@ -45,17 +46,19 @@ public class ShowFunctions extends Command {
 
     @Override
     public List<Attribute> output() {
-        return asList(new FieldAttribute(source(), "name", new KeywordEsField("name")),
-                new FieldAttribute(source(), "type", new KeywordEsField("type")));
+        return asList(
+            new FieldAttribute(source(), "name", new KeywordEsField("name")),
+            new FieldAttribute(source(), "type", new KeywordEsField("type"))
+        );
     }
 
     @Override
     public void execute(SqlSession session, ActionListener<Page> listener) {
         FunctionRegistry registry = session.functionRegistry();
         Collection<FunctionDefinition> functions = registry.listFunctions(pattern != null ? pattern.asJavaRegex() : null);
-        listener.onResponse(of(session, functions.stream()
-                .map(f -> asList(f.name(), SqlFunctionTypeRegistry.INSTANCE.type(f.clazz())))
-                .collect(toList())));
+        listener.onResponse(
+            of(session, functions.stream().map(f -> asList(f.name(), SqlFunctionTypeRegistry.INSTANCE.type(f.clazz()))).collect(toList()))
+        );
     }
 
     @Override

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.utils;
@@ -22,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ExceptionRootCauseFinderTests extends ESTestCase {
+
     public void testFetFirstIrrecoverableExceptionFromBulkResponses() {
         Map<Integer, BulkItemResponse> bulkItemResponses = new HashMap<>();
 
@@ -29,7 +31,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 1
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure("the_index", "id", new MapperParsingException("mapper parsing error"))
@@ -38,7 +40,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 2
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure("the_index", "id", new ResourceNotFoundException("resource not found error"))
@@ -47,7 +49,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 3
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure("the_index", "id", new IllegalArgumentException("illegal argument error"))
@@ -56,7 +58,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 4 not irrecoverable
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure("the_index", "id", new EsRejectedExecutionException("es rejected execution"))
@@ -65,7 +67,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 5 not irrecoverable
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure("the_index", "id", new TranslogException(new ShardId("the_index", "uid", 0), "translog error"))
@@ -74,7 +76,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 6
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure(
@@ -87,7 +89,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 7
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure(
@@ -100,7 +102,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 8 not irrecoverable
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure(
@@ -113,7 +115,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 9 not irrecoverable
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure(
@@ -148,4 +150,5 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         assertEquals(t.getClass(), expectedClass);
         assertEquals(t.getMessage(), message);
     }
+
 }

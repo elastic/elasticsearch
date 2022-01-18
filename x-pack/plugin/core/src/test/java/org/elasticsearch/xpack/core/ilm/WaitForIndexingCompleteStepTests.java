@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -105,16 +106,19 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
         ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
         assertThat(result.isComplete(), is(false));
         assertThat(result.getInfomationContext(), notNullValue());
-        WaitForIndexingCompleteStep.IndexingNotCompleteInfo info =
-            (WaitForIndexingCompleteStep.IndexingNotCompleteInfo) result.getInfomationContext();
-        assertThat(info.getMessage(), equalTo("waiting for the [index.lifecycle.indexing_complete] setting to be set to " +
-            "true on the leader index, it is currently [false]"));
+        WaitForIndexingCompleteStep.IndexingNotCompleteInfo info = (WaitForIndexingCompleteStep.IndexingNotCompleteInfo) result
+            .getInfomationContext();
+        assertThat(
+            info.getMessage(),
+            equalTo(
+                "waiting for the [index.lifecycle.indexing_complete] setting to be set to "
+                    + "true on the leader index, it is currently [false]"
+            )
+        );
     }
 
     public void testIndexDeleted() {
-        ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-            .metadata(Metadata.builder().build())
-            .build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).metadata(Metadata.builder().build()).build();
 
         WaitForIndexingCompleteStep step = createRandomInstance();
         ClusterStateWaitStep.Result result = step.isConditionMet(new Index("this-index-doesnt-exist", "uuid"), clusterState);

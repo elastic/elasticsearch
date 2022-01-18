@@ -118,8 +118,13 @@ public final class Elements {
             this.elements = new ArrayList<>();
             this.source = null;
             this.sourceProvider = new SourceProvider().plusSkippedClasses(
-                    Elements.class, RecordingBinder.class, AbstractModule.class,
-                    ConstantBindingBuilderImpl.class, AbstractBindingBuilder.class, BindingBuilder.class);
+                Elements.class,
+                RecordingBinder.class,
+                AbstractModule.class,
+                ConstantBindingBuilderImpl.class,
+                AbstractBindingBuilder.class,
+                BindingBuilder.class
+            );
             this.parent = null;
             this.privateElements = null;
         }
@@ -127,9 +132,8 @@ public final class Elements {
         /**
          * Creates a recording binder that's backed by {@code prototype}.
          */
-        private RecordingBinder(
-                RecordingBinder prototype, Object source, SourceProvider sourceProvider) {
-            if (!(source == null ^ sourceProvider == null)) {
+        private RecordingBinder(RecordingBinder prototype, Object source, SourceProvider sourceProvider) {
+            if ((source == null ^ sourceProvider == null) == false) {
                 throw new IllegalArgumentException();
             }
 
@@ -173,8 +177,7 @@ public final class Elements {
 
         @Override
         public <T> MembersInjector<T> getMembersInjector(final TypeLiteral<T> typeLiteral) {
-            final MembersInjectorLookup<T> element
-                    = new MembersInjectorLookup<>(getSource(), typeLiteral);
+            final MembersInjectorLookup<T> element = new MembersInjectorLookup<>(getSource(), typeLiteral);
             elements.add(element);
             return element.getMembersInjector();
         }
@@ -211,7 +214,7 @@ public final class Elements {
                     throw e;
                 } catch (RuntimeException e) {
                     Collection<Message> messages = Errors.getMessagesFromThrowable(e);
-                    if (!messages.isEmpty()) {
+                    if (messages.isEmpty() == false) {
                         elements.addAll(messages);
                     } else {
                         addError(e);
@@ -275,8 +278,7 @@ public final class Elements {
         }
 
         @Override
-        public void convertToTypes(Matcher<? super TypeLiteral<?>> typeMatcher,
-                                   TypeConverter converter) {
+        public void convertToTypes(Matcher<? super TypeLiteral<?>> typeMatcher, TypeConverter converter) {
             elements.add(new TypeConverterBinding(getSource(), typeMatcher, converter));
         }
 
@@ -286,7 +288,7 @@ public final class Elements {
         }
 
         @Override
-        public RecordingBinder skipSources(Class... classesToSkip) {
+        public RecordingBinder skipSources(Class<?>... classesToSkip) {
             // if a source is specified explicitly, we don't need to skip sources
             if (source != null) {
                 return this;
@@ -320,16 +322,13 @@ public final class Elements {
 
         private <T> AnnotatedElementBuilder exposeInternal(Key<T> key) {
             if (privateElements == null) {
-                addError("Cannot expose %s on a standard binder. "
-                        + "Exposed bindings are only applicable to private binders.", key);
+                addError("Cannot expose %s on a standard binder. " + "Exposed bindings are only applicable to private binders.", key);
                 return new AnnotatedElementBuilder() {
                     @Override
-                    public void annotatedWith(Class<? extends Annotation> annotationType) {
-                    }
+                    public void annotatedWith(Class<? extends Annotation> annotationType) {}
 
                     @Override
-                    public void annotatedWith(Annotation annotation) {
-                    }
+                    public void annotatedWith(Annotation annotation) {}
                 };
             }
 
@@ -343,9 +342,7 @@ public final class Elements {
         protected Object getSource() {
             Object ret;
             if (logger.isDebugEnabled()) {
-                ret = sourceProvider != null
-                        ? sourceProvider.get()
-                        : source;
+                ret = sourceProvider != null ? sourceProvider.get() : source;
             } else {
                 ret = source;
             }

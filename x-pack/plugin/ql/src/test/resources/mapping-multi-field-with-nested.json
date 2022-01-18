@@ -5,8 +5,12 @@
         "text" : { "type" : "text" },
         "keyword" : { "type" : "keyword" },
         "unsupported" : { "type" : "ip_range" },
-        "date" : { "type" : "date"},
-        "shape": { "type" : "geo_shape" },
+        "date" : { "type" : "date" },
+        "date_nanos" : { "type" : "date_nanos" },
+        "shape": { "type" : "shape" },
+        "geo_shape": { "type" : "geo_shape" },
+        "binary": {"type" : "binary", "doc_values": false },
+        "binary_stored": {"type" : "binary", "doc_values": true },
         "x" : {
             "type" : "text",
             "fields" : {
@@ -85,6 +89,9 @@
                 },
                 "start_date" : {
                     "type" : "date"
+                },
+                "location" : {
+                    "type" : "geo_point"
                 }
             }
         }

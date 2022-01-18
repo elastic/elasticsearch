@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.rolemapping;
 
@@ -16,23 +17,25 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
-public class TransportPutRoleMappingAction
-        extends HandledTransportAction<PutRoleMappingRequest, PutRoleMappingResponse> {
+public class TransportPutRoleMappingAction extends HandledTransportAction<PutRoleMappingRequest, PutRoleMappingResponse> {
 
     private final NativeRoleMappingStore roleMappingStore;
 
     @Inject
-    public TransportPutRoleMappingAction(ActionFilters actionFilters, TransportService transportService,
-                                         NativeRoleMappingStore roleMappingStore) {
+    public TransportPutRoleMappingAction(
+        ActionFilters actionFilters,
+        TransportService transportService,
+        NativeRoleMappingStore roleMappingStore
+    ) {
         super(PutRoleMappingAction.NAME, transportService, actionFilters, PutRoleMappingRequest::new);
         this.roleMappingStore = roleMappingStore;
     }
 
     @Override
     protected void doExecute(Task task, final PutRoleMappingRequest request, final ActionListener<PutRoleMappingResponse> listener) {
-        roleMappingStore.putRoleMapping(request, ActionListener.wrap(
-                created -> listener.onResponse(new PutRoleMappingResponse(created)),
-                listener::onFailure
-        ));
+        roleMappingStore.putRoleMapping(
+            request,
+            ActionListener.wrap(created -> listener.onResponse(new PutRoleMappingResponse(created)), listener::onFailure)
+        );
     }
 }

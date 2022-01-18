@@ -1,39 +1,42 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction.Request;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM;
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
+import static org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker.checkAndSetDeprecatedParam;
 
 public class RestGetDatafeedsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}"),
-            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "datafeeds",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "datafeeds")
+            Route.builder(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}")
+                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}", RestApiVersion.V_7)
+                .build(),
+            Route.builder(GET, BASE_PATH + "datafeeds").replaces(GET, PRE_V7_BASE_PATH + "datafeeds", RestApiVersion.V_7).build()
         );
     }
 
@@ -48,9 +51,20 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
         if (datafeedId == null) {
             datafeedId = GetDatafeedsAction.ALL;
         }
-        GetDatafeedsAction.Request request = new GetDatafeedsAction.Request(datafeedId);
-        request.setAllowNoDatafeeds(restRequest.paramAsBoolean(GetDatafeedsAction.Request.ALLOW_NO_DATAFEEDS.getPreferredName(),
-                request.allowNoDatafeeds()));
+        Request request = new Request(datafeedId);
+        checkAndSetDeprecatedParam(
+            DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM,
+            GetDatafeedsStatsAction.Request.ALLOW_NO_MATCH,
+            RestApiVersion.V_7,
+            restRequest,
+            (r, s) -> r.paramAsBoolean(s, request.allowNoMatch()),
+            request::setAllowNoMatch
+        );
         return channel -> client.execute(GetDatafeedsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Collections.singleton(EXCLUDE_GENERATED);
     }
 }

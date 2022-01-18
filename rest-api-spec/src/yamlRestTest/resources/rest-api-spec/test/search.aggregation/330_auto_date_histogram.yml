@@ -1,0 +1,100 @@
+setup:
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                date:
+                  type: date
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+            - '{"index": {}}'
+            - '{"date": "2020-03-01", "v": 1}'
+            - '{"index": {}}'
+            - '{"date": "2020-03-02", "v": 2}'
+            - '{"index": {}}'
+            - '{"date": "2020-03-08", "v": 3}'
+            - '{"index": {}}'
+            - '{"date": "2020-03-09", "v": 4}'
+
+---
+"basic":
+  - skip:
+      version: " - 7.8.99"
+      reason:  interval had a in bug before 7.9.0
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            histo:
+              auto_date_histogram:
+                field: date
+                buckets: 2
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.histo.buckets: 2 }
+  - match: { aggregations.histo.interval: "7d" }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2020-03-01T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2020-03-08T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+
+---
+"avg_bucket":
+  - skip:
+      version: " - 7.7.99"
+      reason: Fixed in 7.8.0
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            histo:
+              auto_date_histogram:
+                field: date
+                buckets: 2
+              aggs:
+                v:
+                  sum:
+                    field: v
+            histo_avg_v:
+              avg_bucket:
+                buckets_path: histo.v
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.histo.buckets: 2 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2020-03-01T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.doc_count: 2 }
+  - match: { aggregations.histo.buckets.0.v.value: 3 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2020-03-08T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.v.value: 7 }
+  - match: { aggregations.histo_avg_v.value: 5 }
+
+---
+"profile at top level":
+  - skip:
+      version: " - 7.9.99"
+      reason: introduced in 7.10.0
+
+  - do:
+      search:
+        body:
+          profile: true
+          size: 0
+          aggs:
+            histo:
+              auto_date_histogram:
+                field: date
+                buckets: 2
+
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.histo.buckets: 2 }
+  - match: { profile.shards.0.aggregations.0.type: AutoDateHistogramAggregator.FromSingle }
+  - match: { profile.shards.0.aggregations.0.debug.surviving_buckets: 4 }

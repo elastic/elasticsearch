@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[rollup-stop-job]]
 === Stop {rollup-jobs} API
 [subs="attributes"]
@@ -52,7 +51,7 @@ the API call itself timed out while waiting for the status change.
 --
   
 `wait_for_completion`::
-  (Optional, boolean) If set to `true`, causes the API to block until the
+  (Optional, Boolean) If set to `true`, causes the API to block until the
   indexer state completely stops. If set to `false`, the API returns immediately
   and the indexer is stopped asynchronously in the background. Defaults to
   `false`.

@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cli;
 
 import joptsimple.OptionException;
 import joptsimple.OptionSet;
+
 import org.elasticsearch.test.ESTestCase;
 
 public class CommandTests extends ESTestCase {
@@ -92,7 +82,7 @@ public class CommandTests extends ESTestCase {
     public void testHelp() throws Exception {
         NoopCommand command = new NoopCommand();
         MockTerminal terminal = new MockTerminal();
-        String[] args = {"-h"};
+        String[] args = { "-h" };
         int status = command.main(args, terminal);
         String output = terminal.getOutput();
         assertEquals(output, ExitCodes.OK, status);
@@ -101,7 +91,7 @@ public class CommandTests extends ESTestCase {
         assertFalse(command.executed);
 
         command = new NoopCommand();
-        String[] args2 = {"--help"};
+        String[] args2 = { "--help" };
         status = command.main(args2, terminal);
         output = terminal.getOutput();
         assertEquals(output, ExitCodes.OK, status);
@@ -113,7 +103,7 @@ public class CommandTests extends ESTestCase {
     public void testUnknownOptions() throws Exception {
         NoopCommand command = new NoopCommand();
         MockTerminal terminal = new MockTerminal();
-        String[] args = {"-Z"};
+        String[] args = { "-Z" };
         int status = command.main(args, terminal);
         String output = terminal.getOutput();
         String error = terminal.getErrorOutput();
@@ -124,7 +114,7 @@ public class CommandTests extends ESTestCase {
         assertFalse(command.executed);
 
         command = new NoopCommand();
-        String[] args2 = {"--foobar"};
+        String[] args2 = { "--foobar" };
         status = command.main(args2, terminal);
         output = terminal.getOutput();
         error = terminal.getErrorOutput();
@@ -138,18 +128,18 @@ public class CommandTests extends ESTestCase {
     public void testVerbositySilentAndVerbose() throws Exception {
         MockTerminal terminal = new MockTerminal();
         NoopCommand command = new NoopCommand();
-        String[] args = {"-v", "-s"};
-        OptionException e = expectThrows(OptionException.class, () -> {
-            command.mainWithoutErrorHandling(args, terminal);
-        });
-        assertTrue(e.getMessage(),
-            e.getMessage().contains("Option(s) [v/verbose] are unavailable given other options on the command line"));
+        String[] args = { "-v", "-s" };
+        OptionException e = expectThrows(OptionException.class, () -> { command.mainWithoutErrorHandling(args, terminal); });
+        assertTrue(
+            e.getMessage(),
+            e.getMessage().contains("Option(s) [v/verbose] are unavailable given other options on the command line")
+        );
     }
 
     public void testSilentVerbosity() throws Exception {
         MockTerminal terminal = new MockTerminal();
         NoopCommand command = new NoopCommand();
-        String[] args = {"-s"};
+        String[] args = { "-s" };
         command.main(args, terminal);
         String output = terminal.getOutput();
         assertTrue(output, output.contains("Silent output"));
@@ -168,7 +158,7 @@ public class CommandTests extends ESTestCase {
     public void testVerboseVerbosity() throws Exception {
         MockTerminal terminal = new MockTerminal();
         NoopCommand command = new NoopCommand();
-        String[] args = {"-v"};
+        String[] args = { "-v" };
         command.main(args, terminal);
         String output = terminal.getOutput();
         assertTrue(output, output.contains("Verbose output"));

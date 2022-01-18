@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.execution;
 
@@ -60,11 +61,16 @@ public enum ActionExecutionMode {
 
     public static ActionExecutionMode resolve(byte id) {
         switch (id) {
-            case 1: return SIMULATE;
-            case 2: return FORCE_SIMULATE;
-            case 3: return EXECUTE;
-            case 4: return FORCE_EXECUTE;
-            case 5: return SKIP;
+            case 1:
+                return SIMULATE;
+            case 2:
+                return FORCE_SIMULATE;
+            case 3:
+                return EXECUTE;
+            case 4:
+                return FORCE_EXECUTE;
+            case 5:
+                return SKIP;
         }
         throw illegalArgument("unknown action execution mode id [{}]", id);
     }
@@ -74,11 +80,16 @@ public enum ActionExecutionMode {
             return null;
         }
         switch (key.toLowerCase(Locale.ROOT)) {
-            case "simulate":        return SIMULATE;
-            case "force_simulate":  return FORCE_SIMULATE;
-            case "execute":         return EXECUTE;
-            case "force_execute":   return FORCE_EXECUTE;
-            case "skip":            return SKIP;
+            case "simulate":
+                return SIMULATE;
+            case "force_simulate":
+                return FORCE_SIMULATE;
+            case "execute":
+                return EXECUTE;
+            case "force_execute":
+                return FORCE_EXECUTE;
+            case "skip":
+                return SKIP;
         }
         throw illegalArgument("unknown action execution mode [{}]", key);
     }

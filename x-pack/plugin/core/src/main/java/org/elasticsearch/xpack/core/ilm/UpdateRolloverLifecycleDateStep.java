@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -11,13 +12,14 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * Copies the lifecycle reference date to a new index created by rolling over an alias.
@@ -56,20 +58,25 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
             final String rolloverTarget = getRolloverTarget(index, currentState);
             RolloverInfo rolloverInfo = indexMetadata.getRolloverInfos().get(rolloverTarget);
             if (rolloverInfo == null) {
-                throw new IllegalStateException("no rollover info found for [" + indexMetadata.getIndex().getName() +
-                    "] with rollover target [" + rolloverTarget + "], the index has not yet rolled over with that target");
+                throw new IllegalStateException(
+                    "no rollover info found for ["
+                        + indexMetadata.getIndex().getName()
+                        + "] with rollover target ["
+                        + rolloverTarget
+                        + "], the index has not yet rolled over with that target"
+                );
             }
             newIndexTime = rolloverInfo.getTime();
         }
 
-        LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState
-            .builder(LifecycleExecutionState.fromIndexMetadata(indexMetadata));
+        LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(indexMetadata.getLifecycleExecutionState());
         newLifecycleState.setIndexCreationDate(newIndexTime);
 
         IndexMetadata.Builder newIndexMetadata = IndexMetadata.builder(indexMetadata);
         newIndexMetadata.putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.build().asMap());
-        return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.metadata())
-            .put(newIndexMetadata)).build();
+        return ClusterState.builder(currentState)
+            .metadata(Metadata.builder(currentState.metadata()).put(newIndexMetadata).build(false))
+            .build();
     }
 
     private static String getRolloverTarget(Index index, ClusterState currentState) {
@@ -82,8 +89,13 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
             IndexMetadata indexMetadata = currentState.metadata().index(index);
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());
             if (Strings.isNullOrEmpty(rolloverAlias)) {
-                throw new IllegalStateException("setting [" + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS
-                    + "] is not set on index [" + indexMetadata.getIndex().getName() + "]");
+                throw new IllegalStateException(
+                    "setting ["
+                        + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS
+                        + "] is not set on index ["
+                        + indexMetadata.getIndex().getName()
+                        + "]"
+                );
             }
             rolloverTarget = rolloverAlias;
         }

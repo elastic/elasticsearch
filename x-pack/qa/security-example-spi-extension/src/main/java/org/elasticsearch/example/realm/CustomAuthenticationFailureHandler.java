@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.example.realm;
 
@@ -21,8 +22,7 @@ public class CustomAuthenticationFailureHandler extends DefaultAuthenticationFai
     }
 
     @Override
-    public ElasticsearchSecurityException failedAuthentication(RestRequest request, AuthenticationToken token,
-                                                               ThreadContext context) {
+    public ElasticsearchSecurityException failedAuthentication(RestRequest request, AuthenticationToken token, ThreadContext context) {
         ElasticsearchSecurityException e = super.failedAuthentication(request, token, context);
         // set a custom header
         e.addHeader("WWW-Authenticate", "custom-challenge");
@@ -30,8 +30,12 @@ public class CustomAuthenticationFailureHandler extends DefaultAuthenticationFai
     }
 
     @Override
-    public ElasticsearchSecurityException failedAuthentication(TransportMessage message, AuthenticationToken token, String action,
-                                                               ThreadContext context) {
+    public ElasticsearchSecurityException failedAuthentication(
+        TransportMessage message,
+        AuthenticationToken token,
+        String action,
+        ThreadContext context
+    ) {
         ElasticsearchSecurityException e = super.failedAuthentication(message, token, action, context);
         // set a custom header
         e.addHeader("WWW-Authenticate", "custom-challenge");

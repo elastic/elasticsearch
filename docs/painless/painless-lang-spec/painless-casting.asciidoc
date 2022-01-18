@@ -4,7 +4,7 @@
 A cast converts the value of an original type to the equivalent value of a
 target type. An implicit cast infers the target type and automatically occurs
 during certain <<painless-operators, operations>>. An explicit cast specifies
-the target type and forcefully occurs as its own operation.  Use the `cast
+the target type and forcefully occurs as its own operation. Use the `cast
 operator '()'` to specify an explicit cast.
 
 Refer to the <<allowed-casts, cast table>> for a quick reference on all

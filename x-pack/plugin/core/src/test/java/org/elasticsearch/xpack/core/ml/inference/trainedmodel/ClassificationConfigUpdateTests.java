@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
@@ -18,16 +20,18 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests.randomClassificationConfig;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTestCase<ClassificationConfigUpdate> {
 
     public static ClassificationConfigUpdate randomClassificationConfigUpdate() {
-        return new ClassificationConfigUpdate(randomBoolean() ? null : randomIntBetween(-1, 10),
+        return new ClassificationConfigUpdate(
+            randomBoolean() ? null : randomIntBetween(-1, 10),
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomIntBetween(0, 10),
             randomBoolean() ? null : randomFrom(PredictionFieldType.values())
-            );
+        );
     }
 
     public void testFromMap() {
@@ -45,8 +49,10 @@ public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTes
     }
 
     public void testFromMapWithUnknownField() {
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> ClassificationConfigUpdate.fromMap(Collections.singletonMap("some_key", 1)));
+        ElasticsearchException ex = expectThrows(
+            ElasticsearchException.class,
+            () -> ClassificationConfigUpdate.fromMap(Collections.singletonMap("some_key", 1))
+        );
         assertThat(ex.getMessage(), equalTo("Unrecognized fields [some_key]."));
     }
 
@@ -55,23 +61,53 @@ public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTes
 
         assertThat(originalConfig, equalTo(ClassificationConfigUpdate.EMPTY_PARAMS.apply(originalConfig)));
 
-        assertThat(new ClassificationConfig.Builder(originalConfig).setNumTopClasses(5).build(),
-            equalTo(new ClassificationConfigUpdate.Builder().setNumTopClasses(5).build().apply(originalConfig)));
-        assertThat(new ClassificationConfig.Builder()
-            .setNumTopClasses(5)
-            .setNumTopFeatureImportanceValues(1)
-            .setPredictionFieldType(PredictionFieldType.BOOLEAN)
-            .setResultsField("foo")
-            .setTopClassesResultsField("bar").build(),
-            equalTo(new ClassificationConfigUpdate.Builder()
-                .setNumTopClasses(5)
+        assertThat(
+            new ClassificationConfig.Builder(originalConfig).setNumTopClasses(5).build(),
+            equalTo(new ClassificationConfigUpdate.Builder().setNumTopClasses(5).build().apply(originalConfig))
+        );
+        assertThat(
+            new ClassificationConfig.Builder().setNumTopClasses(5)
                 .setNumTopFeatureImportanceValues(1)
                 .setPredictionFieldType(PredictionFieldType.BOOLEAN)
                 .setResultsField("foo")
                 .setTopClassesResultsField("bar")
-                .build()
-                .apply(originalConfig)
-            ));
+                .build(),
+            equalTo(
+                new ClassificationConfigUpdate.Builder().setNumTopClasses(5)
+                    .setNumTopFeatureImportanceValues(1)
+                    .setPredictionFieldType(PredictionFieldType.BOOLEAN)
+                    .setResultsField("foo")
+                    .setTopClassesResultsField("bar")
+                    .build()
+                    .apply(originalConfig)
+            )
+        );
+    }
+
+    public void testDuplicateFieldNamesThrow() {
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new ClassificationConfigUpdate(5, "foo", "foo", 1, PredictionFieldType.BOOLEAN)
+        );
+
+        assertEquals("Invalid inference config. More than one field is configured as [foo]", e.getMessage());
+    }
+
+    public void testDuplicateWithResultsField() {
+        ClassificationConfigUpdate update = randomClassificationConfigUpdate();
+        String newFieldName = update.getResultsField() + "_value";
+
+        InferenceConfigUpdate updateWithField = update.newBuilder().setResultsField(newFieldName).build();
+
+        assertNotSame(updateWithField, update);
+        assertEquals(newFieldName, updateWithField.getResultsField());
+        // other fields are the same
+        assertThat(updateWithField, instanceOf(ClassificationConfigUpdate.class));
+        ClassificationConfigUpdate classUpdate = (ClassificationConfigUpdate) updateWithField;
+        assertEquals(update.getTopClassesResultsField(), classUpdate.getTopClassesResultsField());
+        assertEquals(update.getNumTopClasses(), classUpdate.getNumTopClasses());
+        assertEquals(update.getPredictionFieldType(), classUpdate.getPredictionFieldType());
+        assertEquals(update.getNumTopFeatureImportanceValues(), classUpdate.getNumTopFeatureImportanceValues());
     }
 
     @Override

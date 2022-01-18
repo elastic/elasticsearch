@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher;
 
@@ -28,9 +29,9 @@ public class EncryptSensitiveDataBootstrapCheckTests extends AbstractBootstrapCh
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setFile(WatcherField.ENCRYPTION_KEY_SETTING.getKey(), CryptoServiceTests.generateKey());
         Settings settings = Settings.builder()
-                .put(Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.getKey(), true)
-                .setSecureSettings(secureSettings)
-                .build();
+            .put(Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.getKey(), true)
+            .setSecureSettings(secureSettings)
+            .build();
         assertFalse(CHECK.check(createTestContext(settings, null)).isFailure());
     }
 

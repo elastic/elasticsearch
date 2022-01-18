@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -81,7 +81,7 @@ public final class Request {
         }
     }
 
-    public void addParameters(Map<String, String> paramSource){
+    public void addParameters(Map<String, String> paramSource) {
         paramSource.forEach(this::addParameter);
     }
 
@@ -109,8 +109,8 @@ public final class Request {
      * If you need a different content type then use
      * {@link #setEntity(HttpEntity)}.
      */
-    public void setJsonEntity(String entity) {
-        setEntity(entity == null ? null : new NStringEntity(entity, ContentType.APPLICATION_JSON));
+    public void setJsonEntity(String body) {
+        setEntity(body == null ? null : new NStringEntity(body, ContentType.APPLICATION_JSON));
     }
 
     /**
@@ -174,10 +174,10 @@ public final class Request {
 
         Request other = (Request) obj;
         return method.equals(other.method)
-                && endpoint.equals(other.endpoint)
-                && parameters.equals(other.parameters)
-                && Objects.equals(entity, other.entity)
-                && options.equals(other.options);
+            && endpoint.equals(other.endpoint)
+            && parameters.equals(other.parameters)
+            && Objects.equals(entity, other.entity)
+            && options.equals(other.options);
     }
 
     @Override

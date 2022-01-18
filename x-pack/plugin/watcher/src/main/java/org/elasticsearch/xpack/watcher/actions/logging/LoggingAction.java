@@ -1,28 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.logging;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Objects;
 
 public class LoggingAction implements Action {
 
     public static final String TYPE = "logging";
 
     final TextTemplate text;
-    @Nullable final LoggingLevel level;
-    @Nullable final String category;
+    @Nullable
+    final LoggingLevel level;
+    @Nullable
+    final String category;
 
     public LoggingAction(TextTemplate text, @Nullable LoggingLevel level, @Nullable String category) {
         this.text = text;
@@ -37,14 +41,14 @@ public class LoggingAction implements Action {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         LoggingAction action = (LoggingAction) o;
-
-        if (!text.equals(action.text)) return false;
-        if (level != action.level) return false;
-        return !(category != null ? !category.equals(action.category) : action.category != null);
+        return Objects.equals(text, action.text) && level == action.level && Objects.equals(category, action.category);
     }
 
     @Override
@@ -80,8 +84,14 @@ public class LoggingAction implements Action {
                 try {
                     text = TextTemplate.parse(parser);
                 } catch (ElasticsearchParseException pe) {
-                    throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. failed to parse [{}] field", pe, TYPE,
-                            watchId, actionId, Field.TEXT.getPreferredName());
+                    throw new ElasticsearchParseException(
+                        "failed to parse [{}] action [{}/{}]. failed to parse [{}] field",
+                        pe,
+                        TYPE,
+                        watchId,
+                        actionId,
+                        Field.TEXT.getPreferredName()
+                    );
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (Field.CATEGORY.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -90,22 +100,42 @@ public class LoggingAction implements Action {
                     try {
                         level = LoggingLevel.valueOf(parser.text().toUpperCase(Locale.ROOT));
                     } catch (IllegalArgumentException iae) {
-                        throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. unknown logging level [{}]", TYPE,
-                                watchId, actionId, parser.text());
+                        throw new ElasticsearchParseException(
+                            "failed to parse [{}] action [{}/{}]. unknown logging level [{}]",
+                            TYPE,
+                            watchId,
+                            actionId,
+                            parser.text()
+                        );
                     }
                 } else {
-                    throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. unexpected string field [{}]", TYPE,
-                            watchId, actionId, currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "failed to parse [{}] action [{}/{}]. unexpected string field [{}]",
+                        TYPE,
+                        watchId,
+                        actionId,
+                        currentFieldName
+                    );
                 }
             } else {
-                throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. unexpected token [{}]", TYPE, watchId,
-                        actionId, token);
+                throw new ElasticsearchParseException(
+                    "failed to parse [{}] action [{}/{}]. unexpected token [{}]",
+                    TYPE,
+                    watchId,
+                    actionId,
+                    token
+                );
             }
         }
 
         if (text == null) {
-            throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. missing required [{}] field", TYPE, watchId,
-                    actionId, Field.TEXT.getPreferredName());
+            throw new ElasticsearchParseException(
+                "failed to parse [{}] action [{}/{}]. missing required [{}] field",
+                TYPE,
+                watchId,
+                actionId,
+                Field.TEXT.getPreferredName()
+            );
         }
 
         return new LoggingAction(text, level, category);
@@ -132,9 +162,7 @@ public class LoggingAction implements Action {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.startObject(type)
-                        .field(Field.LOGGED_TEXT.getPreferredName(), loggedText)
-                        .endObject();
+                return builder.startObject(type).field(Field.LOGGED_TEXT.getPreferredName(), loggedText).endObject();
             }
         }
 
@@ -153,9 +181,7 @@ public class LoggingAction implements Action {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.startObject(type)
-                        .field(Field.LOGGED_TEXT.getPreferredName(), loggedText)
-                        .endObject();
+                return builder.startObject(type).field(Field.LOGGED_TEXT.getPreferredName(), loggedText).endObject();
             }
         }
     }
@@ -164,7 +190,8 @@ public class LoggingAction implements Action {
 
         final TextTemplate text;
         LoggingLevel level;
-        @Nullable String category;
+        @Nullable
+        String category;
 
         private Builder(TextTemplate text) {
             this.text = text;

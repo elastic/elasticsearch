@@ -6,6 +6,8 @@ have indices created in 5.x or before, you must reindex or delete them
 before upgrading to {version}. {es} nodes will fail to start if
 incompatible indices are present. Snapshots of 5.x or earlier indices cannot be
 restored to a 7.x cluster even if they were created by a 6.x cluster.
+Any index created in 6.x is compatible with 7.x and does not require a reindex.
+
 
 This restriction also applies to the internal indices that are used by
 {kib} and the {xpack} features. Therefore, before you can use {kib} and
@@ -50,7 +52,7 @@ modifications to the document data and metadata during reindexing.
 . Reset the `refresh_interval` and `number_of_replicas` to the values
   used in the old index.
 . Wait for the index status to change to `green`.
-. In a single <<indices-aliases,update aliases>> request:
+. In a single <<indices-aliases,aliases API>> request:
 .. Delete the old index.
 .. Add an alias with the old index name to the new index.
 .. Add any aliases that existed on the old index to the new index.
@@ -80,7 +82,7 @@ bin/elasticsearch-users useradd <user_name> \
 --
 
 . Use these credentials when you reindex the `.security*` index. That is to say,
-use them to log into {kib} and run the Upgrade Assistant or to call the
+use them to log in to {kib} and run the Upgrade Assistant or to call the
 reindex API. You can use your regular administration credentials to
 reindex the other internal indices.
 
@@ -112,6 +114,9 @@ your old cluster to a new {version} cluster. This enables you to move to
 indices from the previous major version to be upgraded to the
 current major version. Skipping a major version means that you must
 resolve any backward compatibility issues yourself.
+
+{es} does not support forward compatibility across major versions.
+For example, you cannot reindex from a 7.x cluster into a 6.x cluster.
 
 ifdef::include-xpack[]
 If you use {ml-features} and you're migrating indices from a 6.5 or earlier
@@ -148,12 +153,14 @@ cluster and remove nodes from the old one.
 
 . For each index that you need to migrate to the new cluster:
 
-.. Create an index the appropriate mappings and settings. Set the
+.. Create an index with the appropriate mappings and settings. Set the
   `refresh_interval` to `-1` and set `number_of_replicas` to `0` for
   faster reindexing.
 
 .. Use the <<docs-reindex,`reindex` API>> to pull documents from the
-  remote index into the new {version} index:
+remote index into the new {version} index.
++
+include::{es-ref-dir}/docs/reindex.asciidoc[tag=remote-reindex-slicing]
 +
 --
 [source,console]

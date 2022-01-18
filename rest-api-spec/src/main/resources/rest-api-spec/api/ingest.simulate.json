@@ -5,6 +5,11 @@
       "description":"Allows to simulate a pipeline with example documents."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

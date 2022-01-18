@@ -1,29 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -36,7 +23,8 @@ public class FilterRef implements ToXContentObject {
     public static final ParseField FILTER_TYPE = new ParseField("filter_type");
 
     public enum FilterType {
-        INCLUDE, EXCLUDE;
+        INCLUDE,
+        EXCLUDE;
 
         public static FilterType fromString(String value) {
             return valueOf(value.toUpperCase(Locale.ROOT));
@@ -48,17 +36,15 @@ public class FilterRef implements ToXContentObject {
         }
     }
 
-    public static final ConstructingObjectParser<FilterRef, Void> PARSER =
-        new ConstructingObjectParser<>(FILTER_REF_FIELD.getPreferredName(), true, a -> new FilterRef((String) a[0], (FilterType) a[1]));
+    public static final ConstructingObjectParser<FilterRef, Void> PARSER = new ConstructingObjectParser<>(
+        FILTER_REF_FIELD.getPreferredName(),
+        true,
+        a -> new FilterRef((String) a[0], (FilterType) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FILTER_ID);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return FilterType.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, FILTER_TYPE, ObjectParser.ValueType.STRING);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FilterType::fromString, FILTER_TYPE);
     }
 
     private final String filterId;

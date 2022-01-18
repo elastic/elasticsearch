@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp.saml.authn;
@@ -10,8 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.Response;
 import org.opensaml.saml.saml2.core.Status;
@@ -19,6 +18,7 @@ import org.opensaml.saml.saml2.core.StatusCode;
 import org.opensaml.saml.saml2.core.StatusMessage;
 
 import java.time.Clock;
+import java.time.Instant;
 
 public class FailedAuthenticationResponseMessageBuilder {
 
@@ -65,7 +65,7 @@ public class FailedAuthenticationResponseMessageBuilder {
     }
 
     public Response build() {
-        final DateTime now = now();
+        final Instant now = clock.instant();
         final Response response = samlFactory.object(Response.class, Response.DEFAULT_ELEMENT_NAME);
         response.setID(samlFactory.secureIdentifier());
         response.setInResponseTo(inResponseTo);
@@ -95,14 +95,11 @@ public class FailedAuthenticationResponseMessageBuilder {
         final Status status = samlFactory.object(Status.class, Status.DEFAULT_ELEMENT_NAME);
         if (Strings.hasText(statusMessage)) {
             final StatusMessage firstLevelMessage = samlFactory.object(StatusMessage.class, StatusMessage.DEFAULT_ELEMENT_NAME);
-            firstLevelMessage.setMessage(statusMessage);
+            firstLevelMessage.setValue(statusMessage);
             status.setStatusMessage(firstLevelMessage);
         }
         status.setStatusCode(firstLevelCode);
         return status;
     }
 
-    private DateTime now() {
-        return new DateTime(clock.millis(), DateTimeZone.UTC);
-    }
 }

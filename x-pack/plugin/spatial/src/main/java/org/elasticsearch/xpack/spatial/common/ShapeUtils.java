@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial.common;
 
@@ -16,30 +17,32 @@ import org.elasticsearch.geometry.Rectangle;
  */
 public class ShapeUtils {
     // no instance:
-    private ShapeUtils() {
-    }
+    private ShapeUtils() {}
 
     public static org.apache.lucene.geo.XYPolygon toLuceneXYPolygon(Polygon polygon) {
         org.apache.lucene.geo.XYPolygon[] holes = new org.apache.lucene.geo.XYPolygon[polygon.getNumberOfHoles()];
-        for(int i = 0; i<holes.length; i++) {
+        for (int i = 0; i < holes.length; i++) {
             holes[i] = new org.apache.lucene.geo.XYPolygon(
                 doubleArrayToFloatArray(polygon.getHole(i).getX()),
-                doubleArrayToFloatArray(polygon.getHole(i).getY()));
+                doubleArrayToFloatArray(polygon.getHole(i).getY())
+            );
         }
         return new org.apache.lucene.geo.XYPolygon(
             doubleArrayToFloatArray(polygon.getPolygon().getX()),
-            doubleArrayToFloatArray(polygon.getPolygon().getY()), holes);
+            doubleArrayToFloatArray(polygon.getPolygon().getY()),
+            holes
+        );
     }
 
     public static org.apache.lucene.geo.XYPolygon toLuceneXYPolygon(Rectangle r) {
         return new org.apache.lucene.geo.XYPolygon(
-            new float[]{(float) r.getMinX(), (float) r.getMaxX(), (float) r.getMaxX(), (float) r.getMinX(), (float) r.getMinX()},
-            new float[]{(float) r.getMinY(), (float) r.getMinY(), (float) r.getMaxY(), (float) r.getMaxY(), (float) r.getMinY()});
+            new float[] { (float) r.getMinX(), (float) r.getMaxX(), (float) r.getMaxX(), (float) r.getMinX(), (float) r.getMinX() },
+            new float[] { (float) r.getMinY(), (float) r.getMinY(), (float) r.getMaxY(), (float) r.getMaxY(), (float) r.getMinY() }
+        );
     }
 
     public static org.apache.lucene.geo.XYRectangle toLuceneXYRectangle(Rectangle r) {
-        return new org.apache.lucene.geo.XYRectangle((float) r.getMinX(), (float) r.getMaxX(),
-                                                     (float) r.getMinY(), (float) r.getMaxY());
+        return new org.apache.lucene.geo.XYRectangle((float) r.getMinX(), (float) r.getMaxX(), (float) r.getMinY(), (float) r.getMaxY());
     }
 
     public static org.apache.lucene.geo.XYPoint toLuceneXYPoint(Point point) {
@@ -47,9 +50,7 @@ public class ShapeUtils {
     }
 
     public static org.apache.lucene.geo.XYLine toLuceneXYLine(Line line) {
-        return new org.apache.lucene.geo.XYLine(
-            doubleArrayToFloatArray(line.getX()),
-            doubleArrayToFloatArray(line.getY()));
+        return new org.apache.lucene.geo.XYLine(doubleArrayToFloatArray(line.getX()), doubleArrayToFloatArray(line.getY()));
     }
 
     public static org.apache.lucene.geo.XYCircle toLuceneXYCircle(Circle circle) {

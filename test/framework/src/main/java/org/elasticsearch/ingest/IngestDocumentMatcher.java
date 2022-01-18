@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
@@ -31,15 +20,14 @@ public class IngestDocumentMatcher {
      * @param docB second document to compare
      */
     public static void assertIngestDocument(IngestDocument docA, IngestDocument docB) {
-        if ((deepEquals(docA.getIngestMetadata(), docB.getIngestMetadata(), true) &&
-            deepEquals(docA.getSourceAndMetadata(), docB.getSourceAndMetadata(), false)) == false) {
+        if ((deepEquals(docA.getIngestMetadata(), docB.getIngestMetadata(), true)
+            && deepEquals(docA.getSourceAndMetadata(), docB.getSourceAndMetadata(), false)) == false) {
             throw new AssertionError("Expected [" + docA + "] but received [" + docB + "].");
         }
     }
 
     private static boolean deepEquals(Object a, Object b, boolean isIngestMeta) {
-        if (a instanceof Map) {
-            Map<?, ?> mapA = (Map<?, ?>) a;
+        if (a instanceof Map<?, ?> mapA) {
             if (b instanceof Map == false) {
                 return false;
             }
@@ -50,14 +38,12 @@ public class IngestDocumentMatcher {
             for (Map.Entry<?, ?> entry : mapA.entrySet()) {
                 Object key = entry.getKey();
                 // Don't compare the timestamp of ingest metadata since it will differ between executions
-                if ((isIngestMeta && "timestamp".equals(key)) == false
-                    && deepEquals(entry.getValue(), mapB.get(key), false) == false) {
+                if ((isIngestMeta && "timestamp".equals(key)) == false && deepEquals(entry.getValue(), mapB.get(key), false) == false) {
                     return false;
                 }
             }
             return true;
-        } else if (a instanceof List) {
-            List<?> listA = (List<?>) a;
+        } else if (a instanceof List<?> listA) {
             if (b instanceof List == false) {
                 return false;
             }

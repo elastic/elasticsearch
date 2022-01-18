@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.suggest.stats;
@@ -63,14 +52,16 @@ public class SuggestStatsIT extends ESIntegTestCase {
         final int shardsIdx2 = Math.max(numNodes - shardsIdx1, randomIntBetween(1, 10));
         final int totalShards = shardsIdx1 + shardsIdx2;
         assertThat(numNodes, lessThanOrEqualTo(totalShards));
-        assertAcked(prepareCreate("test1").setSettings(Settings.builder()
-                .put(SETTING_NUMBER_OF_SHARDS, shardsIdx1)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .setMapping("f", "type=text"));
-        assertAcked(prepareCreate("test2").setSettings(Settings.builder()
-                .put(SETTING_NUMBER_OF_SHARDS, shardsIdx2)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .setMapping("f", "type=text"));
+        assertAcked(
+            prepareCreate("test1").setSettings(
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardsIdx1).put(SETTING_NUMBER_OF_REPLICAS, 0)
+            ).setMapping("f", "type=text")
+        );
+        assertAcked(
+            prepareCreate("test2").setSettings(
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardsIdx2).put(SETTING_NUMBER_OF_REPLICAS, 0)
+            ).setMapping("f", "type=text")
+        );
         assertThat(shardsIdx1 + shardsIdx2, equalTo(numAssignedShards("test1", "test2")));
         assertThat(numAssignedShards("test1", "test2"), greaterThanOrEqualTo(2));
         ensureGreen();
@@ -106,12 +97,18 @@ public class SuggestStatsIT extends ESIntegTestCase {
         assertThat(suggest.getSuggestCurrent(), equalTo(0L));
 
         // check suggest count
-        assertThat(suggest.getSuggestCount(),
-            equalTo((long) (suggestAllIdx * totalShards + suggestIdx1 * shardsIdx1 + suggestIdx2 * shardsIdx2)));
-        assertThat(indicesStats.getIndices().get("test1").getTotal().getSearch().getTotal().getSuggestCount(),
-            equalTo((long) ((suggestAllIdx + suggestIdx1) * shardsIdx1)));
-        assertThat(indicesStats.getIndices().get("test2").getTotal().getSearch().getTotal().getSuggestCount(),
-            equalTo((long) ((suggestAllIdx + suggestIdx2) * shardsIdx2)));
+        assertThat(
+            suggest.getSuggestCount(),
+            equalTo((long) (suggestAllIdx * totalShards + suggestIdx1 * shardsIdx1 + suggestIdx2 * shardsIdx2))
+        );
+        assertThat(
+            indicesStats.getIndices().get("test1").getTotal().getSearch().getTotal().getSuggestCount(),
+            equalTo((long) ((suggestAllIdx + suggestIdx1) * shardsIdx1))
+        );
+        assertThat(
+            indicesStats.getIndices().get("test2").getTotal().getSearch().getTotal().getSuggestCount(),
+            equalTo((long) ((suggestAllIdx + suggestIdx2) * shardsIdx2))
+        );
 
         logger.info("iter {}, iter1 {}, iter2 {}, {}", suggestAllIdx, suggestIdx1, suggestIdx2, endTime - startTime);
         // check suggest time
@@ -166,10 +163,9 @@ public class SuggestStatsIT extends ESIntegTestCase {
         return nodes;
     }
 
-
     protected int numAssignedShards(String... indices) {
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        GroupShardsIterator allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
+        GroupShardsIterator<?> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         return allAssignedShardsGrouped.size();
     }
 }

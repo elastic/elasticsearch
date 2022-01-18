@@ -112,7 +112,7 @@ PUT custom_unique_example
 ==== Configurable parameters
 
 `only_on_same_position`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, only remove duplicate tokens in the same position.
 Defaults to `false`.
 

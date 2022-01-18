@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.extractor;
 
@@ -31,8 +32,8 @@ public class GeoPointField extends DocValueField {
             throw new IllegalStateException("Unexpected values for a geo_point field: " + Arrays.toString(value));
         }
 
-        if (value[0] instanceof String) {
-            value[0] = handleString((String) value[0]);
+        if (value[0]instanceof String stringValue) {
+            value[0] = handleString(stringValue);
         } else {
             throw new IllegalStateException("Unexpected value type for a geo_point field: " + value[0].getClass());
         }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security;
 
@@ -9,13 +10,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -23,14 +29,21 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
 
 /**
  * A lightweight utility that can find the current user and authentication information for the local thread.
  */
 public class SecurityContext {
+
     private final Logger logger = LogManager.getLogger(SecurityContext.class);
 
     private final ThreadContext threadContext;
@@ -96,7 +109,7 @@ public class SecurityContext {
      */
     public void setUser(User user, Version version) {
         Objects.requireNonNull(user);
-        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("__attach", "__attach", nodeName);
+        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(ATTACH_REALM_NAME, ATTACH_REALM_TYPE, nodeName);
         final Authentication.RealmRef lookedUpBy;
         if (user.isRunAs()) {
             lookedUpBy = authenticatedBy;
@@ -104,7 +117,8 @@ public class SecurityContext {
             lookedUpBy = null;
         }
         setAuthentication(
-            new Authentication(user, authenticatedBy, lookedUpBy, version, AuthenticationType.INTERNAL, Collections.emptyMap()));
+            new Authentication(user, authenticatedBy, lookedUpBy, version, AuthenticationType.INTERNAL, Collections.emptyMap())
+        );
     }
 
     /** Writes the authentication to the thread context */
@@ -145,12 +159,78 @@ public class SecurityContext {
      * The original context is provided to the consumer. When this method returns, the original context is restored.
      */
     public void executeAfterRewritingAuthentication(Consumer<StoredContext> consumer, Version version) {
+        // Preserve request headers other than authentication
+        final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();
         final StoredContext original = threadContext.newStoredContext(true);
         final Authentication authentication = getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            setAuthentication(new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(),
-                authentication.getLookedUpBy(), version, authentication.getAuthenticationType(), authentication.getMetadata()));
+            setAuthentication(
+                new Authentication(
+                    authentication.getUser(),
+                    authentication.getAuthenticatedBy(),
+                    authentication.getLookedUpBy(),
+                    version,
+                    authentication.getAuthenticationType(),
+                    rewriteMetadataForApiKeyRoleDescriptors(version, authentication)
+                )
+            );
+            existingRequestHeaders.forEach((k, v) -> {
+                if (threadContext.getHeader(k) == null) {
+                    threadContext.putHeader(k, v);
+                }
+            });
             consumer.accept(original);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> rewriteMetadataForApiKeyRoleDescriptors(Version streamVersion, Authentication authentication) {
+        Map<String, Object> metadata = authentication.getMetadata();
+        // If authentication type is API key, regardless whether it has run-as, the metadata must contain API key role descriptors
+        if (authentication.isAuthenticatedWithApiKey()) {
+            if (authentication.getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
+                && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
+                metadata = new HashMap<>(metadata);
+                metadata.put(
+                    AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                    convertRoleDescriptorsBytesToMap((BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY))
+                );
+                metadata.put(
+                    AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                    convertRoleDescriptorsBytesToMap(
+                        (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                    )
+                );
+            } else if (authentication.getVersion().before(VERSION_API_KEY_ROLES_AS_BYTES)
+                && streamVersion.onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)) {
+                    metadata = new HashMap<>(metadata);
+                    metadata.put(
+                        AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                        convertRoleDescriptorsMapToBytes(
+                            (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
+                        )
+                    );
+                    metadata.put(
+                        AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                        convertRoleDescriptorsMapToBytes(
+                            (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                        )
+                    );
+                }
+        }
+        return metadata;
+    }
+
+    private Map<String, Object> convertRoleDescriptorsBytesToMap(BytesReference roleDescriptorsBytes) {
+        return XContentHelper.convertToMap(roleDescriptorsBytes, false, XContentType.JSON).v2();
+    }
+
+    private BytesReference convertRoleDescriptorsMapToBytes(Map<String, Object> roleDescriptorsMap) {
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.map(roleDescriptorsMap);
+            return BytesReference.bytes(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 }

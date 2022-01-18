@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
@@ -28,7 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -132,20 +121,29 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         return newVotingConfigExclusions;
     }
 
-    Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(ClusterState currentState, int maxExclusionsCount,
-                                                                            String maximumSettingKey) {
+    Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(
+        ClusterState currentState,
+        int maxExclusionsCount,
+        String maximumSettingKey
+    ) {
         final Set<VotingConfigExclusion> resolvedExclusions = resolveVotingConfigExclusions(currentState);
 
         final int oldExclusionsCount = currentState.getVotingConfigExclusions().size();
         final int newExclusionsCount = resolvedExclusions.size();
         if (oldExclusionsCount + newExclusionsCount > maxExclusionsCount) {
-            throw new IllegalArgumentException("add voting config exclusions request for "
-                + (nodeNames.length > 0
-                    ? "nodes named " + Arrays.asList(nodeNames)
-                    : "nodes with ids " + Arrays.asList(nodeIds))
-                + " would add [" + newExclusionsCount + "] exclusions to the existing [" + oldExclusionsCount
-                + "] which would exceed the maximum of [" + maxExclusionsCount + "] set by ["
-                + maximumSettingKey + "]");
+            throw new IllegalArgumentException(
+                "add voting config exclusions request for "
+                    + (nodeNames.length > 0 ? "nodes named " + Arrays.asList(nodeNames) : "nodes with ids " + Arrays.asList(nodeIds))
+                    + " would add ["
+                    + newExclusionsCount
+                    + "] exclusions to the existing ["
+                    + oldExclusionsCount
+                    + "] which would exceed the maximum of ["
+                    + maxExclusionsCount
+                    + "] set by ["
+                    + maximumSettingKey
+                    + "]"
+            );
         }
         return resolvedExclusions;
     }
@@ -189,10 +187,15 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
 
     @Override
     public String toString() {
-        return "AddVotingConfigExclusionsRequest{" +
-            "nodeIds=" + Arrays.asList(nodeIds) + ", " +
-            "nodeNames=" + Arrays.asList(nodeNames) + ", " +
-            "timeout=" + timeout +
-            '}';
+        return "AddVotingConfigExclusionsRequest{"
+            + "nodeIds="
+            + Arrays.asList(nodeIds)
+            + ", "
+            + "nodeNames="
+            + Arrays.asList(nodeNames)
+            + ", "
+            + "timeout="
+            + timeout
+            + '}';
     }
 }

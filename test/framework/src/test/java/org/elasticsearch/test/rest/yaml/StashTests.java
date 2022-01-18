@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.rest.yaml;
@@ -27,6 +16,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -91,8 +83,10 @@ public class StashTests extends ESTestCase {
         map.put("key", map2);
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> stash.replaceStashedValues(map));
-        assertEquals(e.getMessage(), "Unstashing has caused a key conflict! The map is [{foobar=whatever}] and the key is ["
-                            + key + "] which unstashes to [foobar]");
+        assertEquals(
+            e.getMessage(),
+            "Unstashing has caused a key conflict! The map is [{foobar=whatever}] and the key is [" + key + "] which unstashes to [foobar]"
+        );
     }
 
     public void testReplaceStashedValuesStashKeyInList() throws IOException {
@@ -166,4 +160,25 @@ public class StashTests extends ESTestCase {
         assertEquals(expected, actual);
         assertThat(actual, not(sameInstance(map)));
     }
+
+    public void testEscapeExtendedKey() throws IOException {
+        Stash stash = new Stash();
+
+        Map<String, Object> map = new HashMap<>();
+        map.put("key", singletonMap("a", "foo\\${bar}"));
+
+        Map<String, Object> actual = stash.replaceStashedValues(map);
+        assertMap(actual, matchesMap().entry("key", matchesMap().entry("a", "foo${bar}")));
+        assertThat(actual, not(sameInstance(map)));
+    }
+
+    public void testMultipleVariableNamesInPath() throws Exception {
+        var stash = new Stash();
+        stash.stashValue("body", Map.of(".ds-k8s-2021-12-15-1", Map.of("data_stream", "k8s", "settings", Map.of(), "mappings", Map.of())));
+        stash.stashValue("backing_index", ".ds-k8s-2021-12-15-1");
+        assertThat(stash.getValue("$body.$backing_index.data_stream"), equalTo("k8s"));
+        assertThat(stash.getValue("$body.$backing_index.settings"), equalTo(Map.of()));
+        assertThat(stash.getValue("$body.$backing_index.mappings"), equalTo(Map.of()));
+    }
+
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
@@ -9,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 
@@ -24,6 +25,7 @@ import java.util.Objects;
 public class DatafeedTimingStatsReporter {
 
     private static final Logger LOGGER = LogManager.getLogger(DatafeedTimingStatsReporter.class);
+
     /** Interface used for persisting current timing stats to the results index. */
     @FunctionalInterface
     public interface DatafeedTimingStatsPersister {
@@ -106,7 +108,8 @@ public class DatafeedTimingStatsReporter {
                 // Since persisting datafeed timing stats is not critical, we just log a warning here.
                 LOGGER.warn(
                     () -> new ParameterizedMessage("[{}] failed to report datafeed timing stats", currentTimingStats.getJobId()),
-                    ex);
+                    ex
+                );
             }
         }
     }
@@ -126,8 +129,7 @@ public class DatafeedTimingStatsReporter {
      * This can be interpreted as values { value1, value2 } differing significantly from each other.
      */
     private static boolean countsDifferSignificantly(long value1, long value2) {
-        return (((double) value2) / value1 < MIN_VALID_RATIO)
-            || (((double) value1) / value2 < MIN_VALID_RATIO);
+        return (((double) value2) / value1 < MIN_VALID_RATIO) || (((double) value1) / value2 < MIN_VALID_RATIO);
     }
 
     /**

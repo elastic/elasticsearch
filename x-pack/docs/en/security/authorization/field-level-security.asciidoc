@@ -8,11 +8,11 @@ read APIs.
 
 To enable field level security, specify the fields that each role can access
 as part of the indices permissions in a role definition. Field level security is
-thus bound to a well-defined set of indices (and potentially a set of
+thus bound to a well-defined set of data streams or indices (and potentially a set of
 <<document-level-security, documents>>).
 
 The following role definition grants read access only to the `category`,
-`@timestamp`, and `message` fields in all the `events-*` indices.
+`@timestamp`, and `message` fields in all the `events-*` data streams and indices.
 
 [source,console]
 --------------------------------------------------
@@ -30,9 +30,9 @@ POST /_security/role/test_role1
 }
 --------------------------------------------------
 
-Access to the following meta fields is always allowed: `_id`,
+Access to the following metadata fields is always allowed: `_id`,
 `_type`, `_parent`, `_routing`, `_timestamp`, `_ttl`, `_size` and `_index`. If
-you specify an empty list of fields, only these meta fields are accessible.
+you specify an empty list of fields, only these metadata fields are accessible.
 
 NOTE: Omitting the fields entry entirely disables field level security.
 
@@ -162,7 +162,7 @@ An empty array for `grant` (for example, `"grant" : []`) means that access has
 not been granted to any fields.
 
 When a user has several roles that specify field level permissions, the
-resulting field level permissions per index are the union of the individual role
+resulting field level permissions per data stream or index are the union of the individual role
 permissions. For example, if these two roles are merged:
 
 [source,console]
@@ -217,7 +217,7 @@ The resulting permission is equal to:
 --------------------------------------------------
 // NOTCONSOLE
 
-NOTE: Field-level security should not be set on <<alias,`alias`>> fields.
+NOTE: Field-level security should not be set on <<field-alias,`alias`>> fields.
 To secure a
 concrete field, its field name must be used directly.
 

@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -116,14 +106,14 @@ public class JavaVersionTests extends ESTestCase {
     }
 
     public void testValidVersions() {
-        String[] versions = new String[]{"1.7", "1.7.0", "0.1.7", "1.7.0.80", "12-ea", "13.0.2.3-ea", "14-something", "11.0.2-21002"};
+        String[] versions = new String[] { "1.7", "1.7.0", "0.1.7", "1.7.0.80", "12-ea", "13.0.2.3-ea", "14-something", "11.0.2-21002" };
         for (String version : versions) {
             assertTrue(JavaVersion.isValid(version));
         }
     }
 
     public void testInvalidVersions() {
-        String[] versions = new String[]{"", "1.7.0_80", "1.7.", "11.2-something-else"};
+        String[] versions = new String[] { "", "1.7.0_80", "1.7.", "11.2-something-else" };
         for (String version : versions) {
             assertFalse(JavaVersion.isValid(version));
         }

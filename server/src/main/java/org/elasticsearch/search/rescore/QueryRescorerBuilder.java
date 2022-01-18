@@ -1,35 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.rescore;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -53,10 +42,10 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner query", e);
             }
-        } , RESCORE_QUERY_FIELD);
+        }, RESCORE_QUERY_FIELD);
         QUERY_RESCORE_PARSER.declareFloat(InnerBuilder::setQueryWeight, QUERY_WEIGHT_FIELD);
         QUERY_RESCORE_PARSER.declareFloat(InnerBuilder::setRescoreQueryWeight, RESCORE_QUERY_WEIGHT_FIELD);
-        QUERY_RESCORE_PARSER.declareString((struct, value) ->  struct.setScoreMode(QueryRescoreMode.fromString(value)), SCORE_MODE_FIELD);
+        QUERY_RESCORE_PARSER.declareString((struct, value) -> struct.setScoreMode(QueryRescoreMode.fromString(value)), SCORE_MODE_FIELD);
     }
 
     public static final float DEFAULT_RESCORE_QUERYWEIGHT = 1.0f;
@@ -117,7 +106,6 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
         return this;
     }
 
-
     /**
      * Gets the original query weight for rescoring. The default is {@code 1.0}
      */
@@ -171,7 +159,7 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     }
 
     @Override
-    public QueryRescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
+    public QueryRescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) throws IOException {
         QueryRescoreContext queryRescoreContext = new QueryRescoreContext(windowSize);
         // query is rewritten at this point already
         queryRescoreContext.setQuery(queryBuilder.toQuery(context));
@@ -196,11 +184,11 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
             return false;
         }
         QueryRescorerBuilder other = (QueryRescorerBuilder) obj;
-        return super.equals(obj) &&
-               Objects.equals(scoreMode, other.scoreMode) &&
-               Objects.equals(queryWeight, other.queryWeight) &&
-               Objects.equals(rescoreQueryWeight, other.rescoreQueryWeight) &&
-               Objects.equals(queryBuilder, other.queryBuilder);
+        return super.equals(obj)
+            && Objects.equals(scoreMode, other.scoreMode)
+            && Objects.equals(queryWeight, other.queryWeight)
+            && Objects.equals(rescoreQueryWeight, other.rescoreQueryWeight)
+            && Objects.equals(queryBuilder, other.queryBuilder);
     }
 
     /**

@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
+
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -45,8 +47,11 @@ public class LdapSessionFactory extends SessionFactory {
         super(config, sslService, threadPool);
         userDnTemplates = config.getSetting(LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING).toArray(Strings.EMPTY_ARRAY);
         if (userDnTemplates.length == 0) {
-            throw new IllegalArgumentException("missing required LDAP setting ["
-                    + RealmSettings.getFullSettingKey(config, LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING) + "]");
+            throw new IllegalArgumentException(
+                "missing required LDAP setting ["
+                    + RealmSettings.getFullSettingKey(config, LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING)
+                    + "]"
+            );
         }
         logger.info("Realm [{}] is in user-dn-template mode: [{}]", config.name(), userDnTemplates);
         groupResolver = groupResolver(config);
@@ -70,8 +75,17 @@ public class LdapSessionFactory extends SessionFactory {
                 @Override
                 protected void doRun() throws Exception {
                     listener.onResponse(
-                            (new LdapSession(logger, config, connection, ((SimpleBindRequest) connection.getLastBindRequest()).getBindDN(),
-                                    groupResolver, metadataResolver, timeout, null)));
+                        (new LdapSession(
+                            logger,
+                            config,
+                            connection,
+                            ((SimpleBindRequest) connection.getLastBindRequest()).getBindDN(),
+                            groupResolver,
+                            metadataResolver,
+                            timeout,
+                            null
+                        ))
+                    );
                 }
 
                 @Override
@@ -98,7 +112,7 @@ public class LdapSessionFactory extends SessionFactory {
                 void loop() {
                     final String template = userDnTemplates[loopIndex++];
                     final SimpleBindRequest bind = new SimpleBindRequest(buildDnFromTemplate(username, template), passwordBytes);
-                    LdapUtils.maybeForkThenBind(connection, bind, threadPool, this);
+                    LdapUtils.maybeForkThenBind(connection, bind, false, threadPool, this);
                 }
             }.loop();
         } catch (LDAPException e) {
@@ -113,7 +127,7 @@ public class LdapSessionFactory extends SessionFactory {
      * @return DN (distinguished name) build from the template.
      */
     String buildDnFromTemplate(String username, String template) {
-        //this value must be escaped to avoid manipulation of the template DN.
+        // this value must be escaped to avoid manipulation of the template DN.
         String escapedUsername = escapedRDNValue(username);
         return new MessageFormat(template, Locale.ROOT).format(new Object[] { escapedUsername }, new StringBuffer(), null).toString();
     }

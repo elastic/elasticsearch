@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.cli;
 
@@ -40,12 +41,7 @@ public class JLineTerminal implements CliTerminal {
      *      enabled in production because it is fairly nice.
      */
     public JLineTerminal(Terminal terminal, boolean enableMatchBracket) {
-        this(terminal,
-            LineReaderBuilder.builder()
-                .terminal(terminal)
-                .completer(Completers.INSTANCE)
-                .build(),
-            enableMatchBracket);
+        this(terminal, LineReaderBuilder.builder().terminal(terminal).completer(Completers.INSTANCE).build(), enableMatchBracket);
     }
 
     /**
@@ -156,7 +152,6 @@ public class JLineTerminal implements CliTerminal {
             line.append(text, DEFAULT.foreground(BRIGHT));
             return this;
         }
-
 
         public LineBuilder error(String text) {
             line.append(text, BOLD.foreground(RED));

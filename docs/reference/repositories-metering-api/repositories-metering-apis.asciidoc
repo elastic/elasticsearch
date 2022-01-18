@@ -1,0 +1,15 @@
+[role="xpack"]
+[[repositories-metering-apis]]
+== Repositories metering APIs
+
+experimental[]
+
+You can use the following APIs to retrieve repositories metering information.
+
+This is an API used by Elastic's commercial offerings.
+
+* <<get-repositories-metering-api,Get repositories metering information>>
+* <<clear-repositories-metering-archive-api,Clear repositories metering archive>>
+
+include::apis/get-repositories-metering.asciidoc[]
+include::apis/clear-repositories-metering-archive.asciidoc[]

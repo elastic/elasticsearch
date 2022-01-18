@@ -1,9 +1,52 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
+import org.opensaml.core.config.InitializationService;
+import org.opensaml.core.xml.XMLObject;
+import org.opensaml.core.xml.XMLObjectBuilderFactory;
+import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
+import org.opensaml.core.xml.io.MarshallingException;
+import org.opensaml.core.xml.util.XMLObjectSupport;
+import org.opensaml.saml.common.SAMLObject;
+import org.opensaml.saml.saml2.core.Assertion;
+import org.opensaml.saml.saml2.core.Response;
+import org.opensaml.xmlsec.signature.impl.X509CertificateBuilder;
+import org.slf4j.LoggerFactory;
+import org.w3c.dom.Element;
+import org.w3c.dom.bootstrap.DOMImplementationRegistry;
+import org.w3c.dom.ls.DOMImplementationLS;
+import org.w3c.dom.ls.LSInput;
+import org.w3c.dom.ls.LSResourceResolver;
+import org.xml.sax.SAXException;
+import org.xml.sax.SAXParseException;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.net.URISyntaxException;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
+import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
@@ -21,46 +64,6 @@ import javax.xml.transform.stream.StreamSource;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 import javax.xml.validation.Validator;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.StringWriter;
-import java.io.Writer;
-import java.net.URISyntaxException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
-import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
-import org.opensaml.core.config.InitializationService;
-import org.opensaml.core.xml.XMLObject;
-import org.opensaml.core.xml.XMLObjectBuilderFactory;
-import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
-import org.opensaml.core.xml.io.MarshallingException;
-import org.opensaml.core.xml.util.XMLObjectSupport;
-import org.opensaml.saml.common.SAMLObject;
-import org.opensaml.saml.saml2.core.Assertion;
-import org.opensaml.saml.saml2.core.Response;
-import org.slf4j.LoggerFactory;
-import org.w3c.dom.Element;
-import org.w3c.dom.bootstrap.DOMImplementationRegistry;
-import org.w3c.dom.ls.DOMImplementationLS;
-import org.w3c.dom.ls.LSInput;
-import org.w3c.dom.ls.LSResourceResolver;
-import org.xml.sax.SAXException;
-import org.xml.sax.SAXParseException;
 
 public class SamlUtils {
 
@@ -88,6 +91,8 @@ public class SamlUtils {
                 logger.debug("Initializing OpenSAML");
                 try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(InitializationService.class)) {
                     InitializationService.initialize();
+                    // Force load this now, because it has a static field that needs to run inside the doPrivileged block
+                    var ignore2 = new X509CertificateBuilder().buildObject();
                 }
                 logger.debug("Initialized OpenSAML");
                 return null;
@@ -128,8 +133,9 @@ public class SamlUtils {
         if (type.isInstance(obj)) {
             return type.cast(obj);
         } else {
-            throw new IllegalArgumentException("Object for element " + elementName.getLocalPart() + " is of type " + obj.getClass()
-                    + " not " + type);
+            throw new IllegalArgumentException(
+                "Object for element " + elementName.getLocalPart() + " is of type " + obj.getClass() + " not " + type
+            );
         }
     }
 
@@ -219,8 +225,7 @@ public class SamlUtils {
 
     static void validate(InputStream xml, String xsdName) throws Exception {
         SchemaFactory schemaFactory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
-        try (InputStream xsdStream = loadSchema(xsdName);
-             ResourceResolver resolver = new ResourceResolver()) {
+        try (InputStream xsdStream = loadSchema(xsdName); ResourceResolver resolver = new ResourceResolver()) {
             schemaFactory.setResourceResolver(resolver);
             Schema schema = schemaFactory.newSchema(new StreamSource(xsdStream));
             Validator validator = schema.newValidator();
@@ -300,8 +305,7 @@ public class SamlUtils {
         dbf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
         dbf.setAttribute("http://apache.org/xml/features/validation/schema", true);
         dbf.setAttribute("http://apache.org/xml/features/validation/schema-full-checking", true);
-        dbf.setAttribute("http://java.sun.com/xml/jaxp/properties/schemaLanguage",
-                XMLConstants.W3C_XML_SCHEMA_NS_URI);
+        dbf.setAttribute("http://java.sun.com/xml/jaxp/properties/schemaLanguage", XMLConstants.W3C_XML_SCHEMA_NS_URI);
         // We ship our own xsd files for schema validation since we do not trust anyone else.
         dbf.setAttribute("http://java.sun.com/xml/jaxp/properties/schemaSource", resolveSchemaFilePaths(schemaFiles));
         DocumentBuilder documentBuilder = dbf.newDocumentBuilder();
@@ -311,15 +315,14 @@ public class SamlUtils {
 
     private static String[] resolveSchemaFilePaths(String[] relativePaths) {
 
-        return Arrays.stream(relativePaths).
-                map(file -> {
-                    try {
-                        return SamlUtils.class.getResource(file).toURI().toString();
-                    } catch (URISyntaxException e) {
-                        LOGGER.warn("Error resolving schema file path", e);
-                        return null;
-                    }
-                }).filter(Objects::nonNull).toArray(String[]::new);
+        return Arrays.stream(relativePaths).map(file -> {
+            try {
+                return SamlUtils.class.getResource(file).toURI().toString();
+            } catch (URISyntaxException e) {
+                LOGGER.warn("Error resolving schema file path", e);
+                return null;
+            }
+        }).filter(Objects::nonNull).toArray(String[]::new);
     }
 
     private static class ErrorListener implements javax.xml.transform.ErrorListener {

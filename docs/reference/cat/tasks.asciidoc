@@ -15,6 +15,11 @@ similar to the <<tasks,task management>> API.
 
 `GET /_cat/tasks`
 
+[[cat-tasks-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cat-tasks-api-desc]]
 ==== {api-description-title}
@@ -37,6 +42,15 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
+`nodes`::
+(Optional, string)
+Comma-separated list of node IDs or names used to limit the response. Supports
+wildcard (`*`) expressions.
+
+`parent_task_id`::
+(Optional, string)
+Parent task ID used to limit the response.
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
@@ -55,7 +69,7 @@ include::{es-repo-dir}/cluster/tasks.asciidoc[tag=tasks-api-404]
 
 [source,console]
 ----
-GET _cat/tasks?v
+GET _cat/tasks?v=true
 ----
 // TEST[skip:No tasks to retrieve]
 

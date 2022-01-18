@@ -1,34 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -126,8 +115,11 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
     private static final ParseField UNRATED_DOCS_FIELD = new ParseField("unrated_docs");
     private static final ParseField HITS_FIELD = new ParseField("hits");
     private static final ParseField METRIC_DETAILS_FIELD = new ParseField("metric_details");
-    private static final ObjectParser<ParsedEvalQueryQuality, Void> PARSER = new ObjectParser<>("eval_query_quality",
-            true, ParsedEvalQueryQuality::new);
+    private static final ObjectParser<ParsedEvalQueryQuality, Void> PARSER = new ObjectParser<>(
+        "eval_query_quality",
+        true,
+        ParsedEvalQueryQuality::new
+    );
 
     private static class ParsedEvalQueryQuality {
         double evaluationResult;
@@ -137,16 +129,15 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
 
     static {
         PARSER.declareDouble((obj, value) -> obj.evaluationResult = value, METRIC_SCORE_FIELD);
-        PARSER.declareObject((obj, value) -> obj.optionalMetricDetails = value, (p, c) -> parseMetricDetail(p),
-                METRIC_DETAILS_FIELD);
+        PARSER.declareObject((obj, value) -> obj.optionalMetricDetails = value, (p, c) -> parseMetricDetail(p), METRIC_DETAILS_FIELD);
         PARSER.declareObjectArray((obj, list) -> obj.ratedHits = list, (p, c) -> RatedSearchHit.parse(p), HITS_FIELD);
     }
 
     private static MetricDetail parseMetricDetail(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
         MetricDetail metricDetail = parser.namedObject(MetricDetail.class, parser.currentName(), null);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return metricDetail;
     }
 
@@ -163,10 +154,10 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
             return false;
         }
         EvalQueryQuality other = (EvalQueryQuality) obj;
-        return Objects.equals(queryId, other.queryId) &&
-                Objects.equals(metricScore, other.metricScore) &&
-                Objects.equals(ratedHits, other.ratedHits) &&
-                Objects.equals(optionalMetricDetails, other.optionalMetricDetails);
+        return Objects.equals(queryId, other.queryId)
+            && Objects.equals(metricScore, other.metricScore)
+            && Objects.equals(ratedHits, other.ratedHits)
+            && Objects.equals(optionalMetricDetails, other.optionalMetricDetails);
     }
 
     @Override

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.slice;
@@ -47,14 +36,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TermsSliceQueryTests extends ESTestCase {
     public void testBasics() {
-        TermsSliceQuery query1 =
-            new TermsSliceQuery("field1", 1, 10);
-        TermsSliceQuery query2 =
-            new TermsSliceQuery("field1", 1, 10);
-        TermsSliceQuery query3 =
-            new TermsSliceQuery("field2", 1, 10);
-        TermsSliceQuery query4 =
-            new TermsSliceQuery("field1", 2, 10);
+        TermsSliceQuery query1 = new TermsSliceQuery("field1", 1, 10);
+        TermsSliceQuery query2 = new TermsSliceQuery("field1", 1, 10);
+        TermsSliceQuery query3 = new TermsSliceQuery("field2", 1, 10);
+        TermsSliceQuery query4 = new TermsSliceQuery("field1", 2, 10);
         QueryUtils.check(query1);
         QueryUtils.checkEqual(query1, query2);
         QueryUtils.checkUnequal(query1, query3);
@@ -71,8 +56,7 @@ public class TermsSliceQueryTests extends ESTestCase {
         }
         final IndexReader reader = w.getReader();
         final IndexSearcher searcher = newSearcher(reader);
-        TermsSliceQuery query =
-            new TermsSliceQuery("unknown", 1, 1);
+        TermsSliceQuery query = new TermsSliceQuery("unknown", 1, 1);
         assertThat(searcher.count(query), equalTo(0));
         w.close();
         reader.close();
@@ -92,7 +76,7 @@ public class TermsSliceQueryTests extends ESTestCase {
             BytesRef br = new BytesRef(uuid);
             int hashCode = StringHelper.murmurhash3_x86_32(br, TermsSliceQuery.SEED);
             int id = Math.floorMod(hashCode, max);
-            sliceCounters[id] ++;
+            sliceCounters[id]++;
             doc.add(new StringField("uuid", uuid, Field.Store.YES));
             w.addDocument(doc);
             keys.add(uuid);
@@ -101,16 +85,14 @@ public class TermsSliceQueryTests extends ESTestCase {
         final IndexSearcher searcher = newSearcher(reader);
 
         for (int id = 0; id < max; id++) {
-            TermsSliceQuery query1 =
-                new TermsSliceQuery("uuid", id, max);
+            TermsSliceQuery query1 = new TermsSliceQuery("uuid", id, max);
             assertThat(searcher.count(query1), equalTo(sliceCounters[id]));
             searcher.search(query1, new Collector() {
                 @Override
                 public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
                     return new LeafCollector() {
                         @Override
-                        public void setScorer(Scorable scorer) throws IOException {
-                        }
+                        public void setScorer(Scorable scorer) throws IOException {}
 
                         @Override
                         public void collect(int doc) throws IOException {

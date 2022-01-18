@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -28,10 +17,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,8 +37,14 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     private TopDocsAndMaxScore topDocs;
     private SearchHits searchHits;
 
-    public InternalTopHits(String name, int from, int size, TopDocsAndMaxScore topDocs, SearchHits searchHits,
-            Map<String, Object> metadata) {
+    public InternalTopHits(
+        String name,
+        int from,
+        int size,
+        TopDocsAndMaxScore topDocs,
+        SearchHits searchHits,
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         this.from = from;
         this.size = size;
@@ -98,7 +94,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         final SearchHits[] shardHits = new SearchHits[aggregations.size()];
         final int from;
         final int size;
@@ -122,16 +118,22 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                 InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
                 shardDocs[i] = topHitsAgg.topDocs.topDocs;
                 shardHits[i] = topHitsAgg.searchHits;
+                for (ScoreDoc doc : shardDocs[i].scoreDocs) {
+                    doc.shardIndex = i;
+                }
             }
-            reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs, true);
+            reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs);
         } else {
             shardDocs = new TopDocs[aggregations.size()];
             for (int i = 0; i < shardDocs.length; i++) {
                 InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
                 shardDocs[i] = topHitsAgg.topDocs.topDocs;
                 shardHits[i] = topHitsAgg.searchHits;
+                for (ScoreDoc doc : shardDocs[i].scoreDocs) {
+                    doc.shardIndex = i;
+                }
             }
-            reducedTopDocs = TopDocs.merge(from, size, shardDocs, true);
+            reducedTopDocs = TopDocs.merge(from, size, shardDocs);
         }
 
         float maxScore = Float.NaN;
@@ -157,9 +159,19 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             hits[i] = shardHits[scoreDoc.shardIndex].getAt(position);
         }
         assert reducedTopDocs.totalHits.relation == Relation.EQUAL_TO;
-        return new InternalTopHits(name, this.from, this.size,
+        return new InternalTopHits(
+            name,
+            this.from,
+            this.size,
             new TopDocsAndMaxScore(reducedTopDocs, maxScore),
-            new SearchHits(hits, reducedTopDocs.totalHits, maxScore), getMetadata());
+            new SearchHits(hits, reducedTopDocs.totalHits, maxScore),
+            getMetadata()
+        );
+    }
+
+    @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return true;
     }
 
     @Override
@@ -195,10 +207,8 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             ScoreDoc otherDoc = other.topDocs.topDocs.scoreDocs[d];
             if (thisDoc.doc != otherDoc.doc) return false;
             if (Double.compare(thisDoc.score, otherDoc.score) != 0) return false;
-            if (thisDoc.shardIndex != otherDoc.shardIndex) return false;
-            if (thisDoc instanceof FieldDoc) {
+            if (thisDoc instanceof FieldDoc thisFieldDoc) {
                 if (false == (otherDoc instanceof FieldDoc)) return false;
-                FieldDoc thisFieldDoc = (FieldDoc) thisDoc;
                 FieldDoc otherFieldDoc = (FieldDoc) otherDoc;
                 if (thisFieldDoc.fields.length != otherFieldDoc.fields.length) return false;
                 for (int f = 0; f < thisFieldDoc.fields.length; f++) {
@@ -220,9 +230,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             ScoreDoc doc = topDocs.topDocs.scoreDocs[d];
             hashCode = 31 * hashCode + doc.doc;
             hashCode = 31 * hashCode + Float.floatToIntBits(doc.score);
-            hashCode = 31 * hashCode + doc.shardIndex;
-            if (doc instanceof FieldDoc) {
-                FieldDoc fieldDoc = (FieldDoc) doc;
+            if (doc instanceof FieldDoc fieldDoc) {
                 hashCode = 31 * hashCode + Arrays.hashCode(fieldDoc.fields);
             }
         }

@@ -1,24 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformField;
 
@@ -26,8 +27,8 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Used as a wrapper for the objects returned from the stats endpoint.
@@ -149,7 +150,12 @@ public class TransformStats implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeString(id);
-            out.writeEnum(state);
+            // 7.13 introduced the waiting state, in older version report the state as started
+            if (out.getVersion().before(Version.V_7_13_0) && state.equals(State.WAITING)) {
+                out.writeEnum(State.STARTED);
+            } else {
+                out.writeEnum(state);
+            }
             out.writeOptionalString(reason);
             if (node != null) {
                 out.writeBoolean(true);
@@ -246,7 +252,8 @@ public class TransformStats implements Writeable, ToXContentObject {
         ABORTING,
         STOPPING,
         STOPPED,
-        FAILED;
+        FAILED,
+        WAITING;
 
         public static State fromString(String name) {
             return valueOf(name.trim().toUpperCase(Locale.ROOT));
@@ -263,25 +270,17 @@ public class TransformStats implements Writeable, ToXContentObject {
             } else if (taskState == TransformTaskState.FAILED) {
                 return FAILED;
             } else {
-
                 // If we get here then the task state must be started, and that means we should have an indexer state
                 assert (taskState == TransformTaskState.STARTED);
                 assert (indexerState != null);
 
-                switch (indexerState) {
-                    case STARTED:
-                        return STARTED;
-                    case INDEXING:
-                        return INDEXING;
-                    case STOPPING:
-                        return STOPPING;
-                    case STOPPED:
-                        return STOPPED;
-                    case ABORTING:
-                        return ABORTING;
-                    default:
-                        throw new IllegalStateException("Unexpected indexer state enum value: " + indexerState);
-                }
+                return switch (indexerState) {
+                    case STARTED -> STARTED;
+                    case INDEXING -> INDEXING;
+                    case STOPPING -> STOPPING;
+                    case STOPPED -> STOPPING;
+                    case ABORTING -> ABORTING;
+                };
             }
         }
 
@@ -290,32 +289,32 @@ public class TransformStats implements Writeable, ToXContentObject {
             out.writeEnum(this);
         }
 
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
         public String value() {
             return name().toLowerCase(Locale.ROOT);
         }
 
+        // only used when speaking to nodes < 7.4 (can be removed for 8.0)
         public Tuple<TransformTaskState, IndexerState> toComponents() {
 
-            switch (this) {
-                case STARTED:
-                    return new Tuple<>(TransformTaskState.STARTED, IndexerState.STARTED);
-                case INDEXING:
-                    return new Tuple<>(TransformTaskState.STARTED, IndexerState.INDEXING);
-                case ABORTING:
-                    return new Tuple<>(TransformTaskState.STARTED, IndexerState.ABORTING);
-                case STOPPING:
-                    return new Tuple<>(TransformTaskState.STARTED, IndexerState.STOPPING);
-                case STOPPED:
-                    // This one is not deterministic, because an overall state of STOPPED could arise
-                    // from either (STOPPED, null) or (STARTED, STOPPED). However, (STARTED, STOPPED)
+            return switch (this) {
+                case STARTED -> new Tuple<>(TransformTaskState.STARTED, IndexerState.STARTED);
+                case INDEXING -> new Tuple<>(TransformTaskState.STARTED, IndexerState.INDEXING);
+                case ABORTING -> new Tuple<>(TransformTaskState.STARTED, IndexerState.ABORTING);
+                case STOPPING ->
+                    // This one is not deterministic, because an overall state of STOPPING could arise
+                    // from either (STARTED, STOPPED) or (STARTED, STOPPING). However, (STARTED, STOPPED)
                     // is a very short-lived state so it's reasonable to assume the other, especially
                     // as this method is only for mixed version cluster compatibility.
-                    return new Tuple<>(TransformTaskState.STOPPED, null);
-                case FAILED:
-                    return new Tuple<>(TransformTaskState.FAILED, null);
-                default:
-                    throw new IllegalStateException("Unexpected state enum value: " + this);
-            }
+                    new Tuple<>(TransformTaskState.STARTED, IndexerState.STOPPING);
+                case STOPPED -> new Tuple<>(TransformTaskState.STOPPED, null);
+                case FAILED -> new Tuple<>(TransformTaskState.FAILED, null);
+                default -> throw new IllegalStateException("Unexpected state enum value: " + this);
+            };
         }
     }
 }

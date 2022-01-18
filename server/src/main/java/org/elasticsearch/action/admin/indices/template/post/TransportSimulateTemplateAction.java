@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.template.post;
@@ -26,25 +15,27 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasValidator;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
@@ -53,40 +44,56 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.fi
  * Handles simulating an index template either by name (looking it up in the
  * cluster state), or by a provided template configuration
  */
-public class TransportSimulateTemplateAction
-    extends TransportMasterNodeReadAction<SimulateTemplateAction.Request, SimulateIndexTemplateResponse> {
+public class TransportSimulateTemplateAction extends TransportMasterNodeReadAction<
+    SimulateTemplateAction.Request,
+    SimulateIndexTemplateResponse> {
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final NamedXContentRegistry xContentRegistry;
     private final IndicesService indicesService;
-    private AliasValidator aliasValidator;
+    private final AliasValidator aliasValidator;
+    private final SystemIndices systemIndices;
+    private final Set<IndexSettingProvider> indexSettingProviders;
 
     @Inject
-    public TransportSimulateTemplateAction(TransportService transportService, ClusterService clusterService,
-                                           ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                           NamedXContentRegistry xContentRegistry, IndicesService indicesService) {
-        super(SimulateTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            SimulateTemplateAction.Request::new, indexNameExpressionResolver);
+    public TransportSimulateTemplateAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataIndexTemplateService indexTemplateService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        NamedXContentRegistry xContentRegistry,
+        IndicesService indicesService,
+        SystemIndices systemIndices,
+        IndexSettingProviders indexSettingProviders
+    ) {
+        super(
+            SimulateTemplateAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            SimulateTemplateAction.Request::new,
+            indexNameExpressionResolver,
+            SimulateIndexTemplateResponse::new,
+            ThreadPool.Names.SAME
+        );
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;
         this.indicesService = indicesService;
         this.aliasValidator = new AliasValidator();
+        this.systemIndices = systemIndices;
+        this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected SimulateIndexTemplateResponse read(StreamInput in) throws IOException {
-        return new SimulateIndexTemplateResponse(in);
-    }
-
-    @Override
-    protected void masterOperation(Task task, SimulateTemplateAction.Request request, ClusterState state,
-                                   ActionListener<SimulateIndexTemplateResponse> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        SimulateTemplateAction.Request request,
+        ClusterState state,
+        ActionListener<SimulateIndexTemplateResponse> listener
+    ) throws Exception {
         String uuid = UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
         final String temporaryIndexName = "simulate_template_index_" + uuid;
         final ClusterState stateWithTemplate;
@@ -95,13 +102,22 @@ public class TransportSimulateTemplateAction
         // First, if a template body was requested, we need to "fake add" that template to the
         // cluster state, so it can be used when we resolved settings/etc
         if (request.getIndexTemplateRequest() != null) {
-            // we'll "locally" add the template defined by the user in the cluster state (as if it existed in the system)
-            simulateTemplateToAdd = "simulate_template_" + uuid;
+            // we'll "locally" add the template defined by the user in the cluster state (as if it
+            // existed in the system), either with a temporary name, or with the given name if
+            // specified, to simulate replacing the existing template
+            simulateTemplateToAdd = request.getTemplateName() == null ? "simulate_template_" + uuid : request.getTemplateName();
             // Perform validation for things like typos in component template names
-            MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), simulateTemplateToAdd,
-                request.getIndexTemplateRequest().indexTemplate());
-            stateWithTemplate = indexTemplateService.addIndexTemplateV2(state, request.getIndexTemplateRequest().create(),
-                simulateTemplateToAdd, request.getIndexTemplateRequest().indexTemplate());
+            MetadataIndexTemplateService.validateV2TemplateRequest(
+                state.metadata(),
+                simulateTemplateToAdd,
+                request.getIndexTemplateRequest().indexTemplate()
+            );
+            stateWithTemplate = indexTemplateService.addIndexTemplateV2(
+                state,
+                request.getIndexTemplateRequest().create(),
+                simulateTemplateToAdd,
+                request.getIndexTemplateRequest().indexTemplate()
+            );
         } else {
             simulateTemplateToAdd = null;
             stateWithTemplate = state;
@@ -128,8 +144,11 @@ public class TransportSimulateTemplateAction
             return;
         }
 
-        final ClusterState tempClusterState =
-            TransportSimulateIndexTemplateAction.resolveTemporaryState(matchingTemplate, temporaryIndexName, stateWithTemplate);
+        final ClusterState tempClusterState = TransportSimulateIndexTemplateAction.resolveTemporaryState(
+            matchingTemplate,
+            temporaryIndexName,
+            stateWithTemplate
+        );
         ComposableIndexTemplate templateV2 = tempClusterState.metadata().templatesV2().get(matchingTemplate);
         assert templateV2 != null : "the matched template must exist";
 
@@ -137,8 +156,16 @@ public class TransportSimulateTemplateAction
         overlapping.putAll(findConflictingV1Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
         overlapping.putAll(findConflictingV2Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
 
-        Template template = TransportSimulateIndexTemplateAction.resolveTemplate(matchingTemplate, temporaryIndexName,
-            stateWithTemplate, xContentRegistry, indicesService, aliasValidator);
+        Template template = TransportSimulateIndexTemplateAction.resolveTemplate(
+            matchingTemplate,
+            temporaryIndexName,
+            stateWithTemplate,
+            xContentRegistry,
+            indicesService,
+            aliasValidator,
+            systemIndices,
+            indexSettingProviders
+        );
         listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
     }
 

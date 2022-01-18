@@ -1,0 +1,766 @@
+<?xml version='1.0' encoding='utf-8' ?>
+
+<!-- build 20202.20.0525.1210                               -->
+<datasource formatted-name='federated.1g70urs0o5vyl31a5rr9a1i0lbz4' inline='true' source-platform='win' version='18.1' xmlns:user='http://www.tableausoftware.com/xml/user'>
+  <document-format-change-manifest>
+    <_.fcp.ObjectModelEncapsulateLegacy.true...ObjectModelEncapsulateLegacy />
+    <_.fcp.ObjectModelTableType.true...ObjectModelTableType />
+    <_.fcp.SchemaViewerObjectModel.true...SchemaViewerObjectModel />
+  </document-format-change-manifest>
+  <connection class='federated'>
+    <named-connections>
+      <named-connection caption='127.0.0.1' name='leaf'>
+        <connection class='elasticsearch_jdbc' dbname='elasticsearch' one-time-sql='' port='9200' server='127.0.0.1' sslmode='' username='elastic' warehouse='timezone=Z' tdvtconnection='elastic_connection'  />
+      </named-connection>
+    </named-connections>
+    <_.fcp.ObjectModelEncapsulateLegacy.false...relation connection='leaf' name='staples' table='[staples]' type='table' />
+    <_.fcp.ObjectModelEncapsulateLegacy.true...relation connection='leaf' name='staples' table='[staples]' type='table' />
+    <metadata-records>
+      <metadata-record class='column'>
+        <remote-name>Call Center Region</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Call Center Region]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Call Center Region</remote-alias>
+        <ordinal>1</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Customer Balance</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[Customer Balance]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Customer Balance</remote-alias>
+        <ordinal>2</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Customer Name</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Customer Name]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Customer Name</remote-alias>
+        <ordinal>3</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Customer Segment</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Customer Segment]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Customer Segment</remote-alias>
+        <ordinal>4</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Customer State</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Customer State]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Customer State</remote-alias>
+        <ordinal>5</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Discount</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[Discount]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Discount</remote-alias>
+        <ordinal>6</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Employee Dept</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Employee Dept]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Employee Dept</remote-alias>
+        <ordinal>7</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Employee Name</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Employee Name]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Employee Name</remote-alias>
+        <ordinal>8</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Employee Salary</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[Employee Salary]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Employee Salary</remote-alias>
+        <ordinal>9</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Employee Yrs Exp</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[Employee Yrs Exp]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Employee Yrs Exp</remote-alias>
+        <ordinal>10</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Fill Time</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[Fill Time]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Fill Time</remote-alias>
+        <ordinal>11</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Gross Profit</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[Gross Profit]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Gross Profit</remote-alias>
+        <ordinal>12</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Item Count</remote-name>
+        <remote-type>3</remote-type>
+        <local-name>[Item Count]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Item Count</remote-alias>
+        <ordinal>13</ordinal>
+        <local-type>integer</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>11</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Manager Name</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Manager Name]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Manager Name</remote-alias>
+        <ordinal>14</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Market Segment</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Market Segment]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Market Segment</remote-alias>
+        <ordinal>15</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Order Date</remote-name>
+        <remote-type>135</remote-type>
+        <local-name>[Order Date]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Order Date</remote-alias>
+        <ordinal>16</ordinal>
+        <local-type>datetime</local-type>
+        <aggregation>Year</aggregation>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Order Day</remote-name>
+        <remote-type>3</remote-type>
+        <local-name>[Order Day]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Order Day</remote-alias>
+        <ordinal>17</ordinal>
+        <local-type>integer</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>11</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Order ID</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Order ID]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Order ID</remote-alias>
+        <ordinal>18</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Order Month</remote-name>
+        <remote-type>3</remote-type>
+        <local-name>[Order Month]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Order Month</remote-alias>
+        <ordinal>19</ordinal>
+        <local-type>integer</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>11</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Order Priority</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Order Priority]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Order Priority</remote-alias>
+        <ordinal>20</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Order Quantity</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[Order Quantity]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Order Quantity</remote-alias>
+        <ordinal>21</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Order Quarter</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Order Quarter]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Order Quarter</remote-alias>
+        <ordinal>22</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Order Status</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Order Status]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Order Status</remote-alias>
+        <ordinal>23</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Order Year</remote-name>
+        <remote-type>3</remote-type>
+        <local-name>[Order Year]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Order Year</remote-alias>
+        <ordinal>24</ordinal>
+        <local-type>integer</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>11</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>PID</remote-name>
+        <remote-type>3</remote-type>
+        <local-name>[PID]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>PID</remote-alias>
+        <ordinal>25</ordinal>
+        <local-type>integer</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>11</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Price</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[Price]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Price</remote-alias>
+        <ordinal>26</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Prod Type1</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Prod Type1]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Prod Type1</remote-alias>
+        <ordinal>27</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Prod Type2</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Prod Type2]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Prod Type2</remote-alias>
+        <ordinal>28</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Prod Type3</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Prod Type3]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Prod Type3</remote-alias>
+        <ordinal>29</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Prod Type4</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Prod Type4]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Prod Type4</remote-alias>
+        <ordinal>30</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Product Base Margin</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[Product Base Margin]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Product Base Margin</remote-alias>
+        <ordinal>31</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Product Container</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Product Container]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Product Container</remote-alias>
+        <ordinal>32</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Product ID</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Product ID]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Product ID</remote-alias>
+        <ordinal>33</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Product In Stock</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Product In Stock]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Product In Stock</remote-alias>
+        <ordinal>34</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Product Name</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Product Name]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Product Name</remote-alias>
+        <ordinal>35</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Receive Time</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[Receive Time]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Receive Time</remote-alias>
+        <ordinal>36</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Received Date</remote-name>
+        <remote-type>135</remote-type>
+        <local-name>[Received Date]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Received Date</remote-alias>
+        <ordinal>37</ordinal>
+        <local-type>datetime</local-type>
+        <aggregation>Year</aggregation>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Sales Total</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[Sales Total]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Sales Total</remote-alias>
+        <ordinal>38</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Ship Charge</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[Ship Charge]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Ship Charge</remote-alias>
+        <ordinal>39</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Ship Date</remote-name>
+        <remote-type>135</remote-type>
+        <local-name>[Ship Date]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Ship Date</remote-alias>
+        <ordinal>40</ordinal>
+        <local-type>datetime</local-type>
+        <aggregation>Year</aggregation>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Ship Handle Cost</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[Ship Handle Cost]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Ship Handle Cost</remote-alias>
+        <ordinal>41</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Ship Mode</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Ship Mode]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Ship Mode</remote-alias>
+        <ordinal>42</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Ship Priority</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Ship Priority]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Ship Priority</remote-alias>
+        <ordinal>43</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Ship Promo</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Ship Promo]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Ship Promo</remote-alias>
+        <ordinal>44</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Supplier Balance</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[Supplier Balance]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Supplier Balance</remote-alias>
+        <ordinal>45</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Supplier Name</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Supplier Name]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Supplier Name</remote-alias>
+        <ordinal>46</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Supplier Region</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Supplier Region]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Supplier Region</remote-alias>
+        <ordinal>47</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Supplier State</remote-name>
+        <remote-type>129</remote-type>
+        <local-name>[Supplier State]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Supplier State</remote-alias>
+        <ordinal>48</ordinal>
+        <local-type>string</local-type>
+        <aggregation>Count</aggregation>
+        <width>32766</width>
+        <contains-null>true</contains-null>
+        <attributes>
+          <attribute datatype='string' name='TypeIsVarchar'>&quot;true&quot;</attribute>
+        </attributes>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Tax Rate</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[Tax Rate]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Tax Rate</remote-alias>
+        <ordinal>49</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+      <metadata-record class='column'>
+        <remote-name>Total Cycle Time</remote-name>
+        <remote-type>5</remote-type>
+        <local-name>[Total Cycle Time]</local-name>
+        <parent-name>[staples]</parent-name>
+        <remote-alias>Total Cycle Time</remote-alias>
+        <ordinal>50</ordinal>
+        <local-type>real</local-type>
+        <aggregation>Sum</aggregation>
+        <precision>7</precision>
+        <contains-null>true</contains-null>
+        <_.fcp.ObjectModelEncapsulateLegacy.true...object-id>[staples_1BF3B1DA9B1E4629AEF2659485D0D340]</_.fcp.ObjectModelEncapsulateLegacy.true...object-id>
+      </metadata-record>
+    </metadata-records>
+  </connection>
+  <aliases enabled='yes' />
+  <column datatype='string' name='[Customer State]' role='dimension' semantic-role='[State].[Name]' type='nominal' />
+  <column datatype='integer' name='[Order Day]' role='dimension' type='quantitative' />
+  <column datatype='integer' name='[Order Month]' role='dimension' type='quantitative' />
+  <column datatype='integer' name='[Order Year]' role='dimension' type='quantitative' />
+  <column datatype='string' name='[Supplier State]' role='dimension' semantic-role='[State].[Name]' type='nominal' />
+  <_.fcp.ObjectModelTableType.true...column caption='staples' datatype='table' name='[__tableau_internal_object_id__].[staples_1BF3B1DA9B1E4629AEF2659485D0D340]' role='measure' type='quantitative' />
+  <layout _.fcp.SchemaViewerObjectModel.false...dim-percentage='0.5' _.fcp.SchemaViewerObjectModel.false...measure-percentage='0.4' dim-ordering='alphabetic' measure-ordering='alphabetic' show-structure='true' />
+  <semantic-values>
+    <semantic-value key='[Country].[Name]' value='&quot;USA&quot;' />
+  </semantic-values>
+  <_.fcp.ObjectModelEncapsulateLegacy.true...object-graph>
+    <objects>
+      <object caption='staples' id='staples_1BF3B1DA9B1E4629AEF2659485D0D340'>
+        <properties context=''>
+          <relation connection='leaf' name='staples' table='[staples]' type='table' />
+        </properties>
+      </object>
+    </objects>
+  </_.fcp.ObjectModelEncapsulateLegacy.true...object-graph>
+</datasource>

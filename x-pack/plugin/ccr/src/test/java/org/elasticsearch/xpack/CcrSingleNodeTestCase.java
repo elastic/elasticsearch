@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack;
@@ -12,7 +13,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.plugins.Plugin;
@@ -118,8 +119,10 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
 
     protected void ensureEmptyWriteBuffers() throws Exception {
         assertBusy(() -> {
-            FollowStatsAction.StatsResponses statsResponses =
-                client().execute(FollowStatsAction.INSTANCE, new FollowStatsAction.StatsRequest()).actionGet();
+            FollowStatsAction.StatsResponses statsResponses = client().execute(
+                FollowStatsAction.INSTANCE,
+                new FollowStatsAction.StatsRequest()
+            ).actionGet();
             for (FollowStatsAction.StatsResponse statsResponse : statsResponses.getStatsResponses()) {
                 ShardFollowNodeTaskStatus status = statsResponse.status();
                 assertThat(status.writeBufferOperationCount(), equalTo(0));

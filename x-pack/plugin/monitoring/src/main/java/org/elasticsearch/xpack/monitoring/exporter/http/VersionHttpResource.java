@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -16,7 +17,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Map;
@@ -52,7 +53,7 @@ public class VersionHttpResource extends HttpResource {
      * If it does not, then there is nothing that can be done except wait until it does. There is no publishing aspect to this operation.
      */
     @Override
-    protected void doCheckAndPublish(final RestClient client, final ActionListener<Boolean> listener) {
+    protected void doCheckAndPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
         logger.trace("checking [{}] to ensure that it supports the minimum version [{}]", resourceOwnerName, minimumVersion);
 
         final Request request = new Request("GET", "/");
@@ -71,10 +72,14 @@ public class VersionHttpResource extends HttpResource {
 
             @Override
             public void onFailure(final Exception exception) {
-                logger.error((Supplier<?>) () ->
-                             new ParameterizedMessage("failed to verify minimum version [{}] on the [{}] monitoring cluster",
-                                                      minimumVersion, resourceOwnerName),
-                             exception);
+                logger.error(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "failed to verify minimum version [{}] on the [{}] monitoring cluster",
+                        minimumVersion,
+                        resourceOwnerName
+                    ),
+                    exception
+                );
 
                 listener.onFailure(exception);
             }
@@ -86,28 +91,26 @@ public class VersionHttpResource extends HttpResource {
      * {@link #minimumVersion}.
      *
      * @param response The response to parse.
-     * @return {@code true} if the remote cluster is running a supported version.
+     * @return A ready result if the remote cluster is running a supported version.
      * @throws NullPointerException if the response is malformed.
      * @throws ClassCastException if the response is malformed.
      * @throws IOException if any parsing issue occurs.
      */
-    private boolean validateVersion(final Response response) throws IOException {
+    private ResourcePublishResult validateVersion(final Response response) throws IOException {
         Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(), false);
         // the response should be filtered to just '{"version":{"number":"xyz"}}', so this is cheap and guaranteed
         @SuppressWarnings("unchecked")
         final String versionNumber = (String) ((Map<String, Object>) map.get("version")).get("number");
-        final Version version = Version.fromString(
-            versionNumber
-                .replace("-SNAPSHOT", "")
-                .replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
-        );
+        final Version version = Version.fromString(versionNumber.replace("-SNAPSHOT", "").replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", ""));
 
         if (version.onOrAfter(minimumVersion)) {
             logger.debug("version [{}] >= [{}] and supported for [{}]", version, minimumVersion, resourceOwnerName);
-            return true;
+            return ResourcePublishResult.ready();
         } else {
             logger.error("version [{}] < [{}] and NOT supported for [{}]", version, minimumVersion, resourceOwnerName);
-            return false;
+            return ResourcePublishResult.notReady(
+                "version [" + version + "] < [" + minimumVersion + "] and NOT supported for [" + resourceOwnerName + "]"
+            );
         }
     }
 

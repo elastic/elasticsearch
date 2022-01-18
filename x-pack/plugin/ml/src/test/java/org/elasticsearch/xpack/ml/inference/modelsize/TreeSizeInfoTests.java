@@ -1,20 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.inference.modelsize;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.TreeInferenceModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.TreeInferenceModelTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeTests;
 
 import java.io.IOException;
 import java.util.Arrays;
-
 
 public class TreeSizeInfoTests extends SizeEstimatorTestCase<TreeSizeInfo, TreeInferenceModel> {
 
@@ -25,14 +25,15 @@ public class TreeSizeInfoTests extends SizeEstimatorTestCase<TreeSizeInfo, TreeI
     static TreeSizeInfo translateToEstimate(TreeInferenceModel tree) {
         int numClasses = Arrays.stream(tree.getNodes())
             .filter(TreeInferenceModel.Node::isLeaf)
-            .map(n -> (TreeInferenceModel.LeafNode)n)
+            .map(n -> (TreeInferenceModel.LeafNode) n)
             .findFirst()
             .get()
-            .getLeafValue()
-            .length;
-        return new TreeSizeInfo((int)Arrays.stream(tree.getNodes()).filter(TreeInferenceModel.Node::isLeaf).count(),
-            (int)Arrays.stream(tree.getNodes()).filter(t -> t.isLeaf() == false).count(),
-            numClasses);
+            .getLeafValue().length;
+        return new TreeSizeInfo(
+            (int) Arrays.stream(tree.getNodes()).filter(TreeInferenceModel.Node::isLeaf).count(),
+            (int) Arrays.stream(tree.getNodes()).filter(t -> t.isLeaf() == false).count(),
+            numClasses
+        );
     }
 
     @Override

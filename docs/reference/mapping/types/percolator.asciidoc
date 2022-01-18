@@ -1,5 +1,5 @@
 [[percolator]]
-=== Percolator type
+=== Percolator field type
 ++++
 <titleabbrev>Percolator</titleabbrev>
 ++++
@@ -18,18 +18,18 @@ If the following mapping configures the `percolator` field type for the
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
-    "mappings": {
-        "properties": {
-            "query": {
-                "type": "percolator"
-            },
-            "field": {
-                "type": "text"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "query": {
+        "type": "percolator"
+      },
+      "field": {
+        "type": "text"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTSETUP
@@ -38,13 +38,13 @@ Then you can index a query:
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_doc/match_value
+PUT my-index-000001/_doc/match_value
 {
-    "query" : {
-        "match" : {
-            "field" : "value"
-        }
+  "query": {
+    "match": {
+      "field": "value"
     }
+  }
 }
 --------------------------------------------------
 
@@ -53,11 +53,11 @@ PUT my_index/_doc/match_value
 
 Fields referred to in a percolator query must *already* exist in the mapping
 associated with the index used for percolation. In order to make sure these fields exist,
-add or update a mapping via the <<indices-create-index,create index>> or <<indices-put-mapping,put mapping>> APIs.
+add or update a mapping via the <<indices-create-index,create index>> or <<indices-put-mapping,update mapping>> APIs.
 
 =====================================
 
-[float]
+[discrete]
 ==== Reindexing your percolator queries
 
 Reindexing percolator queries is sometimes required to benefit from improvements made to the `percolator` field type in
@@ -220,7 +220,7 @@ now returns matches from the new index:
 
 <1> Percolator query hit is now being presented from the new index.
 
-[float]
+[discrete]
 ==== Optimizing query time text analysis
 
 When the percolator verifies a percolator candidate match it is going to parse, perform query time text analysis and actually run
@@ -411,10 +411,10 @@ This results in a response like this:
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 6,/"took": "$body.took",/]
 
-[float]
+[discrete]
 ==== Optimizing wildcard queries.
 
-Wildcard queries are  more expensive than other queries for the percolator,
+Wildcard queries are more expensive than other queries for the percolator,
 especially if the wildcard expressions are large.
 
 In the case of `wildcard` queries with prefix wildcard expressions or just the `prefix` query,
@@ -680,7 +680,7 @@ GET /my_queries2/_search
 --------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 ==== Dedicated Percolator Index
 
 Percolate queries can be added to any index. Instead of adding percolate queries to the index the data resides in,
@@ -689,7 +689,7 @@ can have its own index settings (For example the number of primary and replica s
 percolate index, you need to make sure that the mappings from the normal index are also available on the percolate index.
 Otherwise percolate queries can be parsed incorrectly.
 
-[float]
+[discrete]
 ==== Forcing Unmapped Fields to be Handled as Strings
 
 In certain cases it is unknown what kind of percolator queries do get registered, and if no field mapping exists for fields
@@ -700,17 +700,17 @@ if all unmapped fields are handled as if these were default text fields. In thos
 a percolator query does not exist, it will be handled as a default text field so that adding the percolator query doesn't
 fail.
 
-[float]
+[discrete]
 ==== Limitations
 
-[float]
+[discrete]
 [[parent-child]]
 ===== Parent/child
 
 Because the `percolate` query is processing one document at a time, it doesn't support queries and filters that run
 against child documents such as `has_child` and `has_parent`.
 
-[float]
+[discrete]
 ===== Fetching queries
 
 There are a number of queries that fetch data via a get call during query parsing. For example the `terms` query when
@@ -721,7 +721,7 @@ is that fetching of terms that these queries do, happens both each time the perc
 and replica shards, so the terms that are actually indexed can be different between shard copies, if the source index
 changed while indexing.
 
-[float]
+[discrete]
 ===== Script query
 
 The script inside a `script` query can only access doc values fields. The `percolate` query indexes the provided document
@@ -729,10 +729,10 @@ into an in-memory index. This in-memory index doesn't support stored fields and 
 other stored fields are not stored. This is the reason why in the `script` query the `_source` and other stored fields
 aren't available.
 
-[float]
+[discrete]
 ===== Field aliases
 
-Percolator queries that contain <<alias, field aliases>> may not always behave as expected. In particular, if a
+Percolator queries that contain <<field-alias, field aliases>> may not always behave as expected. In particular, if a
 percolator query is registered that contains a field alias, and then that alias is updated in the mappings to refer
 to a different field, the stored query will still refer to the original target field. To pick up the change to
 the field alias, the percolator query must be explicitly reindexed.

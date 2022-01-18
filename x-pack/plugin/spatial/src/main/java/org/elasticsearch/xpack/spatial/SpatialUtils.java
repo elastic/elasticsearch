@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial;
 
@@ -22,19 +23,32 @@ public class SpatialUtils {
      * Makes an n-gon, centered at the provided circle's center, and each vertex approximately
      * {@link Circle#getRadiusMeters()} away from the center.
      *
+     * It throws an IllegalArgumentException if the circle contains a pole.
+     *
      * This does not split the polygon across the date-line. Relies on {@link GeoShapeIndexer} to
      * split prepare polygon for indexing.
      *
      * Adapted from from org.apache.lucene.geo.GeoTestUtil
      * */
     public static Polygon createRegularGeoShapePolygon(Circle circle, int gons) {
+        if (SloppyMath.haversinMeters(circle.getLat(), circle.getLon(), 90, 0) < circle.getRadiusMeters()) {
+            throw new IllegalArgumentException(
+                "circle [" + circle.toString() + "] contains the north pole. " + "It cannot be translated to a polygon"
+            );
+        }
+        if (SloppyMath.haversinMeters(circle.getLat(), circle.getLon(), -90, 0) < circle.getRadiusMeters()) {
+            throw new IllegalArgumentException(
+                "circle [" + circle.toString() + "] contains the south pole. " + "It cannot be translated to a polygon"
+            );
+        }
         double[][] result = new double[2][];
-        result[0] = new double[gons+1];
-        result[1] = new double[gons+1];
-        for(int i=0; i<gons; i++) {
+        result[0] = new double[gons + 1];
+        result[1] = new double[gons + 1];
+        for (int i = 0; i < gons; i++) {
+            // make sure we do not start at angle 0 or we have issues at the poles
             double angle = i * (360.0 / gons);
-            double x = Math.cos(SloppyMath.toRadians(angle));
-            double y = Math.sin(SloppyMath.toRadians(angle));
+            double x = Math.cos(Math.toRadians(angle));
+            double y = Math.sin(Math.toRadians(angle));
             double factor = 2.0;
             double step = 1.0;
             int last = 0;
@@ -83,12 +97,12 @@ public class SpatialUtils {
      **/
     public static Polygon createRegularShapePolygon(Circle circle, int gons) {
         double[][] result = new double[2][];
-        result[0] = new double[gons+1];
-        result[1] = new double[gons+1];
-        for(int i=0; i<gons; i++) {
+        result[0] = new double[gons + 1];
+        result[1] = new double[gons + 1];
+        for (int i = 0; i < gons; i++) {
             double angle = i * (360.0 / gons);
-            double x = circle.getRadiusMeters() * Math.cos(SloppyMath.toRadians(angle));
-            double y = circle.getRadiusMeters() * Math.sin(SloppyMath.toRadians(angle));
+            double x = circle.getRadiusMeters() * Math.cos(Math.toRadians(angle));
+            double y = circle.getRadiusMeters() * Math.sin(Math.toRadians(angle));
 
             result[0][i] = x + circle.getX();
             result[1][i] = y + circle.getY();

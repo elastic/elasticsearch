@@ -10,19 +10,19 @@ Retrieves multiple JSON documents by ID.
 --------------------------------------------------
 GET /_mget
 {
-    "docs" : [
-        {
-            "_index" : "twitter",
-            "_id" : "1"
-        },
-        {
-            "_index" : "twitter",
-            "_id" : "2"
-        }
-    ]
+  "docs": [
+    {
+      "_index": "my-index-000001",
+      "_id": "1"
+    },
+    {
+      "_index": "my-index-000001",
+      "_id": "2"
+    }
+  ]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[docs-multi-get-api-request]]
 ==== {api-request-title}
@@ -30,6 +30,12 @@ GET /_mget
 `GET /_mget`
 
 `GET /<index>/_mget`
+
+[[docs-multi-get-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
 
 [[docs-multi-get-api-desc]]
 ==== {api-description-title}
@@ -62,7 +68,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=realtime]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+`refresh`::
+(Optional, Boolean) If `true`, the request refreshes relevant shards before
+retrieving documents. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
@@ -92,12 +100,12 @@ document:
 The index that contains the document.
 Required if no index is specified in the request URI.
 
-`_routing`::
+`routing`::
 (Optional, string) The key for the primary shard the document resides on.
 Required if routing is used during indexing.
 
 `_source`::
-(Optional, boolean) If `false`,  excludes all `_source` fields. Defaults to `true`.
+(Optional, Boolean) If `false`,  excludes all `_source` fields. Defaults to `true`.
 `source_include`:::
 (Optional, array) The fields to extract and return from the `_source` field.
 `source_exclude`:::
@@ -128,30 +136,30 @@ If you specify an index in the request URI, only the document IDs are required i
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_mget
+GET /my-index-000001/_mget
 {
-    "docs" : [
-        {
-            "_id" : "1"
-        },
-        {
-            "_id" : "2"
-        }
-    ]
+  "docs": [
+    {
+      "_id": "1"
+    },
+    {
+      "_id": "2"
+    }
+  ]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 You can use the `ids` element to simplify the request:
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_mget
+GET /my-index-000001/_mget
 {
-    "ids" : ["1", "2"]
+  "ids" : ["1", "2"]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[mget-source-filtering]]
 ===== Filter source fields
@@ -170,26 +178,26 @@ from document 3 but filters out the `user.location` field.
 --------------------------------------------------
 GET /_mget
 {
-    "docs" : [
-        {
-            "_index" : "test",
-            "_id" : "1",
-            "_source" : false
-        },
-        {
-            "_index" : "test",
-            "_id" : "2",
-            "_source" : ["field3", "field4"]
-        },
-        {
-            "_index" : "test",
-            "_id" : "3",
-            "_source" : {
-                "include": ["user"],
-                "exclude": ["user.location"]
-            }
-        }
-    ]
+  "docs": [
+    {
+      "_index": "test",
+      "_id": "1",
+      "_source": false
+    },
+    {
+      "_index": "test",
+      "_id": "2",
+      "_source": [ "field3", "field4" ]
+    },
+    {
+      "_index": "test",
+      "_id": "3",
+      "_source": {
+        "include": [ "user" ],
+        "exclude": [ "user.location" ]
+      }
+    }
+  ]
 }
 --------------------------------------------------
 
@@ -202,24 +210,24 @@ You can include the `stored_fields` query parameter in the request URI to specif
 to use when there are no per-document instructions. 
 
 For example, the following request retrieves `field1` and `field2` from document 1, and
-`field3` and `field4`from document 2:
+`field3` and `field4` from document 2:
 
 [source,console]
 --------------------------------------------------
 GET /_mget
 {
-    "docs" : [
-        {
-            "_index" : "test",
-            "_id" : "1",
-            "stored_fields" : ["field1", "field2"]
-        },
-        {
-            "_index" : "test",
-            "_id" : "2",
-            "stored_fields" : ["field3", "field4"]
-        }
-    ]
+  "docs": [
+    {
+      "_index": "test",
+      "_id": "1",
+      "stored_fields": [ "field1", "field2" ]
+    },
+    {
+      "_index": "test",
+      "_id": "2",
+      "stored_fields": [ "field3", "field4" ]
+    }
+  ]
 }
 --------------------------------------------------
 
@@ -231,15 +239,15 @@ overridden to return `field3` and `field4` for document 2.
 --------------------------------------------------
 GET /test/_mget?stored_fields=field1,field2
 {
-    "docs" : [
-        {
-            "_id" : "1"
-        },
-        {
-            "_id" : "2",
-            "stored_fields" : ["field3", "field4"]
-        }
-    ]
+  "docs": [
+    {
+      "_id": "1"
+    },
+    {
+      "_id": "2",
+      "stored_fields": [ "field3", "field4" ]
+    }
+  ]
 }
 --------------------------------------------------
 
@@ -254,16 +262,16 @@ and fetches `test/_doc/1` from the shard corresponding to routing key `key2`.
 --------------------------------------------------
 GET /_mget?routing=key1
 {
-    "docs" : [
-        {
-            "_index" : "test",
-            "_id" : "1",
-            "routing" : "key2"
-        },
-        {
-            "_index" : "test",
-            "_id" : "2"
-        }
-    ]
+  "docs": [
+    {
+      "_index": "test",
+      "_id": "1",
+      "routing": "key2"
+    },
+    {
+      "_index": "test",
+      "_id": "2"
+    }
+  ]
 }
 --------------------------------------------------

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
@@ -28,8 +17,8 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -54,8 +43,11 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
     private static final Logger logger = LogManager.getLogger(IndexingMemoryController.class);
 
     /** How much heap (% or bytes) we will share across all actively indexing shards on this node (default: 10%). */
-    public static final Setting<ByteSizeValue> INDEX_BUFFER_SIZE_SETTING =
-            Setting.memorySizeSetting("indices.memory.index_buffer_size", "10%", Property.NodeScope);
+    public static final Setting<ByteSizeValue> INDEX_BUFFER_SIZE_SETTING = Setting.memorySizeSetting(
+        "indices.memory.index_buffer_size",
+        "10%",
+        Property.NodeScope
+    );
 
     /** Only applies when <code>indices.memory.index_buffer_size</code> is a %,
      * to set a floor on the actual size in bytes (default: 48 MB). */
@@ -64,7 +56,8 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         new ByteSizeValue(48, ByteSizeUnit.MB),
         new ByteSizeValue(0, ByteSizeUnit.BYTES),
         new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-        Property.NodeScope);
+        Property.NodeScope
+    );
 
     /** Only applies when <code>indices.memory.index_buffer_size</code> is a %,
      * to set a ceiling on the actual size in bytes (default: not set). */
@@ -73,7 +66,8 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         new ByteSizeValue(-1),
         new ByteSizeValue(-1),
         new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-        Property.NodeScope);
+        Property.NodeScope
+    );
 
     /** If we see no indexing operations after this much time for a given shard,
      * we consider that shard inactive (default: 5 minutes). */
@@ -87,7 +81,8 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
     public static final Setting<TimeValue> SHARD_MEMORY_INTERVAL_TIME_SETTING = Setting.positiveTimeSetting(
         "indices.memory.interval",
         TimeValue.timeValueSeconds(5),
-        Property.NodeScope);
+        Property.NodeScope
+    );
 
     private final ThreadPool threadPool;
 
@@ -104,7 +99,10 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
     private final Cancellable scheduler;
 
     private static final EnumSet<IndexShardState> CAN_WRITE_INDEX_BUFFER_STATES = EnumSet.of(
-            IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED);
+        IndexShardState.RECOVERING,
+        IndexShardState.POST_RECOVERY,
+        IndexShardState.STARTED
+    );
 
     private final ShardsIndicesStatusChecker statusChecker;
 
@@ -134,10 +132,14 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
         this.statusChecker = new ShardsIndicesStatusChecker();
 
-        logger.debug("using indexing buffer size [{}] with {} [{}], {} [{}]",
-                     this.indexingBuffer,
-                     SHARD_INACTIVE_TIME_SETTING.getKey(), this.inactiveTime,
-                     SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), this.interval);
+        logger.debug(
+            "using indexing buffer size [{}] with {} [{}], {} [{}]",
+            this.indexingBuffer,
+            SHARD_INACTIVE_TIME_SETTING.getKey(),
+            this.inactiveTime,
+            SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(),
+            this.interval
+        );
         this.scheduler = scheduleTask(threadPool);
 
         // Need to save this so we can later launch async "write indexing buffer to disk" on shards:
@@ -255,17 +257,17 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         public void bytesWritten(int bytes) {
             long totalBytes = bytesWrittenSinceCheck.addAndGet(bytes);
             assert totalBytes >= 0;
-            while (totalBytes > indexingBuffer.getBytes()/30) {
+            while (totalBytes > indexingBuffer.getBytes() / 30) {
 
                 if (runLock.tryLock()) {
                     try {
                         // Must pull this again because it may have changed since we first checked:
                         totalBytes = bytesWrittenSinceCheck.get();
-                        if (totalBytes > indexingBuffer.getBytes()/30) {
+                        if (totalBytes > indexingBuffer.getBytes() / 30) {
                             bytesWrittenSinceCheck.addAndGet(-totalBytes);
                             // NOTE: this is only an approximate check, because bytes written is to the translog,
                             // vs indexing memory buffer which is typically smaller but can be larger in extreme
-                            // cases (many unique terms).  This logic is here only as a safety against thread
+                            // cases (many unique terms). This logic is here only as a safety against thread
                             // starvation or too infrequent checking, to ensure we are still checking periodically,
                             // in proportion to bytes processed by indexing:
                             runUnlocked();
@@ -316,7 +318,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                 totalBytesWriting += shardWritingBytes;
 
                 // If the refresh completed just after we pulled shardWritingBytes and before we pulled shardBytesUsed, then we could
-                // have a negative value here.  So we just skip this shard since that means it's now using very little heap:
+                // have a negative value here. So we just skip this shard since that means it's now using very little heap:
                 if (shardBytesUsed < 0) {
                     continue;
                 }
@@ -325,9 +327,13 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
             }
 
             if (logger.isTraceEnabled()) {
-                logger.trace("total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}]",
-                    new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING.getKey(), indexingBuffer,
-                    new ByteSizeValue(totalBytesWriting));
+                logger.trace(
+                    "total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}]",
+                    new ByteSizeValue(totalBytesUsed),
+                    INDEX_BUFFER_SIZE_SETTING.getKey(),
+                    indexingBuffer,
+                    new ByteSizeValue(totalBytesWriting)
+                );
             }
 
             // If we are using more than 50% of our budget across both indexing buffer and bytes we are still moving to disk, then we now
@@ -349,7 +355,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                     shardBytesUsed -= shardWritingBytes;
 
                     // If the refresh completed just after we pulled shardWritingBytes and before we pulled shardBytesUsed, then we could
-                    // have a negative value here.  So we just skip this shard since that means it's now using very little heap:
+                    // have a negative value here. So we just skip this shard since that means it's now using very little heap:
                     if (shardBytesUsed < 0) {
                         continue;
                     }
@@ -357,8 +363,12 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                     if (shardBytesUsed > 0) {
                         if (logger.isTraceEnabled()) {
                             if (shardWritingBytes != 0) {
-                                logger.trace("shard [{}] is using [{}] heap, writing [{}] heap", shard.shardId(), shardBytesUsed,
-                                    shardWritingBytes);
+                                logger.trace(
+                                    "shard [{}] is using [{}] heap, writing [{}] heap",
+                                    shard.shardId(),
+                                    shardBytesUsed,
+                                    shardWritingBytes
+                                );
                             } else {
                                 logger.trace("shard [{}] is using [{}] heap, not writing any bytes", shard.shardId(), shardBytesUsed);
                             }
@@ -367,14 +377,23 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                     }
                 }
 
-                logger.debug("now write some indexing buffers: total indexing heap bytes used [{}] vs {} [{}], " +
-                    "currently writing bytes [{}], [{}] shards with non-zero indexing buffer", new ByteSizeValue(totalBytesUsed),
-                    INDEX_BUFFER_SIZE_SETTING.getKey(), indexingBuffer, new ByteSizeValue(totalBytesWriting), queue.size());
+                logger.debug(
+                    "now write some indexing buffers: total indexing heap bytes used [{}] vs {} [{}], "
+                        + "currently writing bytes [{}], [{}] shards with non-zero indexing buffer",
+                    new ByteSizeValue(totalBytesUsed),
+                    INDEX_BUFFER_SIZE_SETTING.getKey(),
+                    indexingBuffer,
+                    new ByteSizeValue(totalBytesWriting),
+                    queue.size()
+                );
 
                 while (totalBytesUsed > indexingBuffer.getBytes() && queue.isEmpty() == false) {
                     ShardAndBytesUsed largest = queue.poll();
-                    logger.debug("write indexing buffer to disk for shard [{}] to free up its [{}] indexing buffer",
-                        largest.shard.shardId(), new ByteSizeValue(largest.bytesUsed));
+                    logger.debug(
+                        "write indexing buffer to disk for shard [{}] to free up its [{}] indexing buffer",
+                        largest.shard.shardId(),
+                        new ByteSizeValue(largest.bytesUsed)
+                    );
                     writeIndexingBufferAsync(largest.shard);
                     totalBytesUsed -= largest.bytesUsed;
                     if (doThrottle && throttled.contains(largest.shard) == false) {
@@ -386,7 +405,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
             }
 
             if (doThrottle == false) {
-                for(IndexShard shard : throttled) {
+                for (IndexShard shard : throttled) {
                     logger.info("stop throttling indexing for shard [{}]", shard.shardId());
                     deactivateThrottling(shard);
                 }

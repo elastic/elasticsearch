@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.execution;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
@@ -29,9 +30,17 @@ public class ManualExecutionContext extends WatchExecutionContext {
     private final boolean recordExecution;
     private final boolean knownWatch;
 
-    ManualExecutionContext(Watch watch, boolean knownWatch, ZonedDateTime executionTime, ManualTriggerEvent triggerEvent,
-                           TimeValue defaultThrottlePeriod, Input.Result inputResult, Condition.Result conditionResult,
-                           Map<String, ActionExecutionMode> actionModes, boolean recordExecution) throws Exception {
+    ManualExecutionContext(
+        Watch watch,
+        boolean knownWatch,
+        ZonedDateTime executionTime,
+        ManualTriggerEvent triggerEvent,
+        TimeValue defaultThrottlePeriod,
+        Input.Result inputResult,
+        Condition.Result conditionResult,
+        Map<String, ActionExecutionMode> actionModes,
+        boolean recordExecution
+    ) throws Exception {
 
         super(watch.id(), executionTime, triggerEvent, defaultThrottlePeriod);
 
@@ -53,13 +62,15 @@ public class ManualExecutionContext extends WatchExecutionContext {
             boolean throttleAll = allMode == ActionExecutionMode.SKIP;
             for (ActionWrapper action : watch.actions()) {
                 if (throttleAll) {
-                    onActionResult(new ActionWrapperResult(action.id(),
-                            new Action.Result.Throttled(action.action().type(), "manually skipped")));
+                    onActionResult(
+                        new ActionWrapperResult(action.id(), new Action.Result.Throttled(action.action().type(), "manually skipped"))
+                    );
                 } else {
                     ActionExecutionMode mode = actionModes.get(action.id());
                     if (mode == ActionExecutionMode.SKIP) {
-                        onActionResult(new ActionWrapperResult(action.id(),
-                                new Action.Result.Throttled(action.action().type(), "manually skipped")));
+                        onActionResult(
+                            new ActionWrapperResult(action.id(), new Action.Result.Throttled(action.action().type(), "manually skipped"))
+                        );
                     }
                 }
             }
@@ -166,8 +177,17 @@ public class ManualExecutionContext extends WatchExecutionContext {
             if (executionTime == null) {
                 executionTime = ZonedDateTime.now(ZoneOffset.UTC);
             }
-            ManualExecutionContext context = new ManualExecutionContext(watch, knownWatch, executionTime, triggerEvent,
-                    defaultThrottlePeriod, inputResult, conditionResult, unmodifiableMap(actionModes), recordExecution);
+            ManualExecutionContext context = new ManualExecutionContext(
+                watch,
+                knownWatch,
+                executionTime,
+                triggerEvent,
+                defaultThrottlePeriod,
+                inputResult,
+                conditionResult,
+                unmodifiableMap(actionModes),
+                recordExecution
+            );
             actionModes = null;
             return context;
         }

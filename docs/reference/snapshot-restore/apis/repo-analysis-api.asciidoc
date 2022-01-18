@@ -1,0 +1,594 @@
+[role="xpack"]
+[[repo-analysis-api]]
+=== Repository analysis API
+++++
+<titleabbrev>Repository analysis</titleabbrev>
+++++
+
+Analyzes a repository, reporting its performance characteristics and any
+incorrect behaviour found.
+
+////
+[source,console]
+----
+PUT /_snapshot/my_repository
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+----
+// TESTSETUP
+////
+
+[source,console]
+----
+POST /_snapshot/my_repository/_analyze?blob_count=10&max_blob_size=1mb&timeout=120s
+----
+
+[[repo-analysis-api-request]]
+==== {api-request-title}
+
+`POST /_snapshot/<repository>/_analyze`
+
+[[repo-analysis-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API. For more
+information, see <<security-privileges>>.
+
+* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
+users can use this API.
+
+[[repo-analysis-api-desc]]
+==== {api-description-title}
+
+There are a large number of third-party storage systems available, not all of
+which are suitable for use as a snapshot repository by {es}. Some storage
+systems behave incorrectly, or perform poorly, especially when accessed
+concurrently by multiple clients as the nodes of an {es} cluster do.
+
+The Repository analysis API performs a collection of read and write operations
+on your repository which are designed to detect incorrect behaviour and to
+measure the performance characteristics of your storage system.
+
+The default values for the parameters to this API are deliberately low to
+reduce the impact of running an analysis inadvertently. A realistic experiment
+should set `blob_count` to at least `2000`, `max_blob_size` to at least `2gb`,
+and `max_total_data_size` to at least `1tb`, and will almost certainly need to
+increase the `timeout` to allow time for the process to complete successfully.
+You should run the analysis on a multi-node cluster of a similar size to your
+production cluster so that it can detect any problems that only arise when the
+repository is accessed by many nodes at once.
+
+If the analysis is successful this API returns details of the testing process,
+optionally including how long each operation took. You can use this information
+to determine the performance of your storage system. If any operation fails or
+returns an incorrect result, this API returns an error. If the API returns an
+error then it may not have removed all the data it wrote to the repository. The
+error will indicate the location of any leftover data, and this path is also
+recorded in the {es} logs. You should verify yourself that this location has
+been cleaned up correctly. If there is still leftover data at the specified
+location then you should manually remove it.
+
+If the connection from your client to {es} is closed while the client is
+waiting for the result of the analysis then the test is cancelled. Some clients
+are configured to close their connection if no response is received within a
+certain timeout. An analysis takes a long time to complete so you may need to
+relax any such client-side timeouts. On cancellation the analysis attempts to
+clean up the data it was writing, but it may not be able to remove it all. The
+path to the leftover data is recorded in the {es} logs. You should verify
+yourself that this location has been cleaned up correctly. If there is still
+leftover data at the specified location then you should manually remove it.
+
+If the analysis is successful then it detected no incorrect behaviour, but this
+does not mean that correct behaviour is guaranteed. The analysis attempts to
+detect common bugs but it certainly does not offer 100% coverage. Additionally,
+it does not test the following:
+
+- Your repository must perform durable writes. Once a blob has been written it
+  must remain in place until it is deleted, even after a power loss or similar
+  disaster.
+
+- Your repository must not suffer from silent data corruption. Once a blob has
+  been written its contents must remain unchanged until it is deliberately
+  modified or deleted.
+
+- Your repository must behave correctly even if connectivity from the cluster
+  is disrupted. Reads and writes may fail in this case, but they must not return
+  incorrect results.
+
+IMPORTANT: An analysis writes a substantial amount of data to your repository
+and then reads it back again. This consumes bandwidth on the network between
+the cluster and the repository, and storage space and IO bandwidth on the
+repository itself. You must ensure this load does not affect other users of
+these systems. Analyses respect the repository settings
+`max_snapshot_bytes_per_sec` and `max_restore_bytes_per_sec` if available, and
+the cluster setting `indices.recovery.max_bytes_per_sec` which you can use to
+limit the bandwidth they consume.
+
+NOTE: This API is intended for exploratory use by humans. You should expect the
+request parameters and the response format to vary in future versions.
+
+NOTE: This API may not work correctly in a mixed-version cluster.
+
+==== Implementation details
+
+NOTE: This section of documentation describes how the Repository analysis API
+works in this version of {es}, but you should expect the implementation to vary
+between versions. The request parameters and response format depend on details
+of the implementation so may also be different in newer versions.
+
+The analysis comprises a number of blob-level tasks, as set by the `blob_count`
+parameter. The blob-level tasks are distributed over the data and
+master-eligible nodes in the cluster for execution.
+
+For most blob-level tasks, the executing node first writes a blob to the
+repository, and then instructs some of the other nodes in the cluster to
+attempt to read the data it just wrote. The size of the blob is chosen
+randomly, according to the `max_blob_size` and `max_total_data_size`
+parameters. If any of these reads fails then the repository does not implement
+the necessary read-after-write semantics that {es} requires.
+
+For some blob-level tasks, the executing node will instruct some of its peers
+to attempt to read the data before the writing process completes. These reads
+are permitted to fail, but must not return partial data. If any read returns
+partial data then the repository does not implement the necessary atomicity
+semantics that {es} requires.
+
+For some blob-level tasks, the executing node will overwrite the blob while its
+peers are reading it. In this case the data read may come from either the
+original or the overwritten blob, but the read operation must not return
+partial data or a mix of data from the two blobs. If any of these reads returns
+partial data or a mix of the two blobs then the repository does not implement
+the necessary atomicity semantics that {es} requires for overwrites.
+
+The executing node will use a variety of different methods to write the blob.
+For instance, where applicable, it will use both single-part and multi-part
+uploads. Similarly, the reading nodes will use a variety of different methods
+to read the data back again. For instance they may read the entire blob from
+start to end, or may read only a subset of the data.
+
+For some blob-level tasks, the executing node will abort the write before it is
+complete. In this case it still instructs some of the other nodes in the
+cluster to attempt to read the blob, but all of these reads must fail to find
+the blob.
+
+[[repo-analysis-api-path-params]]
+==== {api-path-parms-title}
+
+`<repository>`::
+(Required, string)
+Name of the snapshot repository to test.
+
+[[repo-analysis-api-query-params]]
+==== {api-query-parms-title}
+
+`blob_count`::
+(Optional, integer) The total number of blobs to write to the repository during
+the test. Defaults to `100`. For realistic experiments you should set this to
+at least `2000`.
+
+`max_blob_size`::
+(Optional, <<size-units, size units>>) The maximum size of a blob to be written
+during the test. Defaults to `10mb`. For realistic experiments you should set
+this to at least `2gb`.
+
+`max_total_data_size`::
+(Optional, <<size-units, size units>>) An upper limit on the total size of all
+the blobs written during the test. Defaults to `1gb`. For realistic experiments
+you should set this to at least `1tb`.
+
+`timeout`::
+(Optional, <<time-units, time units>>) Specifies the period of time to wait for
+the test to complete. If no response is received before the timeout expires,
+the test is cancelled and returns an error. Defaults to `30s`.
+
+===== Advanced query parameters
+
+The following parameters allow additional control over the analysis, but you
+will usually not need to adjust them.
+
+`concurrency`::
+(Optional, integer) The number of write operations to perform concurrently.
+Defaults to `10`.
+
+`read_node_count`::
+(Optional, integer) The number of nodes on which to perform a read operation
+after writing each blob. Defaults to `10`.
+
+`early_read_node_count`::
+(Optional, integer) The number of nodes on which to perform an early read
+operation while writing each blob. Defaults to `2`. Early read operations are
+only rarely performed.
+
+`rare_action_probability`::
+(Optional, double) The probability of performing a rare action (an early read,
+an overwrite, or an aborted write) on each blob. Defaults to `0.02`.
+
+`seed`::
+(Optional, integer) The seed for the pseudo-random number generator used to
+generate the list of operations performed during the test. To repeat the same
+set of operations in multiple experiments, use the same seed in each
+experiment. Note that the operations are performed concurrently so may not
+always happen in the same order on each run.
+
+`detailed`::
+(Optional, boolean) Whether to return detailed results, including timing
+information for every operation performed during the analysis. Defaults to
+`false`, meaning to return only a summary of the analysis.
+
+`rarely_abort_writes`::
+(Optional, boolean) Whether to rarely abort some write requests. Defaults to
+`true`.
+
+[role="child_attributes"]
+[[repo-analysis-api-response-body]]
+==== {api-response-body-title}
+
+The response exposes implementation details of the analysis which may change
+from version to version. The response body format is therefore not considered
+stable and may be different in newer versions.
+
+`coordinating_node`::
+(object)
+Identifies the node which coordinated the analysis and performed the final cleanup.
++
+.Properties of `coordinating_node`
+[%collapsible%open]
+====
+`id`::
+(string)
+The id of the coordinating node.
+
+`name`::
+(string)
+The name of the coordinating node
+====
+
+`repository`::
+(string)
+The name of the repository that was the subject of the analysis.
+
+`blob_count`::
+(integer)
+The number of blobs written to the repository during the test, equal to the
+`?blob_count` request parameter.
+
+`concurrency`::
+(integer)
+The number of write operations performed concurrently during the test, equal to
+the `?concurrency` request parameter.
+
+`read_node_count`::
+(integer)
+The limit on the number of nodes on which read operations were performed after
+writing each blob, equal to the `?read_node_count` request parameter.
+
+`early_read_node_count`::
+(integer)
+The limit on the number of nodes on which early read operations were performed
+after writing each blob, equal to the `?early_read_node_count` request
+parameter.
+
+`max_blob_size`::
+(string)
+The limit on the size of a blob written during the test, equal to the
+`?max_blob_size` parameter.
+
+`max_blob_size_bytes`::
+(long)
+The limit, in bytes, on the size of a blob written during the test, equal to
+the `?max_blob_size` parameter.
+
+`max_total_data_size`::
+(string)
+The limit on the total size of all blob written during the test, equal to the
+`?max_total_data_size` parameter.
+
+`max_total_data_size_bytes`::
+(long)
+The limit, in bytes, on the total size of all blob written during the test,
+equal to the `?max_total_data_size` parameter.
+
+`seed`::
+(long)
+The seed for the pseudo-random number generator used to generate the operations
+used during the test. Equal to the `?seed` request parameter if set.
+
+`rare_action_probability`::
+(double)
+The probability of performing rare actions during the test. Equal to the
+`?rare_action_probability` request parameter.
+
+`blob_path`::
+(string)
+The path in the repository under which all the blobs were written during the
+test.
+
+`issues_detected`::
+(list)
+A list of correctness issues detected, which will be empty if the API
+succeeded. Included to emphasize that a successful response does not guarantee
+correct behaviour in future.
+
+`summary`::
+(object)
+A collection of statistics that summarise the results of the test.
++
+.Properties of `summary`
+[%collapsible%open]
+====
+`write`::
+(object)
+A collection of statistics that summarise the results of the write operations
+in the test.
++
+.Properties of `write`
+[%collapsible%open]
+=====
+`count`::
+(integer)
+The number of write operations performed in the test.
+
+`total_size`::
+(string)
+The total size of all the blobs written in the test.
+
+`total_size_bytes`::
+(long)
+The total size of all the blobs written in the test, in bytes.
+
+`total_throttled`::
+(string)
+The total time spent waiting due to the `max_snapshot_bytes_per_sec` throttle.
+
+`total_throttled_nanos`::
+(long)
+The total time spent waiting due to the `max_snapshot_bytes_per_sec` throttle,
+in nanoseconds.
+
+`total_elapsed`::
+(string)
+The total elapsed time spent on writing blobs in the test.
+
+`total_elapsed_nanos`::
+(long)
+The total elapsed time spent on writing blobs in the test, in nanoseconds.
+=====
+
+`read`::
+(object)
+A collection of statistics that summarise the results of the read operations in
+the test.
++
+.Properties of `read`
+[%collapsible%open]
+=====
+`count`::
+(integer)
+The number of read operations performed in the test.
+
+`total_size`::
+(string)
+The total size of all the blobs or partial blobs read in the test.
+
+`total_size_bytes`::
+(long)
+The total size of all the blobs or partial blobs read in the test, in bytes.
+
+`total_wait`::
+(string)
+The total time spent waiting for the first byte of each read request to be
+received.
+
+`total_wait_nanos`::
+(long)
+The total time spent waiting for the first byte of each read request to be
+received, in nanoseconds.
+
+`max_wait`::
+(string)
+The maximum time spent waiting for the first byte of any read request to be
+received.
+
+`max_wait_nanos`::
+(long)
+The maximum time spent waiting for the first byte of any read request to be
+received, in nanoseconds.
+
+`total_throttled`::
+(string)
+The total time spent waiting due to the `max_restore_bytes_per_sec` or
+`indices.recovery.max_bytes_per_sec` throttles.
+
+`total_throttled_nanos`::
+(long)
+The total time spent waiting due to the `max_restore_bytes_per_sec` or
+`indices.recovery.max_bytes_per_sec` throttles, in nanoseconds.
+
+`total_elapsed`::
+(string)
+The total elapsed time spent on reading blobs in the test.
+
+`total_elapsed_nanos`::
+(long)
+The total elapsed time spent on reading blobs in the test, in nanoseconds.
+=====
+====
+
+`details`::
+(array)
+A description of every read and write operation performed during the test. This
+is only returned if the `?detailed` request parameter is set to `true`.
++
+.Properties of items within `details`
+[%collapsible]
+====
+`blob`::
+(object)
+A description of the blob that was written and read.
++
+.Properties of `blob`
+[%collapsible%open]
+=====
+`name`::
+(string)
+The name of the blob.
+
+`size`::
+(string)
+The size of the blob.
+
+`size_bytes`::
+(long)
+The size of the blob in bytes.
+
+`read_start`::
+(long)
+The position, in bytes, at which read operations started.
+
+`read_end`::
+(long)
+The position, in bytes, at which read operations completed.
+
+`read_early`::
+(boolean)
+Whether any read operations were started before the write operation completed.
+
+`overwritten`::
+(boolean)
+Whether the blob was overwritten while the read operations were ongoing.
+=====
+
+`writer_node`::
+(object)
+Identifies the node which wrote this blob and coordinated the read operations.
++
+.Properties of `writer_node`
+[%collapsible%open]
+=====
+`id`::
+(string)
+The id of the writer node.
+
+`name`::
+(string)
+The name of the writer node
+=====
+
+`write_elapsed`::
+(string)
+The elapsed time spent writing this blob.
+
+`write_elapsed_nanos`::
+(long)
+The elapsed time spent writing this blob, in nanoseconds.
+
+`overwrite_elapsed`::
+(string)
+The elapsed time spent overwriting this blob. Omitted if the blob was not
+overwritten.
+
+`overwrite_elapsed_nanos`::
+(long)
+The elapsed time spent overwriting this blob, in nanoseconds. Omitted if the
+blob was not overwritten.
+
+`write_throttled`::
+(string)
+The length of time spent waiting for the `max_snapshot_bytes_per_sec` throttle
+while writing this blob.
+
+`write_throttled_nanos`::
+(long)
+The length of time spent waiting for the `max_snapshot_bytes_per_sec` throttle
+while writing this blob, in nanoseconds.
+
+`reads`::
+(array)
+A description of every read operation performed on this blob.
++
+.Properties of items within `reads`
+[%collapsible%open]
+=====
+`node`::
+(object)
+Identifies the node which performed the read operation.
++
+.Properties of `node`
+[%collapsible%open]
+======
+`id`::
+(string)
+The id of the reader node.
+
+`name`::
+(string)
+The name of the reader node
+======
+
+`before_write_complete`::
+(boolean)
+Whether the read operation may have started before the write operation was
+complete. Omitted if `false`.
+
+`found`::
+(boolean)
+Whether the blob was found by this read operation or not. May be `false` if the
+read was started before the write completed, or the write was aborted before
+completion.
+
+`first_byte_time`::
+(string)
+The length of time waiting for the first byte of the read operation to be
+received. Omitted if the blob was not found.
+
+`first_byte_time_nanos`::
+(long)
+The length of time waiting for the first byte of the read operation to be
+received, in nanoseconds. Omitted if the blob was not found.
+
+`elapsed`::
+(string)
+The length of time spent reading this blob. Omitted if the blob was not found.
+
+`elapsed_nanos`::
+(long)
+The length of time spent reading this blob, in nanoseconds. Omitted if the blob
+was not found.
+
+`throttled`::
+(string)
+The length of time spent waiting due to the `max_restore_bytes_per_sec` or
+`indices.recovery.max_bytes_per_sec` throttles during the read of this blob.
+Omitted if the blob was not found.
+
+`throttled_nanos`::
+(long)
+The length of time spent waiting due to the `max_restore_bytes_per_sec` or
+`indices.recovery.max_bytes_per_sec` throttles during the read of this blob, in
+nanoseconds. Omitted if the blob was not found.
+
+=====
+
+====
+
+`listing_elapsed`::
+(string)
+The time it took to retrieve a list of all the blobs in the container.
+
+`listing_elapsed_nanos`::
+(long)
+The time it took to retrieve a list of all the blobs in the container, in
+nanoseconds.
+
+`delete_elapsed`::
+(string)
+The time it took to delete all the blobs in the container.
+
+`delete_elapsed_nanos`::
+(long)
+The time it took to delete all the blobs in the container, in nanoseconds.

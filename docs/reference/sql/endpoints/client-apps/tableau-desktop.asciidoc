@@ -1,0 +1,52 @@
+[role="xpack"]
+[[sql-client-apps-tableau-desktop]]
+=== Tableau Desktop
+
+Use the {es} JDBC driver and dedicated {es} Tableau Connector to access {es} data from Tableau Desktop.
+
+IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this
+product, please reach out to its vendor.
+
+[[sql-client-apps-tableau-desktop-prereqs]]
+==== Prerequisites
+
+* https://www.tableau.com/products/desktop[Tableau Desktop] 2019.4 or later
+* {es-sql} <<sql-jdbc, JDBC driver>>
+* https://www.elastic.co/downloads/tableau-connector[{es} Connector for Tableau]
+
+[[sql-client-apps-tableau-desktop-load-data]]
+==== Load data
+
+First, move or download the JDBC driver to the Tableau Desktop drivers directory:
+
+* Windows: `C:\Program Files\Tableau\Drivers`
+* Mac: `/Users/[user]/Library/Tableau/Drivers`
+
+Move the {es} Connector for Tableau to the Tableau Desktop connectors directory:
+
+* Windows: `C:\Users\[Windows User]\Documents\My Tableau Repository\Connectors`
+* Mac: `/Users/[user]/Documents/My Tableau Repository/Connectors`
+
+Launch Tableau Desktop. In the menu, click **More...** and select **Elasticsearch by Elastic** as the data source.
+
+[[apps_tableau_desktop_from_connector]]
+[role="screenshot"]
+image:images/sql/client-apps/apps_tableau_desktop_from_connector.png[Select Elasticsearch by Elastic as the data source]
+
+In the **New connection** modal, enter the information for your {es} instance, and click **Sign In**.
+
+[[apps_tableau_connect]]
+[role="screenshot"]
+image:images/sql/client-apps/apps_tableau_desktop_connect.png[Sign in]
+
+In the main window, select your {es} instance as the **Database**. Then select a table to load.
+
+[[apps_tableau_prepare]]
+[role="screenshot"]
+image:images/sql/client-apps/apps_tableau_desktop_prepare.png[Select a table to load]
+
+Finally, generate a report.
+
+[[apps_tableau_report]]
+[role="screenshot"]
+image:images/sql/client-apps/apps_tableau_desktop_report.png[Generate a report]

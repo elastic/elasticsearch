@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.resolve;
@@ -29,45 +18,41 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.SortedMap;
-import java.util.Spliterators;
 import java.util.TreeMap;
-import java.util.stream.StreamSupport;
 
 public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> {
 
@@ -139,6 +124,16 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         public IndicesRequest indices(String... indices) {
             this.names = indices;
             return this;
+        }
+
+        @Override
+        public boolean allowsRemoteIndices() {
+            return true;
+        }
+
+        @Override
+        public boolean includeDataStreams() {
+            return true;
         }
     }
 
@@ -231,8 +226,10 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ResolvedIndex index = (ResolvedIndex) o;
-            return getName().equals(index.getName()) && Objects.equals(dataStream, index.dataStream) &&
-                Arrays.equals(aliases, index.aliases) && Arrays.equals(attributes, index.attributes);
+            return getName().equals(index.getName())
+                && Objects.equals(dataStream, index.dataStream)
+                && Arrays.equals(aliases, index.aliases)
+                && Arrays.equals(attributes, index.attributes);
         }
 
         @Override
@@ -355,8 +352,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ResolvedDataStream dataStream = (ResolvedDataStream) o;
-            return getName().equals(dataStream.getName()) && timestampField.equals(dataStream.timestampField) &&
-                Arrays.equals(backingIndices, dataStream.backingIndices);
+            return getName().equals(dataStream.getName())
+                && timestampField.equals(dataStream.timestampField)
+                && Arrays.equals(backingIndices, dataStream.backingIndices);
         }
 
         @Override
@@ -384,21 +382,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         public Response(StreamInput in) throws IOException {
-            this.indices = new ArrayList<>();
-            int count = in.readVInt();
-            for (int k = 0; k < count; k++) {
-                indices.add(new ResolvedIndex(in));
-            }
-            this.aliases = new ArrayList<>();
-            count = in.readVInt();
-            for (int k = 0; k < count; k++) {
-                aliases.add(new ResolvedAlias(in));
-            }
-            this.dataStreams = new ArrayList<>();
-            count = in.readVInt();
-            for (int k = 0; k < count; k++) {
-                dataStreams.add(new ResolvedDataStream(in));
-            }
+            this.indices = in.readList(ResolvedIndex::new);
+            this.aliases = in.readList(ResolvedAlias::new);
+            this.dataStreams = in.readList(ResolvedDataStream::new);
         }
 
         public List<ResolvedIndex> getIndices() {
@@ -415,26 +401,17 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(indices.size());
-            for (ResolvedIndex index : indices) {
-                index.writeTo(out);
-            }
-            out.writeVInt(aliases.size());
-            for (ResolvedAlias alias : aliases) {
-                alias.writeTo(out);
-            }
-            out.writeVInt(dataStreams.size());
-            for (ResolvedDataStream dataStream : dataStreams) {
-                dataStream.writeTo(out);
-            }
+            out.writeList(indices);
+            out.writeList(aliases);
+            out.writeList(dataStreams);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(INDICES_FIELD.getPreferredName(), indices);
-            builder.field(ALIASES_FIELD.getPreferredName(), aliases);
-            builder.field(DATA_STREAMS_FIELD.getPreferredName(), dataStreams);
+            builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
+            builder.xContentList(ALIASES_FIELD.getPreferredName(), aliases);
+            builder.xContentList(DATA_STREAMS_FIELD.getPreferredName(), dataStreams);
             builder.endObject();
             return builder;
         }
@@ -458,31 +435,46 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private final ThreadPool threadPool;
         private final ClusterService clusterService;
         private final RemoteClusterService remoteClusterService;
-        private final IndexNameExpressionResolver indexNameExpressionResolver;
+        private final IndexAbstractionResolver indexAbstractionResolver;
 
         @Inject
-        public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        public TransportAction(
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver
+        ) {
             super(NAME, transportService, actionFilters, Request::new);
             this.threadPool = threadPool;
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
-            this.indexNameExpressionResolver = indexNameExpressionResolver;
+            this.indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
         }
 
         @Override
         protected void doExecute(Task task, Request request, final ActionListener<Response> listener) {
             final ClusterState clusterState = clusterService.state();
-            final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(),
-                request.indices());
+            final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
+                request.indicesOptions(),
+                request.indices()
+            );
             final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             final Metadata metadata = clusterState.metadata();
             List<ResolvedIndex> indices = new ArrayList<>();
             List<ResolvedAlias> aliases = new ArrayList<>();
             List<ResolvedDataStream> dataStreams = new ArrayList<>();
             if (localIndices != null) {
-                resolveIndices(localIndices.indices(), request.indicesOptions, metadata, indexNameExpressionResolver, indices, aliases,
-                    dataStreams);
+                resolveIndices(
+                    localIndices.indices(),
+                    request.indicesOptions,
+                    metadata,
+                    indexAbstractionResolver,
+                    indices,
+                    aliases,
+                    dataStreams,
+                    request.includeDataStreams()
+                );
             }
 
             if (remoteClusterIndices.size() > 0) {
@@ -524,12 +516,20 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
          * @param dataStreams    List containing any matching data streams
          */
         // visible for testing
-        static void resolveIndices(String[] names, IndicesOptions indicesOptions, Metadata metadata, IndexNameExpressionResolver resolver,
-                                   List<ResolvedIndex> indices, List<ResolvedAlias> aliases, List<ResolvedDataStream> dataStreams) {
-            List<String> resolvedIndexAbstractions = resolveIndexAbstractions(names, indicesOptions, metadata, resolver);
+        static void resolveIndices(
+            String[] names,
+            IndicesOptions indicesOptions,
+            Metadata metadata,
+            IndexAbstractionResolver resolver,
+            List<ResolvedIndex> indices,
+            List<ResolvedAlias> aliases,
+            List<ResolvedDataStream> dataStreams,
+            boolean includeDataStreams
+        ) {
+            List<String> resolvedIndexAbstractions = resolver.resolveIndexAbstractions(names, indicesOptions, metadata, includeDataStreams);
             SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
             for (String s : resolvedIndexAbstractions) {
-                enrichIndexAbstraction(s, lookup, indices, aliases, dataStreams);
+                enrichIndexAbstraction(metadata, s, lookup, indices, aliases, dataStreams);
             }
             indices.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
             aliases.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
@@ -537,9 +537,13 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         }
 
-        private static void mergeResults(Map<String, Response> remoteResponses, List<ResolvedIndex> indices, List<ResolvedAlias> aliases,
-                                         List<ResolvedDataStream> dataStreams) {
-            for (Map.Entry<String, Response> responseEntry: remoteResponses.entrySet()) {
+        private static void mergeResults(
+            Map<String, Response> remoteResponses,
+            List<ResolvedIndex> indices,
+            List<ResolvedAlias> aliases,
+            List<ResolvedDataStream> dataStreams
+        ) {
+            for (Map.Entry<String, Response> responseEntry : remoteResponses.entrySet()) {
                 String clusterAlias = responseEntry.getKey();
                 Response response = responseEntry.getValue();
                 for (ResolvedIndex index : response.indices) {
@@ -554,174 +558,56 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
         }
 
-        private static List<String> resolveIndexAbstractions(String[] indices, IndicesOptions indicesOptions, Metadata metadata,
-                                                             IndexNameExpressionResolver indexNameExpressionResolver) {
-            final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed();
-            Set<String> availableIndexAbstractions = metadata.getIndicesLookup().keySet();
-            List<String> finalIndices = new ArrayList<>();
-            boolean wildcardSeen = false;
-            for (String index : indices) {
-                String indexAbstraction;
-                boolean minus = false;
-                if (index.charAt(0) == '-' && wildcardSeen) {
-                    indexAbstraction = index.substring(1);
-                    minus = true;
-                } else {
-                    indexAbstraction = index;
-                }
-
-                // we always need to check for date math expressions
-                final String dateMathName = indexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
-                if (dateMathName != indexAbstraction) {
-                    assert dateMathName.equals(indexAbstraction) == false;
-                    if (replaceWildcards && Regex.isSimpleMatchPattern(dateMathName)) {
-                        // continue
-                        indexAbstraction = dateMathName;
-                    } else if (availableIndexAbstractions.contains(dateMathName) &&
-                        isIndexVisible(indexAbstraction, dateMathName, indicesOptions, metadata, true)) {
-                        if (minus) {
-                            finalIndices.remove(dateMathName);
-                        } else {
-                            finalIndices.add(dateMathName);
-                        }
-                    } else {
-                        if (indicesOptions.ignoreUnavailable() == false) {
-                            throw new IndexNotFoundException(dateMathName);
-                        }
-                    }
-                }
-
-                if (replaceWildcards && Regex.isSimpleMatchPattern(indexAbstraction)) {
-                    wildcardSeen = true;
-                    Set<String> resolvedIndices = new HashSet<>();
-                    for (String authorizedIndex : availableIndexAbstractions) {
-                        if (Regex.simpleMatch(indexAbstraction, authorizedIndex) &&
-                            isIndexVisible(indexAbstraction, authorizedIndex, indicesOptions, metadata)) {
-                            resolvedIndices.add(authorizedIndex);
-                        }
-                    }
-                    if (resolvedIndices.isEmpty()) {
-                        //es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
-                        if (indicesOptions.allowNoIndices() == false) {
-                            throw new IndexNotFoundException(indexAbstraction);
-                        }
-                    } else {
-                        if (minus) {
-                            finalIndices.removeAll(resolvedIndices);
-                        } else {
-                            finalIndices.addAll(resolvedIndices);
-                        }
-                    }
-                } else if (dateMathName.equals(indexAbstraction)) {
-                    if (minus) {
-                        finalIndices.remove(indexAbstraction);
-                    } else {
-                        finalIndices.add(indexAbstraction);
-                    }
-                }
-            }
-            return finalIndices;
-        }
-
-        private static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata) {
-            return isIndexVisible(expression, index, indicesOptions, metadata, false);
-        }
-
-        private static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata,
-                                              boolean dateMathExpression) {
-            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
-            final boolean isHidden = indexAbstraction.isHidden();
-            if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
-                //it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
-                //complicated to support those options with aliases pointing to multiple indices...
-                if (indicesOptions.ignoreAliases()) {
-                    return false;
-                } else if (isHidden == false || indicesOptions.expandWildcardsHidden() || isVisibleDueToImplicitHidden(expression, index)) {
-                    return true;
-                } else {
-                    return false;
-                }
-            }
-            if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                // If indicesOptions.includeDataStreams() returns false then we fail later in IndexNameExpressionResolver.
-                if (isHidden == false || indicesOptions.expandWildcardsHidden()) {
-                    return true;
-                } else {
-                    return false;
-                }
-            }
-            assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
-            IndexMetadata indexMetadata = indexAbstraction.getIndices().get(0);
-            if (isHidden && indicesOptions.expandWildcardsHidden() == false && isVisibleDueToImplicitHidden(expression, index) == false) {
-                return false;
-            }
-
-            // the index is not hidden and since it is a date math expression, we consider it visible regardless of open/closed
-            if (dateMathExpression) {
-                assert IndexMetadata.State.values().length == 2 : "a new IndexMetadata.State value may need to be handled!";
-                return true;
-            }
-            if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
-                return true;
-            }
-            if (indexMetadata.getState() == IndexMetadata.State.OPEN && indicesOptions.expandWildcardsOpen()) {
-                return true;
-            }
-            return false;
-        }
-
-        private static boolean isVisibleDueToImplicitHidden(String expression, String index) {
-            return index.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
-        }
-
-        private static void enrichIndexAbstraction(String indexAbstraction, SortedMap<String, IndexAbstraction> lookup,
-                                                   List<ResolvedIndex> indices, List<ResolvedAlias> aliases,
-                                                   List<ResolvedDataStream> dataStreams) {
+        private static void enrichIndexAbstraction(
+            Metadata metadata,
+            String indexAbstraction,
+            SortedMap<String, IndexAbstraction> lookup,
+            List<ResolvedIndex> indices,
+            List<ResolvedAlias> aliases,
+            List<ResolvedDataStream> dataStreams
+        ) {
             IndexAbstraction ia = lookup.get(indexAbstraction);
             if (ia != null) {
                 switch (ia.getType()) {
-                    case CONCRETE_INDEX:
-                        IndexAbstraction.Index index = (IndexAbstraction.Index) ia;
-
-                        String[] aliasNames = StreamSupport.stream(
-                            Spliterators.spliteratorUnknownSize(index.getWriteIndex().getAliases().keysIt(), 0), false)
-                            .toArray(String[]::new);
-                        Arrays.sort(aliasNames);
-
+                    case CONCRETE_INDEX -> {
+                        IndexMetadata writeIndex = metadata.index(ia.getWriteIndex());
+                        String[] aliasNames = writeIndex.getAliases().keySet().stream().sorted().toArray(String[]::new);
                         List<String> attributes = new ArrayList<>();
-                        attributes.add(index.getWriteIndex().getState() == IndexMetadata.State.OPEN ? "open" : "closed");
+                        attributes.add(writeIndex.getState() == IndexMetadata.State.OPEN ? "open" : "closed");
                         if (ia.isHidden()) {
                             attributes.add("hidden");
                         }
-                        final boolean isFrozen = Boolean.parseBoolean(ia.getWriteIndex().getSettings().get("index.frozen"));
+                        final boolean isFrozen = Boolean.parseBoolean(writeIndex.getSettings().get("index.frozen"));
                         if (isFrozen) {
                             attributes.add("frozen");
                         }
                         attributes.sort(String::compareTo);
-
-                        indices.add(new ResolvedIndex(
-                            index.getName(),
-                            aliasNames,
-                            attributes.toArray(Strings.EMPTY_ARRAY),
-                            index.getParentDataStream() == null ? null : index.getParentDataStream().getName()));
-                        break;
-                    case ALIAS:
-                        IndexAbstraction.Alias alias = (IndexAbstraction.Alias) ia;
-                        String[] indexNames = alias.getIndices().stream().map(i -> i.getIndex().getName()).toArray(String[]::new);
+                        indices.add(
+                            new ResolvedIndex(
+                                ia.getName(),
+                                aliasNames,
+                                attributes.toArray(Strings.EMPTY_ARRAY),
+                                ia.getParentDataStream() == null ? null : ia.getParentDataStream().getName()
+                            )
+                        );
+                    }
+                    case ALIAS -> {
+                        String[] indexNames = ia.getIndices().stream().map(Index::getName).toArray(String[]::new);
                         Arrays.sort(indexNames);
-                        aliases.add(new ResolvedAlias(alias.getName(), indexNames));
-                        break;
-                    case DATA_STREAM:
+                        aliases.add(new ResolvedAlias(ia.getName(), indexNames));
+                    }
+                    case DATA_STREAM -> {
                         IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) ia;
-                        String[] backingIndices = dataStream.getIndices().stream().map(i -> i.getIndex().getName()).toArray(String[]::new);
-                        Arrays.sort(backingIndices);
-                        dataStreams.add(new ResolvedDataStream(
-                            dataStream.getName(),
-                            backingIndices,
-                            dataStream.getDataStream().getTimeStampField().getName()));
-                        break;
-                    default:
-                        throw new IllegalStateException("unknown index abstraction type: " + ia.getType());
+                        String[] backingIndices = dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new);
+                        dataStreams.add(
+                            new ResolvedDataStream(
+                                dataStream.getName(),
+                                backingIndices,
+                                dataStream.getDataStream().getTimeStampField().getName()
+                            )
+                        );
+                    }
+                    default -> throw new IllegalStateException("unknown index abstraction type: " + ia.getType());
                 }
             }
         }

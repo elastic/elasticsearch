@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
@@ -44,7 +45,7 @@ public abstract class ArbitraryConditionalFunction extends ConditionalFunction {
             templates.add(asScript(ex));
         }
 
-        StringJoiner template = new StringJoiner(",", "{sql}." + operation.scriptMethodName() +"([", "])");
+        StringJoiner template = new StringJoiner(",", "{sql}." + operation.scriptMethodName() + "([", "])");
         ParamsBuilder params = paramsBuilder();
 
         for (ScriptTemplate scriptTemplate : templates) {

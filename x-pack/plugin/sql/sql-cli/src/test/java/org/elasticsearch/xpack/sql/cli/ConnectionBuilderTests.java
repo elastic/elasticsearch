@@ -1,32 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.client.SslConfig;
+
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class ConnectionBuilderTests extends ESTestCase {
+public class ConnectionBuilderTests extends SqlCliTestCase {
 
     public void testDefaultConnection() throws Exception {
         CliTerminal testTerminal = mock(CliTerminal.class);
         ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal);
-        boolean binaryCommunication = randomBoolean();
+        boolean binaryCommunication = random().nextBoolean();
         ConnectionConfiguration con = connectionBuilder.buildConnection(null, null, binaryCommunication);
         assertNull(con.authUser());
         assertNull(con.authPass());
@@ -88,8 +89,7 @@ public class ConnectionBuilderTests extends ESTestCase {
             }
 
             @Override
-            protected ConnectionConfiguration newConnectionConfiguration(URI uri, String connectionString,
-                    Properties properties) {
+            protected ConnectionConfiguration newConnectionConfiguration(URI uri, String connectionString, Properties properties) {
                 // Stub building the actual configuration because we don't have permission to read the keystore.
                 assertEquals("true", properties.get(SslConfig.SSL));
                 assertEquals("keystore_location", properties.get(SslConfig.SSL_KEYSTORE_LOCATION));
@@ -109,17 +109,19 @@ public class ConnectionBuilderTests extends ESTestCase {
 
     public void testUserGaveUpOnPassword() throws Exception {
         CliTerminal testTerminal = mock(CliTerminal.class);
-        UserException ue = new UserException(randomInt(), randomAlphaOfLength(5));
+        UserException ue = new UserException(random().nextInt(), randomAlphaOfLength(5));
         when(testTerminal.readPassword("password: ")).thenThrow(ue);
         ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal);
-        UserException actual = expectThrows(UserException.class, () ->
-            buildConnection(connectionBuilder, "http://user@foobar:9242/", null));
+        UserException actual = expectThrows(
+            UserException.class,
+            () -> buildConnection(connectionBuilder, "http://user@foobar:9242/", null)
+        );
         assertSame(actual, ue);
     }
 
     public void testUserGaveUpOnKeystorePassword() throws Exception {
         CliTerminal testTerminal = mock(CliTerminal.class);
-        UserException ue = new UserException(randomInt(), randomAlphaOfLength(5));
+        UserException ue = new UserException(random().nextInt(), randomAlphaOfLength(5));
         when(testTerminal.readPassword("keystore password: ")).thenThrow(ue);
         when(testTerminal.readPassword("password: ")).thenReturn("password");
         ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal) {
@@ -128,13 +130,15 @@ public class ConnectionBuilderTests extends ESTestCase {
                 // Stubbed so we don't need permission to read the file
             }
         };
-        UserException actual = expectThrows(UserException.class, () ->
-            buildConnection(connectionBuilder, "https://user@foobar:9242/", "keystore_location"));
+        UserException actual = expectThrows(
+            UserException.class,
+            () -> buildConnection(connectionBuilder, "https://user@foobar:9242/", "keystore_location")
+        );
         assertSame(actual, ue);
     }
-    
-    private ConnectionConfiguration buildConnection(ConnectionBuilder builder, String connectionStringArg,
-                                                    String keystoreLocation) throws UserException {
+
+    private ConnectionConfiguration buildConnection(ConnectionBuilder builder, String connectionStringArg, String keystoreLocation)
+        throws UserException {
         return builder.buildConnection(connectionStringArg, keystoreLocation, randomBoolean());
     }
 }

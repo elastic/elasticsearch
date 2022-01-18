@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadFactory;
@@ -38,11 +27,19 @@ public final class EWMATrackingEsThreadPoolExecutor extends EsThreadPoolExecutor
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
 
-    EWMATrackingEsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-                                     BlockingQueue<Runnable> workQueue, Function<Runnable, WrappedRunnable> runnableWrapper,
-                                     ThreadFactory threadFactory, XRejectedExecutionHandler handler, ThreadContext contextHolder) {
-        super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit,
-            workQueue, threadFactory, handler, contextHolder);
+    EWMATrackingEsThreadPoolExecutor(
+        String name,
+        int corePoolSize,
+        int maximumPoolSize,
+        long keepAliveTime,
+        TimeUnit unit,
+        BlockingQueue<Runnable> workQueue,
+        Function<Runnable, WrappedRunnable> runnableWrapper,
+        ThreadFactory threadFactory,
+        XRejectedExecutionHandler handler,
+        ThreadContext contextHolder
+    ) {
+        super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
         this.runnableWrapper = runnableWrapper;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(EWMA_ALPHA, 0);
     }
@@ -87,9 +84,11 @@ public final class EWMATrackingEsThreadPoolExecutor extends EsThreadPoolExecutor
         final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
         final boolean failedOrRejected = timedRunnable.getFailedOrRejected();
         final long taskExecutionNanos = timedRunnable.getTotalExecutionNanos();
-        assert taskExecutionNanos >= 0 || (failedOrRejected && taskExecutionNanos == -1) :
-            "expected task to always take longer than 0 nanoseconds or have '-1' failure code, got: " + taskExecutionNanos +
-                ", failedOrRejected: " + failedOrRejected;
+        assert taskExecutionNanos >= 0 || (failedOrRejected && taskExecutionNanos == -1)
+            : "expected task to always take longer than 0 nanoseconds or have '-1' failure code, got: "
+                + taskExecutionNanos
+                + ", failedOrRejected: "
+                + failedOrRejected;
         if (taskExecutionNanos != -1) {
             // taskExecutionNanos may be -1 if the task threw an exception
             executionEWMA.addValue(taskExecutionNanos);

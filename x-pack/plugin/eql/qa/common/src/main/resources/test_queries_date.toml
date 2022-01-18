@@ -1,0 +1,30 @@
+# This file is populated with additional EQL queries regarding date tests that were not present in the original EQL python implementation
+# test_queries.toml file in order to keep the original unchanges and easier to sync with the EQL reference implementation tests.
+
+[[queries]]
+name = "filterOnDateExactWithLiteral"
+query = '''
+    process where @timestamp == "2017-08-30T20:47:33Z"
+'''
+expected_event_ids  = [18, 19, 20, 21, 22, 23, 24]
+
+[[queries]]
+name = "filterOnDateRangeWithLiteral"
+query = '''
+    process where @timestamp < "2017-08-30T20:47:32Z"
+'''
+expected_event_ids  = [1, 2, 3, 4, 5, 6, 7]
+
+[[queries]]
+name = "filterOnDateExactWithMillis"
+query = '''
+    process where @timestamp == 1516116808349
+'''
+expected_event_ids  = [97]
+
+[[queries]]
+name = "filterOnDateRangeWithMillis"
+query = '''
+    process where @timestamp > 1516116808349
+'''
+expected_event_ids  = [98, 75273, 75303]

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -49,38 +38,60 @@ import static org.junit.Assert.assertThat;
 
 public class CoordinationStateTestCluster {
 
-    public static ClusterState clusterState(long term, long version, DiscoveryNode localNode,
-                                            CoordinationMetadata.VotingConfiguration lastCommittedConfig,
-                                            CoordinationMetadata.VotingConfiguration lastAcceptedConfig, long value) {
-        return clusterState(term, version, DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build(),
-            lastCommittedConfig, lastAcceptedConfig, value);
+    public static ClusterState clusterState(
+        long term,
+        long version,
+        DiscoveryNode localNode,
+        CoordinationMetadata.VotingConfiguration lastCommittedConfig,
+        CoordinationMetadata.VotingConfiguration lastAcceptedConfig,
+        long value
+    ) {
+        return clusterState(
+            term,
+            version,
+            DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build(),
+            lastCommittedConfig,
+            lastAcceptedConfig,
+            value
+        );
     }
 
-    public static ClusterState clusterState(long term, long version, DiscoveryNodes discoveryNodes,
-                                            CoordinationMetadata.VotingConfiguration lastCommittedConfig,
-                                            CoordinationMetadata.VotingConfiguration lastAcceptedConfig, long value) {
-        return setValue(ClusterState.builder(ClusterName.DEFAULT)
-            .version(version)
-            .nodes(discoveryNodes)
-            .metadata(Metadata.builder()
-                .clusterUUID(UUIDs.randomBase64UUID(random())) // generate cluster UUID deterministically for repeatable tests
-                .coordinationMetadata(CoordinationMetadata.builder()
-                    .term(term)
-                    .lastCommittedConfiguration(lastCommittedConfig)
-                    .lastAcceptedConfiguration(lastAcceptedConfig)
-                    .build()))
-            .stateUUID(UUIDs.randomBase64UUID(random())) // generate cluster state UUID deterministically for repeatable tests
-            .build(), value);
+    public static ClusterState clusterState(
+        long term,
+        long version,
+        DiscoveryNodes discoveryNodes,
+        CoordinationMetadata.VotingConfiguration lastCommittedConfig,
+        CoordinationMetadata.VotingConfiguration lastAcceptedConfig,
+        long value
+    ) {
+        return setValue(
+            ClusterState.builder(ClusterName.DEFAULT)
+                .version(version)
+                .nodes(discoveryNodes)
+                .metadata(
+                    Metadata.builder()
+                        .clusterUUID(UUIDs.randomBase64UUID(random())) // generate cluster UUID deterministically for repeatable tests
+                        .coordinationMetadata(
+                            CoordinationMetadata.builder()
+                                .term(term)
+                                .lastCommittedConfiguration(lastCommittedConfig)
+                                .lastAcceptedConfiguration(lastAcceptedConfig)
+                                .build()
+                        )
+                )
+                .stateUUID(UUIDs.randomBase64UUID(random())) // generate cluster state UUID deterministically for repeatable tests
+                .build(),
+            value
+        );
     }
 
     public static ClusterState setValue(ClusterState clusterState, long value) {
-        return ClusterState.builder(clusterState).metadata(
-            Metadata.builder(clusterState.metadata())
-                .persistentSettings(Settings.builder()
-                    .put(clusterState.metadata().persistentSettings())
-                    .put("value", value)
-                    .build())
-                .build())
+        return ClusterState.builder(clusterState)
+            .metadata(
+                Metadata.builder(clusterState.metadata())
+                    .persistentSettings(Settings.builder().put(clusterState.metadata().persistentSettings()).put("value", value).build())
+                    .build()
+            )
             .build();
     }
 
@@ -97,9 +108,17 @@ public class CoordinationStateTestCluster {
 
         ClusterNode(DiscoveryNode localNode, ElectionStrategy electionStrategy) {
             this.localNode = localNode;
-            persistedState = new InMemoryPersistedState(0L,
-                clusterState(0L, 0L, localNode, CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG,
-                    CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG, 0L));
+            persistedState = new InMemoryPersistedState(
+                0L,
+                clusterState(
+                    0L,
+                    0L,
+                    localNode,
+                    CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG,
+                    CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG,
+                    0L
+                )
+            );
             this.electionStrategy = electionStrategy;
             state = new CoordinationState(localNode, persistedState, electionStrategy);
         }
@@ -108,12 +127,15 @@ public class CoordinationStateTestCluster {
             if (localNode.isMasterNode() == false && rarely()) {
                 // master-ineligible nodes can't be trusted to persist the cluster state properly, but will not lose the fact that they
                 // were bootstrapped
-                final CoordinationMetadata.VotingConfiguration votingConfiguration
-                    = persistedState.getLastAcceptedState().getLastAcceptedConfiguration().isEmpty()
+                final CoordinationMetadata.VotingConfiguration votingConfiguration = persistedState.getLastAcceptedState()
+                    .getLastAcceptedConfiguration()
+                    .isEmpty()
                         ? CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG
                         : CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_MASTER;
-                persistedState
-                    = new InMemoryPersistedState(0L, clusterState(0L, 0L, localNode, votingConfiguration, votingConfiguration, 0L));
+                persistedState = new InMemoryPersistedState(
+                    0L,
+                    clusterState(0L, 0L, localNode, votingConfiguration, votingConfiguration, 0L)
+                );
             }
 
             final Set<DiscoveryNodeRole> roles = new HashSet<>(localNode.getRoles());
@@ -125,20 +147,32 @@ public class CoordinationStateTestCluster {
                 }
             }
 
-            localNode = new DiscoveryNode(localNode.getName(), localNode.getId(), UUIDs.randomBase64UUID(random()),
-                localNode.getHostName(), localNode.getHostAddress(), localNode.getAddress(), localNode.getAttributes(),
-                roles, localNode.getVersion());
+            localNode = new DiscoveryNode(
+                localNode.getName(),
+                localNode.getId(),
+                UUIDs.randomBase64UUID(random()),
+                localNode.getHostName(),
+                localNode.getHostAddress(),
+                localNode.getAddress(),
+                localNode.getAttributes(),
+                roles,
+                localNode.getVersion()
+            );
 
             state = new CoordinationState(localNode, persistedState, electionStrategy);
         }
 
         void setInitialState(CoordinationMetadata.VotingConfiguration initialConfig, long initialValue) {
             final ClusterState.Builder builder = ClusterState.builder(state.getLastAcceptedState());
-            builder.metadata(Metadata.builder()
-                .coordinationMetadata(CoordinationMetadata.builder()
-                    .lastAcceptedConfiguration(initialConfig)
-                    .lastCommittedConfiguration(initialConfig)
-                    .build()));
+            builder.metadata(
+                Metadata.builder()
+                    .coordinationMetadata(
+                        CoordinationMetadata.builder()
+                            .lastAcceptedConfiguration(initialConfig)
+                            .lastCommittedConfiguration(initialConfig)
+                            .build()
+                    )
+            );
             state.setInitialState(setValue(builder.build(), initialValue));
         }
     }
@@ -149,13 +183,11 @@ public class CoordinationStateTestCluster {
     final CoordinationMetadata.VotingConfiguration initialConfiguration;
     final long initialValue;
 
-    CoordinationStateTestCluster(List<DiscoveryNode> nodes, ElectionStrategy electionStrategy) {
+    public CoordinationStateTestCluster(List<DiscoveryNode> nodes, ElectionStrategy electionStrategy) {
         this.electionStrategy = electionStrategy;
         messages = new ArrayList<>();
 
-        clusterNodes = nodes.stream()
-            .map(node -> new ClusterNode(node, electionStrategy))
-            .collect(Collectors.toList());
+        clusterNodes = nodes.stream().map(node -> new ClusterNode(node, electionStrategy)).collect(Collectors.toList());
 
         initialConfiguration = randomVotingConfig();
         initialValue = randomLong();
@@ -187,8 +219,8 @@ public class CoordinationStateTestCluster {
 
     CoordinationMetadata.VotingConfiguration randomVotingConfig() {
         return new CoordinationMetadata.VotingConfiguration(
-            randomSubsetOf(randomIntBetween(1, clusterNodes.size()), clusterNodes).stream()
-                .map(cn -> cn.localNode.getId()).collect(toSet()));
+            randomSubsetOf(randomIntBetween(1, clusterNodes.size()), clusterNodes).stream().map(cn -> cn.localNode.getId()).collect(toSet())
+        );
     }
 
     void applyMessage(Message message) {
@@ -214,7 +246,7 @@ public class CoordinationStateTestCluster {
         }
     }
 
-    void runRandomly() {
+    public void runRandomly() {
         final int iterations = 10000;
         final long maxTerm = 4;
         long nextTerm = 1;
@@ -229,17 +261,26 @@ public class CoordinationStateTestCluster {
                 } else if (rarely() && rarely()) {
                     randomFrom(clusterNodes).reboot();
                 } else if (rarely()) {
-                    final List<ClusterNode> masterNodes = clusterNodes.stream().filter(cn -> cn.state.electionWon())
+                    final List<ClusterNode> masterNodes = clusterNodes.stream()
+                        .filter(cn -> cn.state.electionWon())
                         .collect(Collectors.toList());
                     if (masterNodes.isEmpty() == false) {
                         final ClusterNode clusterNode = randomFrom(masterNodes);
                         final long term = rarely() ? randomLongBetween(0, maxTerm + 1) : clusterNode.state.getCurrentTerm();
                         final long version = rarely() ? randomIntBetween(0, 5) : clusterNode.state.getLastPublishedVersion() + 1;
-                        final CoordinationMetadata.VotingConfiguration acceptedConfig = rarely() ? randomVotingConfig() :
-                            clusterNode.state.getLastAcceptedConfiguration();
+                        final CoordinationMetadata.VotingConfiguration acceptedConfig = rarely()
+                            ? randomVotingConfig()
+                            : clusterNode.state.getLastAcceptedConfiguration();
                         final PublishRequest publishRequest = clusterNode.state.handleClientValue(
-                            clusterState(term, version, clusterNode.localNode, clusterNode.state.getLastCommittedConfiguration(),
-                                acceptedConfig, randomLong()));
+                            clusterState(
+                                term,
+                                version,
+                                clusterNode.localNode,
+                                clusterNode.state.getLastCommittedConfiguration(),
+                                acceptedConfig,
+                                randomLong()
+                            )
+                        );
                         broadcast(clusterNode.localNode, publishRequest);
                     }
                 } else if (messages.isEmpty() == false) {
@@ -259,7 +300,8 @@ public class CoordinationStateTestCluster {
 
     void invariant() {
         // one master per term
-        messages.stream().filter(m -> m.payload instanceof PublishRequest)
+        messages.stream()
+            .filter(m -> m.payload instanceof PublishRequest)
             .collect(Collectors.groupingBy(m -> ((PublishRequest) m.payload).getAcceptedState().term()))
             .forEach((term, publishMessages) -> {
                 Set<DiscoveryNode> mastersForTerm = publishMessages.stream().collect(Collectors.groupingBy(m -> m.sourceNode)).keySet();
@@ -267,25 +309,31 @@ public class CoordinationStateTestCluster {
             });
 
         // unique cluster state per (term, version) pair
-        messages.stream().filter(m -> m.payload instanceof PublishRequest)
+        messages.stream()
+            .filter(m -> m.payload instanceof PublishRequest)
             .map(m -> ((PublishRequest) m.payload).getAcceptedState())
             .collect(Collectors.groupingBy(ClusterState::term))
             .forEach((term, clusterStates) -> {
-                clusterStates.stream().collect(Collectors.groupingBy(ClusterState::version))
-                    .forEach((version, clusterStates1) -> {
-                        Set<String> clusterStateUUIDsForTermAndVersion = clusterStates1.stream().collect(Collectors.groupingBy(
-                            ClusterState::stateUUID
-                        )).keySet();
-                        assertThat("Multiple cluster states " + clusterStates1 + " for term " + term + " and version " + version,
-                            clusterStateUUIDsForTermAndVersion, hasSize(1));
+                clusterStates.stream().collect(Collectors.groupingBy(ClusterState::version)).forEach((version, clusterStates1) -> {
+                    Set<String> clusterStateUUIDsForTermAndVersion = clusterStates1.stream()
+                        .collect(Collectors.groupingBy(ClusterState::stateUUID))
+                        .keySet();
+                    assertThat(
+                        "Multiple cluster states " + clusterStates1 + " for term " + term + " and version " + version,
+                        clusterStateUUIDsForTermAndVersion,
+                        hasSize(1)
+                    );
 
-                        Set<Long> clusterStateValuesForTermAndVersion = clusterStates1.stream().collect(Collectors.groupingBy(
-                            CoordinationStateTestCluster::value
-                        )).keySet();
+                    Set<Long> clusterStateValuesForTermAndVersion = clusterStates1.stream()
+                        .collect(Collectors.groupingBy(CoordinationStateTestCluster::value))
+                        .keySet();
 
-                        assertThat("Multiple cluster states " + clusterStates1 + " for term " + term + " and version " + version,
-                            clusterStateValuesForTermAndVersion, hasSize(1));
-                    });
+                    assertThat(
+                        "Multiple cluster states " + clusterStates1 + " for term " + term + " and version " + version,
+                        clusterStateValuesForTermAndVersion,
+                        hasSize(1)
+                    );
+                });
             });
     }
 }

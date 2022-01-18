@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script;
@@ -22,8 +11,8 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -32,8 +21,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+// This class is deprecated in favor of ScriptStats and ScriptContextStats
 public class ScriptCacheStats implements Writeable, ToXContentFragment {
-    private final Map<String,ScriptStats> context;
+    private final Map<String, ScriptStats> context;
     private final ScriptStats general;
 
     public ScriptCacheStats(Map<String, ScriptStats> context) {
@@ -56,8 +46,8 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
 
         general = null;
         int size = in.readInt();
-        Map<String,ScriptStats> context = new HashMap<>(size);
-        for (int i=0; i < size; i++) {
+        Map<String, ScriptStats> context = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
             String name = in.readString();
             context.put(name, new ScriptStats(in));
         }
@@ -74,7 +64,7 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
 
         out.writeBoolean(true);
         out.writeInt(context.size());
-        for (String name: context.keySet().stream().sorted().collect(Collectors.toList())) {
+        for (String name : context.keySet().stream().sorted().collect(Collectors.toList())) {
             out.writeString(name);
             context.get(name).writeTo(out);
         }
@@ -99,7 +89,7 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
         builder.endObject();
 
         builder.startArray(Fields.CONTEXTS);
-        for (String name: context.keySet().stream().sorted().collect(Collectors.toList())) {
+        for (String name : context.keySet().stream().sorted().collect(Collectors.toList())) {
             ScriptStats stats = context.get(name);
             builder.startObject();
             builder.field(Fields.CONTEXT, name);
@@ -135,7 +125,15 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
         if (general != null) {
             return general;
         }
-        return ScriptStats.sum(context.values());
+        long compilations = 0;
+        long cacheEvictions = 0;
+        long compilationLimitTriggered = 0;
+        for (ScriptStats stat : context.values()) {
+            compilations += stat.getCompilations();
+            cacheEvictions += stat.getCacheEvictions();
+            compilationLimitTriggered += stat.getCompilationLimitTriggered();
+        }
+        return new ScriptStats(compilations, cacheEvictions, compilationLimitTriggered, null, null);
     }
 
     static final class Fields {

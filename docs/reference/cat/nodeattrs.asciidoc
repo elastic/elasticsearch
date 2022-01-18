@@ -11,6 +11,12 @@ Returns information about custom node attributes.
 
 `GET /_cat/nodeattrs`
 
+[[cat-nodeattrs-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[cat-nodeattrs-api-query-params]]
 ==== {api-query-parms-title}
 
@@ -67,9 +73,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET /_cat/nodeattrs?v
+GET /_cat/nodeattrs?v=true
 --------------------------------------------------
-// TEST[s/\?v/\?v&s=node,attr/]
+// TEST[s/\?v=true/\?v=true&s=node,attr/]
 // Sort the resulting attributes so we can assert on them more easily
 
 The API returns the following response:
@@ -98,7 +104,7 @@ columns.
 
 [source,console]
 --------------------------------------------------
-GET /_cat/nodeattrs?v&h=name,pid,attr,value
+GET /_cat/nodeattrs?v=true&h=name,pid,attr,value
 --------------------------------------------------
 // TEST[s/,value/,value&s=node,attr/]
 // Sort the resulting attributes so we can assert on them more easily

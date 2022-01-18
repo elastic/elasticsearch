@@ -1,7 +1,7 @@
 [[put-snapshot-repo-api]]
-=== Put snapshot repository API
+=== Create or update snapshot repository API
 ++++
-<titleabbrev>Put snapshot repository</titleabbrev>
+<titleabbrev>Create or update snapshot repository</titleabbrev>
 ++++
 
 Registers or updates a <<snapshots-register-repository,snapshot repository>>.
@@ -24,17 +24,17 @@ PUT /_snapshot/my_repository
 
 `POST /_snapshot/<repository>`
 
-[[put-snapshot-repo-api-desc]]
-==== {api-description-title}
+[[put-snapshot-repo-api-prereqs]]
+==== {api-prereq-title}
 
-A snapshot repository must be registered before you can perform
-<<snapshot-restore,snapshot and restore>> operations. You can use the put
-snapshot repository API to register new repositories and update existing ones.
-See <<snapshots-register-repository>>.
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
 
-TIP: Because snapshot formats can change between major versions of
-{es}, we recommend registering a new snapshot repository for each major version.
-See <<snapshot-restore-version-compatibility>>.
+// tag::put-repo-api-prereqs[]
+* To register a snapshot repository, the cluster's global metadata must be
+writeable. Ensure there aren't any <<cluster-read-only,cluster blocks>> that
+prevent write access.
+// end::put-repo-api-prereqs[]
 
 [[put-snapshot-repo-api-path-params]]
 ==== {api-path-parms-title}
@@ -61,7 +61,7 @@ a response. If no response is received before the timeout expires, the request
 fails and returns an error. Defaults to `30s`.
 
 `verify`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the request verifies the repository is functional on all master and
 data nodes in the cluster. If `false`, this verification is skipped. Defaults to
 `true`.
@@ -72,18 +72,6 @@ You can manually perform this verification using the
 [role="child_attributes"]
 [[put-snapshot-repo-api-request-body]]
 ==== {api-request-body-title}
-
-`master_timeout`::
-(Optional, <<time-units, time units>>)
-Specifies the period of time to wait for
-a connection to the master node. If no response is received before the timeout
-expires, the request fails and returns an error. Defaults to `30s`.
-
-`timeout`::
-(Optional, <<time-units, time units>>)
-Specifies the period of time to wait for
-a response. If no response is received before the timeout expires, the request
-fails and returns an error. Defaults to `30s`.
 
 [[put-snapshot-repo-api-request-type]]
 `type`::
@@ -136,13 +124,11 @@ See <<snapshots-read-only-repository>>.
 More repository types are available through these official
 plugins:
 
-* {plugins}/repository-s3.html[repository-s3] for S3 repository support
+* <<repository-s3,repository-s3>> for S3 repository support
 * {plugins}/repository-hdfs.html[repository-hdfs] for HDFS repository support in
   Hadoop environments
-* {plugins}/repository-azure.html[repository-azure] for Azure storage
-  repositories
-* {plugins}/repository-gcs.html[repository-gcs] for Google Cloud Storage
-  repositories
+* <<repository-azure,repository-azure>> for Azure storage repositories
+* <<repository-gcs,repository-gcs>> for Google Cloud Storage repositories
 --
 
 [[put-snapshot-repo-api-settings-param]]
@@ -150,11 +136,11 @@ plugins:
 +
 --
 (Required, object)
-Contains settings for the repository. Valid properties for the `settings` object
-depend on the repository type, set using the
-<<put-snapshot-repo-api-request-type,`type`>> parameter.
+Contains settings for the repository.
 
-.Valid `settings` properties for `fs` repositories
+The following `settings` properties are valid for all repository types:
+
+.Properties of `settings`
 [%collapsible%open]
 ====
 `chunk_size`::
@@ -164,26 +150,26 @@ broken down into chunks of this size or smaller. Defaults to `null` (unlimited
 file size).
 
 `compress`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, metadata files, such as index mappings and settings, are compressed
 in snapshots. Data files are not compressed. Defaults to `true`.
 
-`location`::
-(Required, string)
-Location of the shared filesystem used to store and retrieve snapshots. This
-location must be registered in the `path.repo` setting on all master and data
-nodes in the cluster.
+`max_number_of_snapshots`::
+(Optional, integer)
+Maximum number of snapshots the repository can contain.
+Defaults to `Integer.MAX_VALUE`, which is `2^31-1` or `2147483647`.
 
 `max_restore_bytes_per_sec`::
 (Optional, <<byte-units,byte value>>)
-Maximum snapshot restore rate per node. Defaults to `40mb` per second.
+Maximum snapshot restore rate per node. Defaults to unlimited. Note
+that restores are also throttled through <<recovery,recovery settings>>.
 
 `max_snapshot_bytes_per_sec`::
 (Optional, <<byte-units,byte value>>)
 Maximum snapshot creation rate per node. Defaults to `40mb` per second.
 
 `readonly`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the repository is read-only. The cluster can retrieve and restore
 snapshots from the repository but not write to the repository or create
 snapshots in it.
@@ -205,6 +191,19 @@ the repository but not create snapshots in it.
 =====
 ====
 
+Other accepted `settings` properties depend on the repository type, set using the
+<<put-snapshot-repo-api-request-type,`type`>> parameter.
+
+.Valid `settings` properties for `fs` repositories
+[%collapsible%open]
+====
+`location`::
+(Required, string)
+Location of the shared filesystem used to store and retrieve snapshots. This
+location must be registered in the `path.repo` setting on all master and data
+nodes in the cluster.
+====
+
 .Valid `settings` properties for `source` repositories
 [%collapsible%open]
 ====
@@ -222,6 +221,8 @@ type. See <<snapshots-source-only-repository>>.
 [%collapsible%open]
 ====
 `url`::
++
+---
 (Required, string)
 URL location of the root of the shared filesystem repository. The following
 protocols are supported:
@@ -232,18 +233,29 @@ protocols are supported:
 * `https`
 * `jar`
 
+URLs using the `http`, `https`, or `ftp` protocols must be explicitly allowed
+with the <<repositories-url-allowed,`repositories.url.allowed_urls`>> cluster
+setting. This setting supports wildcards in the place of a host, path, query, or
+fragment in the URL.
+
 URLs using the `file` protocol must point to the location of a shared filesystem
 accessible to all master and data nodes in the cluster. This location must be
-registered in the `path.repo` setting.
+registered in the `path.repo` setting. You don't need to register URLs using the
+`ftp`, `http`, `https`, or `jar` protocols in the `path.repo` setting.
+---
 
-URLs using the `http`, `https`, or `ftp` protocols must be explicitly allowed with the
-`repositories.url.allowed_urls` setting. This setting supports wildcards in the
-place of a host, path, query, or fragment in the URL.
+`http_max_retries`::
+(Optional, integer) Maximum number of retries for `http` and `https` URLs.
+Defaults to `5`.
+
+`http_socket_timeout`::
+(Optional, <<time-units,time value>>) Maximum wait time for data transfers over
+a connection. Defaults to `50s`.
 ====
 --
 
 `verify`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the request verifies the repository is functional on all master and
 data nodes in the cluster. If `false`, this verification is skipped. Defaults to
 `true`.

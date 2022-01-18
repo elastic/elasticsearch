@@ -1,0 +1,69 @@
+---
+"Migrate to data stream":
+  - skip:
+      version: " - 7.10.99"
+      reason: "migrate API released in 7.11.0"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [migrate-me-to-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [migrate-me-to-data-stream]
+          data_stream: {}
+
+  - do:
+      indices.create:
+        index: test_index1
+        body:
+          aliases:
+            migrate-me-to-data-stream:
+              is_write_index: true
+
+  - do:
+      index:
+        index:  test_index1
+        body:   { "foo": "bar1", "@timestamp": "2009-11-15T14:12:12" }
+
+  - do:
+      indices.create:
+        index: test_index2
+        body:
+          aliases:
+            migrate-me-to-data-stream: {}
+
+  - do:
+      index:
+        index:  test_index2
+        body:   { "foo": "bar2", "@timestamp": "2009-11-15T14:12:13" }
+
+  - do:
+      indices.migrate_to_data_stream:
+        name: migrate-me-to-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.resolve_index:
+        name: ['test_index*','migrate-me-to-data-stream*']
+        expand_wildcards: [all]
+
+  - match: {indices.0.name: test_index1}
+  - match: {indices.0.attributes.0: hidden}
+  - match: {indices.0.attributes.1: open}
+  - match: {indices.0.data_stream: migrate-me-to-data-stream}
+  - match: {indices.1.name: test_index2}
+  - match: {indices.1.attributes.0: hidden}
+  - match: {indices.1.attributes.1: open}
+  - match: {indices.1.data_stream: migrate-me-to-data-stream}
+  - length: {aliases: 0}
+  - match: {data_streams.0.name: migrate-me-to-data-stream}
+  - match: {data_streams.0.backing_indices.0: test_index2}
+  - match: {data_streams.0.backing_indices.1: test_index1}
+  - match: {data_streams.0.timestamp_field: "@timestamp"}
+
+  - do:
+      indices.delete_data_stream:
+        name: migrate-me-to-data-stream
+  - is_true: acknowledged

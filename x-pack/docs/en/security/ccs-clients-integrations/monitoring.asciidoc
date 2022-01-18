@@ -2,7 +2,7 @@
 === Monitoring and security
 
 The {stack} {monitor-features} consist of two components:
-an agent that you install on on each {es} and Logstash node, and a Monitoring UI
+an agent that you install on each {es} and Logstash node, and a Monitoring UI
 in {kib}. The monitoring agent collects and indexes metrics from the nodes
 and you visualize the data through the Monitoring dashboards in {kib}. The agent
 can index data on the same {es} cluster, or send it to an external

@@ -1,3 +1,4 @@
+[role="xpack"]
 [[indices-delete-data-stream]]
 === Delete data stream API
 ++++
@@ -5,7 +6,7 @@
 ++++
 
 Deletes one or more <<data-streams,data streams>> and their backing
-indices. See <<delete-a-data-stream>>.
+indices. See <<delete-data-stream>>.
 
 ////
 [source,console]
@@ -13,18 +14,7 @@ indices. See <<delete-a-data-stream>>.
 PUT /_index_template/template
 {
   "index_patterns": ["my-data-stream*"],
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    }
-  },
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  }
+  "data_stream": { }
 }
 
 PUT /_data_stream/my-data-stream
@@ -50,11 +40,25 @@ DELETE /_index_template/template
 
 `DELETE /_data_stream/<data-stream>`
 
+[[delete-data-stream-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `delete_index`
+or `manage` <<privileges-list-indices,index privilege>> for the data stream.
+
 
 [[delete-data-stream-api-path-params]]
 ==== {api-path-parms-title}
 
 `<data-stream>`::
 (Required, string)
-Name of the data stream to delete.
+Comma-separated list of data streams to delete.
 Wildcard (`*`) expressions are supported.
+
+[role="child_attributes"]
+[[delete-data-stream-api-query-parms]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
++
+Defaults to `open`.

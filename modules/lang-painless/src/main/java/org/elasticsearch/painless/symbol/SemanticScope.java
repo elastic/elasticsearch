@@ -1,26 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.symbol;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.node.ANode;
+import org.elasticsearch.painless.symbol.Decorator.Condition;
+import org.elasticsearch.painless.symbol.Decorator.Decoration;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -145,6 +137,7 @@ public abstract class SemanticScope {
         protected final SemanticScope parent;
         protected final Class<?> returnType;
         protected final Set<Variable> captures = new HashSet<>();
+        protected boolean usesInstanceMethod = false;
 
         protected LambdaScope(SemanticScope parent, Class<?> returnType) {
             super(parent.scriptScope, parent.usedVariables);
@@ -197,6 +190,22 @@ public abstract class SemanticScope {
 
         public Set<Variable> getCaptures() {
             return Collections.unmodifiableSet(captures);
+        }
+
+        @Override
+        public void setUsesInstanceMethod() {
+            if (usesInstanceMethod) {
+                return;
+            }
+            usesInstanceMethod = true;
+            if (parent != null) {
+                parent.setUsesInstanceMethod();
+            }
+        }
+
+        @Override
+        public boolean usesInstanceMethod() {
+            return usesInstanceMethod;
         }
     }
 
@@ -255,6 +264,12 @@ public abstract class SemanticScope {
         public String getReturnCanonicalTypeName() {
             return parent.getReturnCanonicalTypeName();
         }
+
+        @Override
+        // If the parent scope is a lambda, we want to track this usage, so forward call to parent.
+        public void setUsesInstanceMethod() {
+            parent.setUsesInstanceMethod();
+        }
     }
 
     /**
@@ -295,7 +310,44 @@ public abstract class SemanticScope {
         return scriptScope;
     }
 
+    public <T extends Decoration> T putDecoration(ANode node, T decoration) {
+        return scriptScope.put(node.getIdentifier(), decoration);
+    }
+
+    public <T extends Decoration> T removeDecoration(ANode node, Class<T> type) {
+        return scriptScope.remove(node.getIdentifier(), type);
+    }
+
+    public <T extends Decoration> T getDecoration(ANode node, Class<T> type) {
+        return scriptScope.get(node.getIdentifier(), type);
+    }
+
+    public boolean hasDecoration(ANode node, Class<? extends Decoration> type) {
+        return scriptScope.has(node.getIdentifier(), type);
+    }
+
+    public <T extends Decoration> boolean copyDecoration(ANode originalNode, ANode targetNode, Class<T> type) {
+        return scriptScope.copy(originalNode.getIdentifier(), targetNode.getIdentifier(), type);
+    }
+
+    public boolean setCondition(ANode node, Class<? extends Condition> type) {
+        return scriptScope.set(node.getIdentifier(), type);
+    }
+
+    public boolean deleteCondition(ANode node, Class<? extends Condition> type) {
+        return scriptScope.delete(node.getIdentifier(), type);
+    }
+
+    public boolean getCondition(ANode node, Class<? extends Condition> type) {
+        return scriptScope.exists(node.getIdentifier(), type);
+    }
+
+    public boolean replicateCondition(ANode originalNode, ANode targetNode, Class<? extends Condition> type) {
+        return scriptScope.replicate(originalNode.getIdentifier(), targetNode.getIdentifier(), type);
+    }
+
     public abstract Class<?> getReturnType();
+
     public abstract String getReturnCanonicalTypeName();
 
     public Variable defineVariable(Location location, Class<?> type, String name, boolean isReadOnly) {
@@ -310,7 +362,16 @@ public abstract class SemanticScope {
     }
 
     public abstract boolean isVariableDefined(String name);
+
     public abstract Variable getVariable(Location location, String name);
+
+    // We only want to track instance method use inside of lambdas (and blocks inside lambdas) for "this" injection.
+    // It's a noop for other scopes.
+    public void setUsesInstanceMethod() {}
+
+    public boolean usesInstanceMethod() {
+        return false;
+    }
 
     public Variable defineInternalVariable(Location location, Class<?> type, String name, boolean isReadOnly) {
         return defineVariable(location, type, "#" + name, isReadOnly);

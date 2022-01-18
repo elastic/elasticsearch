@@ -1,3 +1,4 @@
+
 [role="xpack"]
 [[security-api-get-builtin-privileges]]
 === Get builtin privileges API
@@ -62,6 +63,7 @@ A successful call returns an object with "cluster" and "index" fields.
 {
   "cluster" : [
     "all",
+    "cancel_task",
     "create_snapshot",
     "delegate_pki",
     "grant_api_key",
@@ -74,6 +76,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "manage_ilm",
     "manage_index_templates",
     "manage_ingest_pipelines",
+    "manage_logstash_pipelines",
     "manage_ml",
     "manage_oidc",
     "manage_own_api_key",
@@ -81,6 +84,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "manage_rollup",
     "manage_saml",
     "manage_security",
+    "manage_service_account",
     "manage_slm",
     "manage_token",
     "manage_transform",
@@ -90,16 +94,19 @@ A successful call returns an object with "cluster" and "index" fields.
     "monitor_ml",
     "monitor_rollup",
     "monitor_snapshot",
+    "monitor_text_structure",
     "monitor_transform",
     "monitor_watcher",
     "none",
     "read_ccr",
     "read_ilm",
+    "read_pipeline",
     "read_slm",
     "transport_client"
   ],
   "index" : [
     "all",
+    "auto_configure",
     "create",
     "create_doc",
     "create_index",

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.suggest.phrase;
 
@@ -34,7 +23,6 @@ final class CandidateScorer {
         this.maxNumCorrections = maxNumCorrections;
         this.gramSize = gramSize;
     }
-
 
     public Correction[] findBestCandiates(CandidateSet[] sets, float errorFraction, double cutoffScore) throws IOException {
         if (sets.length == 0) {
@@ -62,8 +50,15 @@ final class CandidateScorer {
 
     }
 
-    public void findCandidates(CandidateSet[] candidates, Candidate[] path, int ord, int numMissspellingsLeft,
-            PriorityQueue<Correction> corrections, double cutoffScore, final double pathScore) throws IOException {
+    public void findCandidates(
+        CandidateSet[] candidates,
+        Candidate[] path,
+        int ord,
+        int numMissspellingsLeft,
+        PriorityQueue<Correction> corrections,
+        double cutoffScore,
+        final double pathScore
+    ) throws IOException {
         CandidateSet current = candidates[ord];
         if (ord == candidates.length - 1) {
             path[ord] = current.originalTerm;
@@ -77,26 +72,52 @@ final class CandidateScorer {
         } else {
             if (numMissspellingsLeft > 0) {
                 path[ord] = current.originalTerm;
-                findCandidates(candidates, path, ord + 1, numMissspellingsLeft, corrections, cutoffScore,
-                    pathScore + scorer.score(path, candidates, ord, gramSize));
+                findCandidates(
+                    candidates,
+                    path,
+                    ord + 1,
+                    numMissspellingsLeft,
+                    corrections,
+                    cutoffScore,
+                    pathScore + scorer.score(path, candidates, ord, gramSize)
+                );
                 for (int i = 0; i < current.candidates.length; i++) {
                     path[ord] = current.candidates[i];
-                    findCandidates(candidates, path, ord + 1, numMissspellingsLeft - 1, corrections, cutoffScore,
-                        pathScore + scorer.score(path, candidates, ord, gramSize));
+                    findCandidates(
+                        candidates,
+                        path,
+                        ord + 1,
+                        numMissspellingsLeft - 1,
+                        corrections,
+                        cutoffScore,
+                        pathScore + scorer.score(path, candidates, ord, gramSize)
+                    );
                 }
             } else {
                 path[ord] = current.originalTerm;
-                findCandidates(candidates, path, ord + 1, 0, corrections, cutoffScore,
-                    pathScore + scorer.score(path, candidates, ord, gramSize));
+                findCandidates(
+                    candidates,
+                    path,
+                    ord + 1,
+                    0,
+                    corrections,
+                    cutoffScore,
+                    pathScore + scorer.score(path, candidates, ord, gramSize)
+                );
             }
         }
 
     }
 
-    private void updateTop(CandidateSet[] candidates, Candidate[] path,
-                                PriorityQueue<Correction> corrections, double cutoffScore, double score) throws IOException {
+    private void updateTop(
+        CandidateSet[] candidates,
+        Candidate[] path,
+        PriorityQueue<Correction> corrections,
+        double cutoffScore,
+        double score
+    ) throws IOException {
         score = Math.exp(score);
-        assert Math.abs(score - score(path, candidates)) < 0.00001 : "cur_score=" + score + ", path_score=" + score(path,candidates);
+        assert Math.abs(score - score(path, candidates)) < 0.00001 : "cur_score=" + score + ", path_score=" + score(path, candidates);
         if (score > cutoffScore) {
             if (corrections.size() < maxNumCorrections) {
                 Candidate[] c = new Candidate[candidates.length];
@@ -114,7 +135,7 @@ final class CandidateScorer {
     public double score(Candidate[] path, CandidateSet[] candidates) throws IOException {
         double score = 0.0d;
         for (int i = 0; i < candidates.length; i++) {
-           score += scorer.score(path, candidates, i, gramSize);
+            score += scorer.score(path, candidates, i, gramSize);
         }
         return Math.exp(score);
     }

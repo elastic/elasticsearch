@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action.privilege;
@@ -24,9 +25,7 @@ public class PutPrivilegesResponseTests extends ESTestCase {
         final int applicationCount = randomInt(3);
         final Map<String, List<String>> map = new HashMap<>(applicationCount);
         for (int i = 0; i < applicationCount; i++) {
-            map.put(randomAlphaOfLengthBetween(3, 8),
-                Arrays.asList(generateRandomStringArray(5, 6, false, true))
-            );
+            map.put(randomAlphaOfLengthBetween(3, 8), Arrays.asList(generateRandomStringArray(5, 6, false, true)));
         }
         final PutPrivilegesResponse original = new PutPrivilegesResponse(map);
 

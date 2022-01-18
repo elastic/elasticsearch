@@ -1,25 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,8 +30,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This class holds the configuration details of a rollup job, such as the groupings, metrics, what
@@ -75,20 +76,26 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         PARSER.declareString(constructorArg(), new ParseField(ROLLUP_INDEX));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> GroupConfig.fromXContent(p), new ParseField(GroupConfig.NAME));
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> MetricConfig.fromXContent(p), new ParseField(MetricConfig.NAME));
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), TIMEOUT),
-            new ParseField(TIMEOUT), ObjectParser.ValueType.STRING_OR_NULL);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), TIMEOUT),
+            new ParseField(TIMEOUT),
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
         PARSER.declareString(constructorArg(), new ParseField(CRON));
         PARSER.declareInt(constructorArg(), new ParseField(PAGE_SIZE));
     }
 
-    public RollupJobConfig(final String id,
-                           final String indexPattern,
-                           final String rollupIndex,
-                           final String cron,
-                           final int pageSize,
-                           final GroupConfig groupConfig,
-                           final List<MetricConfig> metricsConfig,
-                           final @Nullable TimeValue timeout) {
+    public RollupJobConfig(
+        final String id,
+        final String indexPattern,
+        final String rollupIndex,
+        final String cron,
+        final int pageSize,
+        final GroupConfig groupConfig,
+        final List<MetricConfig> metricsConfig,
+        final @Nullable TimeValue timeout
+    ) {
         if (id == null || id.isEmpty()) {
             throw new IllegalArgumentException("Id must be a non-null, non-empty string");
         }
@@ -190,8 +197,10 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         return Collections.unmodifiableSet(fields);
     }
 
-    public void validateMappings(final Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
-                                 final ActionRequestValidationException validationException) {
+    public void validateMappings(
+        final Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
+        final ActionRequestValidationException validationException
+    ) {
         groupConfig.validateMappings(fieldCapsResponse, validationException);
         for (MetricConfig m : metricsConfig) {
             m.validateMappings(fieldCapsResponse, validationException);
@@ -248,13 +257,13 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
 
         final RollupJobConfig that = (RollupJobConfig) other;
         return Objects.equals(this.id, that.id)
-                && Objects.equals(this.indexPattern, that.indexPattern)
-                && Objects.equals(this.rollupIndex, that.rollupIndex)
-                && Objects.equals(this.cron, that.cron)
-                && Objects.equals(this.groupConfig, that.groupConfig)
-                && Objects.equals(this.metricsConfig, that.metricsConfig)
-                && Objects.equals(this.timeout, that.timeout)
-                && Objects.equals(this.pageSize, that.pageSize);
+            && Objects.equals(this.indexPattern, that.indexPattern)
+            && Objects.equals(this.rollupIndex, that.rollupIndex)
+            && Objects.equals(this.cron, that.cron)
+            && Objects.equals(this.groupConfig, that.groupConfig)
+            && Objects.equals(this.metricsConfig, that.metricsConfig)
+            && Objects.equals(this.timeout, that.timeout)
+            && Objects.equals(this.pageSize, that.pageSize);
     }
 
     @Override

@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,8 +37,12 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
     private final List<ElasticsearchException> errors;
     private RestStatus restStatus;
 
-    public TokensInvalidationResult(List<String> invalidatedTokens, List<String> previouslyInvalidatedTokens,
-                                    @Nullable List<ElasticsearchException> errors, RestStatus restStatus) {
+    public TokensInvalidationResult(
+        List<String> invalidatedTokens,
+        List<String> previouslyInvalidatedTokens,
+        @Nullable List<ElasticsearchException> errors,
+        RestStatus restStatus
+    ) {
         Objects.requireNonNull(invalidatedTokens, "invalidated_tokens must be provided");
         this.invalidatedTokens = invalidatedTokens;
         Objects.requireNonNull(previouslyInvalidatedTokens, "previously_invalidated_tokens must be provided");
@@ -65,7 +70,6 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
     public static TokensInvalidationResult emptyResult(RestStatus restStatus) {
         return new TokensInvalidationResult(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), restStatus);
     }
-
 
     public List<String> getInvalidatedTokens() {
         return invalidatedTokens;

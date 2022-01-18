@@ -326,6 +326,23 @@ Pettey
 Heyers
 ;
 
+iifConditionWhere
+SELECT last_name FROM test_emp WHERE IIF(LENGTH(last_name) < 7, true, false) LIMIT 10;
+
+  last_name
+-----------
+Simmel
+Peac
+Sluis
+Terkki
+Genin
+Peha
+Erde
+Famili
+Pettey
+Heyers
+;
+
 iifOrderBy
 SELECT last_name FROM test_emp ORDER BY IIF(languages >= 3, 'first', 'second'), emp_no LIMIT 10;
 
@@ -514,4 +531,21 @@ SELECT GREATEST(null, null, birth_date + INTERVAL 25 YEARS, hire_date + INTERVAL
 1986-02-06T00:00:00.000Z|1954-09-13T00:00:00.000Z|1986-02-04T00:00:00.000Z
 1986-02-28T00:00:00.000Z|1952-11-13T00:00:00.000Z|1986-02-26T00:00:00.000Z
 1986-05-30T00:00:00.000Z|1961-05-30T00:00:00.000Z|1986-03-14T00:00:00.000Z
+;
+
+ifNullWithRuntimeField
+SELECT COUNT(*) c, LEFT(IFNULL(name, 'never'), 1) AS n FROM test_emp GROUP BY n ORDER BY n DESC LIMIT 10;
+
+      c:l      |      n:s      
+---------------+---------------
+2              |Z
+3              |Y
+1              |X
+1              |W
+3              |V
+2              |U
+3              |T
+11             |S
+3              |R
+5              |P
 ;

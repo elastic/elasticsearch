@@ -1,32 +1,31 @@
-evaluationDependsOn(xpackModule('core'))
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   name 'spatial'
   description 'A plugin for Basic Spatial features'
   classname 'org.elasticsearch.xpack.spatial.SpatialPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'legacy-geo', 'lang-painless']
 }
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  compile project(path: ':modules:geo', configuration: 'default')
-  restTestConfig project(path: ':modules:geo', configuration: 'restTests')
+  compileOnly project(path: ':modules:legacy-geo')
+  compileOnly project(':modules:lang-painless:spi')
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('vector-tile'))
 }
 
-restResources {
-  restApi {
-    includeCore '_common', 'bulk', 'indices', 'index', 'search'
-  }
-  restTests {
-    includeCore 'geo_shape'
-  }
-}
-
-testClusters.integTest {
+testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
-  setting 'indices.breaker.request.limit', '25kb'
   testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'false'
+}
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("test").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
 }

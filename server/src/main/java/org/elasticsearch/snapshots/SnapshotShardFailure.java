@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.snapshots;
@@ -22,28 +11,27 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Stores information about failures that occurred during shard snapshotting process
+ * Stores information about failures that occurred during shard snapshotting process for serialization as part of {@link SnapshotInfo}.
  */
 public class SnapshotShardFailure extends ShardOperationFailedException {
 
     @Nullable
-    private String nodeId;
-    private ShardId shardId;
+    private final String nodeId;
+    private final ShardId shardId;
 
     SnapshotShardFailure(StreamInput in) throws IOException {
         nodeId = in.readOptionalString();
@@ -74,9 +62,12 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
      * @param status  rest status
      */
     private SnapshotShardFailure(@Nullable String nodeId, ShardId shardId, String reason, RestStatus status) {
-        super(shardId.getIndexName(), shardId.id(), reason, status, new IndexShardSnapshotFailedException(shardId, reason));
         this.nodeId = nodeId;
         this.shardId = shardId;
+        this.index = shardId.getIndexName();
+        this.reason = reason;
+        super.shardId = shardId.getId();
+        this.status = status;
     }
 
     /**
@@ -89,6 +80,10 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
         return nodeId;
     }
 
+    public ShardId getShardId() {
+        return shardId;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(nodeId);
@@ -99,16 +94,25 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
 
     @Override
     public String toString() {
-        return "SnapshotShardFailure{" +
-            "shardId=" + shardId +
-            ", reason='" + reason + '\'' +
-            ", nodeId='" + nodeId + '\'' +
-            ", status=" + status +
-            '}';
+        return "SnapshotShardFailure{"
+            + "shardId="
+            + shardId
+            + ", reason='"
+            + reason
+            + '\''
+            + ", nodeId='"
+            + nodeId
+            + '\''
+            + ", status="
+            + status
+            + '}';
     }
 
-    static final ConstructingObjectParser<SnapshotShardFailure, Void> SNAPSHOT_SHARD_FAILURE_PARSER =
-        new ConstructingObjectParser<>("shard_failure", true, SnapshotShardFailure::constructSnapshotShardFailure);
+    static final ConstructingObjectParser<SnapshotShardFailure, Void> SNAPSHOT_SHARD_FAILURE_PARSER = new ConstructingObjectParser<>(
+        "shard_failure",
+        true,
+        SnapshotShardFailure::constructSnapshotShardFailure
+    );
 
     static {
         SNAPSHOT_SHARD_FAILURE_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("index"));
@@ -162,7 +166,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("index", shardId.getIndexName());
-        builder.field("index_uuid", shardId.getIndexName());
+        builder.field("index_uuid", shardId.getIndex().getUUID());
         builder.field("shard_id", shardId.id());
         builder.field("reason", reason);
         if (nodeId != null) {
@@ -178,17 +182,20 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SnapshotShardFailure that = (SnapshotShardFailure) o;
-        // customized to account for discrepancies in shardId/Index toXContent/fromXContent related to uuid
-        return shardId.id() == that.shardId.id() &&
-            shardId.getIndexName().equals(shardId.getIndexName()) &&
-            Objects.equals(reason, that.reason) &&
-            Objects.equals(nodeId, that.nodeId) &&
-            status.getStatus() == that.status.getStatus();
+        return shardId.equals(that.shardId)
+            && Objects.equals(reason, that.reason)
+            && Objects.equals(nodeId, that.nodeId)
+            && status.getStatus() == that.status.getStatus();
     }
 
     @Override
     public int hashCode() {
-        // customized to account for discrepancies in shardId/Index toXContent/fromXContent related to uuid
-        return Objects.hash(shardId.id(), shardId.getIndexName(), reason, nodeId, status.getStatus());
+        return Objects.hash(shardId, reason, nodeId, status.getStatus());
+    }
+
+    @Override
+    public Throwable fillInStackTrace() {
+        // no need for stack-traces here as we are not serializing them anyway
+        return this;
     }
 }

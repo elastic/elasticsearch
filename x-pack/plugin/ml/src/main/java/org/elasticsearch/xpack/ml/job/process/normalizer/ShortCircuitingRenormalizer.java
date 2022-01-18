@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
@@ -46,7 +47,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
 
     @Override
     public void renormalize(Quantiles quantiles) {
-        if (!isEnabled()) {
+        if (isEnabled() == false) {
             return;
         }
 
@@ -81,7 +82,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
     public void shutdown() {
         scoresUpdater.shutdown();
         // We have to wait until idle to avoid a raft of exceptions as other parts of the
-        // system are stopped after this method returns.  However, shutting down the
+        // system are stopped after this method returns. However, shutting down the
         // scoresUpdater first means it won't do all pending work; it will stop as soon
         // as it can without causing further errors.
         waitUntilIdle();
@@ -95,8 +96,8 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
     private QuantilesWithLatch getLatestQuantilesWithLatchAndClear() {
         // We discard all but the latest quantiles
         QuantilesWithLatch latestQuantilesWithLatch = null;
-        for (QuantilesWithLatch quantilesWithLatch = quantilesDeque.pollFirst(); quantilesWithLatch != null;
-             quantilesWithLatch = quantilesDeque.pollFirst()) {
+        for (QuantilesWithLatch quantilesWithLatch = quantilesDeque.pollFirst(); quantilesWithLatch != null; quantilesWithLatch =
+            quantilesDeque.pollFirst()) {
             // Count down the latches associated with any discarded quantiles
             if (latestQuantilesWithLatch != null) {
                 latestQuantilesWithLatch.getLatch().countDown();
@@ -113,7 +114,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
     private boolean tryFinishWork() {
         // We cannot tolerate new work being added in between the isEmpty() check and releasing the semaphore
         synchronized (quantilesDeque) {
-            if (!quantilesDeque.isEmpty()) {
+            if (quantilesDeque.isEmpty() == false) {
                 return false;
             }
             semaphore.release();
@@ -126,8 +127,8 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
         synchronized (quantilesDeque) {
             // We discard all but the earliest quantiles, if they exist
             QuantilesWithLatch earliestQuantileWithLatch = null;
-            for (QuantilesWithLatch quantilesWithLatch = quantilesDeque.pollFirst(); quantilesWithLatch != null;
-                 quantilesWithLatch = quantilesDeque.pollFirst()) {
+            for (QuantilesWithLatch quantilesWithLatch = quantilesDeque.pollFirst(); quantilesWithLatch != null; quantilesWithLatch =
+                quantilesDeque.pollFirst()) {
                 if (earliestQuantileWithLatch == null) {
                     earliestQuantileWithLatch = quantilesWithLatch;
                 }
@@ -145,7 +146,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
     }
 
     private void doRenormalizations() {
-        // Exit immediately if another normalization is in progress.  This means we don't hog threads.
+        // Exit immediately if another normalization is in progress. This means we don't hog threads.
         if (tryStartWork() == false) {
             return;
         }
@@ -173,8 +174,12 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
                     // over the time ranges implied by all quantiles that were provided.
                     long windowExtensionMs = latestBucketTimeMs - earliestBucketTimeMs;
                     if (windowExtensionMs < 0) {
-                        LOGGER.warn("[{}] Quantiles not supplied in time order - {} after {}",
-                                jobId, latestBucketTimeMs, earliestBucketTimeMs);
+                        LOGGER.warn(
+                            "[{}] Quantiles not supplied in time order - {} after {}",
+                            jobId,
+                            latestBucketTimeMs,
+                            earliestBucketTimeMs
+                        );
                         windowExtensionMs = 0;
                     }
                     scoresUpdater.update(latestQuantiles.getQuantileState(), latestBucketTimeMs, windowExtensionMs);

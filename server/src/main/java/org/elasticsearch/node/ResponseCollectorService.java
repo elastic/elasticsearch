@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.node;
@@ -43,7 +32,10 @@ import java.util.concurrent.ConcurrentMap;
  */
 public final class ResponseCollectorService implements ClusterStateListener {
 
-    private static final double ALPHA = 0.3;
+    /**
+     * The weight parameter used for all moving averages of parameters.
+     */
+    public static final double ALPHA = 0.3;
 
     private final ConcurrentMap<String, NodeStatistics> nodeIdToStats = ConcurrentCollections.newConcurrentMap();
 
@@ -83,9 +75,7 @@ public final class ResponseCollectorService implements ClusterStateListener {
         final int clientNum = nodeIdToStats.size();
         // Transform the mutable object internally used for accounting into the computed version
         Map<String, ComputedNodeStats> nodeStats = new HashMap<>(nodeIdToStats.size());
-        nodeIdToStats.forEach((k, v) -> {
-            nodeStats.put(k, new ComputedNodeStats(clientNum, v));
-        });
+        nodeIdToStats.forEach((k, v) -> { nodeStats.put(k, new ComputedNodeStats(clientNum, v)); });
         return nodeStats;
     }
 
@@ -131,8 +121,13 @@ public final class ResponseCollectorService implements ClusterStateListener {
         }
 
         ComputedNodeStats(int clientNum, NodeStatistics nodeStats) {
-            this(nodeStats.nodeId, clientNum,
-                    (int) nodeStats.queueSize.getAverage(), nodeStats.responseTime.getAverage(), nodeStats.serviceTime);
+            this(
+                nodeStats.nodeId,
+                clientNum,
+                (int) nodeStats.queueSize.getAverage(),
+                nodeStats.responseTime.getAverage(),
+                nodeStats.serviceTime
+            );
         }
 
         ComputedNodeStats(StreamInput in) throws IOException {
@@ -172,12 +167,12 @@ public final class ResponseCollectorService implements ClusterStateListener {
 
             // EWMA of response time
             double rS = responseTime / FACTOR;
-            // EWMA of service time
-            double muBarS = serviceTime / FACTOR;
+            // EWMA of service time. We match the paper's notation, which
+            // defines service time as the inverse of service rate (muBarS).
+            double muBarSInverse = serviceTime / FACTOR;
 
             // The final formula
-            double rank = rS - (1.0 / muBarS) + (Math.pow(qHatS, queueAdjustmentFactor) / muBarS);
-            return rank;
+            return rS - muBarSInverse + Math.pow(qHatS, queueAdjustmentFactor) * muBarSInverse;
         }
 
         public double rank(long outstandingRequests) {
@@ -212,10 +207,12 @@ public final class ResponseCollectorService implements ClusterStateListener {
         final ExponentiallyWeightedMovingAverage responseTime;
         double serviceTime;
 
-        NodeStatistics(String nodeId,
-                       ExponentiallyWeightedMovingAverage queueSizeEWMA,
-                       ExponentiallyWeightedMovingAverage responseTimeEWMA,
-                       double serviceTimeEWMA) {
+        NodeStatistics(
+            String nodeId,
+            ExponentiallyWeightedMovingAverage queueSizeEWMA,
+            ExponentiallyWeightedMovingAverage responseTimeEWMA,
+            double serviceTimeEWMA
+        ) {
             this.nodeId = nodeId;
             this.queueSize = queueSizeEWMA;
             this.responseTime = responseTimeEWMA;

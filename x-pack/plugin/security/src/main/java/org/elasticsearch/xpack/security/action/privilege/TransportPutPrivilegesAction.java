@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.privilege;
 
@@ -26,8 +27,11 @@ public class TransportPutPrivilegesAction extends HandledTransportAction<PutPriv
     private final NativePrivilegeStore privilegeStore;
 
     @Inject
-    public TransportPutPrivilegesAction(ActionFilters actionFilters, NativePrivilegeStore privilegeStore,
-                                        TransportService transportService) {
+    public TransportPutPrivilegesAction(
+        ActionFilters actionFilters,
+        NativePrivilegeStore privilegeStore,
+        TransportService transportService
+    ) {
         super(PutPrivilegesAction.NAME, transportService, actionFilters, PutPrivilegesRequest::new);
         this.privilegeStore = privilegeStore;
     }
@@ -37,10 +41,11 @@ public class TransportPutPrivilegesAction extends HandledTransportAction<PutPriv
         if (request.getPrivileges() == null || request.getPrivileges().size() == 0) {
             listener.onResponse(new PutPrivilegesResponse(Collections.emptyMap()));
         } else {
-            this.privilegeStore.putPrivileges(request.getPrivileges(), request.getRefreshPolicy(), ActionListener.wrap(
-                created -> listener.onResponse(new PutPrivilegesResponse(created)),
-                listener::onFailure
-            ));
+            this.privilegeStore.putPrivileges(
+                request.getPrivileges(),
+                request.getRefreshPolicy(),
+                ActionListener.wrap(created -> listener.onResponse(new PutPrivilegesResponse(created)), listener::onFailure)
+            );
         }
     }
 }

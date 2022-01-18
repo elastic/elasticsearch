@@ -1,31 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -40,7 +34,10 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * Generic interface to group ActionRequest, which perform writes to a single document
  * Action requests implementing this can be part of {@link org.elasticsearch.action.bulk.BulkRequest}
  */
-public interface DocWriteRequest<T> extends IndicesRequest {
+public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
+
+    // Flag set for disallowing index auto creation for an individual write request.
+    String REQUIRE_ALIAS = "require_alias";
 
     /**
      * Set the index for this request
@@ -125,7 +122,7 @@ public interface DocWriteRequest<T> extends IndicesRequest {
      * If the document last modification was assigned a different sequence number a
      * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
      */
-     long ifSeqNo();
+    long ifSeqNo();
 
     /**
      * If set, only perform this request if the document was last modification was assigned this primary term.
@@ -140,6 +137,34 @@ public interface DocWriteRequest<T> extends IndicesRequest {
      * @return the operation type {@link OpType}
      */
     OpType opType();
+
+    /**
+     * Should this request override specifically require the destination to be an alias?
+     * @return boolean flag, when true specifically requires an alias
+     */
+    boolean isRequireAlias();
+
+    /**
+     * Finalize the request before executing or routing it.
+     */
+    void process();
+
+    /**
+     * Pick the appropriate shard id to receive this request.
+     */
+    int route(IndexRouting indexRouting);
+
+    /**
+     * Resolves the write index that should receive this request
+     * based on the provided index abstraction.
+     *
+     * @param ia        The provided index abstraction
+     * @param metadata  The metadata instance used to resolve the write index.
+     * @return the write index that should receive this request
+     */
+    default Index getConcreteWriteIndex(IndexAbstraction ia, Metadata metadata) {
+        return ia.getWriteIndex();
+    }
 
     /**
      * Requested operation type to perform on the document
@@ -177,13 +202,13 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         }
 
         public static OpType fromId(byte id) {
-            switch (id) {
-                case 0: return INDEX;
-                case 1: return CREATE;
-                case 2: return UPDATE;
-                case 3: return DELETE;
-                default: throw new IllegalArgumentException("Unknown opType: [" + id + "]");
-            }
+            return switch (id) {
+                case 0 -> INDEX;
+                case 1 -> CREATE;
+                case 2 -> UPDATE;
+                case 3 -> DELETE;
+                default -> throw new IllegalArgumentException("Unknown opType: [" + id + "]");
+            };
         }
 
         public static OpType fromString(String sOpType) {
@@ -201,8 +226,7 @@ public interface DocWriteRequest<T> extends IndicesRequest {
      * Read a document write (index/delete/update) request
      *
      * @param shardId shard id of the request. {@code null} when reading as part of a {@link org.elasticsearch.action.bulk.BulkRequest}
-     *                that does not have a unique shard id or when reading from a stream of version older than
-     *                {@link org.elasticsearch.action.bulk.BulkShardRequest#COMPACT_SHARD_ID_VERSION}
+     *                that does not have a unique shard id.
      */
     static DocWriteRequest<?> readDocumentRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         byte type = in.readByte();
@@ -214,13 +238,13 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         } else if (type == 2) {
             docWriteRequest = new UpdateRequest(shardId, in);
         } else {
-            throw new IllegalStateException("invalid request type [" + type+ " ]");
+            throw new IllegalStateException("invalid request type [" + type + " ]");
         }
         return docWriteRequest;
     }
 
     /** write a document write (index/delete/update) request*/
-    static void writeDocumentRequest(StreamOutput out, DocWriteRequest<?> request)  throws IOException {
+    static void writeDocumentRequest(StreamOutput out, DocWriteRequest<?> request) throws IOException {
         if (request instanceof IndexRequest) {
             out.writeByte((byte) 0);
             ((IndexRequest) request).writeTo(out);
@@ -236,7 +260,7 @@ public interface DocWriteRequest<T> extends IndicesRequest {
     }
 
     /** write a document write (index/delete/update) request without shard id*/
-    static void writeDocumentRequestThin(StreamOutput out, DocWriteRequest<?> request)  throws IOException {
+    static void writeDocumentRequestThin(StreamOutput out, DocWriteRequest<?> request) throws IOException {
         if (request instanceof IndexRequest) {
             out.writeByte((byte) 0);
             ((IndexRequest) request).writeThin(out);
@@ -252,30 +276,37 @@ public interface DocWriteRequest<T> extends IndicesRequest {
     }
 
     static ActionRequestValidationException validateSeqNoBasedCASParams(
-        DocWriteRequest request, ActionRequestValidationException validationException) {
+        DocWriteRequest<?> request,
+        ActionRequestValidationException validationException
+    ) {
         final long version = request.version();
         final VersionType versionType = request.versionType();
         if (versionType.validateVersionForWrites(version) == false) {
-            validationException = addValidationError("illegal version value [" + version + "] for version type ["
-                + versionType.name() + "]", validationException);
+            validationException = addValidationError(
+                "illegal version value [" + version + "] for version type [" + versionType.name() + "]",
+                validationException
+            );
         }
 
         if (versionType == VersionType.INTERNAL && version != Versions.MATCH_ANY && version != Versions.MATCH_DELETED) {
-            validationException = addValidationError("internal versioning can not be used for optimistic concurrency control. " +
-                "Please use `if_seq_no` and `if_primary_term` instead", validationException);
+            validationException = addValidationError(
+                "internal versioning can not be used for optimistic concurrency control. "
+                    + "Please use `if_seq_no` and `if_primary_term` instead",
+                validationException
+            );
         }
 
-        if (request.ifSeqNo() != UNASSIGNED_SEQ_NO && (
-            versionType != VersionType.INTERNAL || version != Versions.MATCH_ANY
-        )) {
+        if (request.ifSeqNo() != UNASSIGNED_SEQ_NO && (versionType != VersionType.INTERNAL || version != Versions.MATCH_ANY)) {
             validationException = addValidationError("compare and write operations can not use versioning", validationException);
         }
         if (request.ifPrimaryTerm() == UNASSIGNED_PRIMARY_TERM && request.ifSeqNo() != UNASSIGNED_SEQ_NO) {
             validationException = addValidationError("ifSeqNo is set, but primary term is [0]", validationException);
         }
         if (request.ifPrimaryTerm() != UNASSIGNED_PRIMARY_TERM && request.ifSeqNo() == UNASSIGNED_SEQ_NO) {
-            validationException =
-                addValidationError("ifSeqNo is unassigned, but primary term is [" + request.ifPrimaryTerm() + "]", validationException);
+            validationException = addValidationError(
+                "ifSeqNo is unassigned, but primary term is [" + request.ifPrimaryTerm() + "]",
+                validationException
+            );
         }
 
         return validationException;

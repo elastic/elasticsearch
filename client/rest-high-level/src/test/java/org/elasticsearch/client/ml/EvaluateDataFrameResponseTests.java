@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml;
 
@@ -23,54 +12,55 @@ import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXConten
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetricResultTests;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetricResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetricResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetricResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetricResultTests;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetricResultTests;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetricResultTests;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetricResultTests;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetricResultTests;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetricResultTests;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetricResultTests;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Predicate;
 
 public class EvaluateDataFrameResponseTests extends AbstractXContentTestCase<EvaluateDataFrameResponse> {
+    private enum Evaluation {
+        OUTLIER_DETECTION,
+        CLASSIFICATION,
+        REGRESSION
+    }
 
     public static EvaluateDataFrameResponse randomResponse() {
-        String evaluationName = randomFrom(BinarySoftClassification.NAME, Classification.NAME, Regression.NAME);
-        List<EvaluationMetric.Result> metrics;
-        switch (evaluationName) {
-            case BinarySoftClassification.NAME:
-                metrics = randomSubsetOf(
-                    Arrays.asList(
-                        AucRocMetricResultTests.randomResult(),
-                        PrecisionMetricResultTests.randomResult(),
-                        RecallMetricResultTests.randomResult(),
-                        ConfusionMatrixMetricResultTests.randomResult()));
-                break;
-            case Regression.NAME:
-                metrics = randomSubsetOf(
-                    Arrays.asList(
-                        MeanSquaredErrorMetricResultTests.randomResult(),
-                        RSquaredMetricResultTests.randomResult()));
-                break;
-            case Classification.NAME:
-                metrics = randomSubsetOf(
-                    Arrays.asList(
-                        AccuracyMetricResultTests.randomResult(),
-                        org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetricResultTests.randomResult(),
-                        org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetricResultTests.randomResult(),
-                        MulticlassConfusionMatrixMetricResultTests.randomResult()));
-                break;
-            default:
-                throw new AssertionError("Please add missing \"case\" variant to the \"switch\" statement");
-        }
+        String evaluationName = randomFrom(OutlierDetection.NAME, Classification.NAME, Regression.NAME);
+        List<EvaluationMetric.Result> metrics = switch (Evaluation.valueOf(evaluationName.toUpperCase(Locale.ROOT))) {
+            case OUTLIER_DETECTION -> randomSubsetOf(
+                Arrays.asList(
+                    AucRocResultTests.randomResult(),
+                    PrecisionMetricResultTests.randomResult(),
+                    RecallMetricResultTests.randomResult(),
+                    ConfusionMatrixMetricResultTests.randomResult()
+                )
+            );
+            case REGRESSION -> randomSubsetOf(
+                Arrays.asList(MeanSquaredErrorMetricResultTests.randomResult(), RSquaredMetricResultTests.randomResult())
+            );
+            case CLASSIFICATION -> randomSubsetOf(
+                Arrays.asList(
+                    AucRocResultTests.randomResult(),
+                    AccuracyMetricResultTests.randomResult(),
+                    org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetricResultTests.randomResult(),
+                    org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetricResultTests.randomResult(),
+                    MulticlassConfusionMatrixMetricResultTests.randomResult()
+                )
+            );
+        };
         return new EvaluateDataFrameResponse(evaluationName, metrics);
     }
 

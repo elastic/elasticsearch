@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.mapping;
@@ -23,10 +12,10 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -38,8 +27,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_ME
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -58,21 +47,28 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
     }
 
     private XContentBuilder getMappingForType() throws IOException {
-        return jsonBuilder().startObject().startObject("_doc").startObject("properties")
-                .startObject("field1").field("type", "text").endObject()
-                .endObject().endObject().endObject();
+        return jsonBuilder().startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("field1")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
     }
 
     public void testSimpleGetMappings() throws Exception {
-        client().admin().indices().prepareCreate("indexa")
-                .setMapping(getMappingForType())
-                .execute().actionGet();
-        client().admin().indices().prepareCreate("indexb")
-                .setMapping(getMappingForType())
-                .execute().actionGet();
+        client().admin().indices().prepareCreate("indexa").setMapping(getMappingForType()).execute().actionGet();
+        client().admin().indices().prepareCreate("indexb").setMapping(getMappingForType()).execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
-            .setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealth = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForGreenStatus()
+            .execute()
+            .actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // Get all mappings
@@ -94,9 +90,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
     }
 
     public void testGetMappingsWithBlocks() throws IOException {
-        client().admin().indices().prepareCreate("test")
-                .setMapping(getMappingForType())
-                .execute().actionGet();
+        client().admin().indices().prepareCreate("test").setMapping(getMappingForType()).execute().actionGet();
         ensureGreen();
 
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {

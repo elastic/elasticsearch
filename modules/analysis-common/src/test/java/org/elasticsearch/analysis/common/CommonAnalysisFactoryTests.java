@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.analysis.common;
@@ -24,6 +13,8 @@ import org.apache.lucene.analysis.en.PorterStemFilterFactory;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilterFactory;
 import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
+import org.apache.lucene.analysis.te.TeluguNormalizationFilterFactory;
+import org.apache.lucene.analysis.te.TeluguStemFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
 import java.util.List;
@@ -95,6 +86,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("latvianstem", StemmerTokenFilterFactory.class);
         filters.put("norwegianlightstem", StemmerTokenFilterFactory.class);
         filters.put("norwegianminimalstem", StemmerTokenFilterFactory.class);
+        filters.put("norwegiannormalization", Void.class);
         filters.put("portuguesestem", StemmerTokenFilterFactory.class);
         filters.put("portugueselightstem", StemmerTokenFilterFactory.class);
         filters.put("portugueseminimalstem", StemmerTokenFilterFactory.class);
@@ -102,7 +94,10 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("soranistem", StemmerTokenFilterFactory.class);
         filters.put("spanishlightstem", StemmerTokenFilterFactory.class);
         filters.put("swedishlightstem", StemmerTokenFilterFactory.class);
+        filters.put("swedishminimalstem", Void.class);
         filters.put("stemmeroverride", StemmerOverrideTokenFilterFactory.class);
+        filters.put("telugunormalization", TeluguNormalizationFilterFactory.class);
+        filters.put("telugustem", TeluguStemFilterFactory.class);
         filters.put("kstem", KStemTokenFilterFactory.class);
         filters.put("synonym", SynonymTokenFilterFactory.class);
         filters.put("synonymgraph", SynonymGraphTokenFilterFactory.class);
@@ -148,13 +143,13 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     @Override
     protected Map<String, Class<?>> getCharFilters() {
         Map<String, Class<?>> filters = new TreeMap<>(super.getCharFilters());
-        filters.put("htmlstrip",      HtmlStripCharFilterFactory.class);
-        filters.put("mapping",        MappingCharFilterFactory.class);
+        filters.put("htmlstrip", HtmlStripCharFilterFactory.class);
+        filters.put("mapping", MappingCharFilterFactory.class);
         filters.put("patternreplace", PatternReplaceCharFilterFactory.class);
 
         // TODO: these charfilters are not yet exposed: useful?
         // handling of zwnj for persian
-        filters.put("persian",        Void.class);
+        filters.put("persian", Void.class);
         return filters;
     }
 
@@ -223,7 +218,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         tokenizers.put("keyword", null);
         tokenizers.put("lowercase", Void.class);
         tokenizers.put("classic", null);
-        tokenizers.put("uax_url_email", org.apache.lucene.analysis.standard.UAX29URLEmailTokenizerFactory.class);
+        tokenizers.put("uax_url_email", org.apache.lucene.analysis.email.UAX29URLEmailTokenizerFactory.class);
         tokenizers.put("path_hierarchy", null);
         tokenizers.put("letter", null);
         tokenizers.put("whitespace", null);
@@ -265,12 +260,16 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     }
 
     private void markedTestCase(String name, Map<String, Class<?>> map) {
-        List<String> unmarked = map.entrySet().stream()
-                .filter(e -> e.getValue() == MovedToAnalysisCommon.class)
-                .map(Map.Entry::getKey)
-                .sorted()
-                .collect(toList());
-        assertEquals(name + " marked in AnalysisFactoryTestCase as moved to analysis-common "
-                + "but not mapped here", emptyList(), unmarked);
+        List<String> unmarked = map.entrySet()
+            .stream()
+            .filter(e -> e.getValue() == MovedToAnalysisCommon.class)
+            .map(Map.Entry::getKey)
+            .sorted()
+            .collect(toList());
+        assertEquals(
+            name + " marked in AnalysisFactoryTestCase as moved to analysis-common " + "but not mapped here",
+            emptyList(),
+            unmarked
+        );
     }
 }

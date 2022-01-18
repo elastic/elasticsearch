@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
@@ -28,16 +29,27 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleSecurityTrans
     protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
-        Settings settings1 = Settings.builder()
-                .put(settings)
-                .put("xpack.security.transport.ssl.enabled", true).build();
-        return new SecurityNioTransport(settings1, version, threadPool, networkService, new MockPageCacheRecycler(settings),
-            namedWriteableRegistry, new NoneCircuitBreakerService(), null, createSSLService(settings1),
-            new NioGroupFactory(settings, logger)) {
+        Settings settings1 = Settings.builder().put(settings).put("xpack.security.transport.ssl.enabled", true).build();
+        return new SecurityNioTransport(
+            settings1,
+            version,
+            threadPool,
+            networkService,
+            new MockPageCacheRecycler(settings),
+            namedWriteableRegistry,
+            new NoneCircuitBreakerService(),
+            null,
+            createSSLService(settings1),
+            new NioGroupFactory(settings, logger)
+        ) {
 
             @Override
-            public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile,
-                                         ActionListener<Version> listener) {
+            public void executeHandshake(
+                DiscoveryNode node,
+                TcpChannel channel,
+                ConnectionProfile profile,
+                ActionListener<Version> listener
+            ) {
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {

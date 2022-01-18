@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.common.http;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -39,16 +40,12 @@ public class HttpReadTimeoutTests extends ESTestCase {
 
     public void testDefaultTimeout() throws Exception {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
-                .method(HttpMethod.POST)
-                .path("/")
-                .build();
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort()).method(HttpMethod.POST).path("/").build();
 
-        try (HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment),
-            null, mockClusterService())) {
+        try (HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment), null, mockClusterService())) {
             long start = System.nanoTime();
 
-            expectThrows(SocketTimeoutException.class, () ->  httpClient.execute(request));
+            expectThrows(SocketTimeoutException.class, () -> httpClient.execute(request));
             TimeValue timeout = TimeValue.timeValueNanos(System.nanoTime() - start);
             logger.info("http connection timed out after {}", timeout);
 
@@ -61,17 +58,19 @@ public class HttpReadTimeoutTests extends ESTestCase {
     public void testDefaultTimeoutCustom() throws Exception {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
 
-        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
-                .method(HttpMethod.POST)
-                .path("/")
-                .build();
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort()).method(HttpMethod.POST).path("/").build();
 
-        try (HttpClient httpClient = new HttpClient(Settings.builder()
-            .put("xpack.http.default_read_timeout", "3s").build(), new SSLService(environment),
-            null, mockClusterService())) {
+        try (
+            HttpClient httpClient = new HttpClient(
+                Settings.builder().put("xpack.http.default_read_timeout", "3s").build(),
+                new SSLService(environment),
+                null,
+                mockClusterService()
+            )
+        ) {
 
             long start = System.nanoTime();
-            expectThrows(SocketTimeoutException.class, () ->  httpClient.execute(request));
+            expectThrows(SocketTimeoutException.class, () -> httpClient.execute(request));
             TimeValue timeout = TimeValue.timeValueNanos(System.nanoTime() - start);
             logger.info("http connection timed out after {}", timeout);
 
@@ -85,17 +84,22 @@ public class HttpReadTimeoutTests extends ESTestCase {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
 
         HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
-                .readTimeout(TimeValue.timeValueSeconds(3))
-                .method(HttpMethod.POST)
-                .path("/")
-                .build();
+            .readTimeout(TimeValue.timeValueSeconds(3))
+            .method(HttpMethod.POST)
+            .path("/")
+            .build();
 
-        try (HttpClient httpClient = new HttpClient(Settings.builder()
-            .put("xpack.http.default_read_timeout", "10s").build(), new SSLService(environment),
-            null, mockClusterService())) {
+        try (
+            HttpClient httpClient = new HttpClient(
+                Settings.builder().put("xpack.http.default_read_timeout", "10s").build(),
+                new SSLService(environment),
+                null,
+                mockClusterService()
+            )
+        ) {
 
             long start = System.nanoTime();
-            expectThrows(SocketTimeoutException.class, () ->  httpClient.execute(request));
+            expectThrows(SocketTimeoutException.class, () -> httpClient.execute(request));
             TimeValue timeout = TimeValue.timeValueNanos(System.nanoTime() - start);
             logger.info("http connection timed out after {}", timeout);
 

@@ -1,6 +1,9 @@
 [role="xpack"]
 [[condition-always]]
-=== Always condition
+=== {watcher} always condition
+++++
+<titleabbrev>Always condition</titleabbrev>
+++++
 
 Use the `always` condition to set the condition to `true`. This forces the watch 
 actions to be executed unless they are <<actions-ack-throttle,throttled>>. 

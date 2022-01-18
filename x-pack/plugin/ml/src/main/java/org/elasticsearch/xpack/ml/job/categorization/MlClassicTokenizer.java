@@ -1,39 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.categorization;
 
-import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
-import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-
 import java.io.IOException;
-
 
 /**
  * Java port of the classic ML categorization tokenizer, as implemented in the ML C++ code.
  *
  * In common with the original ML C++ code, there are no configuration options.
  */
-public class MlClassicTokenizer extends Tokenizer {
+public class MlClassicTokenizer extends AbstractMlTokenizer {
 
     public static String NAME = "ml_classic";
 
-    private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
-    private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
-    private final PositionIncrementAttribute posIncrAtt = addAttribute(PositionIncrementAttribute.class);
-
-    private int nextOffset;
-    private int skippedPositions;
-
-    MlClassicTokenizer() {
-    }
+    MlClassicTokenizer() {}
 
     /**
-     * Basically tokenise into [a-zA-Z0-9]+ strings, but also allowing underscores, dots and dashes in the middle.
+     * Basically tokenize into [a-zA-Z0-9]+ strings, but also allowing underscores, dots and dashes in the middle.
      * Then discard tokens that are hex numbers or begin with a digit.
      */
     @Override
@@ -58,8 +45,8 @@ public class MlClassicTokenizer extends Tokenizer {
 
                 // We don't return tokens that are hex numbers, and it's most efficient to keep a running note of this
                 haveNonHex = haveNonHex ||
-                        // Count dots and dashes as numeric
-                        (Character.digit(curChar, 16) == -1 && curChar != '.' && curChar != '-');
+                // Count dots and dashes as numeric
+                    (Character.digit(curChar, 16) == -1 && curChar != '.' && curChar != '-');
             } else if (length > 0) {
                 // If we get here, we've found a separator character having built up a candidate token
 
@@ -95,26 +82,9 @@ public class MlClassicTokenizer extends Tokenizer {
 
         // Characters that may exist in the term attribute beyond its defined length are ignored
         termAtt.setLength(length);
-        offsetAtt.setOffset(start, start + length);
+        offsetAtt.setOffset(correctOffset(start), correctOffset(start + length));
         posIncrAtt.setPositionIncrement(skippedPositions + 1);
 
         return true;
-    }
-
-    @Override
-    public final void end() throws IOException {
-        super.end();
-        // Set final offset
-        int finalOffset = nextOffset + (int) input.skip(Integer.MAX_VALUE);
-        offsetAtt.setOffset(finalOffset, finalOffset);
-        // Adjust any skipped tokens
-        posIncrAtt.setPositionIncrement(posIncrAtt.getPositionIncrement() + skippedPositions);
-    }
-
-    @Override
-    public void reset() throws IOException {
-        super.reset();
-        nextOffset = 0;
-        skippedPositions = 0;
     }
 }

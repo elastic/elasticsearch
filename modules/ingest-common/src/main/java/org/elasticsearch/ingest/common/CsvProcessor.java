@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
@@ -46,7 +35,7 @@ public final class CsvProcessor extends AbstractProcessor {
 
     public static final String TYPE = "csv";
 
-    //visible for testing
+    // visible for testing
     final String field;
     final String[] headers;
     final boolean trim;
@@ -55,8 +44,17 @@ public final class CsvProcessor extends AbstractProcessor {
     final boolean ignoreMissing;
     final Object emptyValue;
 
-    CsvProcessor(String tag, String description, String field, String[] headers, boolean trim, char separator, char quote,
-                 boolean ignoreMissing, Object emptyValue) {
+    CsvProcessor(
+        String tag,
+        String description,
+        String field,
+        String[] headers,
+        boolean trim,
+        char separator,
+        char quote,
+        boolean ignoreMissing,
+        Object emptyValue
+    ) {
         super(tag, description);
         this.field = field;
         this.headers = headers;
@@ -90,8 +88,12 @@ public final class CsvProcessor extends AbstractProcessor {
 
     public static final class Factory implements org.elasticsearch.ingest.Processor.Factory {
         @Override
-        public CsvProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                   String description, Map<String, Object> config) {
+        public CsvProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String quote = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "quote", "\"");
             if (quote.length() != 1) {
@@ -103,7 +105,7 @@ public final class CsvProcessor extends AbstractProcessor {
             }
             boolean trim = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "trim", false);
             Object emptyValue = null;
-            if(config.containsKey("empty_value")){
+            if (config.containsKey("empty_value")) {
                 emptyValue = ConfigurationUtils.readObject(TYPE, processorTag, config, "empty_value");
             }
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
@@ -111,8 +113,17 @@ public final class CsvProcessor extends AbstractProcessor {
             if (targetFields.isEmpty()) {
                 throw newConfigurationException(TYPE, processorTag, "target_fields", "target fields list can't be empty");
             }
-            return new CsvProcessor(processorTag, description, field, targetFields.toArray(String[]::new), trim, separator.charAt(0),
-                quote.charAt(0), ignoreMissing, emptyValue);
+            return new CsvProcessor(
+                processorTag,
+                description,
+                field,
+                targetFields.toArray(String[]::new),
+                trim,
+                separator.charAt(0),
+                quote.charAt(0),
+                ignoreMissing,
+                emptyValue
+            );
         }
     }
 }

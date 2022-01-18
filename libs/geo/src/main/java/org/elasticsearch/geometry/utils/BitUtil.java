@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.geometry.utils;
 
@@ -23,13 +12,15 @@ package org.elasticsearch.geometry.utils;
  */
 public class BitUtil {  // magic numbers for bit interleaving
     private static final long MAGIC[] = {
-        0x5555555555555555L, 0x3333333333333333L,
-        0x0F0F0F0F0F0F0F0FL, 0x00FF00FF00FF00FFL,
-        0x0000FFFF0000FFFFL, 0x00000000FFFFFFFFL,
-        0xAAAAAAAAAAAAAAAAL
-    };
+        0x5555555555555555L,
+        0x3333333333333333L,
+        0x0F0F0F0F0F0F0F0FL,
+        0x00FF00FF00FF00FFL,
+        0x0000FFFF0000FFFFL,
+        0x00000000FFFFFFFFL,
+        0xAAAAAAAAAAAAAAAAL };
     // shift values for bit interleaving
-    private static final short SHIFT[] = {1, 2, 4, 8, 16};
+    private static final short SHIFT[] = { 1, 2, 4, 8, 16 };
 
     /**
      * Interleaves the first 32 bits of each long value
@@ -50,7 +41,7 @@ public class BitUtil {  // magic numbers for bit interleaving
         v2 = (v2 | (v2 << SHIFT[1])) & MAGIC[1];
         v2 = (v2 | (v2 << SHIFT[0])) & MAGIC[0];
 
-        return (v2<<1) | v1;
+        return (v2 << 1) | v1;
     }
 
     /**
@@ -70,6 +61,6 @@ public class BitUtil {  // magic numbers for bit interleaving
      * flip flops odd with even bits
      */
     public static final long flipFlop(final long b) {
-        return ((b & MAGIC[6]) >>> 1) | ((b & MAGIC[0]) << 1 );
+        return ((b & MAGIC[6]) >>> 1) | ((b & MAGIC[0]) << 1);
     }
 }

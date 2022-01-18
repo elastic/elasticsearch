@@ -1,25 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.privilege.ApplicationPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege.Category;
-import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
@@ -39,13 +40,12 @@ public final class ConfigurableClusterPrivileges {
 
     public static final ConfigurableClusterPrivilege[] EMPTY_ARRAY = new ConfigurableClusterPrivilege[0];
 
-    public static final Writeable.Reader<ConfigurableClusterPrivilege> READER =
-        in1 -> in1.readNamedWriteable(ConfigurableClusterPrivilege.class);
-    public static final Writeable.Writer<ConfigurableClusterPrivilege> WRITER =
-        (out1, value) -> out1.writeNamedWriteable(value);
+    public static final Writeable.Reader<ConfigurableClusterPrivilege> READER = in1 -> in1.readNamedWriteable(
+        ConfigurableClusterPrivilege.class
+    );
+    public static final Writeable.Writer<ConfigurableClusterPrivilege> WRITER = (out1, value) -> out1.writeNamedWriteable(value);
 
-    private ConfigurableClusterPrivileges() {
-    }
+    private ConfigurableClusterPrivileges() {}
 
     /**
      * Utility method to read an array of {@link ConfigurableClusterPrivilege} objects from a {@link StreamInput}
@@ -65,8 +65,11 @@ public final class ConfigurableClusterPrivileges {
      * Writes a single object value to the {@code builder} that contains each of the provided privileges.
      * The privileges are grouped according to their {@link ConfigurableClusterPrivilege#getCategory() categories}
      */
-    public static XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params,
-                                             Collection<ConfigurableClusterPrivilege> privileges) throws IOException {
+    public static XContentBuilder toXContent(
+        XContentBuilder builder,
+        ToXContent.Params params,
+        Collection<ConfigurableClusterPrivilege> privileges
+    ) throws IOException {
         builder.startObject();
         for (Category category : Category.values()) {
             builder.startObject(category.field.getPreferredName());
@@ -105,17 +108,26 @@ public final class ConfigurableClusterPrivileges {
 
     private static void expectedToken(XContentParser.Token read, XContentParser parser, XContentParser.Token expected) {
         if (read != expected) {
-            throw new XContentParseException(parser.getTokenLocation(),
-                "failed to parse privilege. expected [" + expected + "] but found [" + read + "] instead");
+            throw new XContentParseException(
+                parser.getTokenLocation(),
+                "failed to parse privilege. expected [" + expected + "] but found [" + read + "] instead"
+            );
         }
     }
 
     private static void expectFieldName(XContentParser parser, ParseField... fields) throws IOException {
         final String fieldName = parser.currentName();
         if (Arrays.stream(fields).anyMatch(pf -> pf.match(fieldName, parser.getDeprecationHandler())) == false) {
-            throw new XContentParseException(parser.getTokenLocation(),
-                "failed to parse privilege. expected " + (fields.length == 1 ? "field name" : "one of") + " ["
-                    + Strings.arrayToCommaDelimitedString(fields) + "] but found [" + fieldName + "] instead");
+            throw new XContentParseException(
+                parser.getTokenLocation(),
+                "failed to parse privilege. expected "
+                    + (fields.length == 1 ? "field name" : "one of")
+                    + " ["
+                    + Strings.arrayToCommaDelimitedString(fields)
+                    + "] but found ["
+                    + fieldName
+                    + "] instead"
+            );
         }
     }
 
@@ -133,12 +145,13 @@ public final class ConfigurableClusterPrivileges {
 
         public ManageApplicationPrivileges(Set<String> applicationNames) {
             this.applicationNames = Collections.unmodifiableSet(applicationNames);
-            this.applicationPredicate = Automatons.predicate(applicationNames);
+            this.applicationPredicate = StringMatcher.of(applicationNames);
             this.requestPredicate = request -> {
                 if (request instanceof ApplicationPrivilegesRequest) {
                     final ApplicationPrivilegesRequest privRequest = (ApplicationPrivilegesRequest) request;
                     final Collection<String> requestApplicationNames = privRequest.getApplicationNames();
-                    return requestApplicationNames.isEmpty() ? this.applicationNames.contains("*")
+                    return requestApplicationNames.isEmpty()
+                        ? this.applicationNames.contains("*")
                         : requestApplicationNames.stream().allMatch(application -> applicationPredicate.test(application));
                 }
                 return false;
@@ -172,7 +185,8 @@ public final class ConfigurableClusterPrivileges {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.field(Fields.MANAGE.getPreferredName(),
+            return builder.field(
+                Fields.MANAGE.getPreferredName(),
                 Collections.singletonMap(Fields.APPLICATIONS.getPreferredName(), applicationNames)
             );
         }
@@ -191,8 +205,15 @@ public final class ConfigurableClusterPrivileges {
 
         @Override
         public String toString() {
-            return "{" + getCategory() + ":" + Fields.MANAGE.getPreferredName() + ":" + Fields.APPLICATIONS.getPreferredName() + "="
-                + Strings.collectionToDelimitedString(applicationNames, ",") + "}";
+            return "{"
+                + getCategory()
+                + ":"
+                + Fields.MANAGE.getPreferredName()
+                + ":"
+                + Fields.APPLICATIONS.getPreferredName()
+                + "="
+                + Strings.collectionToDelimitedString(applicationNames, ",")
+                + "}";
         }
 
         @Override

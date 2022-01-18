@@ -1,24 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -39,17 +28,31 @@ public class ClientYamlSuiteRestApi {
 
     private final String location;
     private final String name;
-    private Set<Path>  paths = new LinkedHashSet<>();
+    private Set<Path> paths = new LinkedHashSet<>();
     private Map<String, Boolean> params = new HashMap<>();
     private Body body = Body.NOT_SUPPORTED;
     private Stability stability;
+    private Visibility visibility;
+    private String featureFlag;
+    private List<String> responseMimeTypes;
+    private List<String> requestMimeTypes;
 
     public enum Stability {
-        EXPERIMENTAL, BETA, STABLE
+        EXPERIMENTAL,
+        BETA,
+        STABLE
+    }
+
+    public enum Visibility {
+        PRIVATE,
+        FEATURE_FLAG,
+        PUBLIC
     }
 
     public enum Body {
-        NOT_SUPPORTED, OPTIONAL, REQUIRED
+        NOT_SUPPORTED,
+        OPTIONAL,
+        REQUIRED
     }
 
     ClientYamlSuiteRestApi(String location, String name) {
@@ -119,7 +122,41 @@ public class ClientYamlSuiteRestApi {
         this.stability = Stability.valueOf(stability.toUpperCase(Locale.ROOT));
     }
 
-    public Stability getStability() { return this.stability; }
+    public Stability getStability() {
+        return this.stability;
+    }
+
+    public void setVisibility(String visibility) {
+        this.visibility = Visibility.valueOf(visibility.toUpperCase(Locale.ROOT));
+    }
+
+    public Visibility getVisibility() {
+        return this.visibility;
+    }
+
+    public void setFeatureFlag(String featureFlag) {
+        this.featureFlag = featureFlag;
+    }
+
+    public String getFeatureFlag() {
+        return this.featureFlag;
+    }
+
+    public void setResponseMimeTypes(List<String> mimeTypes) {
+        this.responseMimeTypes = mimeTypes;
+    }
+
+    public List<String> getResponseMimeTypes() {
+        return this.responseMimeTypes;
+    }
+
+    public void setRequestMimeTypes(List<String> mimeTypes) {
+        this.requestMimeTypes = mimeTypes;
+    }
+
+    public List<String> getRequestMimeTypes() {
+        return this.requestMimeTypes;
+    }
 
     /**
      * Returns the best matching paths based on the provided parameters, which may include either path parts or query_string parameters.
@@ -129,11 +166,11 @@ public class ClientYamlSuiteRestApi {
      * - /{index}/_alias/{name}, /{index}/_aliases/{name}
      * - /{index}/{type}/_mapping, /{index}/{type}/_mappings, /{index}/_mappings/{type}, /{index}/_mapping/{type}
      */
-    public List<ClientYamlSuiteRestApi.Path> getBestMatchingPaths(Set<String> params) {
+    public List<ClientYamlSuiteRestApi.Path> getBestMatchingPaths(Set<String> pathParams) {
         PriorityQueue<Tuple<Integer, Path>> queue = new PriorityQueue<>(Comparator.comparing(Tuple::v1, (a, b) -> Integer.compare(b, a)));
         for (ClientYamlSuiteRestApi.Path path : paths) {
             int matches = 0;
-            for (String actualParameter : params) {
+            for (String actualParameter : pathParams) {
                 if (path.getParts().contains(actualParameter)) {
                     matches++;
                 }
@@ -143,17 +180,17 @@ public class ClientYamlSuiteRestApi {
             }
         }
         if (queue.isEmpty()) {
-            throw new IllegalStateException("Unable to find a matching path for api [" + name + "]" + params);
+            throw new IllegalStateException("Unable to find a matching path for api [" + name + "]" + pathParams);
         }
-        List<Path> paths = new ArrayList<>();
+        List<Path> pathsByRelevance = new ArrayList<>();
         Tuple<Integer, Path> poll = queue.poll();
         int maxMatches = poll.v1();
         do {
-            paths.add(poll.v2());
+            pathsByRelevance.add(poll.v2());
             poll = queue.poll();
         } while (poll != null && poll.v1() == maxMatches);
 
-        return paths;
+        return pathsByRelevance;
     }
 
     public static class Path {
@@ -187,8 +224,8 @@ public class ClientYamlSuiteRestApi {
             if (o == null || getClass() != o.getClass()) {
                 return false;
             }
-            Path path = (Path) o;
-            return this.path.equals(path.path);
+            Path other = (Path) o;
+            return this.path.equals(other.path);
         }
 
         @Override

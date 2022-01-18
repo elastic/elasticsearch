@@ -23,7 +23,51 @@ nullArithmetics
 schema::a:i|b:d|c:s|d:s|e:l|f:i|g:i|h:i|i:i|j:i|k:d
 SELECT null + 2 AS a, null * 1.5 AS b, null + null AS c, null - null AS d, null - 1234567890123 AS e, 123 - null AS f, null / 5 AS g, 5 / null AS h, null % 5 AS i, 5 % null AS j, null + 5.5 - (null * (null * 3)) AS k;
 
-       a       |       b       |       c       |       d       |       e       |       f       |       g       |       h       |       i       |       j       |       k       
+       a       |       b       |       c       |       d       |       e       |       f       |       g       |       h       |       i       |       j       |       k
 ---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------
-null           |null           |null           |null           |null           |null           |null           |null           |null           |null           |null           
+null           |null           |null           |null           |null           |null           |null           |null           |null           |null           |null
+;
+
+optimizedIntervalFilterPlus
+SELECT emp_no x, hire_date h FROM test_emp WHERE hire_date + INTERVAL 20 YEAR > CAST('2010-01-01T00:00:00' AS TIMESTAMP) LIMIT 10;
+
+       x       |           h
+---------------+------------------------
+10008          |1994-09-15T00:00:00.000Z
+10011          |1990-01-22T00:00:00.000Z
+10012          |1992-12-18T00:00:00.000Z
+10016          |1995-01-27T00:00:00.000Z
+10017          |1993-08-03T00:00:00.000Z
+10019          |1999-04-30T00:00:00.000Z
+10020          |1991-01-26T00:00:00.000Z
+10022          |1995-08-22T00:00:00.000Z
+10024          |1997-05-19T00:00:00.000Z
+10026          |1995-03-20T00:00:00.000Z
+;
+
+optimizedIntervalFilterMinus
+SELECT emp_no x, hire_date h FROM test_emp WHERE hire_date - INTERVAL 10 YEAR > CAST('1980-01-01T00:00:00' AS TIMESTAMP) LIMIT 10;
+
+       x       |           h
+---------------+------------------------
+10008          |1994-09-15T00:00:00.000Z
+10011          |1990-01-22T00:00:00.000Z
+10012          |1992-12-18T00:00:00.000Z
+10016          |1995-01-27T00:00:00.000Z
+10017          |1993-08-03T00:00:00.000Z
+10019          |1999-04-30T00:00:00.000Z
+10020          |1991-01-26T00:00:00.000Z
+10022          |1995-08-22T00:00:00.000Z
+10024          |1997-05-19T00:00:00.000Z
+10026          |1995-03-20T00:00:00.000Z
+;
+
+optimizedBinaryCompArithmeticWithNegationOfIntMinVal
+SELECT IIF(languages < 4, -2147483645 - languages, 0) AS I FROM test_emp WHERE -I * 3 > 6 GROUP BY I;
+
+       I:i
+---------------
+-2147483648
+-2147483647
+-2147483646
 ;

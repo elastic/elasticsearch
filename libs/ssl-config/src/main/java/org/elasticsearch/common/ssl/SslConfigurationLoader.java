@@ -1,35 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.TrustManagerFactory;
 import java.nio.file.Path;
+import java.security.KeyStore;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
 
 import static org.elasticsearch.common.ssl.KeyStoreUtil.inferKeyStoreType;
 import static org.elasticsearch.common.ssl.SslConfiguration.ORDERED_PROTOCOL_ALGORITHM_MAP;
@@ -70,8 +61,10 @@ import static org.elasticsearch.common.ssl.SslConfigurationKeys.VERIFICATION_MOD
 public abstract class SslConfigurationLoader {
 
     static final List<String> DEFAULT_PROTOCOLS = Collections.unmodifiableList(
-        ORDERED_PROTOCOL_ALGORITHM_MAP.containsKey("TLSv1.3") ?
-            Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1") : Arrays.asList("TLSv1.2", "TLSv1.1"));
+        ORDERED_PROTOCOL_ALGORITHM_MAP.containsKey("TLSv1.3")
+            ? Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1")
+            : Arrays.asList("TLSv1.2", "TLSv1.1")
+    );
 
     private static final List<String> JDK11_CIPHERS = List.of(
         // TLSv1.3 cipher has PFS, AEAD, hardware support
@@ -164,8 +157,9 @@ public abstract class SslConfigurationLoader {
         "TLS_RSA_WITH_AES_128_CBC_SHA"
     );
 
-    static final List<String> DEFAULT_CIPHERS =
-        JavaVersion.current().compareTo(JavaVersion.parse("12")) > -1 ? JDK12_CIPHERS : JDK11_CIPHERS;
+    static final List<String> DEFAULT_CIPHERS = JavaVersion.current().compareTo(JavaVersion.parse("12")) > -1
+        ? JDK12_CIPHERS
+        : JDK11_CIPHERS;
     private static final char[] EMPTY_PASSWORD = new char[0];
 
     private final String settingPrefix;
@@ -176,6 +170,8 @@ public abstract class SslConfigurationLoader {
     private SslClientAuthenticationMode defaultClientAuth;
     private List<String> defaultCiphers;
     private List<String> defaultProtocols;
+
+    private Function<KeyStore, KeyStore> keyStoreFilter;
 
     /**
      * Construct a new loader with the "standard" default values.
@@ -247,6 +243,20 @@ public abstract class SslConfigurationLoader {
     }
 
     /**
+     * Apply a filter function to any keystore that is loaded.
+     * @see StoreKeyConfig
+     */
+    public void setKeyStoreFilter(Function<KeyStore, KeyStore> keyStoreFilter) {
+        this.keyStoreFilter = keyStoreFilter;
+    }
+
+    /**
+     * Clients of this class should implement this method to determine whether there are any settings for a given prefix.
+     * This is used to populate {@link SslConfiguration#isExplicitlyConfigured()}.
+     */
+    protected abstract boolean hasSettings(String prefix);
+
+    /**
      * Clients of this class should implement this method to load a fully-qualified key from the preferred settings source.
      * This method will be called for basic string settings (see {@link SslConfigurationKeys#getStringKeys()}).
      * <p>
@@ -292,8 +302,8 @@ public abstract class SslConfigurationLoader {
         final SslVerificationMode verificationMode = resolveSetting(VERIFICATION_MODE, SslVerificationMode::parse, defaultVerificationMode);
         final SslClientAuthenticationMode clientAuth = resolveSetting(CLIENT_AUTH, SslClientAuthenticationMode::parse, defaultClientAuth);
 
-        final SslTrustConfig trustConfig = buildTrustConfig(basePath, verificationMode);
         final SslKeyConfig keyConfig = buildKeyConfig(basePath);
+        final SslTrustConfig trustConfig = buildTrustConfig(basePath, verificationMode, keyConfig);
 
         if (protocols == null || protocols.isEmpty()) {
             throw new SslConfigException("no protocols configured in [" + settingPrefix + PROTOCOLS + "]");
@@ -301,53 +311,67 @@ public abstract class SslConfigurationLoader {
         if (ciphers == null || ciphers.isEmpty()) {
             throw new SslConfigException("no cipher suites configured in [" + settingPrefix + CIPHERS + "]");
         }
-        return new SslConfiguration(trustConfig, keyConfig, verificationMode, clientAuth, ciphers, protocols);
+        final boolean isExplicitlyConfigured = hasSettings(settingPrefix);
+        return new SslConfiguration(isExplicitlyConfigured, trustConfig, keyConfig, verificationMode, clientAuth, ciphers, protocols);
     }
 
-    private SslTrustConfig buildTrustConfig(Path basePath, SslVerificationMode verificationMode) {
-        final List<Path> certificateAuthorities = resolveListSetting(CERTIFICATE_AUTHORITIES, basePath::resolve, null);
-        final Path trustStorePath = resolveSetting(TRUSTSTORE_PATH, basePath::resolve, null);
+    protected SslTrustConfig buildTrustConfig(Path basePath, SslVerificationMode verificationMode, SslKeyConfig keyConfig) {
+        final List<String> certificateAuthorities = resolveListSetting(CERTIFICATE_AUTHORITIES, Function.identity(), null);
+        final String trustStorePath = resolveSetting(TRUSTSTORE_PATH, Function.identity(), null);
 
         if (certificateAuthorities != null && trustStorePath != null) {
-            throw new SslConfigException("cannot specify both [" + settingPrefix + CERTIFICATE_AUTHORITIES + "] and [" +
-                settingPrefix + TRUSTSTORE_PATH + "]");
+            throw new SslConfigException(
+                "cannot specify both [" + settingPrefix + CERTIFICATE_AUTHORITIES + "] and [" + settingPrefix + TRUSTSTORE_PATH + "]"
+            );
         }
         if (verificationMode.isCertificateVerificationEnabled() == false) {
             return TrustEverythingConfig.TRUST_EVERYTHING;
         }
         if (certificateAuthorities != null) {
-            return new PemTrustConfig(certificateAuthorities);
+            return new PemTrustConfig(certificateAuthorities, basePath);
         }
         if (trustStorePath != null) {
             final char[] password = resolvePasswordSetting(TRUSTSTORE_SECURE_PASSWORD, TRUSTSTORE_LEGACY_PASSWORD);
             final String storeType = resolveSetting(TRUSTSTORE_TYPE, Function.identity(), inferKeyStoreType(trustStorePath));
             final String algorithm = resolveSetting(TRUSTSTORE_ALGORITHM, Function.identity(), TrustManagerFactory.getDefaultAlgorithm());
-            return new StoreTrustConfig(trustStorePath, password, storeType, algorithm);
+            return new StoreTrustConfig(trustStorePath, password, storeType, algorithm, true, basePath);
         }
-        return defaultTrustConfig;
+        return buildDefaultTrustConfig(defaultTrustConfig, keyConfig);
     }
 
-    private SslKeyConfig buildKeyConfig(Path basePath) {
-        final Path certificatePath = resolveSetting(CERTIFICATE, basePath::resolve, null);
-        final Path keyPath = resolveSetting(KEY, basePath::resolve, null);
-        final Path keyStorePath = resolveSetting(KEYSTORE_PATH, basePath::resolve, null);
+    protected SslTrustConfig buildDefaultTrustConfig(SslTrustConfig trustConfig, SslKeyConfig keyConfig) {
+        final SslTrustConfig trust = keyConfig.asTrustConfig();
+        if (trust == null) {
+            return trustConfig;
+        } else {
+            return new CompositeTrustConfig(List.of(trustConfig, trust));
+        }
+    }
+
+    public SslKeyConfig buildKeyConfig(Path basePath) {
+        final String certificatePath = stringSetting(CERTIFICATE);
+        final String keyPath = stringSetting(KEY);
+        final String keyStorePath = stringSetting(KEYSTORE_PATH);
 
         if (certificatePath != null && keyStorePath != null) {
-            throw new SslConfigException("cannot specify both [" + settingPrefix + CERTIFICATE + "] and [" +
-                settingPrefix + KEYSTORE_PATH + "]");
+            throw new SslConfigException(
+                "cannot specify both [" + settingPrefix + CERTIFICATE + "] and [" + settingPrefix + KEYSTORE_PATH + "]"
+            );
         }
 
         if (certificatePath != null || keyPath != null) {
             if (keyPath == null) {
-                throw new SslConfigException("cannot specify [" + settingPrefix + CERTIFICATE + "] without also setting [" +
-                    settingPrefix + KEY + "]");
+                throw new SslConfigException(
+                    "cannot specify [" + settingPrefix + CERTIFICATE + "] without also setting [" + settingPrefix + KEY + "]"
+                );
             }
             if (certificatePath == null) {
-                throw new SslConfigException("cannot specify [" + settingPrefix + KEYSTORE_PATH + "] without also setting [" +
-                    settingPrefix + CERTIFICATE + "]");
+                throw new SslConfigException(
+                    "cannot specify [" + settingPrefix + KEYSTORE_PATH + "] without also setting [" + settingPrefix + CERTIFICATE + "]"
+                );
             }
             final char[] password = resolvePasswordSetting(KEY_SECURE_PASSPHRASE, KEY_LEGACY_PASSPHRASE);
-            return new PemKeyConfig(certificatePath, keyPath, password);
+            return new PemKeyConfig(certificatePath, keyPath, password, basePath);
         }
 
         if (keyStorePath != null) {
@@ -358,15 +382,23 @@ public abstract class SslConfigurationLoader {
             }
             final String storeType = resolveSetting(KEYSTORE_TYPE, Function.identity(), inferKeyStoreType(keyStorePath));
             final String algorithm = resolveSetting(KEYSTORE_ALGORITHM, Function.identity(), KeyManagerFactory.getDefaultAlgorithm());
-            return new StoreKeyConfig(keyStorePath, storePassword, storeType, keyPassword, algorithm);
+            return new StoreKeyConfig(keyStorePath, storePassword, storeType, keyStoreFilter, keyPassword, algorithm, basePath);
         }
 
         return defaultKeyConfig;
     }
 
+    protected Path resolvePath(String settingKey, Path basePath) {
+        return resolveSetting(settingKey, basePath::resolve, null);
+    }
+
+    private String expandSettingKey(String key) {
+        return settingPrefix + key;
+    }
+
     private char[] resolvePasswordSetting(String secureSettingKey, String legacySettingKey) {
         final char[] securePassword = resolveSecureSetting(secureSettingKey, null);
-        final String legacyPassword = resolveSetting(legacySettingKey, Function.identity(), null);
+        final String legacyPassword = stringSetting(legacySettingKey);
         if (securePassword == null) {
             if (legacyPassword == null) {
                 return EMPTY_PASSWORD;
@@ -375,17 +407,22 @@ public abstract class SslConfigurationLoader {
             }
         } else {
             if (legacyPassword != null) {
-                throw new SslConfigException("cannot specify both [" + settingPrefix + secureSettingKey + "] and ["
-                    + settingPrefix + legacySettingKey + "]");
+                throw new SslConfigException(
+                    "cannot specify both [" + settingPrefix + secureSettingKey + "] and [" + settingPrefix + legacySettingKey + "]"
+                );
             } else {
                 return securePassword;
             }
         }
     }
 
+    private String stringSetting(String key) {
+        return resolveSetting(key, Function.identity(), null);
+    }
+
     private <V> V resolveSetting(String key, Function<String, V> parser, V defaultValue) {
         try {
-            String setting = getSettingAsString(settingPrefix + key);
+            String setting = getSettingAsString(expandSettingKey(key));
             if (setting == null || setting.isEmpty()) {
                 return defaultValue;
             }
@@ -399,7 +436,7 @@ public abstract class SslConfigurationLoader {
 
     private char[] resolveSecureSetting(String key, char[] defaultValue) {
         try {
-            char[] setting = getSecureSetting(settingPrefix + key);
+            char[] setting = getSecureSetting(expandSettingKey(key));
             if (setting == null || setting.length == 0) {
                 return defaultValue;
             }
@@ -414,7 +451,7 @@ public abstract class SslConfigurationLoader {
 
     private <V> List<V> resolveListSetting(String key, Function<String, V> parser, List<V> defaultValue) {
         try {
-            final List<String> list = getSettingAsList(settingPrefix + key);
+            final List<String> list = getSettingAsList(expandSettingKey(key));
             if (list == null || list.isEmpty()) {
                 return defaultValue;
             }

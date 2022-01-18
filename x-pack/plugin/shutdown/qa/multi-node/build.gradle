@@ -1,0 +1,13 @@
+import org.elasticsearch.gradle.VersionProperties
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.authenticated-testclusters'
+
+dependencies {
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+testClusters.configureEach {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 4
+}

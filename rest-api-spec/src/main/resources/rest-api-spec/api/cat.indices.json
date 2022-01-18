@@ -5,6 +5,10 @@
       "description":"Returns information about indices: number of primaries and replicas, document counts, disk size, ..."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -48,10 +52,6 @@
           "p",
           "pb"
         ]
-      },
-      "local":{
-        "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
       },
       "master_timeout":{
         "type":"time",

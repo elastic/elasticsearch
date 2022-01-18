@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gateway;
 
@@ -69,35 +58,38 @@ public class ClusterStateUpdatersTests extends ESTestCase {
         runUpgradeSettings(Metadata.Builder::transientSettings, Metadata::transientSettings);
     }
 
-    private void runUpgradeSettings(final BiConsumer<Metadata.Builder, Settings> applySettingsToBuilder,
-                                    final Function<Metadata, Settings> metadataSettings) {
+    private void runUpgradeSettings(
+        final BiConsumer<Metadata.Builder, Settings> applySettingsToBuilder,
+        final Function<Metadata, Settings> metadataSettings
+    ) {
         final Setting<String> oldSetting = Setting.simpleString("foo.old", Setting.Property.Dynamic, Setting.Property.NodeScope);
         final Setting<String> newSetting = Setting.simpleString("foo.new", Setting.Property.Dynamic, Setting.Property.NodeScope);
-        final Set<Setting<?>> settingsSet =
-                Stream.concat(
-                        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
-                        Stream.of(oldSetting, newSetting)).collect(Collectors.toSet());
+        final Set<Setting<?>> settingsSet = Stream.concat(
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
+            Stream.of(oldSetting, newSetting)
+        ).collect(Collectors.toSet());
         final ClusterSettings clusterSettings = new ClusterSettings(
-                Settings.EMPTY,
-                settingsSet,
-                Collections.singleton(new SettingUpgrader<String>() {
+            Settings.EMPTY,
+            settingsSet,
+            Collections.singleton(new SettingUpgrader<String>() {
 
-                    @Override
-                    public Setting<String> getSetting() {
-                        return oldSetting;
-                    }
+                @Override
+                public Setting<String> getSetting() {
+                    return oldSetting;
+                }
 
-                    @Override
-                    public String getKey(final String key) {
-                        return "foo.new";
-                    }
+                @Override
+                public String getKey(final String key) {
+                    return "foo.new";
+                }
 
-                    @Override
-                    public String getValue(final String value) {
-                        return "new." + value;
-                    }
+                @Override
+                public String getValue(final String value) {
+                    return "new." + value;
+                }
 
-                }));
+            })
+        );
         final ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, null);
         final Metadata.Builder builder = Metadata.builder();
         final Settings settings = Settings.builder().put("foo.old", randomAlphaOfLength(8)).build();
@@ -111,14 +103,16 @@ public class ClusterStateUpdatersTests extends ESTestCase {
     }
 
     private IndexMetadata createIndexMetadata(final String name, final Settings settings) {
-        return IndexMetadata.builder(name).settings(
+        return IndexMetadata.builder(name)
+            .settings(
                 Settings.builder()
-                        .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(settings))
-                .build();
+                    .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(settings)
+            )
+            .build();
     }
 
     private static void assertMetadataEquals(final ClusterState state1, final ClusterState state2) {
@@ -146,11 +140,14 @@ public class ClusterStateUpdatersTests extends ESTestCase {
             transientSettings.put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true);
         }
 
-        final IndexMetadata indexMetadata = createIndexMetadata("test",
-                Settings.builder().put(IndexMetadata.INDEX_BLOCKS_READ_SETTING.getKey(), true).build());
+        final IndexMetadata indexMetadata = createIndexMetadata(
+            "test",
+            Settings.builder().put(IndexMetadata.INDEX_BLOCKS_READ_SETTING.getKey(), true).build()
+        );
         metadataBuilder.put(indexMetadata, false);
-        final Metadata metadata =
-                metadataBuilder.transientSettings(transientSettings.build()).persistentSettings(persistentSettings.build()).build();
+        final Metadata metadata = metadataBuilder.transientSettings(transientSettings.build())
+            .persistentSettings(persistentSettings.build())
+            .build();
 
         final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
         final ClusterState newState = recoverClusterBlocks(initialState);
@@ -162,16 +159,14 @@ public class ClusterStateUpdatersTests extends ESTestCase {
     }
 
     public void testRemoveStateNotRecoveredBlock() {
-        final Metadata.Builder metadataBuilder = Metadata.builder()
-                .persistentSettings(Settings.builder().put("test", "test").build());
+        final Metadata.Builder metadataBuilder = Metadata.builder().persistentSettings(Settings.builder().put("test", "test").build());
         final IndexMetadata indexMetadata = createIndexMetadata("test", Settings.EMPTY);
         metadataBuilder.put(indexMetadata, false);
 
-        final ClusterState initialState = ClusterState
-                .builder(ClusterState.EMPTY_STATE)
-                .metadata(metadataBuilder)
-                .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK).build())
-                .build();
+        final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(metadataBuilder)
+            .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK).build())
+            .build();
         assertTrue(initialState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
 
         final ClusterState newState = removeStateNotRecoveredBlock(initialState);
@@ -181,15 +176,11 @@ public class ClusterStateUpdatersTests extends ESTestCase {
     }
 
     public void testAddStateNotRecoveredBlock() {
-        final Metadata.Builder metadataBuilder = Metadata.builder()
-                .persistentSettings(Settings.builder().put("test", "test").build());
+        final Metadata.Builder metadataBuilder = Metadata.builder().persistentSettings(Settings.builder().put("test", "test").build());
         final IndexMetadata indexMetadata = createIndexMetadata("test", Settings.EMPTY);
         metadataBuilder.put(indexMetadata, false);
 
-        final ClusterState initialState = ClusterState
-                .builder(ClusterState.EMPTY_STATE)
-                .metadata(metadataBuilder)
-                .build();
+        final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadataBuilder).build();
         assertFalse(initialState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
 
         final ClusterState newState = addStateNotRecoveredBlock(initialState);
@@ -201,15 +192,14 @@ public class ClusterStateUpdatersTests extends ESTestCase {
     public void testUpdateRoutingTable() {
         final int numOfShards = randomIntBetween(1, 10);
 
-        final IndexMetadata metadata = createIndexMetadata("test",
-                Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
-                        .build());
+        final IndexMetadata metadata = createIndexMetadata(
+            "test",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards).build()
+        );
         final Index index = metadata.getIndex();
-        final ClusterState initialState = ClusterState
-                .builder(ClusterState.EMPTY_STATE)
-                .metadata(Metadata.builder().put(metadata, false).build())
-                .build();
+        final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(metadata, false).build())
+            .build();
         assertFalse(initialState.routingTable().hasIndex(index));
 
         {
@@ -219,25 +209,36 @@ public class ClusterStateUpdatersTests extends ESTestCase {
             assertThat(newState.routingTable().allShards(index.getName()).size(), is(numOfShards));
         }
         {
-            final ClusterState newState = updateRoutingTable(ClusterState.builder(initialState)
-                .metadata(Metadata.builder(initialState.metadata())
-                    .put(IndexMetadata.builder(initialState.metadata().index("test"))
-                        .state(IndexMetadata.State.CLOSE))
-                    .build())
-                .build());
+            final ClusterState newState = updateRoutingTable(
+                ClusterState.builder(initialState)
+                    .metadata(
+                        Metadata.builder(initialState.metadata())
+                            .put(IndexMetadata.builder(initialState.metadata().index("test")).state(IndexMetadata.State.CLOSE))
+                            .build()
+                    )
+                    .build()
+            );
             assertFalse(newState.routingTable().hasIndex(index));
         }
         {
-            final ClusterState newState = updateRoutingTable(ClusterState.builder(initialState)
-                .metadata(Metadata.builder(initialState.metadata())
-                    .put(IndexMetadata.builder(initialState.metadata().index("test"))
-                        .state(IndexMetadata.State.CLOSE)
-                        .settings(Settings.builder()
-                            .put(initialState.metadata().index("test").getSettings())
-                            .put(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true)
-                            .build())
-                    ).build())
-                .build());
+            final ClusterState newState = updateRoutingTable(
+                ClusterState.builder(initialState)
+                    .metadata(
+                        Metadata.builder(initialState.metadata())
+                            .put(
+                                IndexMetadata.builder(initialState.metadata().index("test"))
+                                    .state(IndexMetadata.State.CLOSE)
+                                    .settings(
+                                        Settings.builder()
+                                            .put(initialState.metadata().index("test").getSettings())
+                                            .put(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true)
+                                            .build()
+                                    )
+                            )
+                            .build()
+                    )
+                    .build()
+            );
             assertTrue(newState.routingTable().hasIndex(index));
             assertThat(newState.routingTable().version(), is(0L));
             assertThat(newState.routingTable().allShards(index.getName()).size(), is(numOfShards));
@@ -245,20 +246,18 @@ public class ClusterStateUpdatersTests extends ESTestCase {
     }
 
     public void testMixCurrentAndRecoveredState() {
-        final ClusterState currentState = ClusterState
-                .builder(ClusterState.EMPTY_STATE)
-                .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK).build())
-                .build();
+        final ClusterState currentState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK).build())
+            .build();
         final IndexMetadata indexMetadata = createIndexMetadata("test", Settings.EMPTY);
         final Metadata metadata = Metadata.builder()
-                .persistentSettings(Settings.builder().put("test", "test").build())
-                .put(indexMetadata, false)
-                .build();
-        final ClusterState recoveredState = ClusterState
-                .builder(ClusterState.EMPTY_STATE)
-                .blocks(ClusterBlocks.builder().addGlobalBlock(CLUSTER_READ_ONLY_BLOCK).build())
-                .metadata(metadata)
-                .build();
+            .persistentSettings(Settings.builder().put("test", "test").build())
+            .put(indexMetadata, false)
+            .build();
+        final ClusterState recoveredState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .blocks(ClusterBlocks.builder().addGlobalBlock(CLUSTER_READ_ONLY_BLOCK).build())
+            .metadata(metadata)
+            .build();
         assertThat(recoveredState.metadata().clusterUUID(), equalTo(Metadata.UNKNOWN_CLUSTER_UUID));
 
         final ClusterState updatedState = mixCurrentStateAndRecoveredState(currentState, recoveredState);
@@ -273,14 +272,17 @@ public class ClusterStateUpdatersTests extends ESTestCase {
     public void testSetLocalNode() {
         final IndexMetadata indexMetadata = createIndexMetadata("test", Settings.EMPTY);
         final Metadata metadata = Metadata.builder()
-                .persistentSettings(Settings.builder().put("test", "test").build())
-                .put(indexMetadata, false)
-                .build();
-        final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-                .metadata(metadata)
-                .build();
-        final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
+            .persistentSettings(Settings.builder().put("test", "test").build())
+            .put(indexMetadata, false)
+            .build();
+        final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
+        final DiscoveryNode localNode = new DiscoveryNode(
+            "node1",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
 
         final ClusterState updatedState = setLocalNode(initialState, localNode);
 
@@ -292,47 +294,58 @@ public class ClusterStateUpdatersTests extends ESTestCase {
     public void testDoNotHideStateIfRecovered() {
         final IndexMetadata indexMetadata = createIndexMetadata("test", Settings.EMPTY);
         final Metadata metadata = Metadata.builder()
-                .persistentSettings(Settings.builder().put("test", "test").build())
-                .put(indexMetadata, false)
-                .build();
-        final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-                .metadata(metadata)
-                .build();
+            .persistentSettings(Settings.builder().put("test", "test").build())
+            .put(indexMetadata, false)
+            .build();
+        final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
         assertMetadataEquals(initialState, hideStateIfNotRecovered(initialState));
     }
 
     public void testHideStateIfNotRecovered() {
-        final IndexMetadata indexMetadata = createIndexMetadata("test",
-                Settings.builder().put(IndexMetadata.INDEX_READ_ONLY_SETTING.getKey(), true).build());
+        final IndexMetadata indexMetadata = createIndexMetadata(
+            "test",
+            Settings.builder().put(IndexMetadata.INDEX_READ_ONLY_SETTING.getKey(), true).build()
+        );
         final String clusterUUID = UUIDs.randomBase64UUID();
-        final CoordinationMetadata coordinationMetadata = new CoordinationMetadata(randomLong(),
-                new CoordinationMetadata.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(5, 5, false))),
-                new CoordinationMetadata.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(5, 5, false))),
-                Arrays.stream(generateRandomStringArray(5, 5, false))
-                        .map(id -> new CoordinationMetadata.VotingConfigExclusion(id, id))
-                        .collect(Collectors.toSet()));
+        final CoordinationMetadata coordinationMetadata = new CoordinationMetadata(
+            randomLong(),
+            new CoordinationMetadata.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(5, 5, false))),
+            new CoordinationMetadata.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(5, 5, false))),
+            Arrays.stream(generateRandomStringArray(5, 5, false))
+                .map(id -> new CoordinationMetadata.VotingConfigExclusion(id, id))
+                .collect(Collectors.toSet())
+        );
         final Metadata metadata = Metadata.builder()
-                .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build())
-                .transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true).build())
-                .clusterUUID(clusterUUID)
-                .coordinationMetadata(coordinationMetadata)
-                .put(indexMetadata, false)
-                .build();
+            .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build())
+            .transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true).build())
+            .clusterUUID(clusterUUID)
+            .coordinationMetadata(coordinationMetadata)
+            .put(indexMetadata, false)
+            .build();
         final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-                .metadata(metadata)
-                .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
-                .build();
-        final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
+            .metadata(metadata)
+            .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
+            .build();
+        final DiscoveryNode localNode = new DiscoveryNode(
+            "node1",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
         final ClusterState updatedState = Function.<ClusterState>identity()
-                .andThen(state -> setLocalNode(state, localNode))
-                .andThen(ClusterStateUpdaters::recoverClusterBlocks)
-                .apply(initialState);
+            .andThen(state -> setLocalNode(state, localNode))
+            .andThen(ClusterStateUpdaters::recoverClusterBlocks)
+            .apply(initialState);
 
         final ClusterState hiddenState = hideStateIfNotRecovered(updatedState);
 
-        assertTrue(Metadata.isGlobalStateEquals(hiddenState.metadata(),
-                Metadata.builder().coordinationMetadata(coordinationMetadata).clusterUUID(clusterUUID).build()));
+        assertTrue(
+            Metadata.isGlobalStateEquals(
+                hiddenState.metadata(),
+                Metadata.builder().coordinationMetadata(coordinationMetadata).clusterUUID(clusterUUID).build()
+            )
+        );
         assertThat(hiddenState.metadata().indices().size(), is(0));
         assertTrue(hiddenState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
         assertFalse(hiddenState.blocks().hasGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK));

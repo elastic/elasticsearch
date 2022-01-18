@@ -1,23 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.util;
+
+import org.elasticsearch.core.Nullable;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -43,6 +34,9 @@ public class Installation {
     public final Path modules;
     public final Path pidDir;
     public final Path envFile;
+    @Nullable
+    private String elasticPassword; // auto-configured password upon installation
+    public final int port;
 
     private Installation(
         Shell sh,
@@ -54,7 +48,8 @@ public class Installation {
         Path plugins,
         Path modules,
         Path pidDir,
-        Path envFile
+        Path envFile,
+        int port
     ) {
         this.sh = sh;
         this.distribution = distribution;
@@ -69,6 +64,8 @@ public class Installation {
         this.modules = modules;
         this.pidDir = pidDir;
         this.envFile = envFile;
+        this.port = port;
+        this.elasticPassword = null;
     }
 
     public static Installation ofArchive(Shell sh, Distribution distribution, Path home) {
@@ -82,7 +79,8 @@ public class Installation {
             home.resolve("plugins"),
             home.resolve("modules"),
             null,
-            null
+            null,
+            9200
         );
     }
 
@@ -102,11 +100,12 @@ public class Installation {
             Paths.get("/usr/share/elasticsearch/plugins"),
             Paths.get("/usr/share/elasticsearch/modules"),
             Paths.get("/var/run/elasticsearch"),
-            envFile
+            envFile,
+            9200
         );
     }
 
-    public static Installation ofContainer(Shell sh, Distribution distribution) {
+    public static Installation ofContainer(Shell sh, Distribution distribution, int port) {
         String root = "/usr/share/elasticsearch";
         return new Installation(
             sh,
@@ -118,8 +117,13 @@ public class Installation {
             Paths.get(root + "/plugins"),
             Paths.get(root + "/modules"),
             null,
-            null
+            null,
+            port
         );
+    }
+
+    public static Installation ofContainer(Shell sh, Distribution distribution) {
+        return ofContainer(sh, distribution, 9200);
     }
 
     /**
@@ -147,6 +151,14 @@ public class Installation {
         return config.resolve(configFileName);
     }
 
+    public String getElasticPassword() {
+        return this.elasticPassword;
+    }
+
+    public void setElasticPassword(String password) {
+        this.elasticPassword = password;
+    }
+
     public Executables executables() {
         return new Executables();
     }
@@ -169,14 +181,27 @@ public class Installation {
         }
 
         public Shell.Result run(String args, String input) {
-            String command = path + " " + args;
-            if (distribution.isArchive() && Platforms.WINDOWS == false) {
-                command = "sudo -E -u " + ARCHIVE_OWNER + " " + command;
+            return run(args, input, false);
+        }
+
+        public Shell.Result run(String args, String input, boolean ignoreExitCode) {
+            String command = path.toString();
+            if (Platforms.WINDOWS) {
+                command = "& '" + command + "'";
+            } else {
+                command = "\"" + command + "\"";
+                if (distribution.isArchive()) {
+                    command = "sudo -E -u " + ARCHIVE_OWNER + " " + command;
+                }
             }
+
             if (input != null) {
                 command = "echo \"" + input + "\" | " + command;
             }
-            return sh.run(command);
+            if (ignoreExitCode) {
+                return sh.runIgnoreExitCode(command + " " + args);
+            }
+            return sh.run(command + " " + args);
         }
     }
 
@@ -191,8 +216,12 @@ public class Installation {
         public final Executable shardTool = new Executable("elasticsearch-shard");
         public final Executable nodeTool = new Executable("elasticsearch-node");
         public final Executable setupPasswordsTool = new Executable("elasticsearch-setup-passwords");
+        public final Executable resetPasswordTool = new Executable("elasticsearch-reset-password");
+        public final Executable createEnrollmentToken = new Executable("elasticsearch-create-enrollment-token");
+        public final Executable nodeReconfigureTool = new Executable("elasticsearch-reconfigure-node");
         public final Executable sqlCli = new Executable("elasticsearch-sql-cli");
         public final Executable syskeygenTool = new Executable("elasticsearch-syskeygen");
         public final Executable usersTool = new Executable("elasticsearch-users");
+        public final Executable serviceTokensTool = new Executable("elasticsearch-service-tokens");
     }
 }

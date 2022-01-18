@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.common.http;
 
@@ -25,6 +26,7 @@ import org.apache.http.client.methods.HttpRequestWrapper;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.client.utils.URIUtils;
+import org.apache.http.config.SocketConfig;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
@@ -45,20 +47,19 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.Streams;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
-import javax.net.ssl.HostnameVerifier;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
@@ -73,7 +74,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+
+import javax.net.ssl.HostnameVerifier;
 
 public class HttpClient implements Closeable {
 
@@ -89,6 +93,8 @@ public class HttpClient implements Closeable {
     private final HttpProxy settingsProxy;
     private final TimeValue defaultConnectionTimeout;
     private final TimeValue defaultReadTimeout;
+    private final boolean tcpKeepaliveEnabled;
+    private final TimeValue connectionPoolTtl;
     private final ByteSizeValue maxResponseSize;
     private final CryptoService cryptoService;
     private final SSLService sslService;
@@ -96,6 +102,8 @@ public class HttpClient implements Closeable {
     public HttpClient(Settings settings, SSLService sslService, CryptoService cryptoService, ClusterService clusterService) {
         this.defaultConnectionTimeout = HttpSettings.CONNECTION_TIMEOUT.get(settings);
         this.defaultReadTimeout = HttpSettings.READ_TIMEOUT.get(settings);
+        this.tcpKeepaliveEnabled = HttpSettings.TCP_KEEPALIVE.get(settings);
+        this.connectionPoolTtl = HttpSettings.CONNECTION_POOL_TTL.get(settings);
         this.maxResponseSize = HttpSettings.MAX_HTTP_RESPONSE_SIZE.get(settings);
         this.settingsProxy = getProxyFromSettings(settings);
         this.cryptoService = cryptoService;
@@ -110,24 +118,39 @@ public class HttpClient implements Closeable {
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
 
         // ssl setup
-        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(SETTINGS_SSL_PREFIX);
+        SslConfiguration sslConfiguration = sslService.getSSLConfiguration(SETTINGS_SSL_PREFIX);
         HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
         SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
         clientBuilder.setSSLSocketFactory(factory);
+
+        final SocketConfig.Builder socketConfigBuilder = SocketConfig.custom();
+        if (tcpKeepaliveEnabled) {
+            socketConfigBuilder.setSoKeepAlive(true);
+        }
+        clientBuilder.setDefaultSocketConfig(socketConfigBuilder.build());
+
+        if (connectionPoolTtl.millis() > 0) {
+            clientBuilder.setConnectionTimeToLive(connectionPoolTtl.millis(), TimeUnit.MILLISECONDS);
+        }
 
         clientBuilder.evictExpiredConnections();
         clientBuilder.setMaxConnPerRoute(MAX_CONNECTIONS);
         clientBuilder.setMaxConnTotal(MAX_CONNECTIONS);
         clientBuilder.setRedirectStrategy(new DefaultRedirectStrategy() {
             @Override
-            public boolean isRedirected(org.apache.http.HttpRequest request, org.apache.http.HttpResponse response,
-                                        HttpContext context) throws ProtocolException {
+            public boolean isRedirected(org.apache.http.HttpRequest request, org.apache.http.HttpResponse response, HttpContext context)
+                throws ProtocolException {
                 boolean isRedirected = super.isRedirected(request, response, context);
                 if (isRedirected) {
                     String host = response.getHeaders("Location")[0].getValue();
                     if (isWhitelisted(host) == false) {
-                        throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
-                            HttpSettings.HOSTS_WHITELIST.getKey() + "], will not redirect");
+                        throw new ElasticsearchException(
+                            "host ["
+                                + host
+                                + "] is not whitelisted in setting ["
+                                + HttpSettings.HOSTS_WHITELIST.getKey()
+                                + "], will not redirect"
+                        );
                     }
                 }
 
@@ -137,8 +160,11 @@ public class HttpClient implements Closeable {
 
         clientBuilder.addInterceptorFirst((HttpRequestInterceptor) (request, context) -> {
             if (request instanceof HttpRequestWrapper == false) {
-                throw new ElasticsearchException("unable to check request [{}/{}] for white listing", request,
-                    request.getClass().getName());
+                throw new ElasticsearchException(
+                    "unable to check request [{}/{}] for white listing",
+                    request,
+                    request.getClass().getName()
+                );
             }
 
             HttpRequestWrapper wrapper = ((HttpRequestWrapper) request);
@@ -150,8 +176,9 @@ public class HttpClient implements Closeable {
             }
 
             if (isWhitelisted(host) == false) {
-                throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
-                    HttpSettings.HOSTS_WHITELIST.getKey() + "], will not connect");
+                throw new ElasticsearchException(
+                    "host [" + host + "] is not whitelisted in setting [" + HttpSettings.HOSTS_WHITELIST.getKey() + "], will not connect"
+                );
             }
         });
 
@@ -207,8 +234,10 @@ public class HttpClient implements Closeable {
         // auth
         if (request.auth() != null) {
             CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-            Credentials credentials = new UsernamePasswordCredentials(request.auth().username,
-                new String(request.auth().password.text(cryptoService)));
+            Credentials credentials = new UsernamePasswordCredentials(
+                request.auth().username,
+                new String(request.auth().password.text(cryptoService))
+            );
             credentialsProvider.setCredentials(new AuthScope(request.host, request.port), credentials);
             localContext.setCredentialsProvider(credentialsProvider);
 
@@ -250,7 +279,7 @@ public class HttpClient implements Closeable {
 
                     responseHeaders.put(header.getName(), values);
                 } else {
-                    responseHeaders.put(header.getName(), new String[]{header.getValue()});
+                    responseHeaders.put(header.getName(), new String[] { header.getValue() });
                 }
             }
 
@@ -296,14 +325,20 @@ public class HttpClient implements Closeable {
      */
     private HttpProxy getProxyFromSettings(Settings settings) {
         String proxyHost = HttpSettings.PROXY_HOST.get(settings);
-        Scheme proxyScheme = HttpSettings.PROXY_SCHEME.exists(settings) ?
-                Scheme.parse(HttpSettings.PROXY_SCHEME.get(settings)) : Scheme.HTTP;
+        Scheme proxyScheme = HttpSettings.PROXY_SCHEME.exists(settings)
+            ? Scheme.parse(HttpSettings.PROXY_SCHEME.get(settings))
+            : Scheme.HTTP;
         int proxyPort = HttpSettings.PROXY_PORT.get(settings);
         if (proxyPort != 0 && Strings.hasText(proxyHost)) {
             logger.info("Using default proxy for http input and slack/pagerduty/webhook actions [{}:{}]", proxyHost, proxyPort);
         } else if (proxyPort != 0 ^ Strings.hasText(proxyHost)) {
-            throw new IllegalArgumentException("HTTP proxy requires both settings: [" + HttpSettings.PROXY_HOST.getKey() + "] and [" +
-                    HttpSettings.PROXY_PORT.getKey() + "]");
+            throw new IllegalArgumentException(
+                "HTTP proxy requires both settings: ["
+                    + HttpSettings.PROXY_HOST.getKey()
+                    + "] and ["
+                    + HttpSettings.PROXY_PORT.getKey()
+                    + "]"
+            );
         }
 
         if (proxyPort > 0 && Strings.hasText(proxyHost)) {
@@ -342,8 +377,7 @@ public class HttpClient implements Closeable {
                 }
             }
 
-            final URI uri =  new URIBuilder()
-                .setScheme(request.scheme().scheme())
+            final URI uri = new URIBuilder().setScheme(request.scheme().scheme())
                 .setHost(request.host)
                 .setPort(request.port)
                 .setPathSegments(unescapedPathParts)
@@ -385,6 +419,7 @@ public class HttpClient implements Closeable {
     }
 
     private static final CharacterRunAutomaton MATCH_ALL_AUTOMATON = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton("*"));
+
     // visible for testing
     static CharacterRunAutomaton createAutomaton(List<String> whiteListedHosts) {
         if (whiteListedHosts.isEmpty()) {
@@ -394,7 +429,7 @@ public class HttpClient implements Closeable {
         }
 
         Automaton whiteListAutomaton = Regex.simpleMatchToAutomaton(whiteListedHosts.toArray(Strings.EMPTY_ARRAY));
-        whiteListAutomaton = MinimizationOperations.minimize(whiteListAutomaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+        whiteListAutomaton = MinimizationOperations.minimize(whiteListAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         return new CharacterRunAutomaton(whiteListAutomaton);
     }
 }

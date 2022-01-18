@@ -11,7 +11,7 @@ Besides the <<built-in-date-formats,built-in formats>>, your own
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -31,7 +31,7 @@ down to the nearest day.
 [[custom-date-formats]]
 ==== Custom date formats
 
-Completely customizable date formats are supported.  The syntax for these is explained
+Completely customizable date formats are supported. The syntax for these is explained
 https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[DateTimeFormatter docs].
 
 [[built-in-date-formats]]
@@ -66,9 +66,16 @@ The following tables lists all the defaults ISO formats supported:
 
 [[strict-date-time]]`date_optional_time` or `strict_date_optional_time`::
 
-    A generic ISO datetime parser where the date, in `year_month_day` format, is
-    mandatory and the time, separated by `T`, is optional.
+    A generic ISO datetime parser, where the date must include the year at a minimum, and the time
+    (separated by `T`), is optional.
     Examples: `yyyy-MM-dd'T'HH:mm:ss.SSSZ` or  `yyyy-MM-dd`.
+
+[[strict-date-time-nanos]]`strict_date_optional_time_nanos`::
+
+    A generic ISO datetime parser, where the date must include the year at a minimum, and the time
+    (separated by `T`), is optional. The fraction of a second
+    part has a nanosecond resolution.
+    Examples: `yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ` or  `yyyy-MM-dd`.
 
 `basic_date`::
 

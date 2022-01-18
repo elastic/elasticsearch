@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http.nio;
@@ -28,6 +17,7 @@ import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.QueryStringDecoder;
+
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -75,11 +65,11 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private void shutdownExecutorService() throws InterruptedException {
-        if (!handlerService.isShutdown()) {
+        if (handlerService.isShutdown() == false) {
             handlerService.shutdown();
             handlerService.awaitTermination(10, TimeUnit.SECONDS);
         }
-        if (!eventLoopService.isShutdown()) {
+        if (eventLoopService.isShutdown() == false) {
             eventLoopService.shutdown();
             eventLoopService.awaitTermination(10, TimeUnit.SECONDS);
         }
@@ -87,8 +77,10 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
 
     public void testThatPipeliningWorksWithFastSerializedRequests() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new NioHttpPipeliningHandler(logger, numberOfRequests),
-            new WorkEmulatorHandler());
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(
+            new NioHttpPipeliningHandler(logger, numberOfRequests),
+            new WorkEmulatorHandler()
+        );
 
         for (int i = 0; i < numberOfRequests; i++) {
             embeddedChannel.writeInbound(createHttpRequest("/" + String.valueOf(i)));
@@ -114,8 +106,10 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
 
     public void testThatPipeliningWorksWhenSlowRequestsInDifferentOrder() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new NioHttpPipeliningHandler(logger, numberOfRequests),
-            new WorkEmulatorHandler());
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(
+            new NioHttpPipeliningHandler(logger, numberOfRequests),
+            new WorkEmulatorHandler()
+        );
 
         for (int i = 0; i < numberOfRequests; i++) {
             embeddedChannel.writeInbound(createHttpRequest("/" + String.valueOf(i)));
@@ -144,8 +138,10 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
 
     public void testThatPipeliningClosesConnectionWithTooManyEvents() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new NioHttpPipeliningHandler(logger, numberOfRequests),
-            new WorkEmulatorHandler());
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(
+            new NioHttpPipeliningHandler(logger, numberOfRequests),
+            new WorkEmulatorHandler()
+        );
 
         for (int i = 0; i < 1 + numberOfRequests + 1; i++) {
             embeddedChannel.writeInbound(createHttpRequest("/" + Integer.toString(i)));
@@ -172,8 +168,7 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
 
     public void testPipeliningRequestsAreReleased() {
         final int numberOfRequests = 10;
-        final EmbeddedChannel embeddedChannel =
-            new EmbeddedChannel(new NioHttpPipeliningHandler(logger, numberOfRequests + 1));
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new NioHttpPipeliningHandler(logger, numberOfRequests + 1));
 
         for (int i = 0; i < numberOfRequests; i++) {
             embeddedChannel.writeInbound(createHttpRequest("/" + i));

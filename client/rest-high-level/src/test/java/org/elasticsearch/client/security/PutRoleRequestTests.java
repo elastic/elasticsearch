@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.security;
@@ -27,9 +16,9 @@ import org.elasticsearch.client.security.user.privileges.GlobalPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.Role;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,8 +26,8 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 
 public class PutRoleRequestTests extends AbstractXContentTestCase<PutRoleRequest> {
 
@@ -62,17 +51,29 @@ public class PutRoleRequestTests extends AbstractXContentTestCase<PutRoleRequest
         return false;
     }
 
-    private static Role randomRole(String roleName) {
-        final Role.Builder roleBuilder = Role.builder().name(roleName)
-                .clusterPrivileges(randomSubsetOf(randomInt(3), Role.ClusterPrivilegeName.ALL_ARRAY))
-                .indicesPrivileges(
-                        randomArray(3, IndicesPrivileges[]::new, () -> IndicesPrivilegesTests.createNewRandom(randomAlphaOfLength(3))))
-                .applicationResourcePrivileges(randomArray(3, ApplicationResourcePrivileges[]::new,
-                        () -> ApplicationResourcePrivilegesTests.createNewRandom(randomAlphaOfLength(3).toLowerCase(Locale.ROOT))))
-                .runAsPrivilege(randomArray(3, String[]::new, () -> randomAlphaOfLength(3)));
+    private static Role randomRole(String name) {
+        final Role.Builder roleBuilder = Role.builder()
+            .name(name)
+            .clusterPrivileges(randomSubsetOf(randomInt(3), Role.ClusterPrivilegeName.ALL_ARRAY))
+            .indicesPrivileges(
+                randomArray(3, IndicesPrivileges[]::new, () -> IndicesPrivilegesTests.createNewRandom(randomAlphaOfLength(3)))
+            )
+            .applicationResourcePrivileges(
+                randomArray(
+                    3,
+                    ApplicationResourcePrivileges[]::new,
+                    () -> ApplicationResourcePrivilegesTests.createNewRandom(randomAlphaOfLength(3).toLowerCase(Locale.ROOT))
+                )
+            )
+            .runAsPrivilege(randomArray(3, String[]::new, () -> randomAlphaOfLength(3)));
         if (randomBoolean()) {
-            roleBuilder.globalApplicationPrivileges(new GlobalPrivileges(Arrays.asList(
-                    randomArray(1, 3, GlobalOperationPrivilege[]::new, () -> GlobalPrivilegesTests.buildRandomGlobalScopedPrivilege()))));
+            roleBuilder.globalApplicationPrivileges(
+                new GlobalPrivileges(
+                    Arrays.asList(
+                        randomArray(1, 3, GlobalOperationPrivilege[]::new, () -> GlobalPrivilegesTests.buildRandomGlobalScopedPrivilege())
+                    )
+                )
+            );
         }
         if (randomBoolean()) {
             final Map<String, Object> metadata = new HashMap<>();
@@ -81,7 +82,7 @@ public class PutRoleRequestTests extends AbstractXContentTestCase<PutRoleRequest
             }
             roleBuilder.metadata(metadata);
         }
-        return roleBuilder.build(); 
+        return roleBuilder.build();
     }
 
 }

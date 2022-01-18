@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation.command;
@@ -27,11 +16,11 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -81,7 +70,9 @@ public class MoveAllocationCommand implements AllocationCommand {
         return NAME;
     }
 
-    public String index() {return index; }
+    public String index() {
+        return index;
+    }
 
     public int shardId() {
         return this.shardId;
@@ -103,20 +94,40 @@ public class MoveAllocationCommand implements AllocationCommand {
 
         boolean found = false;
         RoutingNode fromRoutingNode = allocation.routingNodes().node(fromDiscoNode.getId());
-        if (fromRoutingNode == null && !fromDiscoNode.isDataNode()) {
-            throw new IllegalArgumentException("[move_allocation] can't move [" + index + "][" + shardId + "] from "
-                + fromDiscoNode + " to " + toDiscoNode + ": source [" +  fromDiscoNode.getName()
-                + "] is not a data node.");
+        if (fromRoutingNode == null && fromDiscoNode.canContainData() == false) {
+            throw new IllegalArgumentException(
+                "[move_allocation] can't move ["
+                    + index
+                    + "]["
+                    + shardId
+                    + "] from "
+                    + fromDiscoNode
+                    + " to "
+                    + toDiscoNode
+                    + ": source ["
+                    + fromDiscoNode.getName()
+                    + "] is not a data node."
+            );
         }
         RoutingNode toRoutingNode = allocation.routingNodes().node(toDiscoNode.getId());
-        if (toRoutingNode == null && !toDiscoNode.isDataNode()) {
-            throw new IllegalArgumentException("[move_allocation] can't move [" + index + "][" + shardId + "] from "
-                + fromDiscoNode + " to " + toDiscoNode + ": source [" +  toDiscoNode.getName()
-                + "] is not a data node.");
+        if (toRoutingNode == null && toDiscoNode.canContainData() == false) {
+            throw new IllegalArgumentException(
+                "[move_allocation] can't move ["
+                    + index
+                    + "]["
+                    + shardId
+                    + "] from "
+                    + fromDiscoNode
+                    + " to "
+                    + toDiscoNode
+                    + ": source ["
+                    + toDiscoNode.getName()
+                    + "] is not a data node."
+            );
         }
 
         for (ShardRouting shardRouting : fromRoutingNode) {
-            if (!shardRouting.shardId().getIndexName().equals(index)) {
+            if (shardRouting.shardId().getIndexName().equals(index) == false) {
                 continue;
             }
             if (shardRouting.shardId().id() != shardId) {
@@ -125,13 +136,16 @@ public class MoveAllocationCommand implements AllocationCommand {
             found = true;
 
             // TODO we can possibly support also relocating cases, where we cancel relocation and move...
-            if (!shardRouting.started()) {
+            if (shardRouting.started() == false) {
                 if (explain) {
-                    return new RerouteExplanation(this, allocation.decision(Decision.NO, "move_allocation_command",
-                            "shard " + shardId + " has not been started"));
+                    return new RerouteExplanation(
+                        this,
+                        allocation.decision(Decision.NO, "move_allocation_command", "shard " + shardId + " has not been started")
+                    );
                 }
-                throw new IllegalArgumentException("[move_allocation] can't move " + shardId +
-                        ", shard is not started (state = " + shardRouting.state() + "]");
+                throw new IllegalArgumentException(
+                    "[move_allocation] can't move " + shardId + ", shard is not started (state = " + shardRouting.state() + "]"
+                );
             }
 
             decision = allocation.deciders().canAllocate(shardRouting, toRoutingNode, allocation);
@@ -139,20 +153,35 @@ public class MoveAllocationCommand implements AllocationCommand {
                 if (explain) {
                     return new RerouteExplanation(this, decision);
                 }
-                throw new IllegalArgumentException("[move_allocation] can't move " + shardId + ", from " + fromDiscoNode + ", to " +
-                    toDiscoNode + ", since its not allowed, reason: " + decision);
+                throw new IllegalArgumentException(
+                    "[move_allocation] can't move "
+                        + shardId
+                        + ", from "
+                        + fromDiscoNode
+                        + ", to "
+                        + toDiscoNode
+                        + ", since its not allowed, reason: "
+                        + decision
+                );
             }
             if (decision.type() == Decision.Type.THROTTLE) {
                 // its being throttled, maybe have a flag to take it into account and fail? for now, just do it since the "user" wants it...
             }
-            allocation.routingNodes().relocateShard(shardRouting, toRoutingNode.nodeId(),
-                allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
+            allocation.routingNodes()
+                .relocateShard(
+                    shardRouting,
+                    toRoutingNode.nodeId(),
+                    allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                    allocation.changes()
+                );
         }
 
-        if (!found) {
+        if (found == false) {
             if (explain) {
-                return new RerouteExplanation(this, allocation.decision(Decision.NO,
-                        "move_allocation_command", "shard " + shardId + " not found"));
+                return new RerouteExplanation(
+                    this,
+                    allocation.decision(Decision.NO, "move_allocation_command", "shard " + shardId + " not found")
+                );
             }
             throw new IllegalArgumentException("[move_allocation] can't move " + shardId + ", failed to find it on node " + fromDiscoNode);
         }
@@ -218,10 +247,10 @@ public class MoveAllocationCommand implements AllocationCommand {
         }
         MoveAllocationCommand other = (MoveAllocationCommand) obj;
         // Override equals and hashCode for testing
-        return Objects.equals(index, other.index) &&
-                Objects.equals(shardId, other.shardId) &&
-                Objects.equals(fromNode, other.fromNode) &&
-                Objects.equals(toNode, other.toNode);
+        return Objects.equals(index, other.index)
+            && Objects.equals(shardId, other.shardId)
+            && Objects.equals(fromNode, other.fromNode)
+            && Objects.equals(toNode, other.toNode);
     }
 
     @Override

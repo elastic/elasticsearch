@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -56,21 +45,25 @@ import static org.hamcrest.Matchers.is;
 public class AutoExpandReplicasTests extends ESTestCase {
 
     public void testParseSettings() {
-        AutoExpandReplicas autoExpandReplicas = AutoExpandReplicas.SETTING
-            .get(Settings.builder().put("index.auto_expand_replicas", "0-5").build());
+        AutoExpandReplicas autoExpandReplicas = AutoExpandReplicas.SETTING.get(
+            Settings.builder().put("index.auto_expand_replicas", "0-5").build()
+        );
         assertEquals(0, autoExpandReplicas.getMinReplicas());
         assertEquals(5, autoExpandReplicas.getMaxReplicas(8));
         assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertFalse(autoExpandReplicas.expandToAllNodes());
 
         autoExpandReplicas = AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "0-all").build());
         assertEquals(0, autoExpandReplicas.getMinReplicas());
         assertEquals(5, autoExpandReplicas.getMaxReplicas(6));
         assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertTrue(autoExpandReplicas.expandToAllNodes());
 
         autoExpandReplicas = AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "1-all").build());
         assertEquals(1, autoExpandReplicas.getMinReplicas());
         assertEquals(5, autoExpandReplicas.getMaxReplicas(6));
         assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertTrue(autoExpandReplicas.expandToAllNodes());
 
     }
 
@@ -109,7 +102,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
     private static final AtomicInteger nodeIdGenerator = new AtomicInteger();
 
     protected DiscoveryNode createNode(Version version, DiscoveryNodeRole... mustHaveRoles) {
-        Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
+        Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         Collections.addAll(roles, mustHaveRoles);
         final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles, version);
@@ -141,17 +134,18 @@ public class AutoExpandReplicasTests extends ESTestCase {
             allNodes.addAll(dataNodes);
             ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[0]));
 
-            CreateIndexRequest request = new CreateIndexRequest("index",
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_AUTO_EXPAND_REPLICAS, "0-all").build())
-                .waitForActiveShards(ActiveShardCount.NONE);
+            CreateIndexRequest request = new CreateIndexRequest(
+                "index",
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_AUTO_EXPAND_REPLICAS, "0-all").build()
+            ).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metadata().hasIndex("index"));
             while (state.routingTable().index("index").shard(0).allShardsStarted() == false) {
                 logger.info(state);
-                state = cluster.applyStartedShards(state,
-                    state.routingTable().index("index").shard(0).shardsWithState(ShardRoutingState.INITIALIZING));
+                state = cluster.applyStartedShards(
+                    state,
+                    state.routingTable().index("index").shard(0).shardsWithState(ShardRoutingState.INITIALIZING)
+                );
                 state = cluster.reroute(state, new ClusterRerouteRequest());
             }
 
@@ -162,8 +156,10 @@ public class AutoExpandReplicasTests extends ESTestCase {
             if (randomBoolean()) {
                 // simulate node removal
                 List<DiscoveryNode> nodesToRemove = randomSubsetOf(2, dataNodes);
-                unchangedNodeIds = dataNodes.stream().filter(n -> nodesToRemove.contains(n) == false)
-                    .map(DiscoveryNode::getId).collect(Collectors.toSet());
+                unchangedNodeIds = dataNodes.stream()
+                    .filter(n -> nodesToRemove.contains(n) == false)
+                    .map(DiscoveryNode::getId)
+                    .collect(Collectors.toSet());
 
                 state = cluster.removeNodes(state, nodesToRemove);
                 postTable = state.routingTable().index("index").shard(0);
@@ -175,12 +171,22 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(null).build()).build();
 
                 List<DiscoveryNode> conflictingNodes = randomSubsetOf(2, dataNodes);
-                unchangedNodeIds = dataNodes.stream().filter(n -> conflictingNodes.contains(n) == false)
-                    .map(DiscoveryNode::getId).collect(Collectors.toSet());
+                unchangedNodeIds = dataNodes.stream()
+                    .filter(n -> conflictingNodes.contains(n) == false)
+                    .map(DiscoveryNode::getId)
+                    .collect(Collectors.toSet());
 
                 List<DiscoveryNode> nodesToAdd = conflictingNodes.stream()
-                    .map(n -> new DiscoveryNode(n.getName(), n.getId(), buildNewFakeTransportAddress(),
-                        n.getAttributes(), n.getRoles(), n.getVersion()))
+                    .map(
+                        n -> new DiscoveryNode(
+                            n.getName(),
+                            n.getId(),
+                            buildNewFakeTransportAddress(),
+                            n.getAttributes(),
+                            n.getRoles(),
+                            n.getVersion()
+                        )
+                    )
                     .collect(Collectors.toList());
 
                 if (randomBoolean()) {
@@ -191,18 +197,19 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 postTable = state.routingTable().index("index").shard(0);
             }
 
-            Set<String> unchangedAllocationIds = preTable.getShards().stream().filter(shr -> unchangedNodeIds.contains(shr.currentNodeId()))
-                .map(shr -> shr.allocationId().getId()).collect(Collectors.toSet());
+            Set<String> unchangedAllocationIds = preTable.getShards()
+                .stream()
+                .filter(shr -> unchangedNodeIds.contains(shr.currentNodeId()))
+                .map(shr -> shr.allocationId().getId())
+                .collect(Collectors.toSet());
 
             assertThat(postTable.toString(), unchangedAllocationIds, everyItem(is(in(postTable.getAllAllocationIds()))));
 
-            postTable.getShards().forEach(
-                shardRouting -> {
-                    if (shardRouting.assignedToNode() && unchangedAllocationIds.contains(shardRouting.allocationId().getId())) {
-                        assertTrue("Shard should be active: " + shardRouting, shardRouting.active());
-                    }
+            postTable.getShards().forEach(shardRouting -> {
+                if (shardRouting.assignedToNode() && unchangedAllocationIds.contains(shardRouting.allocationId().getId())) {
+                    assertTrue("Shard should be active: " + shardRouting, shardRouting.active());
                 }
-            );
+            });
         } finally {
             terminate(threadPool);
         }
@@ -214,38 +221,49 @@ public class AutoExpandReplicasTests extends ESTestCase {
 
         try {
             List<DiscoveryNode> allNodes = new ArrayList<>();
-            DiscoveryNode oldNode = createNode(VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_1),
-                DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE); // local node is the master
+            DiscoveryNode oldNode = createNode(
+                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_1),
+                DiscoveryNodeRole.MASTER_ROLE,
+                DiscoveryNodeRole.DATA_ROLE
+            ); // local node is the master
             allNodes.add(oldNode);
             ClusterState state = ClusterStateCreationUtils.state(oldNode, oldNode, allNodes.toArray(new DiscoveryNode[0]));
 
-            CreateIndexRequest request = new CreateIndexRequest("index",
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_AUTO_EXPAND_REPLICAS, "0-all").build())
-                .waitForActiveShards(ActiveShardCount.NONE);
+            CreateIndexRequest request = new CreateIndexRequest(
+                "index",
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_AUTO_EXPAND_REPLICAS, "0-all").build()
+            ).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metadata().hasIndex("index"));
             while (state.routingTable().index("index").shard(0).allShardsStarted() == false) {
                 logger.info(state);
-                state = cluster.applyStartedShards(state,
-                    state.routingTable().index("index").shard(0).shardsWithState(ShardRoutingState.INITIALIZING));
+                state = cluster.applyStartedShards(
+                    state,
+                    state.routingTable().index("index").shard(0).shardsWithState(ShardRoutingState.INITIALIZING)
+                );
                 state = cluster.reroute(state, new ClusterRerouteRequest());
             }
 
-            DiscoveryNode newNode = createNode(Version.V_7_6_0,
-                DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE); // local node is the master
+            DiscoveryNode newNode = createNode(Version.V_7_6_0, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE); // local node
+                                                                                                                             // is the
+                                                                                                                             // master
 
             state = cluster.addNodes(state, Collections.singletonList(newNode));
 
             // use allocation filtering
-            state = cluster.updateSettings(state, new UpdateSettingsRequest("index").settings(Settings.builder()
-                .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", oldNode.getName()).build()));
+            state = cluster.updateSettings(
+                state,
+                new UpdateSettingsRequest("index").settings(
+                    Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", oldNode.getName()).build()
+                )
+            );
 
             while (state.routingTable().index("index").shard(0).allShardsStarted() == false) {
                 logger.info(state);
-                state = cluster.applyStartedShards(state,
-                    state.routingTable().index("index").shard(0).shardsWithState(ShardRoutingState.INITIALIZING));
+                state = cluster.applyStartedShards(
+                    state,
+                    state.routingTable().index("index").shard(0).shardsWithState(ShardRoutingState.INITIALIZING)
+                );
                 state = cluster.reroute(state, new ClusterRerouteRequest());
             }
 

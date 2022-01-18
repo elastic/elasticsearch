@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -39,11 +28,11 @@ import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
 import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
-import org.elasticsearch.client.ml.FindFileStructureRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
@@ -74,6 +63,7 @@ import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.PutTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.PutTrainedModelRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
@@ -81,13 +71,14 @@ import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
+import org.elasticsearch.client.ml.UpgradeJobModelSnapshotRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -100,64 +91,62 @@ final class MLRequestConverters {
     private MLRequestConverters() {}
 
     static Request putJob(PutJobRequest putJobRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_ml")
-                .addPathPartAsIs("anomaly_detectors")
-                .addPathPart(putJobRequest.getJob().getId())
-                .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(putJobRequest.getJob().getId())
+            .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putJobRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
     static Request getJob(GetJobRequest getJobRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(Strings.collectionToCommaDelimitedString(getJobRequest.getJobIds()))
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
-        if (getJobRequest.getAllowNoJobs() != null) {
-            params.putParam("allow_no_jobs", Boolean.toString(getJobRequest.getAllowNoJobs()));
+        if (getJobRequest.getAllowNoMatch() != null) {
+            params.putParam(GetJobRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(getJobRequest.getAllowNoMatch()));
+        }
+        if (getJobRequest.getExcludeGenerated() != null) {
+            params.putParam(GetJobRequest.EXCLUDE_GENERATED, Boolean.toString(getJobRequest.getExcludeGenerated()));
         }
         request.addParameters(params.asMap());
         return request;
     }
 
     static Request getJobStats(GetJobStatsRequest getJobStatsRequest) {
-        String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_ml")
-                .addPathPartAsIs("anomaly_detectors")
-                .addPathPart(Strings.collectionToCommaDelimitedString(getJobStatsRequest.getJobIds()))
-                .addPathPartAsIs("_stats")
-                .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(Strings.collectionToCommaDelimitedString(getJobStatsRequest.getJobIds()))
+            .addPathPartAsIs("_stats")
+            .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
-        if (getJobStatsRequest.getAllowNoJobs() != null) {
-            params.putParam("allow_no_jobs", Boolean.toString(getJobStatsRequest.getAllowNoJobs()));
+        if (getJobStatsRequest.getAllowNoMatch() != null) {
+            params.putParam("allow_no_match", Boolean.toString(getJobStatsRequest.getAllowNoMatch()));
         }
         request.addParameters(params.asMap());
         return request;
     }
 
     static Request openJob(OpenJobRequest openJobRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_ml")
-                .addPathPartAsIs("anomaly_detectors")
-                .addPathPart(openJobRequest.getJobId())
-                .addPathPartAsIs("_open")
-                .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(openJobRequest.getJobId())
+            .addPathPartAsIs("_open")
+            .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(openJobRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
     static Request closeJob(CloseJobRequest closeJobRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(Strings.collectionToCommaDelimitedString(closeJobRequest.getJobIds()))
             .addPathPartAsIs("_close")
@@ -168,8 +157,7 @@ final class MLRequestConverters {
     }
 
     static Request deleteExpiredData(DeleteExpiredDataRequest deleteExpiredDataRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("_delete_expired_data")
             .addPathPart(deleteExpiredDataRequest.getJobId())
             .build();
@@ -179,11 +167,10 @@ final class MLRequestConverters {
     }
 
     static Request deleteJob(DeleteJobRequest deleteJobRequest) {
-        String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_ml")
-                .addPathPartAsIs("anomaly_detectors")
-                .addPathPart(deleteJobRequest.getJobId())
-                .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(deleteJobRequest.getJobId())
+            .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
@@ -198,20 +185,18 @@ final class MLRequestConverters {
     }
 
     static Request flushJob(FlushJobRequest flushJobRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_ml")
-                .addPathPartAsIs("anomaly_detectors")
-                .addPathPart(flushJobRequest.getJobId())
-                .addPathPartAsIs("_flush")
-                .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(flushJobRequest.getJobId())
+            .addPathPartAsIs("_flush")
+            .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(flushJobRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
     static Request forecastJob(ForecastJobRequest forecastJobRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(forecastJobRequest.getJobId())
             .addPathPartAsIs("_forecast")
@@ -222,31 +207,28 @@ final class MLRequestConverters {
     }
 
     static Request updateJob(UpdateJobRequest updateJobRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_ml")
-                .addPathPartAsIs("anomaly_detectors")
-                .addPathPart(updateJobRequest.getJobUpdate().getJobId())
-                .addPathPartAsIs("_update")
-                .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(updateJobRequest.getJobUpdate().getJobId())
+            .addPathPartAsIs("_update")
+            .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(updateJobRequest.getJobUpdate(), REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
     static Request putDatafeed(PutDatafeedRequest putDatafeedRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_ml")
-                .addPathPartAsIs("datafeeds")
-                .addPathPart(putDatafeedRequest.getDatafeed().getId())
-                .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
+            .addPathPartAsIs("datafeeds")
+            .addPathPart(putDatafeedRequest.getDatafeed().getId())
+            .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putDatafeedRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
     static Request updateDatafeed(UpdateDatafeedRequest updateDatafeedRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("datafeeds")
             .addPathPart(updateDatafeedRequest.getDatafeedUpdate().getId())
             .addPathPartAsIs("_update")
@@ -257,28 +239,28 @@ final class MLRequestConverters {
     }
 
     static Request getDatafeed(GetDatafeedRequest getDatafeedRequest) {
-        String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_ml")
-                .addPathPartAsIs("datafeeds")
-                .addPathPart(Strings.collectionToCommaDelimitedString(getDatafeedRequest.getDatafeedIds()))
-                .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
+            .addPathPartAsIs("datafeeds")
+            .addPathPart(Strings.collectionToCommaDelimitedString(getDatafeedRequest.getDatafeedIds()))
+            .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
-        if (getDatafeedRequest.getAllowNoDatafeeds() != null) {
-            params.putParam(GetDatafeedRequest.ALLOW_NO_DATAFEEDS.getPreferredName(),
-                    Boolean.toString(getDatafeedRequest.getAllowNoDatafeeds()));
+        if (getDatafeedRequest.getAllowNoMatch() != null) {
+            params.putParam(GetDatafeedRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(getDatafeedRequest.getAllowNoMatch()));
+        }
+        if (getDatafeedRequest.getExcludeGenerated() != null) {
+            params.putParam(GetDatafeedRequest.EXCLUDE_GENERATED, Boolean.toString(getDatafeedRequest.getExcludeGenerated()));
         }
         request.addParameters(params.asMap());
         return request;
     }
 
     static Request deleteDatafeed(DeleteDatafeedRequest deleteDatafeedRequest) {
-        String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_ml")
-                .addPathPartAsIs("datafeeds")
-                .addPathPart(deleteDatafeedRequest.getDatafeedId())
-                .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
+            .addPathPartAsIs("datafeeds")
+            .addPathPart(deleteDatafeedRequest.getDatafeedId())
+            .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params();
         if (deleteDatafeedRequest.getForce() != null) {
@@ -289,8 +271,7 @@ final class MLRequestConverters {
     }
 
     static Request startDatafeed(StartDatafeedRequest startDatafeedRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("datafeeds")
             .addPathPart(startDatafeedRequest.getDatafeedId())
             .addPathPartAsIs("_start")
@@ -301,8 +282,7 @@ final class MLRequestConverters {
     }
 
     static Request stopDatafeed(StopDatafeedRequest stopDatafeedRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("datafeeds")
             .addPathPart(Strings.collectionToCommaDelimitedString(stopDatafeedRequest.getDatafeedIds()))
             .addPathPartAsIs("_stop")
@@ -313,8 +293,7 @@ final class MLRequestConverters {
     }
 
     static Request getDatafeedStats(GetDatafeedStatsRequest getDatafeedStatsRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("datafeeds")
             .addPathPart(Strings.collectionToCommaDelimitedString(getDatafeedStatsRequest.getDatafeedIds()))
             .addPathPartAsIs("_stats")
@@ -322,26 +301,27 @@ final class MLRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
-        if (getDatafeedStatsRequest.getAllowNoDatafeeds() != null) {
-            params.putParam("allow_no_datafeeds", Boolean.toString(getDatafeedStatsRequest.getAllowNoDatafeeds()));
+        if (getDatafeedStatsRequest.getAllowNoMatch() != null) {
+            params.putParam("allow_no_match", Boolean.toString(getDatafeedStatsRequest.getAllowNoMatch()));
         }
         request.addParameters(params.asMap());
         return request;
     }
 
-    static Request previewDatafeed(PreviewDatafeedRequest previewDatafeedRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
-            .addPathPartAsIs("datafeeds")
-            .addPathPart(previewDatafeedRequest.getDatafeedId())
-            .addPathPartAsIs("_preview")
-            .build();
-        return new Request(HttpGet.METHOD_NAME, endpoint);
+    static Request previewDatafeed(PreviewDatafeedRequest previewDatafeedRequest) throws IOException {
+        EndpointBuilder builder = new EndpointBuilder().addPathPartAsIs("_ml").addPathPartAsIs("datafeeds");
+        String endpoint = previewDatafeedRequest.getDatafeedId() != null
+            ? builder.addPathPart(previewDatafeedRequest.getDatafeedId()).addPathPartAsIs("_preview").build()
+            : builder.addPathPartAsIs("_preview").build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        if (previewDatafeedRequest.getDatafeedId() == null) {
+            request.setEntity(createEntity(previewDatafeedRequest, REQUEST_BODY_CONTENT_TYPE));
+        }
+        return request;
     }
 
     static Request deleteForecast(DeleteForecastRequest deleteForecastRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(deleteForecastRequest.getJobId())
             .addPathPartAsIs("_forecast")
@@ -360,8 +340,7 @@ final class MLRequestConverters {
     }
 
     static Request deleteModelSnapshot(DeleteModelSnapshotRequest deleteModelSnapshotRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(deleteModelSnapshotRequest.getJobId())
             .addPathPartAsIs("model_snapshots")
@@ -371,21 +350,19 @@ final class MLRequestConverters {
     }
 
     static Request getBuckets(GetBucketsRequest getBucketsRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_ml")
-                .addPathPartAsIs("anomaly_detectors")
-                .addPathPart(getBucketsRequest.getJobId())
-                .addPathPartAsIs("results")
-                .addPathPartAsIs("buckets")
-                .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(getBucketsRequest.getJobId())
+            .addPathPartAsIs("results")
+            .addPathPartAsIs("buckets")
+            .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(createEntity(getBucketsRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
     static Request getCategories(GetCategoriesRequest getCategoriesRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(getCategoriesRequest.getJobId())
             .addPathPartAsIs("results")
@@ -397,8 +374,7 @@ final class MLRequestConverters {
     }
 
     static Request getModelSnapshots(GetModelSnapshotsRequest getModelSnapshotsRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(getModelSnapshotsRequest.getJobId())
             .addPathPartAsIs("model_snapshots")
@@ -409,8 +385,7 @@ final class MLRequestConverters {
     }
 
     static Request updateModelSnapshot(UpdateModelSnapshotRequest updateModelSnapshotRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(updateModelSnapshotRequest.getJobId())
             .addPathPartAsIs("model_snapshots")
@@ -422,9 +397,34 @@ final class MLRequestConverters {
         return request;
     }
 
+    static Request upgradeJobSnapshot(UpgradeJobModelSnapshotRequest upgradeJobModelSnapshotRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(upgradeJobModelSnapshotRequest.getJobId())
+            .addPathPartAsIs("model_snapshots")
+            .addPathPart(upgradeJobModelSnapshotRequest.getSnapshotId())
+            .addPathPartAsIs("_upgrade")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (upgradeJobModelSnapshotRequest.getTimeout() != null) {
+            params.putParam(
+                UpgradeJobModelSnapshotRequest.TIMEOUT.getPreferredName(),
+                upgradeJobModelSnapshotRequest.getTimeout().getStringRep()
+            );
+        }
+        if (upgradeJobModelSnapshotRequest.getWaitForCompletion() != null) {
+            params.putParam(
+                UpgradeJobModelSnapshotRequest.WAIT_FOR_COMPLETION.getPreferredName(),
+                upgradeJobModelSnapshotRequest.getWaitForCompletion().toString()
+            );
+        }
+        request.addParameters(params.asMap());
+        return request;
+    }
+
     static Request revertModelSnapshot(RevertModelSnapshotRequest revertModelSnapshotsRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(revertModelSnapshotsRequest.getJobId())
             .addPathPartAsIs("model_snapshots")
@@ -437,34 +437,31 @@ final class MLRequestConverters {
     }
 
     static Request getOverallBuckets(GetOverallBucketsRequest getOverallBucketsRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_ml")
-                .addPathPartAsIs("anomaly_detectors")
-                .addPathPart(Strings.collectionToCommaDelimitedString(getOverallBucketsRequest.getJobIds()))
-                .addPathPartAsIs("results")
-                .addPathPartAsIs("overall_buckets")
-                .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(Strings.collectionToCommaDelimitedString(getOverallBucketsRequest.getJobIds()))
+            .addPathPartAsIs("results")
+            .addPathPartAsIs("overall_buckets")
+            .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(createEntity(getOverallBucketsRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
     static Request getRecords(GetRecordsRequest getRecordsRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_ml")
-                .addPathPartAsIs("anomaly_detectors")
-                .addPathPart(getRecordsRequest.getJobId())
-                .addPathPartAsIs("results")
-                .addPathPartAsIs("records")
-                .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(getRecordsRequest.getJobId())
+            .addPathPartAsIs("results")
+            .addPathPartAsIs("records")
+            .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(createEntity(getRecordsRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
     static Request postData(PostDataRequest postDataRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(postDataRequest.getJobId())
             .addPathPartAsIs("_data")
@@ -482,53 +479,51 @@ final class MLRequestConverters {
         request.addParameters(params.asMap());
         if (content != null) {
             BytesRef source = postDataRequest.getContent().toBytesRef();
-            HttpEntity byteEntity = new NByteArrayEntity(source.bytes,
+            HttpEntity byteEntity = new NByteArrayEntity(
+                source.bytes,
                 source.offset,
                 source.length,
-                createContentType(postDataRequest.getXContentType()));
+                createContentType(postDataRequest.getXContentType())
+            );
             request.setEntity(byteEntity);
         }
         return request;
     }
 
     static Request getInfluencers(GetInfluencersRequest getInfluencersRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_ml")
-                .addPathPartAsIs("anomaly_detectors")
-                .addPathPart(getInfluencersRequest.getJobId())
-                .addPathPartAsIs("results")
-                .addPathPartAsIs("influencers")
-                .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(getInfluencersRequest.getJobId())
+            .addPathPartAsIs("results")
+            .addPathPartAsIs("influencers")
+            .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(createEntity(getInfluencersRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
     static Request putCalendar(PutCalendarRequest putCalendarRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_ml")
-                .addPathPartAsIs("calendars")
-                .addPathPart(putCalendarRequest.getCalendar().getId())
-                .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
+            .addPathPartAsIs("calendars")
+            .addPathPart(putCalendarRequest.getCalendar().getId())
+            .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putCalendarRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
     static Request getCalendars(GetCalendarsRequest getCalendarsRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_ml")
-                .addPathPartAsIs("calendars")
-                .addPathPart(getCalendarsRequest.getCalendarId())
-                .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
+            .addPathPartAsIs("calendars")
+            .addPathPart(getCalendarsRequest.getCalendarId())
+            .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(createEntity(getCalendarsRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
     static Request putCalendarJob(PutCalendarJobRequest putCalendarJobRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("calendars")
             .addPathPart(putCalendarJobRequest.getCalendarId())
             .addPathPartAsIs("jobs")
@@ -538,8 +533,7 @@ final class MLRequestConverters {
     }
 
     static Request deleteCalendarJob(DeleteCalendarJobRequest deleteCalendarJobRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("calendars")
             .addPathPart(deleteCalendarJobRequest.getCalendarId())
             .addPathPartAsIs("jobs")
@@ -549,18 +543,16 @@ final class MLRequestConverters {
     }
 
     static Request deleteCalendar(DeleteCalendarRequest deleteCalendarRequest) {
-        String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_ml")
-                .addPathPartAsIs("calendars")
-                .addPathPart(deleteCalendarRequest.getCalendarId())
-                .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
+            .addPathPartAsIs("calendars")
+            .addPathPart(deleteCalendarRequest.getCalendarId())
+            .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         return request;
     }
 
     static Request getCalendarEvents(GetCalendarEventsRequest getCalendarEventsRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("calendars")
             .addPathPart(getCalendarEventsRequest.getCalendarId())
             .addPathPartAsIs("events")
@@ -571,22 +563,20 @@ final class MLRequestConverters {
     }
 
     static Request postCalendarEvents(PostCalendarEventRequest postCalendarEventRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("calendars")
             .addPathPart(postCalendarEventRequest.getCalendarId())
             .addPathPartAsIs("events")
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(postCalendarEventRequest,
-            REQUEST_BODY_CONTENT_TYPE,
-            PostCalendarEventRequest.EXCLUDE_CALENDAR_ID_PARAMS));
+        request.setEntity(
+            createEntity(postCalendarEventRequest, REQUEST_BODY_CONTENT_TYPE, PostCalendarEventRequest.EXCLUDE_CALENDAR_ID_PARAMS)
+        );
         return request;
     }
 
     static Request deleteCalendarEvent(DeleteCalendarEventRequest deleteCalendarEventRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("calendars")
             .addPathPart(deleteCalendarEventRequest.getCalendarId())
             .addPathPartAsIs("events")
@@ -596,8 +586,7 @@ final class MLRequestConverters {
     }
 
     static Request estimateModelMemory(EstimateModelMemoryRequest estimateModelMemoryRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPartAsIs("_estimate_model_memory")
             .build();
@@ -607,8 +596,7 @@ final class MLRequestConverters {
     }
 
     static Request putDataFrameAnalytics(PutDataFrameAnalyticsRequest putRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "data_frame", "analytics")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "data_frame", "analytics")
             .addPathPart(putRequest.getConfig().getId())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -616,9 +604,18 @@ final class MLRequestConverters {
         return request;
     }
 
+    static Request updateDataFrameAnalytics(UpdateDataFrameAnalyticsRequest updateRequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "data_frame", "analytics")
+            .addPathPart(updateRequest.getUpdate().getId())
+            .addPathPartAsIs("_update")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(updateRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request getDataFrameAnalytics(GetDataFrameAnalyticsRequest getRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "data_frame", "analytics")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "data_frame", "analytics")
             .addPathPart(Strings.collectionToCommaDelimitedString(getRequest.getIds()))
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -633,15 +630,17 @@ final class MLRequestConverters {
             }
         }
         if (getRequest.getAllowNoMatch() != null) {
-            params.putParam(GetDataFrameAnalyticsRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(getRequest.getAllowNoMatch()));
+            params.putParam(GetDataFrameAnalyticsRequest.ALLOW_NO_MATCH, Boolean.toString(getRequest.getAllowNoMatch()));
+        }
+        if (getRequest.getExcludeGenerated() != null) {
+            params.putParam(GetDataFrameAnalyticsRequest.EXCLUDE_GENERATED, Boolean.toString(getRequest.getExcludeGenerated()));
         }
         request.addParameters(params.asMap());
         return request;
     }
 
     static Request getDataFrameAnalyticsStats(GetDataFrameAnalyticsStatsRequest getStatsRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "data_frame", "analytics")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "data_frame", "analytics")
             .addPathPart(Strings.collectionToCommaDelimitedString(getStatsRequest.getIds()))
             .addPathPartAsIs("_stats")
             .build();
@@ -657,16 +656,17 @@ final class MLRequestConverters {
             }
         }
         if (getStatsRequest.getAllowNoMatch() != null) {
-            params.putParam(GetDataFrameAnalyticsStatsRequest.ALLOW_NO_MATCH.getPreferredName(),
-                Boolean.toString(getStatsRequest.getAllowNoMatch()));
+            params.putParam(
+                GetDataFrameAnalyticsStatsRequest.ALLOW_NO_MATCH.getPreferredName(),
+                Boolean.toString(getStatsRequest.getAllowNoMatch())
+            );
         }
         request.addParameters(params.asMap());
         return request;
     }
 
     static Request startDataFrameAnalytics(StartDataFrameAnalyticsRequest startRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "data_frame", "analytics")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "data_frame", "analytics")
             .addPathPart(startRequest.getId())
             .addPathPartAsIs("_start")
             .build();
@@ -680,8 +680,7 @@ final class MLRequestConverters {
     }
 
     static Request stopDataFrameAnalytics(StopDataFrameAnalyticsRequest stopRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "data_frame", "analytics")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "data_frame", "analytics")
             .addPathPart(stopRequest.getId())
             .addPathPartAsIs("_stop")
             .build();
@@ -692,7 +691,9 @@ final class MLRequestConverters {
         }
         if (stopRequest.getAllowNoMatch() != null) {
             params.putParam(
-                StopDataFrameAnalyticsRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(stopRequest.getAllowNoMatch()));
+                StopDataFrameAnalyticsRequest.ALLOW_NO_MATCH.getPreferredName(),
+                Boolean.toString(stopRequest.getAllowNoMatch())
+            );
         }
         if (stopRequest.getForce() != null) {
             params.putParam(StopDataFrameAnalyticsRequest.FORCE.getPreferredName(), Boolean.toString(stopRequest.getForce()));
@@ -702,8 +703,7 @@ final class MLRequestConverters {
     }
 
     static Request deleteDataFrameAnalytics(DeleteDataFrameAnalyticsRequest deleteRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "data_frame", "analytics")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "data_frame", "analytics")
             .addPathPart(deleteRequest.getId())
             .build();
 
@@ -722,9 +722,7 @@ final class MLRequestConverters {
     }
 
     static Request evaluateDataFrame(EvaluateDataFrameRequest evaluateRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "data_frame", "_evaluate")
-            .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "data_frame", "_evaluate").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(evaluateRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -745,8 +743,7 @@ final class MLRequestConverters {
     }
 
     static Request getTrainedModels(GetTrainedModelsRequest getTrainedModelsRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "inference")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "trained_models")
             .addPathPart(Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getIds()))
             .build();
         RequestConverters.Params params = new RequestConverters.Params();
@@ -760,22 +757,25 @@ final class MLRequestConverters {
             }
         }
         if (getTrainedModelsRequest.getAllowNoMatch() != null) {
-            params.putParam(GetTrainedModelsRequest.ALLOW_NO_MATCH,
-                Boolean.toString(getTrainedModelsRequest.getAllowNoMatch()));
+            params.putParam(GetTrainedModelsRequest.ALLOW_NO_MATCH, Boolean.toString(getTrainedModelsRequest.getAllowNoMatch()));
         }
         if (getTrainedModelsRequest.getDecompressDefinition() != null) {
-            params.putParam(GetTrainedModelsRequest.DECOMPRESS_DEFINITION,
-                Boolean.toString(getTrainedModelsRequest.getDecompressDefinition()));
+            params.putParam(
+                GetTrainedModelsRequest.DECOMPRESS_DEFINITION,
+                Boolean.toString(getTrainedModelsRequest.getDecompressDefinition())
+            );
         }
-        if (getTrainedModelsRequest.getIncludeDefinition() != null) {
-            params.putParam(GetTrainedModelsRequest.INCLUDE_MODEL_DEFINITION,
-                Boolean.toString(getTrainedModelsRequest.getIncludeDefinition()));
+        if (getTrainedModelsRequest.getIncludes().isEmpty() == false) {
+            params.putParam(
+                GetTrainedModelsRequest.INCLUDE,
+                Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getIncludes())
+            );
         }
         if (getTrainedModelsRequest.getTags() != null) {
             params.putParam(GetTrainedModelsRequest.TAGS, Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getTags()));
         }
-        if (getTrainedModelsRequest.getForExport() != null) {
-            params.putParam(GetTrainedModelsRequest.FOR_EXPORT, Boolean.toString(getTrainedModelsRequest.getForExport()));
+        if (getTrainedModelsRequest.getExcludeGenerated() != null) {
+            params.putParam(GetTrainedModelsRequest.EXCLUDE_GENERATED, Boolean.toString(getTrainedModelsRequest.getExcludeGenerated()));
         }
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.addParameters(params.asMap());
@@ -783,8 +783,7 @@ final class MLRequestConverters {
     }
 
     static Request getTrainedModelsStats(GetTrainedModelsStatsRequest getTrainedModelsStatsRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "inference")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "trained_models")
             .addPathPart(Strings.collectionToCommaDelimitedString(getTrainedModelsStatsRequest.getIds()))
             .addPathPart("_stats")
             .build();
@@ -799,8 +798,7 @@ final class MLRequestConverters {
             }
         }
         if (getTrainedModelsStatsRequest.getAllowNoMatch() != null) {
-            params.putParam(GetTrainedModelsStatsRequest.ALLOW_NO_MATCH,
-                Boolean.toString(getTrainedModelsStatsRequest.getAllowNoMatch()));
+            params.putParam(GetTrainedModelsStatsRequest.ALLOW_NO_MATCH, Boolean.toString(getTrainedModelsStatsRequest.getAllowNoMatch()));
         }
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.addParameters(params.asMap());
@@ -808,16 +806,12 @@ final class MLRequestConverters {
     }
 
     static Request deleteTrainedModel(DeleteTrainedModelRequest deleteRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "inference")
-            .addPathPart(deleteRequest.getId())
-            .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "trained_models").addPathPart(deleteRequest.getId()).build();
         return new Request(HttpDelete.METHOD_NAME, endpoint);
     }
 
     static Request putTrainedModel(PutTrainedModelRequest putTrainedModelRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "inference")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "trained_models")
             .addPathPart(putTrainedModelRequest.getTrainedModelConfig().getModelId())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -825,9 +819,32 @@ final class MLRequestConverters {
         return request;
     }
 
+    static Request putTrainedModelAlias(PutTrainedModelAliasRequest putTrainedModelAliasRequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "trained_models")
+            .addPathPart(putTrainedModelAliasRequest.getModelId())
+            .addPathPartAsIs("model_aliases")
+            .addPathPart(putTrainedModelAliasRequest.getModelAlias())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (putTrainedModelAliasRequest.getReassign() != null) {
+            params.putParam(PutTrainedModelAliasRequest.REASSIGN, Boolean.toString(putTrainedModelAliasRequest.getReassign()));
+        }
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request deleteTrainedModelAlias(DeleteTrainedModelAliasRequest deleteTrainedModelAliasRequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "trained_models")
+            .addPathPart(deleteTrainedModelAliasRequest.getModelId())
+            .addPathPartAsIs("model_aliases")
+            .addPathPart(deleteTrainedModelAliasRequest.getModelAlias())
+            .build();
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
+    }
+
     static Request putFilter(PutFilterRequest putFilterRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("filters")
             .addPathPart(putFilterRequest.getMlFilter().getId())
             .build();
@@ -837,8 +854,7 @@ final class MLRequestConverters {
     }
 
     static Request getFilter(GetFiltersRequest getFiltersRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("filters")
             .addPathPart(getFiltersRequest.getFilterId())
             .build();
@@ -855,8 +871,7 @@ final class MLRequestConverters {
     }
 
     static Request updateFilter(UpdateFilterRequest updateFilterRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml")
             .addPathPartAsIs("filters")
             .addPathPart(updateFilterRequest.getFilterId())
             .addPathPartAsIs("_update")
@@ -867,10 +882,7 @@ final class MLRequestConverters {
     }
 
     static Request deleteFilter(DeleteFilterRequest deleteFilterRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "filters")
-            .addPathPart(deleteFilterRequest.getId())
-            .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "filters").addPathPart(deleteFilterRequest.getId()).build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         return request;
     }
@@ -888,69 +900,8 @@ final class MLRequestConverters {
     }
 
     static Request mlInfo(MlInfoRequest infoRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "info")
-            .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "info").build();
         return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
-    static Request findFileStructure(FindFileStructureRequest findFileStructureRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
-            .addPathPartAsIs("find_file_structure")
-            .build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-
-        RequestConverters.Params params = new RequestConverters.Params();
-        if (findFileStructureRequest.getLinesToSample() != null) {
-            params.putParam(FindFileStructureRequest.LINES_TO_SAMPLE.getPreferredName(),
-                findFileStructureRequest.getLinesToSample().toString());
-        }
-        if (findFileStructureRequest.getTimeout() != null) {
-            params.putParam(FindFileStructureRequest.TIMEOUT.getPreferredName(), findFileStructureRequest.getTimeout().toString());
-        }
-        if (findFileStructureRequest.getCharset() != null) {
-            params.putParam(FindFileStructureRequest.CHARSET.getPreferredName(), findFileStructureRequest.getCharset());
-        }
-        if (findFileStructureRequest.getFormat() != null) {
-            params.putParam(FindFileStructureRequest.FORMAT.getPreferredName(), findFileStructureRequest.getFormat().toString());
-        }
-        if (findFileStructureRequest.getColumnNames() != null) {
-            params.putParam(FindFileStructureRequest.COLUMN_NAMES.getPreferredName(),
-                Strings.collectionToCommaDelimitedString(findFileStructureRequest.getColumnNames()));
-        }
-        if (findFileStructureRequest.getHasHeaderRow() != null) {
-            params.putParam(FindFileStructureRequest.HAS_HEADER_ROW.getPreferredName(),
-                findFileStructureRequest.getHasHeaderRow().toString());
-        }
-        if (findFileStructureRequest.getDelimiter() != null) {
-            params.putParam(FindFileStructureRequest.DELIMITER.getPreferredName(),
-                findFileStructureRequest.getDelimiter().toString());
-        }
-        if (findFileStructureRequest.getQuote() != null) {
-            params.putParam(FindFileStructureRequest.QUOTE.getPreferredName(), findFileStructureRequest.getQuote().toString());
-        }
-        if (findFileStructureRequest.getShouldTrimFields() != null) {
-            params.putParam(FindFileStructureRequest.SHOULD_TRIM_FIELDS.getPreferredName(),
-                findFileStructureRequest.getShouldTrimFields().toString());
-        }
-        if (findFileStructureRequest.getGrokPattern() != null) {
-            params.putParam(FindFileStructureRequest.GROK_PATTERN.getPreferredName(), findFileStructureRequest.getGrokPattern());
-        }
-        if (findFileStructureRequest.getTimestampFormat() != null) {
-            params.putParam(FindFileStructureRequest.TIMESTAMP_FORMAT.getPreferredName(), findFileStructureRequest.getTimestampFormat());
-        }
-        if (findFileStructureRequest.getTimestampField() != null) {
-            params.putParam(FindFileStructureRequest.TIMESTAMP_FIELD.getPreferredName(), findFileStructureRequest.getTimestampField());
-        }
-        if (findFileStructureRequest.getExplain() != null) {
-            params.putParam(FindFileStructureRequest.EXPLAIN.getPreferredName(), findFileStructureRequest.getExplain().toString());
-        }
-        request.addParameters(params.asMap());
-        BytesReference sample = findFileStructureRequest.getSample();
-        BytesRef source = sample.toBytesRef();
-        HttpEntity byteEntity = new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(XContentType.JSON));
-        request.setEntity(byteEntity);
-        return request;
-    }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.action;
@@ -17,23 +18,28 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.equalTo;
@@ -126,6 +132,8 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
 
         private final String nodeId;
 
+        private final ExecutorService executorService = Executors.newFixedThreadPool(1);
+
         public void reset() {
             contexts.set(0);
             fieldCaps.set(0);
@@ -138,7 +146,6 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
         public void enableSearchBlock() {
             shouldBlockOnSearch.set(true);
         }
-
 
         public void disableFieldCapBlock() {
             shouldBlockOnFieldCapabilities.set(false);
@@ -157,7 +164,7 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
             super.onIndexModule(indexModule);
             indexModule.addSearchOperationListener(new SearchOperationListener() {
                 @Override
-                public void onNewContext(SearchContext context) {
+                public void onNewReaderContext(ReaderContext readerContext) {
                     contexts.incrementAndGet();
                     try {
                         logger.trace("blocking search on " + nodeId);
@@ -181,30 +188,51 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
 
                 @Override
                 public <Request extends ActionRequest, Response extends ActionResponse> void apply(
-                    Task task, String action, Request request, ActionListener<Response> listener,
-                    ActionFilterChain<Request, Response> chain) {
+                    Task task,
+                    String action,
+                    Request request,
+                    ActionListener<Response> listener,
+                    ActionFilterChain<Request, Response> chain
+                ) {
+
                     if (action.equals(FieldCapabilitiesAction.NAME)) {
-                        try {
-                            fieldCaps.incrementAndGet();
-                            logger.trace("blocking field caps on " + nodeId);
-                            assertBusy(() -> assertFalse(shouldBlockOnFieldCapabilities.get()));
+                        final Consumer<Response> actionWrapper = resp -> {
+                            try {
+                                fieldCaps.incrementAndGet();
+                                logger.trace("blocking field caps on " + nodeId);
+                                assertBusy(() -> assertFalse(shouldBlockOnFieldCapabilities.get()));
+                                logger.trace("unblocking field caps on " + nodeId);
+                            } catch (Exception e) {
+                                throw new RuntimeException(e);
+                            } finally {
+                                listener.onResponse(resp);
+                            }
                             logger.trace("unblocking field caps on " + nodeId);
-                        } catch (Exception e) {
-                            throw new RuntimeException(e);
-                        }
+                        };
+                        chain.proceed(
+                            task,
+                            action,
+                            request,
+                            ActionListener.wrap(resp -> executorService.execute(() -> actionWrapper.accept(resp)), listener::onFailure)
+                        );
+                    } else {
+                        chain.proceed(task, action, request, listener);
                     }
-                    chain.proceed(task, action, request, listener);
                 }
             });
             return list;
+        }
+
+        @Override
+        public void close() throws IOException {
+            List<Runnable> runnables = executorService.shutdownNow();
+            assertTrue(runnables.isEmpty());
         }
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(SearchBlockPlugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), SearchBlockPlugin.class);
     }
 
     protected TaskId findTaskWithXOpaqueId(String id, String action) {
@@ -212,14 +240,14 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
         if (taskInfo != null) {
             return taskInfo.getTaskId();
         } else {
-             return null;
+            return null;
         }
     }
 
     protected TaskInfo getTaskInfoWithXOpaqueId(String id, String action) {
         ListTasksResponse tasks = client().admin().cluster().prepareListTasks().setActions(action).get();
         for (TaskInfo task : tasks.getTasks()) {
-            if (id.equals(task.getHeaders().get(Task.X_OPAQUE_ID))) {
+            if (id.equals(task.getHeaders().get(Task.X_OPAQUE_ID_HTTP_HEADER))) {
                 return task;
             }
         }
@@ -230,7 +258,7 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
         TaskId taskId = findTaskWithXOpaqueId(id, action);
         assertNotNull(taskId);
         logger.trace("Cancelling task " + taskId);
-        CancelTasksResponse response = client().admin().cluster().prepareCancelTasks().setTaskId(taskId).get();
+        CancelTasksResponse response = client().admin().cluster().prepareCancelTasks().setTargetTaskId(taskId).get();
         assertThat(response.getTasks(), hasSize(1));
         assertThat(response.getTasks().get(0).getAction(), equalTo(action));
         logger.trace("Task is cancelled " + taskId);

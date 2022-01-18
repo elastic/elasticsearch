@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.kerberos;
@@ -20,8 +21,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import javax.security.auth.Subject;
-
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -31,6 +30,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+
+import javax.security.auth.Subject;
 
 /**
  * Base Test class for Kerberos.
@@ -80,14 +81,17 @@ public abstract class KerberosTestCase extends ESTestCase {
         "ur",
         "pa",
         "ig",
-        "sd");
+        "sd"
+    );
 
     @BeforeClass
     public static void setupKerberos() throws Exception {
         if (isLocaleUnsupported()) {
             Logger logger = LogManager.getLogger(KerberosTestCase.class);
-            logger.warn("Attempting to run Kerberos test on {} locale, but that breaks SimpleKdcServer. Switching to English.",
-                Locale.getDefault());
+            logger.warn(
+                "Attempting to run Kerberos test on {} locale, but that breaks SimpleKdcServer. Switching to English.",
+                Locale.getDefault()
+            );
             restoreLocale = Locale.getDefault();
             Locale.setDefault(Locale.ENGLISH);
         }
@@ -115,21 +119,19 @@ public abstract class KerberosTestCase extends ESTestCase {
 
         // Create SPNs and UPNs
         serviceUserNames = new ArrayList<>();
-        Randomness.get().ints(randomIntBetween(1, 6)).forEach((i) -> {
-            serviceUserNames.add("HTTP/" + randomAlphaOfLength(8));
-        });
+        Randomness.get().ints(randomIntBetween(1, 6)).forEach((i) -> { serviceUserNames.add("HTTP/" + randomAlphaOfLength(8)); });
         final Path ktabPathForService = createPrincipalKeyTab(workDir, serviceUserNames.toArray(new String[0]));
         clientUserNames = new ArrayList<>();
         Randomness.get().ints(randomIntBetween(1, 6)).forEach((i) -> {
             String clientUserName = "client-" + randomAlphaOfLength(8);
             clientUserNames.add(clientUserName);
             try {
-                createPrincipal(clientUserName, "pwd".toCharArray());
+                createPrincipal(clientUserName, "spnego-test-password".toCharArray());
             } catch (Exception e) {
                 throw ExceptionsHelper.convertToRuntime(e);
             }
         });
-        settings =  KerberosRealmTestCase.buildKerberosRealmSettings(REALM_NAME, ktabPathForService.toString());
+        settings = KerberosRealmTestCase.buildKerberosRealmSettings(REALM_NAME, ktabPathForService.toString());
     }
 
     @After

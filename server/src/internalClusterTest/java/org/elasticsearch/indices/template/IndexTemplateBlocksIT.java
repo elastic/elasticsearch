@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.template;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -35,14 +24,30 @@ import static org.hamcrest.Matchers.hasSize;
 public class IndexTemplateBlocksIT extends ESIntegTestCase {
     public void testIndexTemplatesWithBlocks() throws IOException {
         // creates a simple index template
-        client().admin().indices().preparePutTemplate("template_blocks")
-                .setPatterns(Collections.singletonList("te*"))
-                .setOrder(0)
-                .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
-                        .startObject("field1").field("type", "text").field("store", true).endObject()
-                        .startObject("field2").field("type", "keyword").field("store", true).endObject()
-                        .endObject().endObject().endObject())
-                .execute().actionGet();
+        client().admin()
+            .indices()
+            .preparePutTemplate("template_blocks")
+            .setPatterns(Collections.singletonList("te*"))
+            .setOrder(0)
+            .setMapping(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("type", "text")
+                    .field("store", true)
+                    .endObject()
+                    .startObject("field2")
+                    .field("type", "keyword")
+                    .field("store", true)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+            .execute()
+            .actionGet();
 
         try {
             setClusterReadOnly(true);
@@ -50,10 +55,14 @@ public class IndexTemplateBlocksIT extends ESIntegTestCase {
             GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates("template_blocks").execute().actionGet();
             assertThat(response.getIndexTemplates(), hasSize(1));
 
-            assertBlocked(client().admin().indices().preparePutTemplate("template_blocks_2")
+            assertBlocked(
+                client().admin()
+                    .indices()
+                    .preparePutTemplate("template_blocks_2")
                     .setPatterns(Collections.singletonList("block*"))
                     .setOrder(0)
-                    .addAlias(new Alias("alias_1")));
+                    .addAlias(new Alias("alias_1"))
+            );
 
             assertBlocked(client().admin().indices().prepareDeleteTemplate("template_blocks"));
 

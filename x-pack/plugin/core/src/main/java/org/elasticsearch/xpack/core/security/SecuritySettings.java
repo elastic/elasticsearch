@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security;
 
@@ -20,9 +21,18 @@ public final class SecuritySettings {
         if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
             final String transportType = NetworkModule.TRANSPORT_TYPE_SETTING.get(settings);
             if (SecurityField.NAME4.equals(transportType) == false && SecurityField.NIO.equals(transportType) == false) {
-                throw new IllegalArgumentException("transport type setting [" + NetworkModule.TRANSPORT_TYPE_KEY
-                    + "] must be [" + SecurityField.NAME4 + "] or [" + SecurityField.NIO + "]" + " but is ["
-                    + transportType + "]");
+                throw new IllegalArgumentException(
+                    "transport type setting ["
+                        + NetworkModule.TRANSPORT_TYPE_KEY
+                        + "] must be ["
+                        + SecurityField.NAME4
+                        + "] or ["
+                        + SecurityField.NIO
+                        + "]"
+                        + " but is ["
+                        + transportType
+                        + "]"
+                );
             }
         } else {
             // default to security4
@@ -39,8 +49,9 @@ public final class SecuritySettings {
             userOptional.ifPresent(userSetting -> {
                 final int i = userSetting.indexOf(":");
                 if (i < 0 || i == userSetting.length() - 1) {
-                    throw new IllegalArgumentException("invalid [" + SecurityField.USER_SETTING.getKey()
-                        + "] setting. must be in the form of \"<username>:<password>\"");
+                    throw new IllegalArgumentException(
+                        "invalid [" + SecurityField.USER_SETTING.getKey() + "] setting. must be in the form of \"<username>:<password>\""
+                    );
                 }
                 String username = userSetting.substring(0, i);
                 String password = userSetting.substring(i + 1);

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
@@ -43,6 +44,10 @@ public class TimeProcessor extends DateTimeProcessor {
         return extractor().extract(time);
     }
 
+    public static Integer doProcess(OffsetTime dateTime, String tzId, String extractorName) {
+        return DateTimeProcessor.doProcess(asTimeAtZone(dateTime, ZoneId.of(tzId)), extractorName);
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(extractor(), zoneId());
@@ -54,7 +59,6 @@ public class TimeProcessor extends DateTimeProcessor {
             return false;
         }
         TimeProcessor other = (TimeProcessor) obj;
-        return Objects.equals(extractor(), other.extractor())
-                && Objects.equals(zoneId(), other.zoneId());
+        return Objects.equals(extractor(), other.extractor()) && Objects.equals(zoneId(), other.zoneId());
     }
 }

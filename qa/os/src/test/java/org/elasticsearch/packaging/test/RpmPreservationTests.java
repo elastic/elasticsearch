@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.test;
@@ -38,6 +27,7 @@ import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
+import static org.elasticsearch.packaging.util.ServerUtils.enableGeoIpDownloader;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assume.assumeTrue;
 
@@ -57,13 +47,15 @@ public class RpmPreservationTests extends PackagingTestCase {
     }
 
     public void test20Remove() throws Exception {
+        setHeap(null); // remove test heap options, so the config directory can be removed
+        enableGeoIpDownloader(installation);
         remove(distribution());
-
-        // config was removed
-        assertThat(installation.config, fileDoesNotExist());
 
         // defaults file was removed
         assertThat(installation.envFile, fileDoesNotExist());
+
+        // don't perform normal setup/teardown after this since we removed the install
+        installation = null;
     }
 
     public void test30PreserveConfig() throws Exception {
@@ -78,11 +70,9 @@ public class RpmPreservationTests extends PackagingTestCase {
             .map(each -> installation.config(each))
             .forEach(path -> append(path, "# foo"));
         append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
-        if (distribution().isDefault()) {
-            Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
-                .map(each -> installation.config(each))
-                .forEach(path -> append(path, "# foo"));
-        }
+        Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
+            .map(each -> installation.config(each))
+            .forEach(path -> append(path, "# foo"));
 
         remove(distribution());
         assertRemoved(distribution());
@@ -108,9 +98,7 @@ public class RpmPreservationTests extends PackagingTestCase {
         Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties").forEach(this::assertConfFilePreserved);
         assertThat(installation.config(Paths.get("jvm.options.d", "heap.options")), fileExists());
 
-        if (distribution().isDefault()) {
-            Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles").forEach(this::assertConfFilePreserved);
-        }
+        Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles").forEach(this::assertConfFilePreserved);
     }
 
     private void assertConfFilePreserved(String configFile) {

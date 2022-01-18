@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -25,8 +26,8 @@ public class IndexLifecycleOriginationDateParser {
      * Determines if the origination date needs to be parsed from the index name.
      */
     public static boolean shouldParseIndexName(Settings indexSettings) {
-        return indexSettings.getAsLong(LIFECYCLE_ORIGINATION_DATE, -1L) == -1L &&
-            indexSettings.getAsBoolean(LIFECYCLE_PARSE_ORIGINATION_DATE, false);
+        return indexSettings.getAsLong(LIFECYCLE_ORIGINATION_DATE, -1L) == -1L
+            && indexSettings.getAsBoolean(LIFECYCLE_PARSE_ORIGINATION_DATE, false);
     }
 
     /**
@@ -40,8 +41,15 @@ public class IndexLifecycleOriginationDateParser {
             try {
                 return DATE_FORMATTER.parseMillis(dateAsString);
             } catch (ElasticsearchParseException | IllegalArgumentException e) {
-                throw new IllegalArgumentException("index name [" + indexName + "] contains date [" + dateAsString + "] which " +
-                    "couldn't be parsed using the 'yyyy.MM.dd' format", e);
+                throw new IllegalArgumentException(
+                    "index name ["
+                        + indexName
+                        + "] contains date ["
+                        + dateAsString
+                        + "] which "
+                        + "couldn't be parsed using the 'yyyy.MM.dd' format",
+                    e
+                );
             }
         }
 

@@ -1,14 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -22,6 +26,7 @@ import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettin
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -36,7 +41,6 @@ import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingSt
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -51,43 +55,64 @@ import java.util.stream.Collectors;
  */
 public final class InternalRealms {
 
-    /**
-     * The list of all <em>internal</em> realm types, excluding {@link ReservedRealm#TYPE}.
-     */
-    private static final Set<String> XPACK_TYPES = Collections
-        .unmodifiableSet(Sets.newHashSet(NativeRealmSettings.TYPE, FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE,
-            LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE, SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE,
-            OpenIdConnectRealmSettings.TYPE));
+    static final String RESERVED_TYPE = ReservedRealm.TYPE;
+    static final String NATIVE_TYPE = NativeRealmSettings.TYPE;
+    static final String FILE_TYPE = FileRealmSettings.TYPE;
+    static final String LDAP_TYPE = LdapRealmSettings.LDAP_TYPE;
+    static final String AD_TYPE = LdapRealmSettings.AD_TYPE;
+    static final String PKI_TYPE = PkiRealmSettings.TYPE;
+    static final String SAML_TYPE = SamlRealmSettings.TYPE;
+    static final String OIDC_TYPE = OpenIdConnectRealmSettings.TYPE;
+    static final String KERBEROS_TYPE = KerberosRealmSettings.TYPE;
+
+    private static final Set<String> BUILTIN_TYPES = Set.of(NATIVE_TYPE, FILE_TYPE);
 
     /**
-     * The list of all standard realm types, which are those provided by x-pack and do not have extensive
-     * interaction with third party sources
+     * The map of all <em>licensed</em> internal realm types to their licensed feature
      */
-    private static final Set<String> STANDARD_TYPES = Collections.unmodifiableSet(Sets.newHashSet(NativeRealmSettings.TYPE,
-        FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE));
+    private static final Map<String, LicensedFeature.Persistent> LICENSED_REALMS = Map.ofEntries(
+        Map.entry(AD_TYPE, Security.AD_REALM_FEATURE),
+        Map.entry(LDAP_TYPE, Security.LDAP_REALM_FEATURE),
+        Map.entry(PKI_TYPE, Security.PKI_REALM_FEATURE),
+        Map.entry(SAML_TYPE, Security.SAML_REALM_FEATURE),
+        Map.entry(KERBEROS_TYPE, Security.KERBEROS_REALM_FEATURE),
+        Map.entry(OIDC_TYPE, Security.OIDC_REALM_FEATURE)
+    );
 
     /**
-     * Determines whether <code>type</code> is an internal realm-type that is provided by x-pack,
-     * including the {@link ReservedRealm}
+     * The set of all <em>internal</em> realm types, excluding {@link ReservedRealm#TYPE}
+     * @deprecated Use of this method (other than in tests) is discouraged.
      */
-    static boolean isXPackRealm(String type) {
-        if (XPACK_TYPES.contains(type)) {
-            return true;
-        }
-        return ReservedRealm.TYPE.equals(type);
-    }
-
+    @Deprecated
     public static Collection<String> getConfigurableRealmsTypes() {
-        return Collections.unmodifiableSet(XPACK_TYPES);
+        return Set.copyOf(Sets.union(BUILTIN_TYPES, LICENSED_REALMS.keySet()));
+    }
+
+    static boolean isInternalRealm(String type) {
+        return RESERVED_TYPE.equals(type) || BUILTIN_TYPES.contains(type) || LICENSED_REALMS.containsKey(type);
+    }
+
+    static boolean isBuiltinRealm(String type) {
+        return BUILTIN_TYPES.contains(type);
     }
 
     /**
-     * Determines whether <code>type</code> is an internal realm-type that is provided by x-pack,
-     * excluding the {@link ReservedRealm} and realms that have extensive interaction with
-     * third party sources
+     * @return The licensed feature for the given realm type, or {@code null} if the realm does not require a specific license type
+     * @throws IllegalArgumentException if the provided type is not an {@link #isInternalRealm(String) internal realm}
      */
-    static boolean isStandardRealm(String type) {
-        return STANDARD_TYPES.contains(type);
+    @Nullable
+    static LicensedFeature.Persistent getLicensedFeature(String type) {
+        if (Strings.isNullOrEmpty(type)) {
+            throw new IllegalArgumentException("Empty realm type [" + type + "]");
+        }
+        if (type.equals(RESERVED_TYPE) || isBuiltinRealm(type)) {
+            return null;
+        }
+        final LicensedFeature.Persistent feature = LICENSED_REALMS.get(type);
+        if (feature == null) {
+            throw new IllegalArgumentException("Unsupported realm type [" + type + "]");
+        }
+        return feature;
     }
 
     /**
@@ -96,49 +121,54 @@ public final class InternalRealms {
      *
      * @return A map from <em>realm-type</em> to <code>Factory</code>
      */
-    public static Map<String, Realm.Factory> getFactories(ThreadPool threadPool, ResourceWatcherService resourceWatcherService,
-                                                          SSLService sslService, NativeUsersStore nativeUsersStore,
-                                                          NativeRoleMappingStore nativeRoleMappingStore,
-                                                          SecurityIndexManager securityIndex) {
+    public static Map<String, Realm.Factory> getFactories(
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        SSLService sslService,
+        NativeUsersStore nativeUsersStore,
+        NativeRoleMappingStore nativeRoleMappingStore,
+        SecurityIndexManager securityIndex
+    ) {
 
         return Map.of(
-                // file realm
-                FileRealmSettings.TYPE,
-                config -> new FileRealm(config, resourceWatcherService, threadPool),
-                // native realm
-                NativeRealmSettings.TYPE,
-                config -> {
-                    final NativeRealm nativeRealm = new NativeRealm(config, nativeUsersStore, threadPool);
-                    securityIndex.addIndexStateListener(nativeRealm::onSecurityIndexStateChange);
-                    return nativeRealm;
-                },
-                // active directory realm
-                LdapRealmSettings.AD_TYPE,
-                config -> new LdapRealm(config, sslService, resourceWatcherService, nativeRoleMappingStore, threadPool),
-                // LDAP realm
-                LdapRealmSettings.LDAP_TYPE,
-                config -> new LdapRealm(config, sslService, resourceWatcherService, nativeRoleMappingStore, threadPool),
-                // PKI realm
-                PkiRealmSettings.TYPE,
-                config -> new PkiRealm(config, resourceWatcherService, nativeRoleMappingStore),
-                // SAML realm
-                SamlRealmSettings.TYPE,
-                config -> SamlRealm.create(config, sslService, resourceWatcherService, nativeRoleMappingStore),
-                // Kerberos realm
-                KerberosRealmSettings.TYPE,
-                config -> new KerberosRealm(config, nativeRoleMappingStore, threadPool),
-                // OpenID Connect realm
-                OpenIdConnectRealmSettings.TYPE,
-                config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore, resourceWatcherService));
+            // file realm
+            FileRealmSettings.TYPE,
+            config -> new FileRealm(config, resourceWatcherService, threadPool),
+            // native realm
+            NativeRealmSettings.TYPE,
+            config -> {
+                final NativeRealm nativeRealm = new NativeRealm(config, nativeUsersStore, threadPool);
+                securityIndex.addStateListener(nativeRealm::onSecurityIndexStateChange);
+                return nativeRealm;
+            },
+            // active directory realm
+            LdapRealmSettings.AD_TYPE,
+            config -> new LdapRealm(config, sslService, resourceWatcherService, nativeRoleMappingStore, threadPool),
+            // LDAP realm
+            LdapRealmSettings.LDAP_TYPE,
+            config -> new LdapRealm(config, sslService, resourceWatcherService, nativeRoleMappingStore, threadPool),
+            // PKI realm
+            PkiRealmSettings.TYPE,
+            config -> new PkiRealm(config, resourceWatcherService, nativeRoleMappingStore),
+            // SAML realm
+            SamlRealmSettings.TYPE,
+            config -> SamlRealm.create(config, sslService, resourceWatcherService, nativeRoleMappingStore),
+            // Kerberos realm
+            KerberosRealmSettings.TYPE,
+            config -> new KerberosRealm(config, nativeRoleMappingStore, threadPool),
+            // OpenID Connect realm
+            OpenIdConnectRealmSettings.TYPE,
+            config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore, resourceWatcherService)
+        );
     }
 
-    private InternalRealms() {
-    }
+    private InternalRealms() {}
 
     public static List<BootstrapCheck> getBootstrapChecks(final Settings globalSettings, final Environment env) {
         final Set<String> realmTypes = Sets.newHashSet(LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE);
         final List<BootstrapCheck> checks = RealmSettings.getRealmSettings(globalSettings)
-            .keySet().stream()
+            .keySet()
+            .stream()
             .filter(id -> realmTypes.contains(id.getType()))
             .map(id -> new RealmConfig(id, globalSettings, env, null))
             .map(RoleMappingFileBootstrapCheck::create)
@@ -146,4 +176,5 @@ public final class InternalRealms {
             .collect(Collectors.toList());
         return checks;
     }
+
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling;
@@ -12,12 +13,12 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class AutoscalingMetadata implements Metadata.Custom {
+public class AutoscalingMetadata implements Metadata.NonRestorableCustom {
 
     public static final String NAME = "autoscaling";
 
@@ -73,12 +74,12 @@ public class AutoscalingMetadata implements Metadata.Custom {
 
     public AutoscalingMetadata(final StreamInput in) throws IOException {
         final int size = in.readVInt();
-        final SortedMap<String, AutoscalingPolicyMetadata> policies = new TreeMap<>();
+        final SortedMap<String, AutoscalingPolicyMetadata> policiesMap = new TreeMap<>();
         for (int i = 0; i < size; i++) {
             final AutoscalingPolicyMetadata policyMetadata = new AutoscalingPolicyMetadata(in);
-            policies.put(policyMetadata.policy().name(), policyMetadata);
+            policiesMap.put(policyMetadata.policy().name(), policyMetadata);
         }
-        this.policies = policies;
+        this.policies = policiesMap;
     }
 
     @Override
@@ -164,6 +165,10 @@ public class AutoscalingMetadata implements Metadata.Custom {
             return AbstractDiffable.readDiffFrom(AutoscalingPolicyMetadata::new, in);
         }
 
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_8_0;
+        }
     }
 
 }

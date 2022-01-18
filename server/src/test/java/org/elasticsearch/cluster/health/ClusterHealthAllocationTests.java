@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.health;
 
@@ -41,10 +30,7 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
         assertEquals(ClusterHealthStatus.GREEN, getClusterHealthStatus(clusterState));
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test")
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(2)
-                .numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
         clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(routingTable).build();
@@ -82,8 +68,11 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
     }
 
     private ClusterState removeNode(ClusterState clusterState, String nodeName, AllocationService allocationService) {
-        return allocationService.disassociateDeadNodes(ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.getNodes()).remove(nodeName)).build(), true, "reroute");
+        return allocationService.disassociateDeadNodes(
+            ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.getNodes()).remove(nodeName)).build(),
+            true,
+            "reroute"
+        );
     }
 
     private ClusterHealthStatus getClusterHealthStatus(ClusterState clusterState) {

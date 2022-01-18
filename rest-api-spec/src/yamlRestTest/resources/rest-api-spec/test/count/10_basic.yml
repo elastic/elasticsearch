@@ -1,0 +1,69 @@
+setup:
+  - do:
+      indices.create:
+          index:  test
+  - do:
+      index:
+          index:  test
+          id:     1
+          body:   { foo: bar }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+---
+"count with body":
+  - do:
+      count:
+        index: test
+        body:
+          query:
+            match:
+              foo: bar
+
+  - match: {count : 1}
+
+  - do:
+      count:
+        index: test
+        body:
+          query:
+            match:
+              foo: test
+
+  - match: {count : 0}
+
+---
+"count with empty body":
+# empty body should default to match_all query
+  - do:
+      count:
+        index: test
+        body: { }
+
+  - match: {count : 1}
+
+  - do:
+      count:
+        index: test
+
+  - match: {count : 1}
+
+---
+"count body without query element":
+  - do:
+      catch: bad_request
+      count:
+        index: test
+        body:
+          match:
+            foo: bar
+---
+"test negative terminate_after throws IAE":
+
+  - do:
+      catch: /terminateAfter must be > 0/
+      count:
+        index: index1
+        terminate_after: -1

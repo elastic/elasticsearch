@@ -74,7 +74,7 @@ init API.
 // TESTRESPONSE[skip:Do not enable identity provider for the docs cluster, at least not yet]
 <1> The SAML entity ID of the Service Provider that generated the authentication request
 <2> The SAML assertion consumer service URL of the Service Provider that generated the authentication request
-<2> Indicates whether or not the Service Provider requests that the end user is forced to re-authenticate even if they have
+<3> Indicates whether or not the Service Provider requests that the end user is forced to re-authenticate even if they have
 an existing session with the Identity Provider.
 
 IMPORTANT: It is assumed that the `authn_state` object is not passed to the end user and is not stored anywhere where it could be

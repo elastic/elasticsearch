@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
@@ -33,7 +34,7 @@ public class BlackHoleAutodetectProcessTests extends ESTestCase {
         AtomicReference<String> failureReason = new AtomicReference<>();
         try (BlackHoleAutodetectProcess process = new BlackHoleAutodetectProcess("foo", failureReason::set)) {
             Iterator<AutodetectResult> iterator = process.readAutodetectResults();
-            process.writeRecord(new String[] { BlackHoleAutodetectProcess.MAGIC_FAILURE_VALUE});
+            process.writeRecord(new String[] { BlackHoleAutodetectProcess.MAGIC_FAILURE_VALUE });
             assertFalse(process.isProcessAlive());
             assertTrue(iterator.hasNext());
             AutodetectResult result = iterator.next();

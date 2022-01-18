@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.indices.close;
 
@@ -40,7 +29,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
@@ -72,7 +61,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -109,18 +98,35 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         clusterService = createClusterService(threadPool);
 
         clusterBlock = MetadataIndexStateService.createIndexClosingBlock();
-        setState(clusterService, new ClusterState.Builder(clusterService.state())
-            .blocks(ClusterBlocks.builder().blocks(clusterService.state().blocks()).addIndexBlock("index", clusterBlock).build()).build());
+        setState(
+            clusterService,
+            new ClusterState.Builder(clusterService.state()).blocks(
+                ClusterBlocks.builder().blocks(clusterService.state().blocks()).addIndexBlock("index", clusterBlock).build()
+            ).build()
+        );
 
         transport = new CapturingTransport();
-        TransportService transportService = transport.createTransportService(Settings.EMPTY, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
+        TransportService transportService = transport.createTransportService(
+            Settings.EMPTY,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> clusterService.localNode(),
+            null,
+            Collections.emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
 
         ShardStateAction shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
-        action = new TransportVerifyShardBeforeCloseAction(Settings.EMPTY, transportService, clusterService, mock(IndicesService.class),
-            mock(ThreadPool.class), shardStateAction, mock(ActionFilters.class));
+        action = new TransportVerifyShardBeforeCloseAction(
+            Settings.EMPTY,
+            transportService,
+            clusterService,
+            mock(IndicesService.class),
+            mock(ThreadPool.class),
+            shardStateAction,
+            mock(ActionFilters.class)
+        );
     }
 
     @Override
@@ -142,16 +148,17 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
     private void executeOnPrimaryOrReplica(boolean phase1) throws Throwable {
         final TaskId taskId = new TaskId("_node_id", randomNonNegativeLong());
-        final TransportVerifyShardBeforeCloseAction.ShardRequest request =
-            new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), clusterBlock, phase1, taskId);
+        final TransportVerifyShardBeforeCloseAction.ShardRequest request = new TransportVerifyShardBeforeCloseAction.ShardRequest(
+            indexShard.shardId(),
+            clusterBlock,
+            phase1,
+            taskId
+        );
         final PlainActionFuture<Void> res = PlainActionFuture.newFuture();
-        action.shardOperationOnPrimary(request, indexShard, ActionListener.wrap(
-            r -> {
-                assertNotNull(r);
-                res.onResponse(null);
-            },
-            res::onFailure
-        ));
+        action.shardOperationOnPrimary(request, indexShard, ActionListener.wrap(r -> {
+            assertNotNull(r);
+            res.onResponse(null);
+        }, res::onFailure));
         try {
             res.get();
         } catch (InterruptedException e) {
@@ -178,8 +185,10 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         when(indexShard.getActiveOperationsCount()).thenReturn(randomIntBetween(0, 10));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, this::executeOnPrimaryOrReplica);
-        assertThat(exception.getMessage(),
-            equalTo("Index shard " + indexShard.shardId() + " is not blocking all operations during closing"));
+        assertThat(
+            exception.getMessage(),
+            equalTo("Index shard " + indexShard.shardId() + " is not blocking all operations during closing")
+        );
         verify(indexShard, times(0)).flush(any(FlushRequest.class));
     }
 
@@ -187,8 +196,10 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         setState(clusterService, new ClusterState.Builder(new ClusterName("test")).build());
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, this::executeOnPrimaryOrReplica);
-        assertThat(exception.getMessage(),
-            equalTo("Index shard " + indexShard.shardId() + " must be blocked by " + clusterBlock + " before closing"));
+        assertThat(
+            exception.getMessage(),
+            equalTo("Index shard " + indexShard.shardId() + " must be blocked by " + clusterBlock + " before closing")
+        );
         verify(indexShard, times(0)).flush(any(FlushRequest.class));
     }
 
@@ -235,13 +246,28 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
         final PlainActionFuture<PrimaryResult> listener = new PlainActionFuture<>();
         TaskId taskId = new TaskId(clusterService.localNode().getId(), 0L);
-        TransportVerifyShardBeforeCloseAction.ShardRequest request =
-            new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, clusterBlock, false, taskId);
+        TransportVerifyShardBeforeCloseAction.ShardRequest request = new TransportVerifyShardBeforeCloseAction.ShardRequest(
+            shardId,
+            clusterBlock,
+            false,
+            taskId
+        );
         ReplicationOperation.Replicas<TransportVerifyShardBeforeCloseAction.ShardRequest> proxy = action.newReplicasProxy();
-        ReplicationOperation<TransportVerifyShardBeforeCloseAction.ShardRequest,
-            TransportVerifyShardBeforeCloseAction.ShardRequest, PrimaryResult> operation = new ReplicationOperation<>(
-                request, createPrimary(primaryRouting, replicationGroup), listener, proxy, logger, threadPool, "test", primaryTerm,
-                TimeValue.timeValueMillis(20), TimeValue.timeValueSeconds(60));
+        ReplicationOperation<
+            TransportVerifyShardBeforeCloseAction.ShardRequest,
+            TransportVerifyShardBeforeCloseAction.ShardRequest,
+            PrimaryResult> operation = new ReplicationOperation<>(
+                request,
+                createPrimary(primaryRouting, replicationGroup),
+                listener,
+                proxy,
+                logger,
+                threadPool,
+                "test",
+                primaryTerm,
+                TimeValue.timeValueMillis(20),
+                TimeValue.timeValueSeconds(60)
+            );
         operation.execute();
 
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
@@ -273,69 +299,67 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         assertThat(shardInfo.getSuccessful(), equalTo(1 + nbReplicas - unavailableShards.size()));
     }
 
-    private static ReplicationOperation.Primary<
-        TransportVerifyShardBeforeCloseAction.ShardRequest,
-        TransportVerifyShardBeforeCloseAction.ShardRequest,
-        PrimaryResult>
-            createPrimary(final ShardRouting primary, final ReplicationGroup replicationGroup) {
-                final PendingReplicationActions replicationActions = new PendingReplicationActions(primary.shardId(), threadPool);
-                replicationActions.accept(replicationGroup);
-                return new ReplicationOperation.Primary<>() {
+    private static
+        ReplicationOperation.Primary<
+            TransportVerifyShardBeforeCloseAction.ShardRequest,
+            TransportVerifyShardBeforeCloseAction.ShardRequest,
+            PrimaryResult>
+        createPrimary(final ShardRouting primary, final ReplicationGroup replicationGroup) {
+        final PendingReplicationActions replicationActions = new PendingReplicationActions(primary.shardId(), threadPool);
+        replicationActions.accept(replicationGroup);
+        return new ReplicationOperation.Primary<>() {
 
-                    @Override
-                    public ShardRouting routingEntry() {
-                        return primary;
-                    }
+            @Override
+            public ShardRouting routingEntry() {
+                return primary;
+            }
 
-                    @Override
-                    public PendingReplicationActions getPendingReplicationActions() {
-                        return replicationActions;
-                    }
+            @Override
+            public PendingReplicationActions getPendingReplicationActions() {
+                return replicationActions;
+            }
 
-                    @Override
-                    public ReplicationGroup getReplicationGroup() {
-                        return replicationGroup;
-                    }
+            @Override
+            public ReplicationGroup getReplicationGroup() {
+                return replicationGroup;
+            }
 
-                    @Override
-                    public void perform(
-                        TransportVerifyShardBeforeCloseAction.ShardRequest request, ActionListener<PrimaryResult> listener) {
-                        listener.onResponse(new PrimaryResult(request));
-                    }
+            @Override
+            public void perform(TransportVerifyShardBeforeCloseAction.ShardRequest request, ActionListener<PrimaryResult> listener) {
+                listener.onResponse(new PrimaryResult(request));
+            }
 
-                    @Override
-                    public void failShard(String message, Exception exception) {
+            @Override
+            public void failShard(String message, Exception exception) {
 
-                    }
+            }
 
-                    @Override
-                    public void updateLocalCheckpointForShard(String allocationId, long checkpoint) {
-                    }
+            @Override
+            public void updateLocalCheckpointForShard(String allocationId, long checkpoint) {}
 
-                    @Override
-                    public void updateGlobalCheckpointForShard(String allocationId, long globalCheckpoint) {
-                    }
+            @Override
+            public void updateGlobalCheckpointForShard(String allocationId, long globalCheckpoint) {}
 
-                    @Override
-                    public long localCheckpoint() {
-                        return 0;
-                    }
+            @Override
+            public long localCheckpoint() {
+                return 0;
+            }
 
-                    @Override
-                    public long computedGlobalCheckpoint() {
-                        return 0;
-                    }
+            @Override
+            public long computedGlobalCheckpoint() {
+                return 0;
+            }
 
-                    @Override
-                    public long globalCheckpoint() {
-                        return 0;
-                    }
+            @Override
+            public long globalCheckpoint() {
+                return 0;
+            }
 
-                    @Override
-                    public long maxSeqNoOfUpdatesOrDeletes() {
-                        return 0;
-                    }
-                };
+            @Override
+            public long maxSeqNoOfUpdatesOrDeletes() {
+                return 0;
+            }
+        };
     }
 
     private static class PrimaryResult implements ReplicationOperation.PrimaryResult<TransportVerifyShardBeforeCloseAction.ShardRequest> {

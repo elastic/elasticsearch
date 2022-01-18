@@ -202,3 +202,14 @@ null           |1.9161749939033146|0.1480828817161133 |74999          |28336    
 3              |1.0732551278666582|0.05483979801873433|65030          |38376          |4
 5              |1.322529094661261 |0.24501477738153868|66817          |37137          |4
 ;
+
+runtimeFieldWithQuery
+SELECT COUNT(*) AS c, name FROM test_emp WHERE QUERY('T*','default_field=name') OR QUERY('O*','default_field=name') GROUP BY name ORDER BY c;
+
+      c:l      |      name:s       
+---------------+-----------------
+1              |Otmar Herbst     
+1              |Tse Herber       
+1              |Tuval Kalloufi   
+1              |Tzvetan Zielinski
+;

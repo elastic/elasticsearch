@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.range;
@@ -22,12 +11,13 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,9 +30,9 @@ import java.util.stream.Collectors;
 import static java.util.Collections.unmodifiableList;
 
 /** A range aggregation for data that is encoded in doc values using a binary representation. */
-public final class InternalBinaryRange
-        extends InternalMultiBucketAggregation<InternalBinaryRange, InternalBinaryRange.Bucket>
-        implements Range {
+public final class InternalBinaryRange extends InternalMultiBucketAggregation<InternalBinaryRange, InternalBinaryRange.Bucket>
+    implements
+        Range {
 
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
 
@@ -53,8 +43,15 @@ public final class InternalBinaryRange
         private final long docCount;
         private final InternalAggregations aggregations;
 
-        public Bucket(DocValueFormat format, boolean keyed, String key, BytesRef from, BytesRef to,
-                long docCount, InternalAggregations aggregations) {
+        public Bucket(
+            DocValueFormat format,
+            boolean keyed,
+            String key,
+            BytesRef from,
+            BytesRef to,
+            long docCount,
+            InternalAggregations aggregations
+        ) {
             this.format = format;
             this.keyed = keyed;
             this.key = key != null ? key : generateKey(from, to, format);
@@ -65,8 +62,7 @@ public final class InternalBinaryRange
         }
 
         private static String generateKey(BytesRef from, BytesRef to, DocValueFormat format) {
-            StringBuilder builder = new StringBuilder()
-                .append(from == null ? "*" : format.format(from))
+            StringBuilder builder = new StringBuilder().append(from == null ? "*" : format.format(from))
                 .append("-")
                 .append(to == null ? "*" : format.format(to));
             return builder.toString();
@@ -77,7 +73,7 @@ public final class InternalBinaryRange
             BytesRef from = in.readBoolean() ? in.readBytesRef() : null;
             BytesRef to = in.readBoolean() ? in.readBytesRef() : null;
             long docCount = in.readLong();
-            InternalAggregations aggregations = new InternalAggregations(in);
+            InternalAggregations aggregations = InternalAggregations.readFrom(in);
 
             return new Bucket(format, keyed, key, from, to, docCount, aggregations);
         }
@@ -167,10 +163,10 @@ public final class InternalBinaryRange
 
             if (docCount != bucket.docCount) return false;
             // keyed and format are ignored since they are already tested on the InternalBinaryRange object
-            return Objects.equals(key, bucket.key) &&
-                Objects.equals(from, bucket.from) &&
-                Objects.equals(to, bucket.to) &&
-                Objects.equals(aggregations, bucket.aggregations);
+            return Objects.equals(key, bucket.key)
+                && Objects.equals(from, bucket.from)
+                && Objects.equals(to, bucket.to)
+                && Objects.equals(aggregations, bucket.aggregations);
         }
 
         @Override
@@ -228,7 +224,7 @@ public final class InternalBinaryRange
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         reduceContext.consumeBucketsAndMaybeBreak(buckets.size());
         long[] docCounts = new long[buckets.size()];
         InternalAggregations[][] aggs = new InternalAggregations[buckets.size()][];
@@ -249,14 +245,23 @@ public final class InternalBinaryRange
         List<Bucket> buckets = new ArrayList<>(this.buckets.size());
         for (int i = 0; i < this.buckets.size(); ++i) {
             Bucket b = this.buckets.get(i);
-            buckets.add(new Bucket(format, keyed, b.key, b.from, b.to, docCounts[i],
-                    InternalAggregations.reduce(Arrays.asList(aggs[i]), reduceContext)));
+            buckets.add(
+                new Bucket(
+                    format,
+                    keyed,
+                    b.key,
+                    b.from,
+                    b.to,
+                    docCounts[i],
+                    InternalAggregations.reduce(Arrays.asList(aggs[i]), reduceContext)
+                )
+            );
         }
         return new InternalBinaryRange(name, format, keyed, buckets, metadata);
     }
 
     @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
+    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         assert buckets.size() > 0;
         List<InternalAggregations> aggregationsList = buckets.stream().map(bucket -> bucket.aggregations).collect(Collectors.toList());
         final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
@@ -264,8 +269,7 @@ public final class InternalBinaryRange
     }
 
     @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder,
-            Params params) throws IOException {
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
             builder.startObject(CommonFields.BUCKETS.getPreferredName());
         } else {
@@ -282,7 +286,6 @@ public final class InternalBinaryRange
         return builder;
     }
 
-
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
@@ -290,9 +293,7 @@ public final class InternalBinaryRange
         if (super.equals(obj) == false) return false;
 
         InternalBinaryRange that = (InternalBinaryRange) obj;
-        return Objects.equals(buckets, that.buckets)
-            && Objects.equals(format, that.format)
-            && Objects.equals(keyed, that.keyed);
+        return Objects.equals(buckets, that.buckets) && Objects.equals(format, that.format) && Objects.equals(keyed, that.keyed);
     }
 
     public int hashCode() {

@@ -1,36 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanQuery;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -209,16 +198,16 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         SpanQueryBuilder queryBuilder = clauses.get(0);
         boolean isGap = queryBuilder instanceof SpanGapQueryBuilder;
         Query query = null;
-        if (!isGap) {
+        if (isGap == false) {
             query = queryBuilder.toQuery(context);
             assert query instanceof SpanQuery;
         }
         if (clauses.size() == 1) {
-            assert !isGap;
+            assert isGap == false;
             return query;
         }
         String spanNearFieldName = null;
@@ -249,7 +238,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
                 String fieldName = ((SpanGapQueryBuilder) queryBuilder).fieldName();
                 String spanGapFieldName = queryFieldName(context, fieldName);
 
-                if (!spanNearFieldName.equals(spanGapFieldName)) {
+                if (spanNearFieldName.equals(spanGapFieldName) == false) {
                     throw new IllegalArgumentException("[span_near] clauses must have same field");
                 }
                 int gap = ((SpanGapQueryBuilder) queryBuilder).width();
@@ -257,14 +246,14 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             } else {
                 query = clauses.get(i).toQuery(context);
                 assert query instanceof SpanQuery;
-                builder.addClause((SpanQuery)query);
+                builder.addClause((SpanQuery) query);
             }
         }
         return builder.build();
     }
 
-    private String queryFieldName(QueryShardContext context, String fieldName) {
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+    private String queryFieldName(SearchExecutionContext context, String fieldName) {
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         return fieldType != null ? fieldType.name() : fieldName;
     }
 
@@ -275,9 +264,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
     @Override
     protected boolean doEquals(SpanNearQueryBuilder other) {
-        return Objects.equals(clauses, other.clauses) &&
-               Objects.equals(slop, other.slop) &&
-               Objects.equals(inOrder, other.inOrder);
+        return Objects.equals(clauses, other.clauses) && Objects.equals(slop, other.slop) && Objects.equals(inOrder, other.inOrder);
     }
 
     @Override
@@ -313,8 +300,8 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             if (Strings.isEmpty(fieldName)) {
                 throw new IllegalArgumentException("[span_gap] field name is null or empty");
             }
-            //lucene has not coded any restriction on value of width.
-            //to-do : find if theoretically it makes sense to apply restrictions.
+            // lucene has not coded any restriction on value of width.
+            // to-do : find if theoretically it makes sense to apply restrictions.
             this.fieldName = fieldName;
             this.width = width;
         }
@@ -342,7 +329,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         }
 
         @Override
-        public Query toQuery(QueryShardContext context) throws IOException {
+        public Query toQuery(SearchExecutionContext context) throws IOException {
             throw new UnsupportedOperationException();
         }
 
@@ -419,8 +406,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
                 return false;
             }
             SpanGapQueryBuilder other = (SpanGapQueryBuilder) obj;
-            return Objects.equals(fieldName, other.fieldName) &&
-                Objects.equals(width, other.width);
+            return Objects.equals(fieldName, other.fieldName) && Objects.equals(width, other.width);
         }
 
         @Override
@@ -428,18 +414,29 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             return Objects.hash(getClass(), fieldName, width);
         }
 
-
         @Override
         public final String toString() {
             return Strings.toString(this, true, true);
         }
 
-        //copied from AbstractQueryBuilder
-        protected static void throwParsingExceptionOnMultipleFields(String queryName, XContentLocation contentLocation,
-                String processedFieldName, String currentFieldName) {
+        // copied from AbstractQueryBuilder
+        protected static void throwParsingExceptionOnMultipleFields(
+            String queryName,
+            XContentLocation contentLocation,
+            String processedFieldName,
+            String currentFieldName
+        ) {
             if (processedFieldName != null) {
-                throw new ParsingException(contentLocation, "[" + queryName + "] query doesn't support multiple fields, found ["
-                        + processedFieldName + "] and [" + currentFieldName + "]");
+                throw new ParsingException(
+                    contentLocation,
+                    "["
+                        + queryName
+                        + "] query doesn't support multiple fields, found ["
+                        + processedFieldName
+                        + "] and ["
+                        + currentFieldName
+                        + "]"
+                );
             }
         }
     }

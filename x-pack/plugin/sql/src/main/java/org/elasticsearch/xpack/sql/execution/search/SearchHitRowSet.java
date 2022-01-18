@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
@@ -45,9 +46,9 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
 
         this.hits = response.getHits().getHits();
 
-         // Since the results might contain nested docs, the iteration is similar to that of Aggregation
-         // namely it discovers the nested docs and then, for iteration, increments the deepest level first
-         // and eventually carries that over to the top level
+        // Since the results might contain nested docs, the iteration is similar to that of Aggregation
+        // namely it discovers the nested docs and then, for iteration, increments the deepest level first
+        // and eventually carries that over to the top level
 
         String innerHit = null;
         for (HitExtractor ex : exts) {
@@ -62,7 +63,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         int sz = hits.length;
 
         int maxDepth = 0;
-        if (!innerHits.isEmpty()) {
+        if (innerHits.isEmpty() == false) {
             if (innerHits.size() > 1) {
                 throw new SqlIllegalArgumentException("Multi-nested docs not yet supported {}", innerHits);
             }
@@ -85,19 +86,19 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         this.innerHit = innerHit;
 
         String scrollId = response.getScrollId();
-        
+
         if (scrollId == null) {
             /* SearchResponse can contain a null scroll when you start a
              * scroll but all results fit in the first page. */
             nextScrollData = null;
         } else {
             TotalHits totalHits = response.getHits().getTotalHits();
-            
+
             // compute remaining limit (only if the limit is specified - that is, positive).
             int remainingLimit = limit < 0 ? limit : limit - size;
             // if the computed limit is zero, or the size is zero it means either there's nothing left or the limit has been reached
             if (size == 0 || remainingLimit == 0
-                // or the scroll has ended
+            // or the scroll has ended
                 || totalHits != null && totalHits.value == hits.length) {
                 nextScrollData = null;
             } else {
@@ -105,7 +106,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
             }
         }
     }
-    
+
     protected boolean isLimitReached() {
         return nextScrollData == null;
     }
@@ -116,7 +117,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
 
         SearchHit hit = null;
         SearchHit[] sh = hits;
-        for (int lvl = 0; lvl <= extractorLevel ; lvl++) {
+        for (int lvl = 0; lvl <= extractorLevel; lvl++) {
             // TODO: add support for multi-nested doc
             if (hit != null) {
                 SearchHit[] innerHits = flatInnerHits.get(hit).get(innerHit);
@@ -132,7 +133,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         if (hit == null) {
             return null;
         }
-        
+
         // multiple inner_hits results sections can match the same nested documents, thus we eliminate the duplicates by
         // using the offset as the "deduplicator" in a HashMap
         HashMap<Integer, SearchHit> lhm = new HashMap<>();
@@ -153,9 +154,9 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
 
         return sortedList.toArray(SearchHit[]::new);
     }
-    
+
     private class NestedHitOffsetComparator implements Comparator<SearchHit> {
-    @Override
+        @Override
         public int compare(SearchHit sh1, SearchHit sh2) {
             if (sh1 == null && sh2 == null) {
                 return 0;
@@ -191,8 +192,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
                     // restart the loop
                     lvl = 0;
                     sh = hits;
-                }
-                else {
+                } else {
                     SearchHit h = sh[indexPerLevel[lvl]];
                     // TODO: improve this for multi-nested responses
                     String path = lvl == 0 ? innerHit : null;

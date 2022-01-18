@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery;
@@ -42,12 +31,15 @@ public class PeerFinderMessagesTests extends ESTestCase {
     }
 
     public void testPeersRequestEqualsHashCodeSerialization() {
-        final PeersRequest initialPeersRequest = new PeersRequest(createNode(randomAlphaOfLength(10)),
-            Arrays.stream(generateRandomStringArray(10, 10, false)).map(this::createNode).collect(Collectors.toList()));
+        final PeersRequest initialPeersRequest = new PeersRequest(
+            createNode(randomAlphaOfLength(10)),
+            Arrays.stream(generateRandomStringArray(10, 10, false)).map(this::createNode).collect(Collectors.toList())
+        );
 
         // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPeersRequest,
-                (CopyFunction<PeersRequest>) publishRequest -> copyWriteable(publishRequest, writableRegistry(), PeersRequest::new),
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            initialPeersRequest,
+            (CopyFunction<PeersRequest>) publishRequest -> copyWriteable(publishRequest, writableRegistry(), PeersRequest::new),
             in -> {
                 final List<DiscoveryNode> discoveryNodes = new ArrayList<>(in.getKnownPeers());
                 if (randomBoolean()) {
@@ -55,7 +47,8 @@ public class PeerFinderMessagesTests extends ESTestCase {
                 } else {
                     return new PeersRequest(in.getSourceNode(), modifyDiscoveryNodesList(in.getKnownPeers(), true));
                 }
-            });
+            }
+        );
     }
 
     public void testPeersResponseEqualsHashCodeSerialization() {
@@ -65,19 +58,25 @@ public class PeerFinderMessagesTests extends ESTestCase {
         if (randomBoolean()) {
             initialPeersResponse = new PeersResponse(Optional.of(createNode(randomAlphaOfLength(10))), emptyList(), initialTerm);
         } else {
-            initialPeersResponse = new PeersResponse(Optional.empty(),
+            initialPeersResponse = new PeersResponse(
+                Optional.empty(),
                 Arrays.stream(generateRandomStringArray(10, 10, false, false)).map(this::createNode).collect(Collectors.toList()),
-                initialTerm);
+                initialTerm
+            );
         }
 
         // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPeersResponse,
-                (CopyFunction<PeersResponse>) publishResponse -> copyWriteable(publishResponse, writableRegistry(), PeersResponse::new),
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            initialPeersResponse,
+            (CopyFunction<PeersResponse>) publishResponse -> copyWriteable(publishResponse, writableRegistry(), PeersResponse::new),
             in -> {
                 final long term = in.getTerm();
                 if (randomBoolean()) {
-                    return new PeersResponse(in.getMasterNode(), in.getKnownPeers(),
-                        randomValueOtherThan(term, ESTestCase::randomNonNegativeLong));
+                    return new PeersResponse(
+                        in.getMasterNode(),
+                        in.getKnownPeers(),
+                        randomValueOtherThan(term, ESTestCase::randomNonNegativeLong)
+                    );
                 } else {
                     if (in.getMasterNode().isPresent()) {
                         if (randomBoolean()) {
@@ -93,9 +92,9 @@ public class PeerFinderMessagesTests extends ESTestCase {
                         }
                     }
                 }
-            });
+            }
+        );
     }
-
 
     private List<DiscoveryNode> modifyDiscoveryNodesList(Collection<DiscoveryNode> originalNodes, boolean allowEmpty) {
         final List<DiscoveryNode> discoveryNodes = new ArrayList<>(originalNodes);

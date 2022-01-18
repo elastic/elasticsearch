@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.disruption;
 
@@ -39,32 +28,32 @@ public abstract class SingleNodeDisruption implements ServiceDisruptionScheme {
     }
 
     @Override
-    public void applyToCluster(InternalTestCluster cluster) {
-        this.cluster = cluster;
+    public void applyToCluster(InternalTestCluster testCluster) {
+        this.cluster = testCluster;
         if (disruptedNode == null) {
-            String[] nodes = cluster.getNodeNames();
+            String[] nodes = testCluster.getNodeNames();
             disruptedNode = nodes[random.nextInt(nodes.length)];
         }
     }
 
     @Override
-    public void removeFromCluster(InternalTestCluster cluster) {
+    public void removeFromCluster(InternalTestCluster testCluster) {
         if (disruptedNode != null) {
-            removeFromNode(disruptedNode, cluster);
+            removeFromNode(disruptedNode, testCluster);
         }
     }
 
     @Override
-    public synchronized void applyToNode(String node, InternalTestCluster cluster) {
+    public synchronized void applyToNode(String node, InternalTestCluster testCluster) {
 
     }
 
     @Override
-    public synchronized void removeFromNode(String node, InternalTestCluster cluster) {
+    public synchronized void removeFromNode(String node, InternalTestCluster testCluster) {
         if (disruptedNode == null) {
             return;
         }
-        if (!node.equals(disruptedNode)) {
+        if (node.equals(disruptedNode) == false) {
             return;
         }
         stopDisrupting();
@@ -76,10 +65,17 @@ public abstract class SingleNodeDisruption implements ServiceDisruptionScheme {
         disruptedNode = null;
     }
 
-    protected void ensureNodeCount(InternalTestCluster cluster) {
-        assertFalse("cluster failed to form after disruption was healed", cluster.client().admin().cluster().prepareHealth()
-                .setWaitForNodes(String.valueOf(cluster.size()))
+    protected void ensureNodeCount(InternalTestCluster testCluster) {
+        assertFalse(
+            "cluster failed to form after disruption was healed",
+            testCluster.client()
+                .admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForNodes(String.valueOf(testCluster.size()))
                 .setWaitForNoRelocatingShards(true)
-                .get().isTimedOut());
+                .get()
+                .isTimedOut()
+        );
     }
 }

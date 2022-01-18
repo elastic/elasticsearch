@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.translog;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
+
 import org.elasticsearch.ElasticsearchException;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
@@ -31,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
-
 
 public final class SnapshotMatchers {
     private SnapshotMatchers() {
@@ -165,12 +154,8 @@ public final class SnapshotMatchers {
         protected boolean matchesSafely(Translog.Snapshot snapshot) {
             try {
                 List<Translog.Operation> actualOps = drainAll(snapshot);
-                notFoundOps = expectedOps.stream()
-                    .filter(o -> actualOps.contains(o) == false)
-                    .collect(Collectors.toList());
-                notExpectedOps = actualOps.stream()
-                    .filter(o -> expectedOps.contains(o) == false)
-                    .collect(Collectors.toList());
+                notFoundOps = expectedOps.stream().filter(o -> actualOps.contains(o) == false).collect(Collectors.toList());
+                notExpectedOps = actualOps.stream().filter(o -> expectedOps.contains(o) == false).collect(Collectors.toList());
                 return notFoundOps.isEmpty() && notExpectedOps.isEmpty();
             } catch (IOException ex) {
                 throw new ElasticsearchException("failed to read snapshot content", ex);
@@ -180,23 +165,19 @@ public final class SnapshotMatchers {
         @Override
         protected void describeMismatchSafely(Translog.Snapshot snapshot, Description mismatchDescription) {
             if (notFoundOps.isEmpty() == false) {
-                mismatchDescription
-                    .appendText("not found ").appendValueList("[", ", ", "]", notFoundOps);
+                mismatchDescription.appendText("not found ").appendValueList("[", ", ", "]", notFoundOps);
             }
             if (notExpectedOps.isEmpty() == false) {
                 if (notFoundOps.isEmpty() == false) {
                     mismatchDescription.appendText("; ");
                 }
-                mismatchDescription
-                    .appendText("not expected ").appendValueList("[", ", ", "]", notExpectedOps);
+                mismatchDescription.appendText("not expected ").appendValueList("[", ", ", "]", notExpectedOps);
             }
         }
 
         @Override
         public void describeTo(Description description) {
-            description.appendText("snapshot contains ")
-                .appendValueList("[", ", ", "]", expectedOps)
-                .appendText(" in any order.");
+            description.appendText("snapshot contains ").appendValueList("[", ", ", "]", expectedOps).appendText(" in any order.");
         }
     }
 
@@ -231,8 +212,7 @@ public final class SnapshotMatchers {
 
         @Override
         protected void describeMismatchSafely(Translog.Snapshot snapshot, Description mismatchDescription) {
-            mismatchDescription
-                .appendText("not found seqno ").appendValueList("[", ", ", "]", notFoundSeqNo);
+            mismatchDescription.appendText("not found seqno ").appendValueList("[", ", ", "]", notFoundSeqNo);
         }
 
         @Override

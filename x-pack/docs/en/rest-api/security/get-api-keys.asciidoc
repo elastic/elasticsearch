@@ -30,12 +30,12 @@ The following parameters can be specified in the query parameters of a GET reque
 pertain to retrieving api keys:
 
 `id`::
-(Optional, string) An API key id. This parameter cannot be used with any of 
+(Optional, string) An API key id. This parameter cannot be used with any of
 `name`, `realm_name` or `username` are used.
 
 `name`::
 (Optional, string) An API key name. This parameter cannot be used with any of
-`id`, `realm_name` or `username` are used.
+`id`, `realm_name` or `username` are used. It supports prefix search with wildcard.
 
 `realm_name`::
 (Optional, string) The name of an authentication realm. This parameter cannot be
@@ -46,8 +46,8 @@ used with either `id` or `name` or when `owner` flag is set to `true`.
 either `id` or `name` or when `owner` flag is set to `true`.
 
 `owner`::
-(Optional, boolean) A boolean flag that can be used to query API keys owned
-by the currently authenticated user. Defaults to false. 
+(Optional, Boolean) A boolean flag that can be used to query API keys owned
+by the currently authenticated user. Defaults to false.
 The 'realm_name' or 'username' parameters cannot be specified when this
 parameter is set to 'true' as they are assumed to be the currently authenticated ones.
 
@@ -78,11 +78,13 @@ API key information. For example:
 {
   "id":"VuaCfGcBCdbkQm-e5aOx",
   "name":"my-api-key",
-  "api_key":"ui2lp2axTNmsyakw9tvNnw"
+  "api_key":"ui2lp2axTNmsyakw9tvNnw",
+  "encoded": "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw=="
 }
 --------------------------------------------------
 // TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
+// TESTRESPONSE[s/VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==/$body.encoded/]
 
 You can use the following example to retrieve the API key by ID:
 
@@ -98,6 +100,14 @@ You can use the following example to retrieve the API key by name:
 [source,console]
 --------------------------------------------------
 GET /_security/api_key?name=my-api-key
+--------------------------------------------------
+// TEST[continued]
+
+API key name supports prefix search by using wildcard:
+
+[source,console]
+--------------------------------------------------
+GET /_security/api_key?name=my-*
 --------------------------------------------------
 // TEST[continued]
 
@@ -138,7 +148,10 @@ Following creates an API key
 ------------------------------------------------------------
 POST /_security/api_key
 {
-  "name": "my-api-key-1"
+  "name": "my-api-key-1",
+  "metadata": {
+    "application": "my-application"
+  }
 }
 ------------------------------------------------------------
 
@@ -168,21 +181,25 @@ A successful call returns a JSON structure that contains the information of one 
 {
   "api_keys": [ <1>
     {
-      "id": "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==", <2>
+      "id": "0GF5GXsBCXxz2eDxWwFN", <2>
       "name": "hadoop_myuser_key", <3>
       "creation": 1548550550158, <4>
       "expiration": 1548551550158, <5>
       "invalidated": false, <6>
       "username": "myuser", <7>
-      "realm": "native1" <8>
+      "realm": "native1", <8>
+      "metadata": { <9>
+        "application": "myapp"
+      }
     },
     {
-      "id": "api-key-id-2",
+      "id": "6wHJmcQpReKBa42EHV5SBw",
       "name": "api-key-name-2",
       "creation": 1548550550158,
       "invalidated": false,
       "username": "user-y",
-      "realm": "realm-2"
+      "realm": "realm-2",
+      "metadata": {}
     }
   ]
 }
@@ -198,3 +215,4 @@ A successful call returns a JSON structure that contains the information of one 
 a value of `true`. Otherwise, it is `false`.
 <7> Principal for which this API key was created
 <8> Realm name of the principal for which this API key was created
+<9> Metadata of the API key

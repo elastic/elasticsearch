@@ -1,25 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -28,18 +19,21 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.equalTo;
 
-public abstract class InternalMultiBucketAggregationTestCase<T extends InternalAggregation & MultiBucketsAggregation>
-        extends InternalAggregationTestCase<T> {
+public abstract class InternalMultiBucketAggregationTestCase<T extends InternalAggregation & MultiBucketsAggregation> extends
+    InternalAggregationTestCase<T> {
 
     private static final int DEFAULT_MAX_NUMBER_OF_BUCKETS = 10;
 
@@ -66,6 +60,10 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
         this.subAggregationsSupplier = subAggregationsSupplier;
     }
 
+    public final InternalAggregations createSubAggregations() {
+        return subAggregationsSupplier.get();
+    }
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -76,9 +74,9 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
                 final int numAggregations = randomIntBetween(1, 3);
                 List<InternalAggregation> aggs = new ArrayList<>();
                 for (int i = 0; i < numAggregations; i++) {
-                    aggs.add(createTestInstance(randomAlphaOfLength(5), emptyMap(), InternalAggregations.EMPTY));
+                    aggs.add(createTestInstanceForXContent(randomAlphaOfLength(5), emptyMap(), InternalAggregations.EMPTY));
                 }
-                return new InternalAggregations(aggs);
+                return InternalAggregations.from(aggs);
             };
         }
     }
@@ -86,22 +84,31 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
     @Override
     protected final T createTestInstance(String name, Map<String, Object> metadata) {
         T instance = createTestInstance(name, metadata, subAggregationsSupplier.get());
-        assert instance.getBuckets().size() <= maxNumberOfBuckets() :
-                "Maximum number of buckets exceeded for " + instance.getClass().getSimpleName() + " aggregation";
+        assert instance.getBuckets().size() <= maxNumberOfBuckets()
+            : "Maximum number of buckets exceeded for " + instance.getClass().getSimpleName() + " aggregation";
         return instance;
     }
 
     protected abstract T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations);
 
-    protected abstract Class<? extends ParsedMultiBucketAggregation> implementationClass();
+    protected abstract Class<? extends ParsedMultiBucketAggregation<?>> implementationClass();
 
     @Override
     protected final void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) {
         assertMultiBucketsAggregations(aggregation, parsedAggregation, false);
     }
 
+    @Override
+    public final T createTestInstanceForXContent() {
+        return createTestInstanceForXContent(randomAlphaOfLength(5), createTestMetadata(), createSubAggregations());
+    }
+
+    protected T createTestInstanceForXContent(String name, Map<String, Object> metadata, InternalAggregations subAggs) {
+        return createTestInstance(name, metadata, subAggs);
+    }
+
     public void testIterators() throws IOException {
-        final T aggregation = createTestInstance();
+        final T aggregation = createTestInstanceForXContent();
         assertMultiBucketsAggregations(aggregation, parseAndAssert(aggregation, false, false), true);
     }
 
@@ -145,10 +152,12 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
     }
 
     protected void assertMultiBucketsAggregation(MultiBucketsAggregation expected, MultiBucketsAggregation actual, boolean checkOrder) {
-        Class<? extends ParsedMultiBucketAggregation> parsedClass = implementationClass();
+        Class<? extends ParsedMultiBucketAggregation<?>> parsedClass = implementationClass();
         assertNotNull("Parsed aggregation class must not be null", parsedClass);
-        assertTrue("Unexpected parsed class, expected instance of: " + actual + ", but was: " + parsedClass,
-                parsedClass.isInstance(actual));
+        assertTrue(
+            "Unexpected parsed class, expected instance of: " + actual + ", but was: " + parsedClass,
+            parsedClass.isInstance(actual)
+        );
 
         assertTrue(expected instanceof InternalAggregation);
         assertEquals(expected.getName(), actual.getName());
@@ -191,5 +200,30 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
         /*
          * No-op.
          */
+    }
+
+    /**
+     * Expect that reducing this aggregation will pass the bucket limit.
+     */
+    protected static void expectReduceUsesTooManyBuckets(InternalAggregation agg, int bucketLimit) {
+        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            new IntConsumer() {
+                int buckets;
+
+                @Override
+                public void accept(int value) {
+                    buckets += value;
+                    if (buckets > bucketLimit) {
+                        throw new IllegalArgumentException("too big!");
+                    }
+                }
+            },
+            PipelineTree.EMPTY,
+            () -> false
+        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> agg.reduce(List.of(agg), reduceContext));
+        assertThat(e.getMessage(), equalTo("too big!"));
     }
 }

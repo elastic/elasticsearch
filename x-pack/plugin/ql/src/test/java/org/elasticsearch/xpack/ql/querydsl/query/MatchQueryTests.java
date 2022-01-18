@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.querydsl.query;
 
@@ -10,7 +11,6 @@ import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
-import org.elasticsearch.xpack.ql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
 import org.elasticsearch.xpack.ql.type.EsField;
@@ -28,11 +28,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MatchQueryTests extends ESTestCase {
     static MatchQuery randomMatchQuery() {
-        return new MatchQuery(
-            SourceTests.randomSource(),
-            randomAlphaOfLength(5),
-            randomAlphaOfLength(5));
-            // TODO add the predicate
+        return new MatchQuery(SourceTests.randomSource(), randomAlphaOfLength(5), randomAlphaOfLength(5));
+        // TODO add the predicate
     }
 
     public void testEqualsAndHashCode() {
@@ -47,8 +44,9 @@ public class MatchQueryTests extends ESTestCase {
         List<Function<MatchQuery, MatchQuery>> options = Arrays.asList(
             q -> new MatchQuery(SourceTests.mutate(q.source()), q.name(), q.text(), q.predicate()),
             q -> new MatchQuery(q.source(), randomValueOtherThan(q.name(), () -> randomAlphaOfLength(5)), q.text(), q.predicate()),
-            q -> new MatchQuery(q.source(), q.name(), randomValueOtherThan(q.text(), () -> randomAlphaOfLength(5)), q.predicate()));
-            // TODO mutate the predicate
+            q -> new MatchQuery(q.source(), q.name(), randomValueOtherThan(q.text(), () -> randomAlphaOfLength(5)), q.predicate())
+        );
+        // TODO mutate the predicate
         return randomFrom(options).apply(query);
     }
 

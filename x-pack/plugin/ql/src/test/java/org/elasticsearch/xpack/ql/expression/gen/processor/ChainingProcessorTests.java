@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.gen.processor;
 
@@ -42,10 +43,9 @@ public class ChainingProcessorTests extends AbstractWireSerializingTestCase<Chai
     protected ChainingProcessor mutateInstance(ChainingProcessor instance) throws IOException {
         @SuppressWarnings("unchecked")
         Supplier<ChainingProcessor> supplier = randomFrom(
-            () -> new ChainingProcessor(
-                    instance.first(), randomValueOtherThan(instance.second(), () -> randomProcessor())),
-            () -> new ChainingProcessor(
-                    randomValueOtherThan(instance.first(), () -> randomProcessor()), instance.second()));
+            () -> new ChainingProcessor(instance.first(), randomValueOtherThan(instance.second(), () -> randomProcessor())),
+            () -> new ChainingProcessor(randomValueOtherThan(instance.first(), () -> randomProcessor()), instance.second())
+        );
         return supplier.get();
     }
 

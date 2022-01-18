@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
@@ -30,16 +19,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.LongGCDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkLinkDisruptionType;
-import org.elasticsearch.test.disruption.NetworkDisruption.NetworkUnresponsive;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -93,7 +80,8 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
 
         NetworkDisruption networkDisconnect = new NetworkDisruption(
             new NetworkDisruption.TwoPartitions(masterNode, unluckyNode),
-            new NetworkDisruption.NetworkDisconnect());
+            NetworkDisruption.DISCONNECT
+        );
         setDisruptionScheme(networkDisconnect);
         networkDisconnect.startDisrupting();
 
@@ -115,30 +103,37 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
     }
 
     private void ensureNoMaster(String node) throws Exception {
-        assertBusy(() -> assertNull(client(node).admin().cluster().state(
-            new ClusterStateRequest().local(true)).get().getState().nodes().getMasterNode()));
+        assertBusy(
+            () -> assertNull(
+                client(node).admin().cluster().state(new ClusterStateRequest().local(true)).get().getState().nodes().getMasterNode()
+            )
+        );
     }
 
     /**
      * Verify that nodes fault detection detects a disconnected node after master reelection
      */
     public void testFollowerCheckerDetectsDisconnectedNodeAfterMasterReelection() throws Exception {
-        testFollowerCheckerAfterMasterReelection(new NetworkDisconnect(), Settings.EMPTY);
+        testFollowerCheckerAfterMasterReelection(NetworkDisruption.DISCONNECT, Settings.EMPTY);
     }
 
     /**
      * Verify that nodes fault detection detects an unresponsive node after master reelection
      */
     public void testFollowerCheckerDetectsUnresponsiveNodeAfterMasterReelection() throws Exception {
-        testFollowerCheckerAfterMasterReelection(new NetworkUnresponsive(), Settings.builder()
-            .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
-            .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "4")
-            .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
-            .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1).build());
+        testFollowerCheckerAfterMasterReelection(
+            NetworkDisruption.UNRESPONSIVE,
+            Settings.builder()
+                .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
+                .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "4")
+                .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
+                .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
+                .build()
+        );
     }
 
-    private void testFollowerCheckerAfterMasterReelection(NetworkLinkDisruptionType networkLinkDisruptionType,
-                                                          Settings settings) throws Exception {
+    private void testFollowerCheckerAfterMasterReelection(NetworkLinkDisruptionType networkLinkDisruptionType, Settings settings)
+        throws Exception {
         internalCluster().startNodes(4, settings);
         ensureStableCluster(4);
 
@@ -148,15 +143,18 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         ensureStableCluster(3);
 
         final String master = internalCluster().getMasterName();
-        final List<String> nonMasters = Arrays.stream(internalCluster().getNodeNames()).filter(n -> master.equals(n) == false)
+        final List<String> nonMasters = Arrays.stream(internalCluster().getNodeNames())
+            .filter(n -> master.equals(n) == false)
             .collect(Collectors.toList());
         final String isolatedNode = randomFrom(nonMasters);
         final String otherNode = nonMasters.get(nonMasters.get(0).equals(isolatedNode) ? 1 : 0);
 
         logger.info("--> isolating [{}]", isolatedNode);
 
-        final NetworkDisruption networkDisruption = new NetworkDisruption(new TwoPartitions(
-            singleton(isolatedNode), Sets.newHashSet(master, otherNode)), networkLinkDisruptionType);
+        final NetworkDisruption networkDisruption = new NetworkDisruption(
+            new TwoPartitions(singleton(isolatedNode), Sets.newHashSet(master, otherNode)),
+            networkLinkDisruptionType
+        );
         setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 
@@ -168,16 +166,18 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         ensureStableCluster(3);
     }
 
-
     /**
      * Tests that emulates a frozen elected master node that unfreezes and pushes its cluster state to other nodes that already are
      * following another elected master node. These nodes should reject this cluster state and prevent them from following the stale master.
      */
     public void testStaleMasterNotHijackingMajority() throws Exception {
-        final List<String> nodes = internalCluster().startNodes(3, Settings.builder()
-            .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
-            .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-            .build());
+        final List<String> nodes = internalCluster().startNodes(
+            3,
+            Settings.builder()
+                .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
+                .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
+                .build()
+        );
         ensureStableCluster(3);
 
         // Save the current master node as old master node, because that node will get frozen
@@ -197,9 +197,13 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             internalCluster().getInstance(ClusterService.class, node).addListener(event -> {
                 DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
                 DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
-                if (!Objects.equals(previousMaster, currentMaster)) {
-                    logger.info("--> node {} received new cluster state: {} \n and had previous cluster state: {}", node, event.state(),
-                        event.previousState());
+                if (Objects.equals(previousMaster, currentMaster) == false) {
+                    logger.info(
+                        "--> node {} received new cluster state: {} \n and had previous cluster state: {}",
+                        node,
+                        event.state(),
+                        event.previousState()
+                    );
                     String previousMasterNodeName = previousMaster != null ? previousMaster.getName() : null;
                     String currentMasterNodeName = currentMaster != null ? currentMaster.getName() : null;
                     masters.get(node).add(new Tuple<>(previousMasterNodeName, currentMasterNodeName));
@@ -222,26 +226,25 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         assertBusy(() -> {
             for (final Map.Entry<String, List<Tuple<String, String>>> entry : masters.entrySet()) {
                 final List<Tuple<String, String>> transitions = entry.getValue();
-                assertTrue(entry.getKey() + ": " + transitions,
-                    transitions.stream().anyMatch(transition -> transition.v2() != null));
+                assertTrue(entry.getKey() + ": " + transitions, transitions.stream().anyMatch(transition -> transition.v2() != null));
             }
         });
 
         // The old master node is frozen, but here we submit a cluster state update task that doesn't get executed, but will be queued and
-        // once the old master node un-freezes it gets executed.  The old master node will send this update + the cluster state where it is
+        // once the old master node un-freezes it gets executed. The old master node will send this update + the cluster state where it is
         // flagged as master to the other nodes that follow the new master. These nodes should ignore this update.
-        internalCluster().getInstance(ClusterService.class, oldMasterNode).submitStateUpdateTask("sneaky-update", new
-            ClusterStateUpdateTask(Priority.IMMEDIATE) {
+        internalCluster().getInstance(ClusterService.class, oldMasterNode)
+            .submitStateUpdateTask("sneaky-update", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return ClusterState.builder(currentState).build();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("failure [{}]", source), e);
+                public void onFailure(Exception e) {
+                    logger.warn("failure [sneaky-update]", e);
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
 
         // Save the new elected master node
         final String newMasterNode = internalCluster().getMasterName(majoritySide.get(0));
@@ -259,8 +262,10 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         for (Map.Entry<String, List<Tuple<String, String>>> entry : masters.entrySet()) {
             String nodeName = entry.getKey();
             List<Tuple<String, String>> transitions = entry.getValue();
-            assertTrue("[" + nodeName + "] should not apply state from old master [" + oldMasterNode + "] but it did: " + transitions,
-                transitions.stream().noneMatch(t -> oldMasterNode.equals(t.v2())));
+            assertTrue(
+                "[" + nodeName + "] should not apply state from old master [" + oldMasterNode + "] but it did: " + transitions,
+                transitions.stream().noneMatch(t -> oldMasterNode.equals(t.v2()))
+            );
         }
     }
 

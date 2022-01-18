@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.smoketest;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -25,11 +27,11 @@ import org.elasticsearch.client.xpack.XPackUsageRequest;
 import org.elasticsearch.client.xpack.XPackUsageResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -51,7 +53,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -69,6 +70,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * then uses a rest client to check that the data have been correctly received and
  * indexed in the cluster.
  */
+@SuppressWarnings("removal")
 public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
 
     public class TestRestHighLevelClient extends RestHighLevelClient {
@@ -120,7 +122,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         } catch (URISyntaxException e) {
             throw new ElasticsearchException("exception while reading the store", e);
         }
-        if (!Files.exists(keyStore)) {
+        if (Files.exists(keyStore) == false) {
             throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
         }
     }
@@ -145,7 +147,8 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .put(ESRestTestCase.TRUSTSTORE_PATH, keyStore)
-            .put(ESRestTestCase.TRUSTSTORE_PASSWORD, KEYSTORE_PASS).build();
+            .put(ESRestTestCase.TRUSTSTORE_PASSWORD, KEYSTORE_PASS)
+            .build();
     }
 
     @Before
@@ -162,8 +165,8 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
             .put("xpack.monitoring.exporters._http.ssl.certificate_authorities", "testnode.crt")
             .setSecureSettings(secureSettings)
             .build();
-        ClusterUpdateSettingsResponse response = newHighLevelClient().cluster().putSettings(
-            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
+        ClusterUpdateSettingsResponse response = newHighLevelClient().cluster()
+            .putSettings(new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
         assertTrue(response.isAcknowledged());
     }
 
@@ -178,8 +181,8 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
             .putNull("xpack.monitoring.exporters._http.ssl.verification_mode")
             .putNull("xpack.monitoring.exporters._http.ssl.certificate_authorities")
             .build();
-        ClusterUpdateSettingsResponse response = newHighLevelClient().cluster().putSettings(
-            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
+        ClusterUpdateSettingsResponse response = newHighLevelClient().cluster()
+            .putSettings(new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
         assertTrue(response.isAcknowledged());
     }
 

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common;
 
@@ -33,7 +22,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -116,7 +105,7 @@ public class UUIDTests extends ESTestCase {
         for (UUIDGenRunner runner : runners) {
             globalSet.addAll(runner.uuidSet);
         }
-        assertEquals(count*uuids, globalSet.size());
+        assertEquals(count * uuids, globalSet.size());
     }
 
     public void testCompression() throws Exception {
@@ -153,9 +142,8 @@ public class UUIDTests extends ESTestCase {
         // Avoid randomization which will slow down things without improving
         // the quality of this test
         Directory dir = newFSDirectory(createTempDir());
-        IndexWriterConfig config = new IndexWriterConfig()
-                .setCodec(Codec.forName(Lucene.LATEST_CODEC))
-                .setMergeScheduler(new SerialMergeScheduler()); // for reproducibility
+        IndexWriterConfig config = new IndexWriterConfig().setCodec(Codec.forName(Lucene.LATEST_CODEC))
+            .setMergeScheduler(new SerialMergeScheduler()); // for reproducibility
         IndexWriter w = new IndexWriter(dir, config);
         Document doc = new Document();
         StringField id = new StringField("_id", "", Store.NO);
@@ -174,8 +162,18 @@ public class UUIDTests extends ESTestCase {
         }
         dir.close();
         double bytesPerDoc = (double) size / numDocs;
-        logger.info(numDocs + " docs indexed at " + numDocsPerSecond + " docs/s required " + new ByteSizeValue(size)
-                + " bytes of disk space, or " + bytesPerDoc + " bytes per document. Took: " + new TimeValue(time) + ".");
+        logger.info(
+            numDocs
+                + " docs indexed at "
+                + numDocsPerSecond
+                + " docs/s required "
+                + new ByteSizeValue(size)
+                + " bytes of disk space, or "
+                + bytesPerDoc
+                + " bytes per document. Took: "
+                + new TimeValue(time)
+                + "."
+        );
         return bytesPerDoc;
     }
 }

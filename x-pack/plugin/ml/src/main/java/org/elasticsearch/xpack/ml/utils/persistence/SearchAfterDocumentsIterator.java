@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.utils.persistence;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -16,10 +18,13 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * An iterator useful to fetch a large number of documents of type T
@@ -44,12 +49,27 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
 
     private final OriginSettingClient client;
     private final String index;
+    private final boolean trackTotalHits;
+    private final AtomicLong totalHits = new AtomicLong();
     private final AtomicBoolean lastSearchReturnedResults;
     private int batchSize = BATCH_SIZE;
 
     protected SearchAfterDocumentsIterator(OriginSettingClient client, String index) {
+        this(client, index, false);
+    }
+
+    /**
+     * Constructs an iterator that searches docs using search after
+     *
+     * @param client the client
+     * @param index the index
+     * @param trackTotalHits whether to track total hits. Note this is only done in the first search
+     *                       and the result will only be accurate if the index is not changed between searches.
+     */
+    protected SearchAfterDocumentsIterator(OriginSettingClient client, String index, boolean trackTotalHits) {
         this.client = Objects.requireNonNull(client);
         this.index = Objects.requireNonNull(index);
+        this.trackTotalHits = trackTotalHits;
         this.lastSearchReturnedResults = new AtomicBoolean(true);
     }
 
@@ -83,28 +103,46 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
      */
     @Override
     public Deque<T> next() {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
         SearchResponse searchResponse = doSearch(searchAfterFields());
+        if (trackTotalHits && totalHits.get() == 0) {
+            totalHits.set(searchResponse.getHits().getTotalHits().value);
+        }
         return mapHits(searchResponse);
     }
 
-    private SearchResponse doSearch(Object [] searchAfterValues) {
+    private SearchResponse doSearch(Object[] searchAfterValues) {
         SearchRequest searchRequest = new SearchRequest(index);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
-        SearchSourceBuilder sourceBuilder = (new SearchSourceBuilder()
-            .size(batchSize)
+        SearchSourceBuilder sourceBuilder = (new SearchSourceBuilder().size(batchSize)
             .query(getQuery())
             .fetchSource(shouldFetchSource())
             .sort(sortField()));
+
+        if (trackTotalHits && totalHits.get() == 0L) {
+            sourceBuilder.trackTotalHits(true);
+        }
 
         if (searchAfterValues != null) {
             sourceBuilder.searchAfter(searchAfterValues);
         }
 
+        for (Map.Entry<String, String> docValueFieldAndFormat : docValueFieldAndFormatPairs().entrySet()) {
+            sourceBuilder.docValueField(docValueFieldAndFormat.getKey(), docValueFieldAndFormat.getValue());
+        }
+
         searchRequest.source(sourceBuilder);
+        return executeSearchRequest(searchRequest);
+    }
+
+    protected Map<String, String> docValueFieldAndFormatPairs() {
+        return Collections.emptyMap();
+    }
+
+    protected SearchResponse executeSearchRequest(SearchRequest searchRequest) {
         return client.search(searchRequest).actionGet();
     }
 
@@ -176,5 +214,16 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
     // for testing
     void setBatchSize(int batchSize) {
         this.batchSize = batchSize;
+    }
+
+    protected Client client() {
+        return client;
+    }
+
+    public long getTotalHits() {
+        if (trackTotalHits == false) {
+            throw new IllegalStateException("cannot return total hits because tracking was not enabled");
+        }
+        return totalHits.get();
     }
 }

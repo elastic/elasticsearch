@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.bytes;
@@ -24,15 +13,15 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-
 
 /**
  * A reference to bytes.
@@ -107,10 +96,22 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
      * Returns BytesReference composed of the provided ByteBuffer.
      */
     static BytesReference fromByteBuffer(ByteBuffer buffer) {
-        if (buffer.hasArray()) {
-            return new BytesArray(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
+        assert buffer.hasArray();
+        return new BytesArray(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
+    }
+
+    /**
+     * Returns BytesReference either wrapping the provided {@link ByteArray} or in case the has a backing raw byte array one that wraps
+     * that backing array directly.
+     */
+    static BytesReference fromByteArray(ByteArray byteArray, int length) {
+        if (length == 0) {
+            return BytesArray.EMPTY;
         }
-        return new ByteBufferReference(buffer);
+        if (byteArray.hasArray()) {
+            return new BytesArray(byteArray.array(), 0, length);
+        }
+        return new PagedBytesReference(byteArray, 0, length);
     }
 
     /**
@@ -172,4 +173,25 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
      * @see BytesRefIterator
      */
     BytesRefIterator iterator();
+
+    /**
+     * @return {@code true} if this instance is backed by a byte array
+     */
+    default boolean hasArray() {
+        return false;
+    }
+
+    /**
+     * @return backing byte array for this instance
+     */
+    default byte[] array() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * @return offset of the first byte of this instance in the backing byte array
+     */
+    default int arrayOffset() {
+        throw new UnsupportedOperationException();
+    }
 }

@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -33,14 +22,19 @@ import java.util.Objects;
 public class ActionStatus {
 
     private final AckStatus ackStatus;
-    @Nullable private final Execution lastExecution;
-    @Nullable private final Execution lastSuccessfulExecution;
-    @Nullable private final Throttle lastThrottle;
+    @Nullable
+    private final Execution lastExecution;
+    @Nullable
+    private final Execution lastSuccessfulExecution;
+    @Nullable
+    private final Throttle lastThrottle;
 
-    public ActionStatus(AckStatus ackStatus,
-                        @Nullable Execution lastExecution,
-                        @Nullable Execution lastSuccessfulExecution,
-                        @Nullable Throttle lastThrottle) {
+    public ActionStatus(
+        AckStatus ackStatus,
+        @Nullable Execution lastExecution,
+        @Nullable Execution lastSuccessfulExecution,
+        @Nullable Throttle lastThrottle
+    ) {
         this.ackStatus = ackStatus;
         this.lastExecution = lastExecution;
         this.lastSuccessfulExecution = lastSuccessfulExecution;
@@ -70,10 +64,10 @@ public class ActionStatus {
 
         ActionStatus that = (ActionStatus) o;
 
-        return Objects.equals(ackStatus, that.ackStatus) &&
-                Objects.equals(lastExecution, that.lastExecution) &&
-                Objects.equals(lastSuccessfulExecution, that.lastSuccessfulExecution) &&
-                Objects.equals(lastThrottle, that.lastThrottle);
+        return Objects.equals(ackStatus, that.ackStatus)
+            && Objects.equals(lastExecution, that.lastExecution)
+            && Objects.equals(lastSuccessfulExecution, that.lastSuccessfulExecution)
+            && Objects.equals(lastThrottle, that.lastThrottle);
     }
 
     @Override
@@ -105,8 +99,11 @@ public class ActionStatus {
             }
         }
         if (ackStatus == null) {
-            throw new ElasticsearchParseException("could not parse action status for [{}]. missing required field [{}]",
-                    actionId, Field.ACK_STATUS.getPreferredName());
+            throw new ElasticsearchParseException(
+                "could not parse action status for [{}]. missing required field [{}]",
+                actionId,
+                Field.ACK_STATUS.getPreferredName()
+            );
         }
         return new ActionStatus(ackStatus, lastExecution, lastSuccessfulExecution, lastThrottle);
     }
@@ -143,7 +140,7 @@ public class ActionStatus {
 
             AckStatus ackStatus = (AckStatus) o;
 
-            return Objects.equals(timestamp, ackStatus.timestamp) &&  Objects.equals(state, ackStatus.state);
+            return Objects.equals(timestamp, ackStatus.timestamp) && Objects.equals(state, ackStatus.state);
         }
 
         @Override
@@ -169,12 +166,20 @@ public class ActionStatus {
                 }
             }
             if (timestamp == null) {
-                throw new ElasticsearchParseException("could not parse action status for [{}]. missing required field [{}.{}]",
-                        actionId, Field.ACK_STATUS.getPreferredName(), Field.TIMESTAMP.getPreferredName());
+                throw new ElasticsearchParseException(
+                    "could not parse action status for [{}]. missing required field [{}.{}]",
+                    actionId,
+                    Field.ACK_STATUS.getPreferredName(),
+                    Field.TIMESTAMP.getPreferredName()
+                );
             }
             if (state == null) {
-                throw new ElasticsearchParseException("could not parse action status for [{}]. missing required field [{}.{}]",
-                        actionId, Field.ACK_STATUS.getPreferredName(), Field.ACK_STATUS_STATE.getPreferredName());
+                throw new ElasticsearchParseException(
+                    "could not parse action status for [{}]. missing required field [{}.{}]",
+                    actionId,
+                    Field.ACK_STATUS.getPreferredName(),
+                    Field.ACK_STATUS_STATE.getPreferredName()
+                );
             }
             return new AckStatus(timestamp, state);
         }
@@ -219,9 +224,9 @@ public class ActionStatus {
 
             Execution execution = (Execution) o;
 
-            return Objects.equals(successful, execution.successful) &&
-                   Objects.equals(timestamp, execution.timestamp) &&
-                   Objects.equals(reason, execution.reason);
+            return Objects.equals(successful, execution.successful)
+                && Objects.equals(timestamp, execution.timestamp)
+                && Objects.equals(reason, execution.reason);
         }
 
         @Override
@@ -250,19 +255,31 @@ public class ActionStatus {
                 }
             }
             if (timestamp == null) {
-                throw new ElasticsearchParseException("could not parse action status for [{}]. missing required field [{}.{}]",
-                        actionId, Field.LAST_EXECUTION.getPreferredName(), Field.TIMESTAMP.getPreferredName());
+                throw new ElasticsearchParseException(
+                    "could not parse action status for [{}]. missing required field [{}.{}]",
+                    actionId,
+                    Field.LAST_EXECUTION.getPreferredName(),
+                    Field.TIMESTAMP.getPreferredName()
+                );
             }
             if (successful == null) {
-                throw new ElasticsearchParseException("could not parse action status for [{}]. missing required field [{}.{}]",
-                        actionId, Field.LAST_EXECUTION.getPreferredName(), Field.EXECUTION_SUCCESSFUL.getPreferredName());
+                throw new ElasticsearchParseException(
+                    "could not parse action status for [{}]. missing required field [{}.{}]",
+                    actionId,
+                    Field.LAST_EXECUTION.getPreferredName(),
+                    Field.EXECUTION_SUCCESSFUL.getPreferredName()
+                );
             }
             if (successful) {
                 return successful(timestamp);
             }
             if (reason == null) {
-                throw new ElasticsearchParseException("could not parse action status for [{}]. missing required field for unsuccessful" +
-                        " execution [{}.{}]", actionId, Field.LAST_EXECUTION.getPreferredName(), Field.REASON.getPreferredName());
+                throw new ElasticsearchParseException(
+                    "could not parse action status for [{}]. missing required field for unsuccessful" + " execution [{}.{}]",
+                    actionId,
+                    Field.LAST_EXECUTION.getPreferredName(),
+                    Field.REASON.getPreferredName()
+                );
             }
             return failure(timestamp, reason);
         }
@@ -318,12 +335,20 @@ public class ActionStatus {
                 }
             }
             if (timestamp == null) {
-                throw new ElasticsearchParseException("could not parse action status for [{}]. missing required field [{}.{}]",
-                        actionId, Field.LAST_THROTTLE.getPreferredName(), Field.TIMESTAMP.getPreferredName());
+                throw new ElasticsearchParseException(
+                    "could not parse action status for [{}]. missing required field [{}.{}]",
+                    actionId,
+                    Field.LAST_THROTTLE.getPreferredName(),
+                    Field.TIMESTAMP.getPreferredName()
+                );
             }
             if (reason == null) {
-                throw new ElasticsearchParseException("could not parse action status for [{}]. missing required field [{}.{}]",
-                    actionId, Field.LAST_THROTTLE.getPreferredName(), Field.REASON.getPreferredName());
+                throw new ElasticsearchParseException(
+                    "could not parse action status for [{}]. missing required field [{}.{}]",
+                    actionId,
+                    Field.LAST_THROTTLE.getPreferredName(),
+                    Field.REASON.getPreferredName()
+                );
             }
             return new Throttle(timestamp, reason);
         }

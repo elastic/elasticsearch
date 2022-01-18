@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -65,16 +65,17 @@ public class HeapBufferedAsyncResponseConsumer extends AbstractAsyncResponseCons
     }
 
     @Override
-    protected void onResponseReceived(HttpResponse response) throws HttpException, IOException {
-        this.response = response;
+    protected void onResponseReceived(HttpResponse httpResponse) throws HttpException, IOException {
+        this.response = httpResponse;
     }
 
     @Override
     protected void onEntityEnclosed(HttpEntity entity, ContentType contentType) throws IOException {
         long len = entity.getContentLength();
         if (len > bufferLimitBytes) {
-            throw new ContentTooLongException("entity content is too long [" + len +
-                    "] for the configured buffer limit [" + bufferLimitBytes + "]");
+            throw new ContentTooLongException(
+                "entity content is too long [" + len + "] for the configured buffer limit [" + bufferLimitBytes + "]"
+            );
         }
         if (len < 0) {
             len = 4096;

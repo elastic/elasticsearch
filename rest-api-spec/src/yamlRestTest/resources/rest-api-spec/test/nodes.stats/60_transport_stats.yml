@@ -1,0 +1,67 @@
+---
+"Transport stats":
+  - skip:
+      features: [arbitrary_key]
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats:
+        metric: [ transport ]
+
+  - is_false: nodes.$node_id.store
+  - is_true:  nodes.$node_id.transport
+  - gte: { nodes.$node_id.transport.server_open: 0 }
+  - gte: { nodes.$node_id.transport.total_outbound_connections: 0 }
+  - gte: { nodes.$node_id.transport.rx_count: 0 }
+  - gte: { nodes.$node_id.transport.tx_count: 0 }
+  - gte: { nodes.$node_id.transport.rx_size_in_bytes: 0 }
+  - gte: { nodes.$node_id.transport.tx_size_in_bytes: 0 }
+
+---
+"Transport handling time histogram":
+  - skip:
+      version: " - 8.0.99"
+      reason: "handling_time_histograms were added in 8.1"
+      features: [arbitrary_key]
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats:
+        metric: [ transport ]
+
+  - length: { nodes.$node_id.transport.inbound_handling_time_histogram: 18 }
+
+  - gte:    { nodes.$node_id.transport.inbound_handling_time_histogram.0.count: 0 }
+  - is_false: nodes.$node_id.transport.inbound_handling_time_histogram.0.ge_millis
+  - match:  { nodes.$node_id.transport.inbound_handling_time_histogram.0.lt_millis: 1 }
+
+  - gte:    { nodes.$node_id.transport.inbound_handling_time_histogram.1.count: 0 }
+  - match:  { nodes.$node_id.transport.inbound_handling_time_histogram.1.ge_millis: 1 }
+  - match:  { nodes.$node_id.transport.inbound_handling_time_histogram.1.lt_millis: 2 }
+
+  - gte:    { nodes.$node_id.transport.inbound_handling_time_histogram.17.count: 0 }
+  - match:  { nodes.$node_id.transport.inbound_handling_time_histogram.17.ge_millis: 65536 }
+  - is_false: nodes.$node_id.transport.inbound_handling_time_histogram.17.lt_millis
+
+
+  - length: { nodes.$node_id.transport.outbound_handling_time_histogram: 18 }
+
+  - gte:    { nodes.$node_id.transport.outbound_handling_time_histogram.0.count: 0 }
+  - is_false: nodes.$node_id.transport.outbound_handling_time_histogram.0.ge_millis
+  - match:  { nodes.$node_id.transport.outbound_handling_time_histogram.0.lt_millis: 1 }
+
+  - gte:    { nodes.$node_id.transport.outbound_handling_time_histogram.1.count: 0 }
+  - match:  { nodes.$node_id.transport.outbound_handling_time_histogram.1.ge_millis: 1 }
+  - match:  { nodes.$node_id.transport.outbound_handling_time_histogram.1.lt_millis: 2 }
+
+  - gte:    { nodes.$node_id.transport.outbound_handling_time_histogram.17.count: 0 }
+  - match:  { nodes.$node_id.transport.outbound_handling_time_histogram.17.ge_millis: 65536 }
+  - is_false: nodes.$node_id.transport.outbound_handling_time_histogram.17.lt_millis

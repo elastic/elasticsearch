@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.rollup.job.config;
 
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -68,8 +57,7 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
         assertThat(validation.isPresent(), is(true));
         ValidationException validationException = validation.get();
         assertThat(validationException.validationErrors().size(), is(2));
-        assertThat(validationException.validationErrors(),
-            containsInAnyOrder("Field name is required", "Interval is required"));
+        assertThat(validationException.validationErrors(), containsInAnyOrder("Field name is required", "Interval is required"));
     }
 
     public void testValidateHistogramGroupConfigWithErrors() {
@@ -82,8 +70,10 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
         assertThat(validation.isPresent(), is(true));
         ValidationException validationException = validation.get();
         assertThat(validationException.validationErrors().size(), is(2));
-        assertThat(validationException.validationErrors(),
-            containsInAnyOrder("Fields must have at least one value", "Interval must be a positive long"));
+        assertThat(
+            validationException.validationErrors(),
+            containsInAnyOrder("Fields must have at least one value", "Interval must be a positive long")
+        );
     }
 
     public void testValidateTermsGroupConfigWithErrors() {
@@ -110,7 +100,7 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
     static GroupConfig randomGroupConfig() {
         DateHistogramGroupConfig dateHistogram = DateHistogramGroupConfigTests.randomDateHistogramGroupConfig();
         HistogramGroupConfig histogram = randomBoolean() ? HistogramGroupConfigTests.randomHistogramGroupConfig() : null;
-        TermsGroupConfig terms = randomBoolean()  ? TermsGroupConfigTests.randomTermsGroupConfig() : null;
+        TermsGroupConfig terms = randomBoolean() ? TermsGroupConfigTests.randomTermsGroupConfig() : null;
         return new GroupConfig(dateHistogram, histogram, terms);
     }
 }

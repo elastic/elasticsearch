@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
@@ -41,6 +41,7 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
     public static final ParseField GROK_PATTERN = new ParseField("grok_pattern");
     public static final ParseField NUM_MATCHES = new ParseField("num_matches");
     public static final ParseField PREFERRED_TO_CATEGORIES = new ParseField("preferred_to_categories");
+    public static final ParseField MLCATEGORY = new ParseField("mlcategory");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("categories");
@@ -49,8 +50,11 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<CategoryDefinition, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<CategoryDefinition, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<CategoryDefinition, Void> parser = new ConstructingObjectParser<>(TYPE.getPreferredName(),
-                ignoreUnknownFields, a -> new CategoryDefinition((String) a[0]));
+        ConstructingObjectParser<CategoryDefinition, Void> parser = new ConstructingObjectParser<>(
+            TYPE.getPreferredName(),
+            ignoreUnknownFields,
+            a -> new CategoryDefinition((String) a[0])
+        );
 
         parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         parser.declareLong(CategoryDefinition::setCategoryId, CATEGORY_ID);
@@ -63,6 +67,8 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         parser.declareString(CategoryDefinition::setGrokPattern, GROK_PATTERN);
         parser.declareLongArray(CategoryDefinition::setPreferredToCategories, PREFERRED_TO_CATEGORIES);
         parser.declareLong(CategoryDefinition::setNumMatches, NUM_MATCHES);
+        parser.declareString((cd, rt) -> { /*Ignore as it is always category_definition*/ }, Result.RESULT_TYPE);
+        parser.declareString((cd, mc) -> { /*Ignore as it is always equal to category_id*/ }, MLCATEGORY);
         return parser;
     }
 
@@ -93,10 +99,8 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         maxMatchingLength = in.readLong();
         examples = new TreeSet<>(in.readStringList());
         grokPattern = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            this.preferredToCategories = in.readVLongArray();
-            this.numMatches = in.readVLong();
-        }
+        this.preferredToCategories = in.readVLongArray();
+        this.numMatches = in.readVLong();
     }
 
     @Override
@@ -110,10 +114,8 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         out.writeLong(maxMatchingLength);
         out.writeStringCollection(examples);
         out.writeOptionalString(grokPattern);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeVLongArray(preferredToCategories);
-            out.writeVLong(numMatches);
-        }
+        out.writeVLongArray(preferredToCategories);
+        out.writeVLong(numMatches);
     }
 
     public String getJobId() {
@@ -251,6 +253,10 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         if (partitionFieldName != null && partitionFieldValue != null && ReservedFieldNames.isValidFieldName(partitionFieldName)) {
             builder.field(partitionFieldName, partitionFieldValue);
         }
+        // Even though category_definitions now have a result type, queries need for category definition values
+        // still need to be done by looking for the category_id field. At least until 9.x
+        builder.field(Result.RESULT_TYPE.getPreferredName(), TYPE.getPreferredName());
+        builder.field(MLCATEGORY.getPreferredName(), String.valueOf(categoryId));
 
         builder.endObject();
         return builder;
@@ -266,21 +272,22 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         }
         CategoryDefinition that = (CategoryDefinition) other;
         return Objects.equals(this.jobId, that.jobId)
-                && Objects.equals(this.categoryId, that.categoryId)
-                && Objects.equals(this.partitionFieldName, that.partitionFieldName)
-                && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
-                && Objects.equals(this.terms, that.terms)
-                && Objects.equals(this.regex, that.regex)
-                && Objects.equals(this.maxMatchingLength, that.maxMatchingLength)
-                && Objects.equals(this.examples, that.examples)
-                && Objects.equals(this.grokPattern, that.grokPattern)
-                && Arrays.equals(this.preferredToCategories, that.preferredToCategories)
-                && Objects.equals(this.numMatches, that.numMatches);
+            && Objects.equals(this.categoryId, that.categoryId)
+            && Objects.equals(this.partitionFieldName, that.partitionFieldName)
+            && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
+            && Objects.equals(this.terms, that.terms)
+            && Objects.equals(this.regex, that.regex)
+            && Objects.equals(this.maxMatchingLength, that.maxMatchingLength)
+            && Objects.equals(this.examples, that.examples)
+            && Objects.equals(this.grokPattern, that.grokPattern)
+            && Arrays.equals(this.preferredToCategories, that.preferredToCategories)
+            && Objects.equals(this.numMatches, that.numMatches);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId,
+        return Objects.hash(
+            jobId,
             categoryId,
             partitionFieldName,
             partitionFieldValue,
@@ -290,6 +297,7 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
             examples,
             grokPattern,
             Arrays.hashCode(preferredToCategories),
-            numMatches);
+            numMatches
+        );
     }
 }

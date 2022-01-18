@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.stats;
@@ -9,8 +10,8 @@ package org.elasticsearch.xpack.core.ml.stats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -50,8 +51,13 @@ public class ForecastStats implements ToXContentObject, Writeable {
     /*
      * Construct ForecastStats for 1 job. Additional statistics can be added by merging other ForecastStats into it.
      */
-    public ForecastStats(long total, StatsAccumulator memoryStats, StatsAccumulator recordStats, StatsAccumulator runtimeStats,
-            CountAccumulator statusCounts) {
+    public ForecastStats(
+        long total,
+        StatsAccumulator memoryStats,
+        StatsAccumulator recordStats,
+        StatsAccumulator runtimeStats,
+        CountAccumulator statusCounts
+    ) {
         this.total = total;
         this.forecastedJobs = total > 0 ? 1 : 0;
         this.memoryStats = Objects.requireNonNull(memoryStats);
@@ -169,8 +175,11 @@ public class ForecastStats implements ToXContentObject, Writeable {
         }
 
         ForecastStats other = (ForecastStats) obj;
-        return Objects.equals(total, other.total) && Objects.equals(forecastedJobs, other.forecastedJobs)
-                && Objects.equals(memoryStats, other.memoryStats) && Objects.equals(recordStats, other.recordStats)
-                && Objects.equals(runtimeStats, other.runtimeStats) && Objects.equals(statusCounts, other.statusCounts);
+        return Objects.equals(total, other.total)
+            && Objects.equals(forecastedJobs, other.forecastedJobs)
+            && Objects.equals(memoryStats, other.memoryStats)
+            && Objects.equals(recordStats, other.recordStats)
+            && Objects.equals(runtimeStats, other.runtimeStats)
+            && Objects.equals(statusCounts, other.statusCounts);
     }
 }

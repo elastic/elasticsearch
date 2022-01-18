@@ -1,8 +1,8 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -30,6 +30,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakZombies;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.http.Header;
 
 import java.util.ArrayList;
@@ -43,13 +44,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-@TestMethodProviders({
-        JUnit3MethodProvider.class
-})
-@SeedDecorators({MixWithSuiteName.class}) // See LUCENE-3995 for rationale.
+@TestMethodProviders({ JUnit3MethodProvider.class })
+@SeedDecorators({ MixWithSuiteName.class }) // See LUCENE-3995 for rationale.
 @ThreadLeakScope(ThreadLeakScope.Scope.SUITE)
 @ThreadLeakGroup(ThreadLeakGroup.Group.MAIN)
-@ThreadLeakAction({ThreadLeakAction.Action.WARN, ThreadLeakAction.Action.INTERRUPT})
+@ThreadLeakAction({ ThreadLeakAction.Action.WARN, ThreadLeakAction.Action.INTERRUPT })
 @ThreadLeakZombies(ThreadLeakZombies.Consequence.IGNORE_REMAINING_TESTS)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = 2 * 60 * 60 * 1000)
@@ -65,8 +64,12 @@ public abstract class RestClientTestCase extends RandomizedTest {
      * @param ignoreHeaders header keys to be ignored as they are not part of default nor request headers, yet they
      *                      will be part of the actual ones
      */
-    protected static void assertHeaders(final Header[] defaultHeaders, final Header[] requestHeaders,
-                                        final Header[] actualHeaders, final Set<String> ignoreHeaders) {
+    protected static void assertHeaders(
+        final Header[] defaultHeaders,
+        final Header[] requestHeaders,
+        final Header[] actualHeaders,
+        final Set<String> ignoreHeaders
+    ) {
         final Map<String, List<String>> expectedHeaders = new HashMap<>();
         final Set<String> requestHeaderKeys = new HashSet<>();
         for (final Header header : requestHeaders) {

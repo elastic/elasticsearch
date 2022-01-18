@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
@@ -18,11 +19,20 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isExact;
 public class Order extends Expression {
 
     public enum OrderDirection {
-        ASC, DESC
+        ASC,
+        DESC
     }
 
     public enum NullsPosition {
-        FIRST, LAST;
+        FIRST,
+        LAST,
+        /**
+         * Nulls position has not been specified by the user and an appropriate default will be used.
+         *
+         * The default values are chosen such that it stays compatible with previous behavior. Unfortunately, this results in
+         * inconsistencies across different types of queries (see https://github.com/elastic/elasticsearch/issues/77068).
+         */
+        ANY;
     }
 
     private final Expression child;
@@ -33,7 +43,7 @@ public class Order extends Expression {
         super(source, singletonList(child));
         this.child = child;
         this.direction = direction;
-        this.nulls = nulls == null ? (direction == OrderDirection.DESC ? NullsPosition.FIRST : NullsPosition.LAST) : nulls;
+        this.nulls = nulls == null ? NullsPosition.ANY : nulls;
     }
 
     @Override
@@ -58,9 +68,6 @@ public class Order extends Expression {
 
     @Override
     public Order replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
         return new Order(source(), newChildren.get(0), direction, nulls);
     }
 
@@ -97,8 +104,6 @@ public class Order extends Expression {
         }
 
         Order other = (Order) obj;
-        return Objects.equals(direction, other.direction)
-                && Objects.equals(nulls, other.nulls)
-                && Objects.equals(child, other.child);
+        return Objects.equals(direction, other.direction) && Objects.equals(nulls, other.nulls) && Objects.equals(child, other.child);
     }
 }

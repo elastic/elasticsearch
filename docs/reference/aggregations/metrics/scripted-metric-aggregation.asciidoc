@@ -1,7 +1,13 @@
 [[search-aggregations-metrics-scripted-metric-aggregation]]
-=== Scripted Metric Aggregation
+=== Scripted metric aggregation
+++++
+<titleabbrev>Scripted metric</titleabbrev>
+++++
 
 A metric aggregation that executes using scripts to provide a metric output.
+
+WARNING: Using scripts can result in slower search speeds. See
+<<scripts-and-search-speed>>.
 
 Example:
 
@@ -9,19 +15,19 @@ Example:
 --------------------------------------------------
 POST ledger/_search?size=0
 {
-    "query" : {
-        "match_all" : {}
-    },
-    "aggs": {
-        "profit": {
-            "scripted_metric": {
-                "init_script" : "state.transactions = []", <1>
-                "map_script" : "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)",
-                "combine_script" : "double profit = 0; for (t in state.transactions) { profit += t } return profit",
-                "reduce_script" : "double profit = 0; for (a in states) { profit += a } return profit"
-            }
-        }
+  "query": {
+    "match_all": {}
+  },
+  "aggs": {
+    "profit": {
+      "scripted_metric": {
+        "init_script": "state.transactions = []", <1>
+        "map_script": "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)",
+        "combine_script": "double profit = 0; for (t in state.transactions) { profit += t } return profit",
+        "reduce_script": "double profit = 0; for (a in states) { profit += a } return profit"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:ledger]
@@ -35,13 +41,13 @@ The response for the above aggregation:
 [source,console-result]
 --------------------------------------------------
 {
-    "took": 218,
-    ...
-    "aggregations": {
-        "profit": {
-            "value": 240.0
-        }
-   }
+  "took": 218,
+  ...
+  "aggregations": {
+    "profit": {
+      "value": 240.0
+    }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 218/"took": $body.took/]
@@ -53,27 +59,27 @@ The above example can also be specified using stored scripts as follows:
 --------------------------------------------------
 POST ledger/_search?size=0
 {
-    "aggs": {
-        "profit": {
-            "scripted_metric": {
-                "init_script" : {
-                    "id": "my_init_script"
-                },
-                "map_script" : {
-                    "id": "my_map_script"
-                },
-                "combine_script" : {
-                    "id": "my_combine_script"
-                },
-                "params": {
-                    "field": "amount" <1>
-                },
-                "reduce_script" : {
-                    "id": "my_reduce_script"
-                }
-            }
+  "aggs": {
+    "profit": {
+      "scripted_metric": {
+        "init_script": {
+          "id": "my_init_script"
+        },
+        "map_script": {
+          "id": "my_map_script"
+        },
+        "combine_script": {
+          "id": "my_combine_script"
+        },
+        "params": {
+          "field": "amount"           <1>
+        },
+        "reduce_script": {
+          "id": "my_reduce_script"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:ledger,stored_scripted_metric_script]
@@ -87,13 +93,13 @@ Verify this response as well but in a hidden block.
 [source,console-result]
 --------------------------------------------------
 {
-    "took": 218,
-    ...
-    "aggregations": {
-        "profit": {
-            "value": 240.0
-        }
-   }
+  "took": 218,
+  ...
+  "aggregations": {
+    "profit": {
+      "value": 240.0
+    }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 218/"took": $body.took/]
@@ -247,13 +253,13 @@ produce the response:
 [source,js]
 --------------------------------------------------
 {
-    ...
+  ...
 
-    "aggregations": {
-        "profit": {
-            "value": 170
-        }
-   }
+  "aggregations": {
+    "profit": {
+      "value": 170
+    }
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE

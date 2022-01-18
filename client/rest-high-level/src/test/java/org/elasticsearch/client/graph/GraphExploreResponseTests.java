@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.graph;
 
@@ -22,9 +11,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.xpack.graph.Connection.ConnectionId;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -35,8 +24,9 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GraphExploreResponseTests extends
-    AbstractResponseTestCase<org.elasticsearch.protocol.xpack.graph.GraphExploreResponse, GraphExploreResponse> {
+public class GraphExploreResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.protocol.xpack.graph.GraphExploreResponse,
+    GraphExploreResponse> {
 
     @Override
     protected org.elasticsearch.protocol.xpack.graph.GraphExploreResponse createServerTestInstance(XContentType xContentType) {
@@ -50,61 +40,72 @@ public class GraphExploreResponseTests extends
         long overallTookInMillis = randomNonNegativeLong();
         Map<org.elasticsearch.protocol.xpack.graph.Vertex.VertexId, org.elasticsearch.protocol.xpack.graph.Vertex> vertices =
             new HashMap<>();
-        Map<ConnectionId,
-            org.elasticsearch.protocol.xpack.graph.Connection> connections = new HashMap<>();
-        ShardOperationFailedException [] failures = new ShardOperationFailedException [numFailures];
+        Map<ConnectionId, org.elasticsearch.protocol.xpack.graph.Connection> connections = new HashMap<>();
+        ShardOperationFailedException[] failures = new ShardOperationFailedException[numFailures];
         for (int i = 0; i < failures.length; i++) {
             failures[i] = new ShardSearchFailure(new ElasticsearchException("an error"));
         }
 
-        //Create random set of vertices
+        // Create random set of vertices
         for (int i = 0; i < numItems; i++) {
-            org.elasticsearch.protocol.xpack.graph.Vertex v = new org.elasticsearch.protocol.xpack.graph.Vertex("field1",
-                randomAlphaOfLength(5), randomDouble(), 0,
-                    showDetails? randomIntBetween(100, 200):0,
-                    showDetails? randomIntBetween(1, 100):0);
+            org.elasticsearch.protocol.xpack.graph.Vertex v = new org.elasticsearch.protocol.xpack.graph.Vertex(
+                "field1",
+                randomAlphaOfLength(5),
+                randomDouble(),
+                0,
+                showDetails ? randomIntBetween(100, 200) : 0,
+                showDetails ? randomIntBetween(1, 100) : 0
+            );
             vertices.put(v.getId(), v);
         }
 
-        //Wire up half the vertices randomly
-        org.elasticsearch.protocol.xpack.graph.Vertex[] vs =
-            vertices.values().toArray(new org.elasticsearch.protocol.xpack.graph.Vertex[vertices.size()]);
-        for (int i = 0; i < numItems/2; i++) {
-            org.elasticsearch.protocol.xpack.graph.Vertex v1 = vs[randomIntBetween(0, vs.length-1)];
-            org.elasticsearch.protocol.xpack.graph.Vertex v2 = vs[randomIntBetween(0, vs.length-1)];
-            if(v1 != v2) {
-                org.elasticsearch.protocol.xpack.graph.Connection conn = new org.elasticsearch.protocol.xpack.graph.Connection(v1, v2,
-                    randomDouble(), randomLongBetween(1, 10));
+        // Wire up half the vertices randomly
+        org.elasticsearch.protocol.xpack.graph.Vertex[] vs = vertices.values()
+            .toArray(new org.elasticsearch.protocol.xpack.graph.Vertex[vertices.size()]);
+        for (int i = 0; i < numItems / 2; i++) {
+            org.elasticsearch.protocol.xpack.graph.Vertex v1 = vs[randomIntBetween(0, vs.length - 1)];
+            org.elasticsearch.protocol.xpack.graph.Vertex v2 = vs[randomIntBetween(0, vs.length - 1)];
+            if (v1 != v2) {
+                org.elasticsearch.protocol.xpack.graph.Connection conn = new org.elasticsearch.protocol.xpack.graph.Connection(
+                    v1,
+                    v2,
+                    randomDouble(),
+                    randomLongBetween(1, 10)
+                );
                 connections.put(conn.getId(), conn);
             }
         }
-        return new org.elasticsearch.protocol.xpack.graph.GraphExploreResponse(overallTookInMillis, timedOut, failures,
-            vertices, connections, showDetails);
+        return new org.elasticsearch.protocol.xpack.graph.GraphExploreResponse(
+            overallTookInMillis,
+            timedOut,
+            failures,
+            vertices,
+            connections,
+            showDetails
+        );
     }
-
 
     private static org.elasticsearch.protocol.xpack.graph.GraphExploreResponse createTestInstanceWithFailures() {
         return createInstance(randomIntBetween(1, 128));
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.protocol.xpack.graph.GraphExploreResponse serverTestInstance,
-                                   GraphExploreResponse clientInstance) {
+    protected void assertInstances(
+        org.elasticsearch.protocol.xpack.graph.GraphExploreResponse serverTestInstance,
+        GraphExploreResponse clientInstance
+    ) {
         Assert.assertThat(serverTestInstance.getTook(), equalTo(clientInstance.getTook()));
         Assert.assertThat(serverTestInstance.isTimedOut(), equalTo(clientInstance.isTimedOut()));
 
-        Comparator<org.elasticsearch.protocol.xpack.graph.Connection> serverComparator =
-            Comparator.comparing(o -> o.getId().toString());
-        org.elasticsearch.protocol.xpack.graph.Connection[] serverConns =
-            serverTestInstance.getConnections().toArray(new org.elasticsearch.protocol.xpack.graph.Connection[0]);
-        Comparator<Connection> clientComparator =
-            Comparator.comparing(o -> o.getId().toString());
-        Connection[] clientConns =
-            clientInstance.getConnections().toArray(new Connection[0]);
+        Comparator<org.elasticsearch.protocol.xpack.graph.Connection> serverComparator = Comparator.comparing(o -> o.getId().toString());
+        org.elasticsearch.protocol.xpack.graph.Connection[] serverConns = serverTestInstance.getConnections()
+            .toArray(new org.elasticsearch.protocol.xpack.graph.Connection[0]);
+        Comparator<Connection> clientComparator = Comparator.comparing(o -> o.getId().toString());
+        Connection[] clientConns = clientInstance.getConnections().toArray(new Connection[0]);
         Arrays.sort(serverConns, serverComparator);
         Arrays.sort(clientConns, clientComparator);
         assertThat(serverConns.length, equalTo(clientConns.length));
-        for (int i = 0; i < clientConns.length ; i++) {
+        for (int i = 0; i < clientConns.length; i++) {
             org.elasticsearch.protocol.xpack.graph.Connection serverConn = serverConns[i];
             Connection clientConn = clientConns[i];
             // String rep since they are different classes
@@ -115,10 +116,10 @@ public class GraphExploreResponseTests extends
             assertThat(serverConn.getWeight(), equalTo(clientConn.getWeight()));
         }
 
-        //Sort the vertices lists before equality test (map insertion sequences can cause order differences)
+        // Sort the vertices lists before equality test (map insertion sequences can cause order differences)
         Comparator<org.elasticsearch.protocol.xpack.graph.Vertex> serverVertexComparator = Comparator.comparing(o -> o.getId().toString());
-        org.elasticsearch.protocol.xpack.graph.Vertex[] serverVertices =
-            serverTestInstance.getVertices().toArray(new org.elasticsearch.protocol.xpack.graph.Vertex[0]);
+        org.elasticsearch.protocol.xpack.graph.Vertex[] serverVertices = serverTestInstance.getVertices()
+            .toArray(new org.elasticsearch.protocol.xpack.graph.Vertex[0]);
         Comparator<Vertex> clientVertexComparator = Comparator.comparing(o -> o.getId().toString());
         Vertex[] clientVerticies = clientInstance.getVertices().toArray(new Vertex[0]);
         Arrays.sort(serverVertices, serverVertexComparator);

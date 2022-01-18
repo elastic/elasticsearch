@@ -5,7 +5,7 @@ _Character filters_ are used to preprocess the stream of characters before it
 is passed to the <<analysis-tokenizers,tokenizer>>.
 
 A character filter receives the original text as a stream of characters and
-can transform the stream by adding, removing, or changing characters.  For
+can transform the stream by adding, removing, or changing characters. For
 instance, a character filter could be used to convert Hindu-Arabic numerals
 (٠‎١٢٣٤٥٦٧٨‎٩‎) into their Arabic-Latin equivalents (0123456789), or to strip HTML
 elements like `<b>` from the stream.

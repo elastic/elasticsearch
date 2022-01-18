@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
@@ -17,7 +18,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
-    
+
     public enum NameExtractor {
         // for the moment we'll use no specific Locale, but we might consider introducing a Locale parameter, just like the timeZone one
         DAY_NAME(time -> time.format(DAY_NAME_FORMATTER)),
@@ -37,11 +38,10 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
             return apply.apply(millis.withZoneSameInstant(ZoneId.of(tzId)));
         }
     }
-    
+
     public static final String NAME = "ndt";
     private static final DateTimeFormatter DAY_NAME_FORMATTER = DateTimeFormatter.ofPattern("EEEE", Locale.ROOT);
     private static final DateTimeFormatter MONTH_NAME_FORMATTER = DateTimeFormatter.ofPattern("MMMM", Locale.ROOT);
-
 
     private final NameExtractor extractor;
 
@@ -85,8 +85,7 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
             return false;
         }
         NamedDateTimeProcessor other = (NamedDateTimeProcessor) obj;
-        return Objects.equals(extractor, other.extractor)
-                && Objects.equals(zoneId(), other.zoneId());
+        return Objects.equals(extractor, other.extractor) && Objects.equals(zoneId(), other.zoneId());
     }
 
     @Override

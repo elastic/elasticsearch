@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport.filter;
 
 import io.netty.handler.ipfilter.IpFilterRule;
 import io.netty.handler.ipfilter.IpFilterRuleType;
-import org.elasticsearch.common.SuppressForbidden;
+
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -118,7 +120,6 @@ final class PatternRule implements IpFilterRule {
             return false;
         }
     }
-
 
     @Override
     public boolean matches(InetSocketAddress remoteAddress) {

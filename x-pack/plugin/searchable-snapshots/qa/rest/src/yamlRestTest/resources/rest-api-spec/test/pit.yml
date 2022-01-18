@@ -1,0 +1,143 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: docs
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        body:
+          - index:
+              _index: docs
+              _id:    1
+          - field: foo
+          - index:
+              _index: docs
+              _id:    2
+          - field: bar
+          - index:
+              _index: docs
+              _id:    3
+          - field: baz
+
+  - do:
+      snapshot.create_repository:
+        repository: repository-fs
+        body:
+          type: fs
+          settings:
+            location: "repository-fs"
+
+  # Remove the snapshot if a previous test failed to delete it.
+  # Useful for third party tests that runs the test against a real external service.
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
+  - do:
+      snapshot.create:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+
+  - do:
+      indices.delete:
+        index: docs
+
+---
+"Tests searches vs default-storage index":
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        body:
+          index: docs
+          renamed_index: docs-default-storage
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      search:
+        index: docs-default-storage
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 3 }
+
+  - do:
+      open_point_in_time:
+        index: docs-default-storage
+        keep_alive: 5m
+  - set: {id: point_in_time_id}
+
+  - do:
+      search:
+        body:
+          pit:
+            id: "$point_in_time_id"
+            keep_alive: 1m
+
+  - match: { hits.total.value: 3 }
+
+  - do:
+      close_point_in_time:
+        body:
+          id: "$point_in_time_id"
+
+
+---
+"Tests searches vs shared-cache index":
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        storage: shared_cache
+        body:
+          index: docs
+          renamed_index: docs-shared-cache
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      search:
+        index: docs-shared-cache
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 3 }
+
+  - do:
+      open_point_in_time:
+        index: docs-shared-cache
+        keep_alive: 5m
+  - set: {id: point_in_time_id}
+
+  - do:
+      search:
+        body:
+          pit:
+            id: "$point_in_time_id"
+            keep_alive: 1m
+
+  - match: { hits.total.value: 3 }
+
+  - do:
+      close_point_in_time:
+        body:
+          id: "$point_in_time_id"
+

@@ -1,0 +1,35 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+/**
+ * This script sets up a local distribution.
+ * To install a local distribution run `localDistro`.
+ * The local distribution will be installed to
+ * build/distributions/local
+ * */
+import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.VersionProperties
+
+// gradle has an open issue of failing applying plugins in
+// precompiled script plugins (see https://github.com/gradle/gradle/issues/17004)
+// apply plugin:'elasticsearch.internal-distribution-download'
+
+elasticsearch_distributions {
+  local {
+    type = 'archive'
+    architecture = Architecture.current()
+  }
+}
+
+tasks.register('localDistro', Sync) {
+  from(elasticsearch_distributions.local)
+  into("build/distribution/local")
+  doLast {
+    logger.lifecycle("Elasticsearch distribution installed to ${destinationDir}/elasticsearch-${VersionProperties.elasticsearch}")
+  }
+}

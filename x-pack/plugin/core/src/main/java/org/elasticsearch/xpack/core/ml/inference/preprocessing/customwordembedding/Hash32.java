@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  * This Java port of CLD3 was derived from Google's CLD3 project at https://github.com/google/cld3
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding;
@@ -80,10 +81,8 @@ final class Hash32 {
     }
 
     private static int decodeFixed32(byte[] ptr, int offset) {
-        return Byte.toUnsignedInt(ptr[offset]) |
-            Byte.toUnsignedInt(ptr[offset + 1]) << 8 |
-            Byte.toUnsignedInt(ptr[offset + 2]) << 16 |
-            Byte.toUnsignedInt(ptr[offset + 3]) << 24;
+        return Byte.toUnsignedInt(ptr[offset]) | Byte.toUnsignedInt(ptr[offset + 1]) << 8 | Byte.toUnsignedInt(ptr[offset + 2]) << 16 | Byte
+            .toUnsignedInt(ptr[offset + 3]) << 24;
     }
 
 }

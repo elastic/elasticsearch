@@ -46,9 +46,6 @@ means that filters such as `master:false` which remove nodes from the chosen
 subset are only useful if they come after some other filters. When used on its
 own, `master:false` selects no nodes.
 
-NOTE: The `voting_only` role requires the {default-dist} of Elasticsearch and
-is not supported in the {oss-dist}.
-
 Here are some examples of the use of node filters with the
 <<cluster-nodes-info,Nodes Info>> APIs.
 

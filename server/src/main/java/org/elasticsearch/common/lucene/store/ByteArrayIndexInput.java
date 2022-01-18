@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.lucene.store;
 
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.BitUtil;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -47,8 +37,7 @@ public class ByteArrayIndexInput extends IndexInput {
     }
 
     @Override
-    public void close() throws IOException {
-    }
+    public void close() throws IOException {}
 
     @Override
     public long getFilePointer() {
@@ -62,7 +51,7 @@ public class ByteArrayIndexInput extends IndexInput {
         } else if (l > length) {
             throw new EOFException("seek past EOF");
         }
-        pos = (int)l;
+        pos = (int) l;
     }
 
     @Override
@@ -73,10 +62,20 @@ public class ByteArrayIndexInput extends IndexInput {
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
         if (offset >= 0L && length >= 0L && offset + length <= this.length) {
-            return new ByteArrayIndexInput(sliceDescription, bytes, this.offset + (int)offset, (int)length);
+            return new ByteArrayIndexInput(sliceDescription, bytes, this.offset + (int) offset, (int) length);
         } else {
-            throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: offset=" + offset
-                    + ",length=" + length + ",fileLength=" + this.length + ": " + this);
+            throw new IllegalArgumentException(
+                "slice() "
+                    + sliceDescription
+                    + " out of bounds: offset="
+                    + offset
+                    + ",length="
+                    + length
+                    + ",fileLength="
+                    + this.length
+                    + ": "
+                    + this
+            );
         }
     }
 
@@ -95,5 +94,32 @@ public class ByteArrayIndexInput extends IndexInput {
         }
         System.arraycopy(bytes, this.offset + pos, b, offset, len);
         pos += len;
+    }
+
+    @Override
+    public short readShort() throws IOException {
+        try {
+            return (short) BitUtil.VH_LE_SHORT.get(bytes, pos);
+        } finally {
+            pos += Short.BYTES;
+        }
+    }
+
+    @Override
+    public int readInt() throws IOException {
+        try {
+            return (int) BitUtil.VH_LE_INT.get(bytes, pos);
+        } finally {
+            pos += Integer.BYTES;
+        }
+    }
+
+    @Override
+    public long readLong() throws IOException {
+        try {
+            return (long) BitUtil.VH_LE_LONG.get(bytes, pos);
+        } finally {
+            pos += Long.BYTES;
+        }
     }
 }

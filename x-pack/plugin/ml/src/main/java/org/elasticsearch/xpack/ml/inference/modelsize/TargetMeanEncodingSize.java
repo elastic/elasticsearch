@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.inference.modelsize;
 
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncoding;
 
 import java.io.IOException;
@@ -20,7 +21,7 @@ import java.util.stream.Stream;
 
 import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.ml.inference.modelsize.SizeEstimatorHelper.sizeOfHashMap;
 import static org.elasticsearch.xpack.ml.inference.modelsize.SizeEstimatorHelper.sizeOfString;
 
@@ -29,7 +30,7 @@ public class TargetMeanEncodingSize implements PreprocessorSize {
     private static final ConstructingObjectParser<TargetMeanEncodingSize, Void> PARSER = new ConstructingObjectParser<>(
         "target_mean_encoding_size",
         false,
-        a -> new TargetMeanEncodingSize((Integer)a[0], (Integer)a[1], (List<Integer>)a[2])
+        a -> new TargetMeanEncodingSize((Integer) a[0], (Integer) a[1], (List<Integer>) a[2])
     );
     static {
         PARSER.declareInt(constructorArg(), FIELD_LENGTH);
@@ -84,9 +85,9 @@ public class TargetMeanEncodingSize implements PreprocessorSize {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TargetMeanEncodingSize that = (TargetMeanEncodingSize) o;
-        return fieldLength == that.fieldLength &&
-            featureNameLength == that.featureNameLength &&
-            Arrays.equals(fieldValueLengths, that.fieldValueLengths);
+        return fieldLength == that.fieldLength
+            && featureNameLength == that.featureNameLength
+            && Arrays.equals(fieldValueLengths, that.fieldValueLengths);
     }
 
     @Override

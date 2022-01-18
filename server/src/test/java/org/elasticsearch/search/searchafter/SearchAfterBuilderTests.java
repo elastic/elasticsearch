@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.searchafter;
@@ -29,21 +18,20 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.Collections;
 
 import static org.elasticsearch.search.searchafter.SearchAfterBuilder.extractSortType;
@@ -59,38 +47,19 @@ public class SearchAfterBuilderTests extends ESTestCase {
         SearchAfterBuilder searchAfterBuilder = new SearchAfterBuilder();
         Object[] values = new Object[numSearchFrom];
         for (int i = 0; i < numSearchFrom; i++) {
-            int branch = randomInt(9);
+            int branch = randomInt(10);
             switch (branch) {
-                case 0:
-                    values[i] = randomInt();
-                    break;
-                case 1:
-                    values[i] = randomFloat();
-                    break;
-                case 2:
-                    values[i] = randomLong();
-                    break;
-                case 3:
-                    values[i] = randomDouble();
-                    break;
-                case 4:
-                    values[i] = randomAlphaOfLengthBetween(5, 20);
-                    break;
-                case 5:
-                    values[i] = randomBoolean();
-                    break;
-                case 6:
-                    values[i] = randomByte();
-                    break;
-                case 7:
-                    values[i] = randomShort();
-                    break;
-                case 8:
-                    values[i] = new Text(randomAlphaOfLengthBetween(5, 20));
-                    break;
-                case 9:
-                    values[i] = null;
-                    break;
+                case 0 -> values[i] = randomInt();
+                case 1 -> values[i] = randomFloat();
+                case 2 -> values[i] = randomLong();
+                case 3 -> values[i] = randomDouble();
+                case 4 -> values[i] = randomAlphaOfLengthBetween(5, 20);
+                case 5 -> values[i] = randomBoolean();
+                case 6 -> values[i] = randomByte();
+                case 7 -> values[i] = randomShort();
+                case 8 -> values[i] = new Text(randomAlphaOfLengthBetween(5, 20));
+                case 9 -> values[i] = null;
+                case 10 -> values[i] = randomBigInteger();
             }
         }
         searchAfterBuilder.setSortValues(values);
@@ -109,36 +78,16 @@ public class SearchAfterBuilderTests extends ESTestCase {
         for (int i = 0; i < numSearchAfter; i++) {
             int branch = randomInt(9);
             switch (branch) {
-                case 0:
-                    jsonBuilder.value(randomInt());
-                    break;
-                case 1:
-                    jsonBuilder.value(randomFloat());
-                    break;
-                case 2:
-                    jsonBuilder.value(randomLong());
-                    break;
-                case 3:
-                    jsonBuilder.value(randomDouble());
-                    break;
-                case 4:
-                    jsonBuilder.value(randomAlphaOfLengthBetween(5, 20));
-                    break;
-                case 5:
-                    jsonBuilder.value(randomBoolean());
-                    break;
-                case 6:
-                    jsonBuilder.value(randomByte());
-                    break;
-                case 7:
-                    jsonBuilder.value(randomShort());
-                    break;
-                case 8:
-                    jsonBuilder.value(new Text(randomAlphaOfLengthBetween(5, 20)));
-                    break;
-                case 9:
-                    jsonBuilder.nullValue();
-                    break;
+                case 0 -> jsonBuilder.value(randomInt());
+                case 1 -> jsonBuilder.value(randomFloat());
+                case 2 -> jsonBuilder.value(randomLong());
+                case 3 -> jsonBuilder.value(randomDouble());
+                case 4 -> jsonBuilder.value(randomAlphaOfLengthBetween(5, 20));
+                case 5 -> jsonBuilder.value(randomBoolean());
+                case 6 -> jsonBuilder.value(randomByte());
+                case 7 -> jsonBuilder.value(randomShort());
+                case 8 -> jsonBuilder.value(new Text(randomAlphaOfLengthBetween(5, 20)));
+                case 9 -> jsonBuilder.nullValue();
             }
         }
         jsonBuilder.endArray();
@@ -196,32 +145,13 @@ public class SearchAfterBuilderTests extends ESTestCase {
 
     public void testFromXContentIllegalType() throws Exception {
         for (XContentType type : XContentType.values()) {
-            // BIG_INTEGER
-            XContentBuilder xContent = XContentFactory.contentBuilder(type);
-            xContent.startObject()
-                .startArray("search_after")
-                .value(new BigInteger("9223372036854776000"))
-                .endArray()
-                .endObject();
-            try (XContentParser parser = createParser(xContent)) {
-                parser.nextToken();
-                parser.nextToken();
-                parser.nextToken();
-                IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> SearchAfterBuilder.fromXContent(parser));
-                assertThat(exc.getMessage(), containsString("BIG_INTEGER"));
-            }
-
             // BIG_DECIMAL
             // ignore json and yaml, they parse floating point numbers as floats/doubles
-            if (type == XContentType.JSON || type == XContentType.YAML) {
+            if (type.canonical() == XContentType.JSON || type.canonical() == XContentType.YAML) {
                 continue;
             }
-            xContent = XContentFactory.contentBuilder(type);
-            xContent.startObject()
-                .startArray("search_after")
-                    .value(new BigDecimal("9223372036854776003.3"))
-                .endArray()
-                .endObject();
+            XContentBuilder xContent = XContentFactory.contentBuilder(type);
+            xContent.startObject().startArray("search_after").value(new BigDecimal("9223372036854776003.3")).endArray().endObject();
             try (XContentParser parser = createParser(xContent)) {
                 parser.nextToken();
                 parser.nextToken();
@@ -287,8 +217,13 @@ public class SearchAfterBuilderTests extends ESTestCase {
             }
 
             @Override
-            public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
-                    int bucketSize, BucketedSort.ExtraData extra) {
+            public BucketedSort newBucketedSort(
+                BigArrays bigArrays,
+                SortOrder sortOrder,
+                DocValueFormat format,
+                int bucketSize,
+                BucketedSort.ExtraData extra
+            ) {
                 return null;
             }
         };

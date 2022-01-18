@@ -1,36 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -38,9 +27,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Information about a currently running task.
@@ -51,6 +39,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * snapshot information about currently running tasks.
  */
 public final class TaskInfo implements Writeable, ToXContentFragment {
+
+    static final String INCLUDE_CANCELLED_PARAM = "include_cancelled";
+
     private final TaskId taskId;
 
     private final String type;
@@ -67,12 +58,26 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
 
     private final boolean cancellable;
 
+    private final boolean cancelled;
+
     private final TaskId parentTaskId;
 
     private final Map<String, String> headers;
 
-    public TaskInfo(TaskId taskId, String type, String action, String description, Task.Status status, long startTime,
-                    long runningTimeNanos, boolean cancellable, TaskId parentTaskId, Map<String, String> headers) {
+    public TaskInfo(
+        TaskId taskId,
+        String type,
+        String action,
+        String description,
+        Task.Status status,
+        long startTime,
+        long runningTimeNanos,
+        boolean cancellable,
+        boolean cancelled,
+        TaskId parentTaskId,
+        Map<String, String> headers
+    ) {
+        assert cancellable || cancelled == false : "uncancellable task cannot be cancelled";
         this.taskId = taskId;
         this.type = type;
         this.action = action;
@@ -81,6 +86,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         this.startTime = startTime;
         this.runningTimeNanos = runningTimeNanos;
         this.cancellable = cancellable;
+        this.cancelled = cancelled;
         this.parentTaskId = parentTaskId;
         this.headers = headers;
     }
@@ -97,6 +103,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         startTime = in.readLong();
         runningTimeNanos = in.readLong();
         cancellable = in.readBoolean();
+        cancelled = in.readBoolean();
+        assert cancellable || cancelled == false : "uncancellable task cannot be cancelled";
         parentTaskId = TaskId.readFromStream(in);
         headers = in.readMap(StreamInput::readString, StreamInput::readString);
     }
@@ -111,6 +119,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         out.writeLong(startTime);
         out.writeLong(runningTimeNanos);
         out.writeBoolean(cancellable);
+        out.writeBoolean(cancelled);
         parentTaskId.writeTo(out);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
     }
@@ -165,6 +174,13 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
     }
 
     /**
+     * Returns true if the task supports cancellation and has been cancelled
+     */
+    public boolean isCancelled() {
+        return cancelled;
+    }
+
+    /**
      * Returns the parent task id
      */
     public TaskId getParentTaskId() {
@@ -196,11 +212,17 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         builder.field("running_time_in_nanos", runningTimeNanos);
         builder.field("cancellable", cancellable);
+
+        if (params.paramAsBoolean(INCLUDE_CANCELLED_PARAM, true) && cancellable) {
+            // don't record this on entries in the tasks index, since we can't add this field to the mapping dynamically and it's not
+            // important for completed tasks anyway
+            builder.field("cancelled", cancelled);
+        }
         if (parentTaskId.isSet()) {
             builder.field("parent_task_id", parentTaskId.toString());
         }
         builder.startObject("headers");
-        for(Map.Entry<String, String> attribute : headers.entrySet()) {
+        for (Map.Entry<String, String> attribute : headers.entrySet()) {
             builder.field(attribute.getKey(), attribute.getValue());
         }
         builder.endObject();
@@ -211,28 +233,40 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         return PARSER.apply(parser, null);
     }
 
-    public static final ConstructingObjectParser<TaskInfo, Void> PARSER = new ConstructingObjectParser<>(
-            "task_info", true, a -> {
-                int i = 0;
-                TaskId id = new TaskId((String) a[i++], (Long) a[i++]);
-                String type = (String) a[i++];
-                String action = (String) a[i++];
-                String description = (String) a[i++];
-                BytesReference statusBytes = (BytesReference) a[i++];
-                long startTime = (Long) a[i++];
-                long runningTimeNanos = (Long) a[i++];
-                boolean cancellable = (Boolean) a[i++];
-                String parentTaskIdString = (String) a[i++];
-                @SuppressWarnings("unchecked") Map<String, String> headers = (Map<String, String>) a[i++];
-                if (headers == null) {
-                    // This might happen if we are reading an old version of task info
-                    headers = Collections.emptyMap();
-                }
-                RawTaskStatus status = statusBytes == null ? null : new RawTaskStatus(statusBytes);
-                TaskId parentTaskId = parentTaskIdString == null ? TaskId.EMPTY_TASK_ID : new TaskId(parentTaskIdString);
-                return new TaskInfo(id, type, action, description, status, startTime, runningTimeNanos, cancellable, parentTaskId,
-                    headers);
-            });
+    public static final ConstructingObjectParser<TaskInfo, Void> PARSER = new ConstructingObjectParser<>("task_info", true, a -> {
+        int i = 0;
+        TaskId id = new TaskId((String) a[i++], (Long) a[i++]);
+        String type = (String) a[i++];
+        String action = (String) a[i++];
+        String description = (String) a[i++];
+        BytesReference statusBytes = (BytesReference) a[i++];
+        long startTime = (Long) a[i++];
+        long runningTimeNanos = (Long) a[i++];
+        boolean cancellable = (Boolean) a[i++];
+        boolean cancelled = a[i++] == Boolean.TRUE;
+        String parentTaskIdString = (String) a[i++];
+        @SuppressWarnings("unchecked")
+        Map<String, String> headers = (Map<String, String>) a[i++];
+        if (headers == null) {
+            // This might happen if we are reading an old version of task info
+            headers = Collections.emptyMap();
+        }
+        RawTaskStatus status = statusBytes == null ? null : new RawTaskStatus(statusBytes);
+        TaskId parentTaskId = parentTaskIdString == null ? TaskId.EMPTY_TASK_ID : new TaskId(parentTaskIdString);
+        return new TaskInfo(
+            id,
+            type,
+            action,
+            description,
+            status,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            cancelled,
+            parentTaskId,
+            headers
+        );
+    });
     static {
         // Note for the future: this has to be backwards and forwards compatible with all changes to the task storage format
         PARSER.declareString(constructorArg(), new ParseField("node"));
@@ -245,6 +279,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         PARSER.declareLong(constructorArg(), new ParseField("start_time_in_millis"));
         PARSER.declareLong(constructorArg(), new ParseField("running_time_in_nanos"));
         PARSER.declareBoolean(constructorArg(), new ParseField("cancellable"));
+        PARSER.declareBoolean(optionalConstructorArg(), new ParseField("cancelled"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("parent_task_id"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), new ParseField("headers"));
     }
@@ -262,19 +297,32 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         TaskInfo other = (TaskInfo) obj;
         return Objects.equals(taskId, other.taskId)
-                && Objects.equals(type, other.type)
-                && Objects.equals(action, other.action)
-                && Objects.equals(description, other.description)
-                && Objects.equals(startTime, other.startTime)
-                && Objects.equals(runningTimeNanos, other.runningTimeNanos)
-                && Objects.equals(parentTaskId, other.parentTaskId)
-                && Objects.equals(cancellable, other.cancellable)
-                && Objects.equals(status, other.status)
-                && Objects.equals(headers, other.headers);
+            && Objects.equals(type, other.type)
+            && Objects.equals(action, other.action)
+            && Objects.equals(description, other.description)
+            && Objects.equals(startTime, other.startTime)
+            && Objects.equals(runningTimeNanos, other.runningTimeNanos)
+            && Objects.equals(parentTaskId, other.parentTaskId)
+            && Objects.equals(cancellable, other.cancellable)
+            && Objects.equals(cancelled, other.cancelled)
+            && Objects.equals(status, other.status)
+            && Objects.equals(headers, other.headers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskId, type, action, description, startTime, runningTimeNanos, parentTaskId, cancellable, status, headers);
+        return Objects.hash(
+            taskId,
+            type,
+            action,
+            description,
+            startTime,
+            runningTimeNanos,
+            parentTaskId,
+            cancellable,
+            cancelled,
+            status,
+            headers
+        );
     }
 }

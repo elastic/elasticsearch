@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -9,13 +10,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * Initializes the {@link LifecycleExecutionState} for an index. This should be the first Step called on an index.
@@ -41,7 +43,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
         LifecycleExecutionState lifecycleState;
         try {
-            lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+            lifecycleState = indexMetadata.getLifecycleExecutionState();
             if (lifecycleState.getLifecycleDate() != null) {
                 return clusterState;
             }
@@ -49,10 +51,11 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
             if (shouldParseIndexName(indexMetadata.getSettings())) {
                 long parsedOriginationDate = parseIndexNameAndExtractDate(index.getName());
                 indexMetadataBuilder.settingsVersion(indexMetadata.getSettingsVersion() + 1)
-                    .settings(Settings.builder()
-                        .put(indexMetadata.getSettings())
-                        .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, parsedOriginationDate)
-                        .build()
+                    .settings(
+                        Settings.builder()
+                            .put(indexMetadata.getSettings())
+                            .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, parsedOriginationDate)
+                            .build()
                     );
             }
         } catch (Exception e) {
@@ -66,9 +69,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
         newCustomData.setIndexCreationDate(indexMetadata.getCreationDate());
         indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());
 
-        newClusterStateBuilder.metadata(
-            Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder)
-        );
+        newClusterStateBuilder.metadata(Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder).build(false));
         return newClusterStateBuilder.build();
     }
 

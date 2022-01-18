@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action.bulk;
@@ -17,13 +18,18 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.index.engine.AlreadyProcessedFollowingEngineException;
@@ -32,46 +38,94 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TransportBulkShardOperationsAction
-        extends TransportWriteAction<BulkShardOperationsRequest, BulkShardOperationsRequest, BulkShardOperationsResponse> {
+public class TransportBulkShardOperationsAction extends TransportWriteAction<
+    BulkShardOperationsRequest,
+    BulkShardOperationsRequest,
+    BulkShardOperationsResponse> {
 
     @Inject
     public TransportBulkShardOperationsAction(
-            final Settings settings,
-            final TransportService transportService,
-            final ClusterService clusterService,
-            final IndicesService indicesService,
-            final ThreadPool threadPool,
-            final ShardStateAction shardStateAction,
-            final ActionFilters actionFilters) {
+        final Settings settings,
+        final TransportService transportService,
+        final ClusterService clusterService,
+        final IndicesService indicesService,
+        final ThreadPool threadPool,
+        final ShardStateAction shardStateAction,
+        final ActionFilters actionFilters,
+        final IndexingPressure indexingPressure,
+        final SystemIndices systemIndices,
+        final ExecutorSelector executorSelector
+    ) {
         super(
-                settings,
-                BulkShardOperationsAction.NAME,
-                transportService,
-                clusterService,
-                indicesService,
-                threadPool,
-                shardStateAction,
-                actionFilters,
-                BulkShardOperationsRequest::new,
-                BulkShardOperationsRequest::new,
-                ThreadPool.Names.WRITE, false);
+            settings,
+            BulkShardOperationsAction.NAME,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            BulkShardOperationsRequest::new,
+            BulkShardOperationsRequest::new,
+            ExecutorSelector::getWriteExecutorForShard,
+            false,
+            indexingPressure,
+            systemIndices
+        );
     }
 
     @Override
-    protected void shardOperationOnPrimary(BulkShardOperationsRequest request, IndexShard primary,
-            ActionListener<PrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse>> listener) {
+    protected void doExecute(Task task, BulkShardOperationsRequest request, ActionListener<BulkShardOperationsResponse> listener) {
+        // This is executed on the follower coordinator node and we need to mark the bytes.
+        Releasable releasable = indexingPressure.markCoordinatingOperationStarted(
+            primaryOperationCount(request),
+            primaryOperationSize(request),
+            false
+        );
+        ActionListener<BulkShardOperationsResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
+        try {
+            super.doExecute(task, request, releasingListener);
+        } catch (Exception e) {
+            releasingListener.onFailure(e);
+        }
+    }
+
+    @Override
+    protected void dispatchedShardOperationOnPrimary(
+        BulkShardOperationsRequest request,
+        IndexShard primary,
+        ActionListener<PrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse>> listener
+    ) {
         if (logger.isTraceEnabled()) {
             logger.trace("index [{}] on the following primary shard {}", request.getOperations(), primary.routingEntry());
         }
-        ActionListener.completeWith(listener, () -> shardOperationOnPrimary(request.shardId(), request.getHistoryUUID(),
-            request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger));
+        ActionListener.completeWith(
+            listener,
+            () -> shardOperationOnPrimary(
+                request.shardId(),
+                request.getHistoryUUID(),
+                request.getOperations(),
+                request.getMaxSeqNoOfUpdatesOrDeletes(),
+                primary,
+                logger
+            )
+        );
+    }
+
+    @Override
+    protected long primaryOperationSize(BulkShardOperationsRequest request) {
+        return request.getOperations().stream().mapToLong(Translog.Operation::estimateSize).sum();
+    }
+
+    @Override
+    protected int primaryOperationCount(BulkShardOperationsRequest request) {
+        return request.getOperations().size();
     }
 
     public static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {
         final Translog.Operation operationWithPrimaryTerm;
         switch (operation.opType()) {
-            case INDEX:
+            case INDEX -> {
                 final Translog.Index index = (Translog.Index) operation;
                 operationWithPrimaryTerm = new Translog.Index(
                     index.id(),
@@ -80,38 +134,39 @@ public class TransportBulkShardOperationsAction
                     index.version(),
                     BytesReference.toBytes(index.source()),
                     index.routing(),
-                    index.getAutoGeneratedIdTimestamp());
-                break;
-            case DELETE:
+                    index.getAutoGeneratedIdTimestamp()
+                );
+            }
+            case DELETE -> {
                 final Translog.Delete delete = (Translog.Delete) operation;
-                operationWithPrimaryTerm = new Translog.Delete(
-                    delete.id(),
-                    delete.uid(),
-                    delete.seqNo(),
-                    primaryTerm,
-                    delete.version());
-                break;
-            case NO_OP:
+                operationWithPrimaryTerm = new Translog.Delete(delete.id(), delete.seqNo(), primaryTerm, delete.version());
+            }
+            case NO_OP -> {
                 final Translog.NoOp noOp = (Translog.NoOp) operation;
                 operationWithPrimaryTerm = new Translog.NoOp(noOp.seqNo(), primaryTerm, noOp.reason());
-                break;
-            default:
-                throw new IllegalStateException("unexpected operation type [" + operation.opType() + "]");
+            }
+            default -> throw new IllegalStateException("unexpected operation type [" + operation.opType() + "]");
         }
         return operationWithPrimaryTerm;
     }
 
     // public for testing purposes only
     public static WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
-            final ShardId shardId,
-            final String historyUUID,
-            final List<Translog.Operation> sourceOperations,
-            final long maxSeqNoOfUpdatesOrDeletes,
-            final IndexShard primary,
-            final Logger logger) throws IOException {
+        final ShardId shardId,
+        final String historyUUID,
+        final List<Translog.Operation> sourceOperations,
+        final long maxSeqNoOfUpdatesOrDeletes,
+        final IndexShard primary,
+        final Logger logger
+    ) throws IOException {
         if (historyUUID.equalsIgnoreCase(primary.getHistoryUUID()) == false) {
-            throw new IllegalStateException("unexpected history uuid, expected [" + historyUUID +
-                "], actual [" + primary.getHistoryUUID() + "], shard is likely restored from snapshot or force allocated");
+            throw new IllegalStateException(
+                "unexpected history uuid, expected ["
+                    + historyUUID
+                    + "], actual ["
+                    + primary.getHistoryUUID()
+                    + "], shard is likely restored from snapshot or force allocated"
+            );
         }
 
         assert maxSeqNoOfUpdatesOrDeletes >= SequenceNumbers.NO_OPS_PERFORMED : "invalid msu [" + maxSeqNoOfUpdatesOrDeletes + "]";
@@ -134,17 +189,26 @@ public class TransportBulkShardOperationsAction
                     // to guarantee the consistency between the primary and replicas, and between translog and Lucene index.
                     final AlreadyProcessedFollowingEngineException failure = (AlreadyProcessedFollowingEngineException) result.getFailure();
                     if (logger.isTraceEnabled()) {
-                        logger.trace("operation [{}] was processed before on following primary shard {} with existing term {}",
-                            targetOp, primary.routingEntry(), failure.getExistingPrimaryTerm());
+                        logger.trace(
+                            "operation [{}] was processed before on following primary shard {} with existing term {}",
+                            targetOp,
+                            primary.routingEntry(),
+                            failure.getExistingPrimaryTerm()
+                        );
                     }
                     assert failure.getSeqNo() == targetOp.seqNo() : targetOp.seqNo() + " != " + failure.getSeqNo();
                     if (failure.getExistingPrimaryTerm().isPresent()) {
                         appliedOperations.add(rewriteOperationWithPrimaryTerm(sourceOp, failure.getExistingPrimaryTerm().getAsLong()));
                     } else if (targetOp.seqNo() > primary.getLastKnownGlobalCheckpoint()) {
-                        assert false :
-                            "can't find primary_term for existing op=" + targetOp + " gcp=" + primary.getLastKnownGlobalCheckpoint();
-                        throw new IllegalStateException("can't find primary_term for existing op=" + targetOp +
-                            " global_checkpoint=" + primary.getLastKnownGlobalCheckpoint(), failure);
+                        assert false
+                            : "can't find primary_term for existing op=" + targetOp + " gcp=" + primary.getLastKnownGlobalCheckpoint();
+                        throw new IllegalStateException(
+                            "can't find primary_term for existing op="
+                                + targetOp
+                                + " global_checkpoint="
+                                + primary.getLastKnownGlobalCheckpoint(),
+                            failure
+                        );
                     }
                 } else {
                     assert false : "Only already-processed error should happen; op=[" + targetOp + "] error=[" + result.getFailure() + "]";
@@ -153,24 +217,46 @@ public class TransportBulkShardOperationsAction
             }
         }
         final BulkShardOperationsRequest replicaRequest = new BulkShardOperationsRequest(
-            shardId, historyUUID, appliedOperations, maxSeqNoOfUpdatesOrDeletes);
+            shardId,
+            historyUUID,
+            appliedOperations,
+            maxSeqNoOfUpdatesOrDeletes
+        );
         return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(), location, null, primary, logger);
     }
 
     @Override
-    protected WriteReplicaResult<BulkShardOperationsRequest> shardOperationOnReplica(
-            final BulkShardOperationsRequest request, final IndexShard replica) throws Exception {
-        if (logger.isTraceEnabled()) {
-            logger.trace("index [{}] on the following replica shard {}", request.getOperations(), replica.routingEntry());
-        }
-        return shardOperationOnReplica(request, replica, logger);
+    protected void dispatchedShardOperationOnReplica(
+        BulkShardOperationsRequest request,
+        IndexShard replica,
+        ActionListener<ReplicaResult> listener
+    ) {
+        ActionListener.completeWith(listener, () -> {
+            if (logger.isTraceEnabled()) {
+                logger.trace("index [{}] on the following replica shard {}", request.getOperations(), replica.routingEntry());
+            }
+            return shardOperationOnReplica(request, replica, logger);
+        });
+    }
+
+    @Override
+    protected long replicaOperationSize(BulkShardOperationsRequest request) {
+        return request.getOperations().stream().mapToLong(Translog.Operation::estimateSize).sum();
+    }
+
+    @Override
+    protected int replicaOperationCount(BulkShardOperationsRequest request) {
+        return request.getOperations().size();
     }
 
     // public for testing purposes only
     public static WriteReplicaResult<BulkShardOperationsRequest> shardOperationOnReplica(
-        final BulkShardOperationsRequest request, final IndexShard replica, final Logger logger) throws IOException {
-        assert replica.getMaxSeqNoOfUpdatesOrDeletes() >= request.getMaxSeqNoOfUpdatesOrDeletes() :
-            "mus on replica [" + replica + "] < mus of request [" + request.getMaxSeqNoOfUpdatesOrDeletes() + "]";
+        final BulkShardOperationsRequest request,
+        final IndexShard replica,
+        final Logger logger
+    ) throws IOException {
+        assert replica.getMaxSeqNoOfUpdatesOrDeletes() >= request.getMaxSeqNoOfUpdatesOrDeletes()
+            : "mus on replica [" + replica + "] < mus of request [" + request.getMaxSeqNoOfUpdatesOrDeletes() + "]";
         Translog.Location location = null;
         for (final Translog.Operation operation : request.getOperations()) {
             final Engine.Result result = replica.applyTranslogOperation(operation, Engine.Operation.Origin.REPLICA);

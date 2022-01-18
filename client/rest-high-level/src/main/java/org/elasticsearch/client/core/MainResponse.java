@@ -1,38 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.core;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Objects;
 
 public class MainResponse {
 
-    private static final ConstructingObjectParser<MainResponse, Void> PARSER =
-        new ConstructingObjectParser<>(MainResponse.class.getName(), true,
-            args -> {
-                 return new MainResponse((String) args[0], (Version) args[1], (String) args[2], (String) args[3], (String) args[4]);
-            }
-        );
+    private static final ConstructingObjectParser<MainResponse, Void> PARSER = new ConstructingObjectParser<>(
+        MainResponse.class.getName(),
+        true,
+        args -> { return new MainResponse((String) args[0], (Version) args[1], (String) args[2], (String) args[3], (String) args[4]); }
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("name"));
@@ -86,11 +74,11 @@ public class MainResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MainResponse that = (MainResponse) o;
-        return nodeName.equals(that.nodeName) &&
-            version.equals(that.version) &&
-            clusterName.equals(that.clusterName) &&
-            clusterUuid.equals(that.clusterUuid) &&
-            tagline.equals(that.tagline);
+        return nodeName.equals(that.nodeName)
+            && version.equals(that.version)
+            && clusterName.equals(that.clusterName)
+            && clusterUuid.equals(that.clusterUuid)
+            && tagline.equals(that.tagline);
     }
 
     @Override
@@ -99,13 +87,23 @@ public class MainResponse {
     }
 
     public static class Version {
-        private static final ConstructingObjectParser<Version, Void> PARSER =
-            new ConstructingObjectParser<>(Version.class.getName(), true,
-                args -> {
-                    return new Version((String) args[0], (String) args[1], (String) args[2], (String) args[3], (String) args[4],
-                        (Boolean) args[5], (String) args[6], (String) args[7], (String) args[8]);
-                }
-            );
+        private static final ConstructingObjectParser<Version, Void> PARSER = new ConstructingObjectParser<>(
+            Version.class.getName(),
+            true,
+            args -> {
+                return new Version(
+                    (String) args[0],
+                    (String) args[1],
+                    (String) args[2],
+                    (String) args[3],
+                    (String) args[4],
+                    (Boolean) args[5],
+                    (String) args[6],
+                    (String) args[7],
+                    (String) args[8]
+                );
+            }
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("number"));
@@ -128,8 +126,17 @@ public class MainResponse {
         private final String minimumWireCompatibilityVersion;
         private final String minimumIndexCompatibilityVersion;
 
-        public Version(String number, String buildFlavor, String buildType, String buildHash, String buildDate, boolean isSnapshot,
-            String luceneVersion, String minimumWireCompatibilityVersion, String minimumIndexCompatibilityVersion) {
+        public Version(
+            String number,
+            String buildFlavor,
+            String buildType,
+            String buildHash,
+            String buildDate,
+            boolean isSnapshot,
+            String luceneVersion,
+            String minimumWireCompatibilityVersion,
+            String minimumIndexCompatibilityVersion
+        ) {
             this.number = number;
             this.buildFlavor = buildFlavor;
             this.buildType = buildType;
@@ -182,21 +189,30 @@ public class MainResponse {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Version version = (Version) o;
-            return isSnapshot == version.isSnapshot &&
-                number.equals(version.number) &&
-                Objects.equals(buildFlavor, version.buildFlavor) &&
-                Objects.equals(buildType, version.buildType) &&
-                buildHash.equals(version.buildHash) &&
-                buildDate.equals(version.buildDate) &&
-                luceneVersion.equals(version.luceneVersion) &&
-                minimumWireCompatibilityVersion.equals(version.minimumWireCompatibilityVersion) &&
-                minimumIndexCompatibilityVersion.equals(version.minimumIndexCompatibilityVersion);
+            return isSnapshot == version.isSnapshot
+                && number.equals(version.number)
+                && Objects.equals(buildFlavor, version.buildFlavor)
+                && Objects.equals(buildType, version.buildType)
+                && buildHash.equals(version.buildHash)
+                && buildDate.equals(version.buildDate)
+                && luceneVersion.equals(version.luceneVersion)
+                && minimumWireCompatibilityVersion.equals(version.minimumWireCompatibilityVersion)
+                && minimumIndexCompatibilityVersion.equals(version.minimumIndexCompatibilityVersion);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(number, buildFlavor, buildType, buildHash, buildDate, isSnapshot, luceneVersion,
-                minimumWireCompatibilityVersion, minimumIndexCompatibilityVersion);
+            return Objects.hash(
+                number,
+                buildFlavor,
+                buildType,
+                buildHash,
+                buildDate,
+                isSnapshot,
+                luceneVersion,
+                minimumWireCompatibilityVersion,
+                minimumIndexCompatibilityVersion
+            );
         }
     }
 }

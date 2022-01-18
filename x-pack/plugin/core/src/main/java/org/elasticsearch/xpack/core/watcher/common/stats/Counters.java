@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.common.stats;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,13 +29,13 @@ public class Counters implements Writeable {
     private ObjectLongHashMap<String> counters = new ObjectLongHashMap<>();
 
     public Counters(StreamInput in) throws IOException {
-        int counters = in.readVInt();
-        for (int i = 0; i < counters; i++) {
+        int numCounters = in.readVInt();
+        for (int i = 0; i < numCounters; i++) {
             inc(in.readString(), in.readVLong());
         }
     }
 
-    public Counters(String ... names) {
+    public Counters(String... names) {
         for (String name : names) {
             set(name);
         }

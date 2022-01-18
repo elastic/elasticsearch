@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.nio;
@@ -44,7 +33,6 @@ import java.util.stream.Stream;
  */
 public class NioSelectorGroup implements NioGroup {
 
-
     private final List<NioSelector> dedicatedAcceptors;
     private final RoundRobinSupplier<NioSelector> acceptorSupplier;
 
@@ -62,8 +50,11 @@ public class NioSelectorGroup implements NioGroup {
      * @param eventHandlerFunction function for creating event handlers
      * @throws IOException occurs if there is a problem while opening a java.nio.Selector
      */
-    public NioSelectorGroup(ThreadFactory threadFactory, int selectorCount,
-                            Function<Supplier<NioSelector>, EventHandler> eventHandlerFunction) throws IOException {
+    public NioSelectorGroup(
+        ThreadFactory threadFactory,
+        int selectorCount,
+        Function<Supplier<NioSelector>, EventHandler> eventHandlerFunction
+    ) throws IOException {
         this(null, 0, threadFactory, selectorCount, eventHandlerFunction);
     }
 
@@ -79,8 +70,13 @@ public class NioSelectorGroup implements NioGroup {
      * @param eventHandlerFunction function for creating event handlers
      * @throws IOException occurs if there is a problem while opening a java.nio.Selector
      */
-    public NioSelectorGroup(ThreadFactory acceptorThreadFactory, int dedicatedAcceptorCount, ThreadFactory selectorThreadFactory,
-                            int selectorCount, Function<Supplier<NioSelector>, EventHandler> eventHandlerFunction) throws IOException {
+    public NioSelectorGroup(
+        ThreadFactory acceptorThreadFactory,
+        int dedicatedAcceptorCount,
+        ThreadFactory selectorThreadFactory,
+        int selectorCount,
+        Function<Supplier<NioSelector>, EventHandler> eventHandlerFunction
+    ) throws IOException {
         dedicatedAcceptors = new ArrayList<>(dedicatedAcceptorCount);
         selectors = new ArrayList<>(selectorCount);
 

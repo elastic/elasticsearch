@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.idp.action;
 
@@ -22,22 +23,29 @@ import java.util.stream.Collectors;
 /**
  * Transport action to remove a service provider from the IdP
  */
-public class TransportDeleteSamlServiceProviderAction
-    extends HandledTransportAction<DeleteSamlServiceProviderRequest, DeleteSamlServiceProviderResponse> {
+public class TransportDeleteSamlServiceProviderAction extends HandledTransportAction<
+    DeleteSamlServiceProviderRequest,
+    DeleteSamlServiceProviderResponse> {
 
     private final Logger logger = LogManager.getLogger();
     private final SamlServiceProviderIndex index;
 
     @Inject
-    public TransportDeleteSamlServiceProviderAction(TransportService transportService, ActionFilters actionFilters,
-                                                    SamlServiceProviderIndex index) {
+    public TransportDeleteSamlServiceProviderAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        SamlServiceProviderIndex index
+    ) {
         super(DeleteSamlServiceProviderAction.NAME, transportService, actionFilters, DeleteSamlServiceProviderRequest::new);
         this.index = index;
     }
 
     @Override
-    protected void doExecute(Task task, final DeleteSamlServiceProviderRequest request,
-                             final ActionListener<DeleteSamlServiceProviderResponse> listener) {
+    protected void doExecute(
+        Task task,
+        final DeleteSamlServiceProviderRequest request,
+        final ActionListener<DeleteSamlServiceProviderResponse> listener
+    ) {
         final String entityId = request.getEntityId();
         index.findByEntityId(entityId, ActionListener.wrap(matchingDocuments -> {
             if (matchingDocuments.isEmpty()) {
@@ -48,13 +56,21 @@ public class TransportDeleteSamlServiceProviderAction
                 assert existingDoc.docId != null : "Loaded document with no doc id";
                 assert existingDoc.entityId.equals(entityId) : "Loaded document with non-matching entity-id";
                 logger.info("Deleting Service Provider [{}]", existingDoc);
-                index.deleteDocument(docInfo.version, request.getRefreshPolicy(), ActionListener.wrap(
-                    deleteResponse -> listener.onResponse(new DeleteSamlServiceProviderResponse(deleteResponse, entityId)),
-                    listener::onFailure
-                ));
+                index.deleteDocument(
+                    docInfo.version,
+                    request.getRefreshPolicy(),
+                    ActionListener.wrap(
+                        deleteResponse -> listener.onResponse(new DeleteSamlServiceProviderResponse(deleteResponse, entityId)),
+                        listener::onFailure
+                    )
+                );
             } else {
-                logger.warn("Found multiple existing service providers in [{}] with entity id [{}] - [{}]",
-                    index, entityId, matchingDocuments.stream().map(d -> d.getDocument().docId).collect(Collectors.joining(",")));
+                logger.warn(
+                    "Found multiple existing service providers in [{}] with entity id [{}] - [{}]",
+                    index,
+                    entityId,
+                    matchingDocuments.stream().map(d -> d.getDocument().docId).collect(Collectors.joining(","))
+                );
                 listener.onFailure(new IllegalStateException("Multiple service providers exist with entity id [" + entityId + "]"));
             }
         }, listener::onFailure));

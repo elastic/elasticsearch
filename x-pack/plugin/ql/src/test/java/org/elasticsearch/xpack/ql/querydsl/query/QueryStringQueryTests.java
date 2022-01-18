@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.querydsl.query;
 
@@ -10,7 +11,6 @@ import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.StringQueryPredicate;
-import org.elasticsearch.xpack.ql.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -41,7 +41,6 @@ public class QueryStringQueryTests extends ESTestCase {
         final QueryStringQuery mmq = new QueryStringQuery(source, "eggplant", Collections.singletonMap("foo", 1.0f), mmqp);
         return (QueryStringQueryBuilder) mmq.asBuilder();
     }
-
 
     public void testToString() {
         final Source source = new Source(1, 1, StringUtils.EMPTY);

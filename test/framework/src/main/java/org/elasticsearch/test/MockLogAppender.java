@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test;
 
@@ -41,7 +30,7 @@ public class MockLogAppender extends AbstractAppender {
     private List<LoggingExpectation> expectations;
 
     public MockLogAppender() throws IllegalAccessException {
-        super("mock", RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
+        super("mock", RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, false);
         /*
          * We use a copy-on-write array list since log messages could be appended while we are setting up expectations. When that occurs,
          * we would run into a concurrent modification exception from the iteration over the expectations in #append, concurrent with a
@@ -133,18 +122,41 @@ public class MockLogAppender extends AbstractAppender {
         }
     }
 
+    public static class EventuallySeenEventExpectation extends SeenEventExpectation {
+
+        private volatile boolean expectSeen = false;
+
+        public EventuallySeenEventExpectation(String name, String logger, Level level, String message) {
+            super(name, logger, level, message);
+        }
+
+        public void setExpectSeen() {
+            expectSeen = true;
+        }
+
+        @Override
+        public void assertMatched() {
+            if (expectSeen) {
+                super.assertMatched();
+            } else {
+                assertThat("expected not to see " + name + " yet but did", saw, equalTo(false));
+            }
+        }
+    }
+
     public static class ExceptionSeenEventExpectation extends SeenEventExpectation {
 
         private final Class<? extends Exception> clazz;
         private final String exceptionMessage;
 
         public ExceptionSeenEventExpectation(
-                final String name,
-                final String logger,
-                final Level level,
-                final String message,
-                final Class<? extends Exception> clazz,
-                final String exceptionMessage) {
+            final String name,
+            final String logger,
+            final Level level,
+            final String message,
+            final Class<? extends Exception> clazz,
+            final String exceptionMessage
+        ) {
             super(name, logger, level, message);
             this.clazz = clazz;
             this.exceptionMessage = exceptionMessage;
@@ -153,8 +165,8 @@ public class MockLogAppender extends AbstractAppender {
         @Override
         public boolean innerMatch(final LogEvent event) {
             return event.getThrown() != null
-                    && event.getThrown().getClass() == clazz
-                    && event.getThrown().getMessage().equals(exceptionMessage);
+                && event.getThrown().getClass() == clazz
+                && event.getThrown().getMessage().equals(exceptionMessage);
         }
 
     }
@@ -164,20 +176,20 @@ public class MockLogAppender extends AbstractAppender {
         protected final String name;
         protected final String logger;
         protected final Level level;
-        protected final String pattern;
+        protected final Pattern pattern;
         volatile boolean saw;
 
         public PatternSeenEventExpectation(String name, String logger, Level level, String pattern) {
             this.name = name;
             this.logger = logger;
             this.level = level;
-            this.pattern = pattern;
+            this.pattern = Pattern.compile(pattern);
         }
 
         @Override
         public void match(LogEvent event) {
             if (event.getLevel().equals(level) && event.getLoggerName().equals(logger)) {
-                if (Pattern.matches(pattern, event.getMessage().getFormattedMessage())) {
+                if (pattern.matcher(event.getMessage().getFormattedMessage()).matches()) {
                     saw = true;
                 }
             }

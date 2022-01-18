@@ -1,0 +1,73 @@
+[[processors]]
+== Ingest processor reference
+++++
+<titleabbrev>Processor reference</titleabbrev>
+++++
+
+{es} includes several configurable processors. To get a list of available
+processors, use the <<cluster-nodes-info,nodes info>> API.
+
+[source,console]
+----
+GET _nodes/ingest?filter_path=nodes.*.ingest.processors
+----
+
+The pages in this section contain reference documentation for each processor.
+
+[discrete]
+[[ingest-process-plugins]]
+=== Processor plugins
+
+You can install additional processors as {plugins}/ingest.html[plugins].
+
+You must install any plugin processors on all nodes in your cluster. Otherwise,
+{es} will fail to create pipelines containing the processor.
+
+Mark a plugin as mandatory by setting `plugin.mandatory` in
+`elasticsearch.yml`. A node will fail to start if a mandatory plugin is not
+installed.
+
+[source,yaml]
+----
+plugin.mandatory: ingest-attachment
+----
+
+include::processors/append.asciidoc[]
+include::processors/bytes.asciidoc[]
+include::processors/circle.asciidoc[]
+include::processors/community-id.asciidoc[]
+include::processors/convert.asciidoc[]
+include::processors/csv.asciidoc[]
+include::processors/date.asciidoc[]
+include::processors/date-index-name.asciidoc[]
+include::processors/dissect.asciidoc[]
+include::processors/dot-expand.asciidoc[]
+include::processors/drop.asciidoc[]
+include::processors/enrich.asciidoc[]
+include::processors/fail.asciidoc[]
+include::processors/fingerprint.asciidoc[]
+include::processors/foreach.asciidoc[]
+include::processors/geoip.asciidoc[]
+include::processors/grok.asciidoc[]
+include::processors/gsub.asciidoc[]
+include::processors/html_strip.asciidoc[]
+include::processors/inference.asciidoc[]
+include::processors/join.asciidoc[]
+include::processors/json.asciidoc[]
+include::processors/kv.asciidoc[]
+include::processors/lowercase.asciidoc[]
+include::processors/network-direction.asciidoc[]
+include::processors/pipeline.asciidoc[]
+include::processors/registered-domain.asciidoc[]
+include::processors/remove.asciidoc[]
+include::processors/rename.asciidoc[]
+include::processors/script.asciidoc[]
+include::processors/set.asciidoc[]
+include::processors/set-security-user.asciidoc[]
+include::processors/sort.asciidoc[]
+include::processors/split.asciidoc[]
+include::processors/trim.asciidoc[]
+include::processors/uppercase.asciidoc[]
+include::processors/url-decode.asciidoc[]
+include::processors/uri-parts.asciidoc[]
+include::processors/user-agent.asciidoc[]

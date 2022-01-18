@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fetch.subphase;
@@ -22,13 +11,13 @@ package org.elasticsearch.search.fetch.subphase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
@@ -54,9 +43,14 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-.setQuery(boolQuery().must(matchAllQuery()).filter(boolQuery()
-                        .should(rangeQuery("number").lt(2).queryName("test1")).should(rangeQuery("number").gte(2).queryName("test2"))))
-                .get();
+            .setQuery(
+                boolQuery().must(matchAllQuery())
+                    .filter(
+                        boolQuery().should(rangeQuery("number").lt(2).queryName("test1"))
+                            .should(rangeQuery("number").gte(2).queryName("test2"))
+                    )
+            )
+            .get();
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("3") || hit.getId().equals("2")) {
@@ -70,10 +64,11 @@ public class MatchedQueriesIT extends ESIntegTestCase {
             }
         }
 
-        searchResponse = client().prepareSearch().setQuery(
-                boolQuery()
-                    .should(rangeQuery("number").lte(2).queryName("test1"))
-                    .should(rangeQuery("number").gt(2).queryName("test2"))).get();
+        searchResponse = client().prepareSearch()
+            .setQuery(
+                boolQuery().should(rangeQuery("number").lte(2).queryName("test1")).should(rangeQuery("number").gt(2).queryName("test2"))
+            )
+            .get();
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1") || hit.getId().equals("2")) {
@@ -98,10 +93,11 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .setPostFilter(boolQuery().should(
-                        termQuery("name", "test").queryName("name")).should(
-                        termQuery("title", "title1").queryName("title"))).get();
+            .setQuery(matchAllQuery())
+            .setPostFilter(
+                boolQuery().should(termQuery("name", "test").queryName("name")).should(termQuery("title", "title1").queryName("title"))
+            )
+            .get();
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1")) {
@@ -117,10 +113,11 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         }
 
         searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .setPostFilter(boolQuery()
-                        .should(termQuery("name", "test").queryName("name"))
-                        .should(termQuery("title", "title1").queryName("title"))).get();
+            .setQuery(matchAllQuery())
+            .setPostFilter(
+                boolQuery().should(termQuery("name", "test").queryName("name")).should(termQuery("title", "title1").queryName("title"))
+            )
+            .get();
 
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
@@ -147,8 +144,9 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(boolQuery().must(matchAllQuery()).filter(termsQuery("title", "title1", "title2", "title3").queryName("title")))
-                        .setPostFilter(termQuery("name", "test").queryName("name")).get();
+            .setQuery(boolQuery().must(matchAllQuery()).filter(termsQuery("title", "title1", "title2", "title3").queryName("title")))
+            .setPostFilter(termQuery("name", "test").queryName("name"))
+            .get();
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1") || hit.getId().equals("2") || hit.getId().equals("3")) {
@@ -161,8 +159,9 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         }
 
         searchResponse = client().prepareSearch()
-                .setQuery(termsQuery("title", "title1", "title2", "title3").queryName("title"))
-                .setPostFilter(matchQuery("name", "test").queryName("name")).get();
+            .setQuery(termsQuery("title", "title1", "title2", "title3").queryName("title"))
+            .setPostFilter(matchQuery("name", "test").queryName("name"))
+            .get();
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1") || hit.getId().equals("2") || hit.getId().equals("3")) {
@@ -183,7 +182,8 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(QueryBuilders.regexpQuery("title", "title1").queryName("regex")).get();
+            .setQuery(QueryBuilders.regexpQuery("title", "title1").queryName("regex"))
+            .get();
         assertHitCount(searchResponse, 1L);
 
         for (SearchHit hit : searchResponse.getHits()) {
@@ -204,7 +204,8 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(QueryBuilders.prefixQuery("title", "title").queryName("prefix")).get();
+            .setQuery(QueryBuilders.prefixQuery("title", "title").queryName("prefix"))
+            .get();
         assertHitCount(searchResponse, 1L);
 
         for (SearchHit hit : searchResponse.getHits()) {
@@ -225,7 +226,8 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(QueryBuilders.fuzzyQuery("title", "titel1").queryName("fuzzy")).get();
+            .setQuery(QueryBuilders.fuzzyQuery("title", "titel1").queryName("fuzzy"))
+            .get();
         assertHitCount(searchResponse, 1L);
 
         for (SearchHit hit : searchResponse.getHits()) {
@@ -246,7 +248,8 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(QueryBuilders.wildcardQuery("title", "titl*").queryName("wildcard")).get();
+            .setQuery(QueryBuilders.wildcardQuery("title", "titl*").queryName("wildcard"))
+            .get();
         assertHitCount(searchResponse, 1L);
 
         for (SearchHit hit : searchResponse.getHits()) {
@@ -267,7 +270,8 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(QueryBuilders.spanFirstQuery(QueryBuilders.spanTermQuery("title", "title1"), 10).queryName("span")).get();
+            .setQuery(QueryBuilders.spanFirstQuery(QueryBuilders.spanTermQuery("title", "title1"), 10).queryName("span"))
+            .get();
         assertHitCount(searchResponse, 1L);
 
         for (SearchHit hit : searchResponse.getHits()) {
@@ -295,13 +299,12 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         int iter = scaledRandomIntBetween(2, 10);
         for (int i = 0; i < iter; i++) {
             SearchResponse searchResponse = client().prepareSearch()
-                    .setQuery(
-                            boolQuery()
-                                    .minimumShouldMatch(1)
-                                    .should(queryStringQuery("dolor").queryName("dolor"))
-                                    .should(queryStringQuery("elit").queryName("elit"))
-                    )
-                    .get();
+                .setQuery(
+                    boolQuery().minimumShouldMatch(1)
+                        .should(queryStringQuery("dolor").queryName("dolor"))
+                        .should(queryStringQuery("elit").queryName("elit"))
+                )
+                .get();
 
             assertHitCount(searchResponse, 2L);
             for (SearchHit hit : searchResponse.getHits()) {
@@ -329,14 +332,9 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         BytesReference matchBytes = XContentHelper.toXContent(matchQueryBuilder, XContentType.JSON, false);
         TermQueryBuilder termQueryBuilder = termQuery("content", "amet").queryName("abc");
         BytesReference termBytes = XContentHelper.toXContent(termQueryBuilder, XContentType.JSON, false);
-        QueryBuilder[] queries = new QueryBuilder[]{
-                wrapperQuery(matchBytes),
-                constantScoreQuery(wrapperQuery(termBytes))
-        };
+        QueryBuilder[] queries = new QueryBuilder[] { wrapperQuery(matchBytes), constantScoreQuery(wrapperQuery(termBytes)) };
         for (QueryBuilder query : queries) {
-            SearchResponse searchResponse = client().prepareSearch()
-                    .setQuery(query)
-                    .get();
+            SearchResponse searchResponse = client().prepareSearch().setQuery(query).get();
             assertHitCount(searchResponse, 1L);
             assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("abc"));
         }

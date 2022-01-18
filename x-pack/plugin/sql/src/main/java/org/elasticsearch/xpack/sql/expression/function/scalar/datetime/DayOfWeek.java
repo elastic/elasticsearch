@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
@@ -16,7 +17,7 @@ import java.time.ZoneId;
  * Extract the day of the week from a datetime in non-ISO format. 1 is Sunday, 2 is Monday, etc.
  */
 public class DayOfWeek extends NonIsoDateTimeFunction {
-    
+
     public DayOfWeek(Source source, Expression field, ZoneId zoneId) {
         super(source, field, zoneId, NonIsoDateTimeExtractor.DAY_OF_WEEK);
     }

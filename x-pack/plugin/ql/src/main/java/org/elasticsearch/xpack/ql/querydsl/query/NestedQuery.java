@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.querydsl.query;
 
@@ -15,7 +16,6 @@ import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.AbstractMap;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,21 +60,21 @@ public class NestedQuery extends Query {
     }
 
     @Override
-    public boolean containsNestedField(String path, String field) {
-        boolean iContainThisField = this.path.equals(path) && fields.containsKey(field);
-        boolean myChildContainsThisField = child.containsNestedField(path, field);
+    public boolean containsNestedField(String otherPath, String field) {
+        boolean iContainThisField = this.path.equals(otherPath) && fields.containsKey(field);
+        boolean myChildContainsThisField = child.containsNestedField(otherPath, field);
         return iContainThisField || myChildContainsThisField;
     }
 
     @Override
-    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
-        if (false == this.path.equals(path)) {
+    public Query addNestedField(String otherPath, String field, String format, boolean hasDocValues) {
+        if (false == this.path.equals(otherPath)) {
             // I'm not at the right path so let my child query have a crack at it
-            Query rewrittenChild = child.addNestedField(path, field, format, hasDocValues);
+            Query rewrittenChild = child.addNestedField(otherPath, field, format, hasDocValues);
             if (rewrittenChild == child) {
                 return this;
             }
-            return new NestedQuery(source(), path, fields, rewrittenChild);
+            return new NestedQuery(source(), otherPath, fields, rewrittenChild);
         }
         if (fields.containsKey(field)) {
             // I already have the field, no rewriting needed
@@ -83,7 +83,7 @@ public class NestedQuery extends Query {
         Map<String, Map.Entry<Boolean, String>> newFields = new HashMap<>(fields.size() + 1);
         newFields.putAll(fields);
         newFields.put(field, new AbstractMap.SimpleImmutableEntry<>(hasDocValues, format));
-        return new NestedQuery(source(), path, unmodifiableMap(newFields), child);
+        return new NestedQuery(source(), otherPath, unmodifiableMap(newFields), child);
     }
 
     @Override
@@ -93,7 +93,7 @@ public class NestedQuery extends Query {
             return;
         }
 
-        //TODO: Add all filters in nested sorting when https://github.com/elastic/elasticsearch/issues/33079 is implemented
+        // TODO: Add all filters in nested sorting when https://github.com/elastic/elasticsearch/issues/33079 is implemented
         // Adding multiple filters to sort sections makes sense for nested queries where multiple conditions belong to the same
         // nested query. The current functionality creates one nested query for each condition involving a nested field.
         QueryBuilder childAsBuilder = child.asBuilder();
@@ -109,32 +109,21 @@ public class NestedQuery extends Query {
         // disable score
         NestedQueryBuilder query = nestedQuery(path, child.asBuilder(), ScoreMode.None);
 
-        if (!fields.isEmpty()) {
+        if (fields.isEmpty() == false) {
             InnerHitBuilder ihb = new InnerHitBuilder();
             ihb.setSize(0);
             ihb.setSize(MAX_INNER_HITS);
             ihb.setName(path + "_" + COUNTER++);
 
-            boolean noSourceNeeded = true;
-            List<String> sourceFields = new ArrayList<>();
-
             for (Map.Entry<String, Map.Entry<Boolean, String>> entry : fields.entrySet()) {
                 if (entry.getValue().getKey()) {
-                    ihb.addDocValueField(entry.getKey(), entry.getValue().getValue());
-                }
-                else {
-                    sourceFields.add(entry.getKey());
-                    noSourceNeeded = false;
+                    ihb.addFetchField(entry.getKey(), entry.getValue().getValue());
+                } else {
+                    ihb.addFetchField(entry.getKey());
                 }
             }
-
-            if (noSourceNeeded) {
-                ihb.setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
-                ihb.setStoredFieldNames(NO_STORED_FIELD);
-            }
-            else {
-                ihb.setFetchSourceContext(new FetchSourceContext(true, sourceFields.toArray(new String[sourceFields.size()]), null));
-            }
+            ihb.setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
+            ihb.setStoredFieldNames(NO_STORED_FIELD);
 
             query.innerHit(ihb);
         }
@@ -165,9 +154,7 @@ public class NestedQuery extends Query {
             return false;
         }
         NestedQuery other = (NestedQuery) obj;
-        return path.equals(other.path)
-                && fields.equals(other.fields)
-                && child.equals(other.child);
+        return path.equals(other.path) && fields.equals(other.fields) && child.equals(other.child);
     }
 
     @Override

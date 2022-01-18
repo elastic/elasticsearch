@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.security;
 
@@ -12,11 +13,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.cbor.CborXContent;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.xcontent.cbor.CborXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -60,13 +61,13 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             );
             expected.put("rows", Arrays.asList(Arrays.asList(1, 2, 3), Arrays.asList(4, 5, 6)));
 
-            assertResponse(expected, runSql(null, mode, "SELECT * FROM test ORDER BY a"));
+            assertResponse(expected, runSql(null, mode, "SELECT * FROM test ORDER BY a", false));
         }
 
         @Override
         public void expectMatchesAdmin(String adminSql, String user, String userSql) throws Exception {
             String mode = randomMode();
-            assertResponse(runSql(null, mode, adminSql), runSql(user, mode, userSql));
+            assertResponse(runSql(null, mode, adminSql, false), runSql(user, mode, userSql, false));
         }
 
         @Override
@@ -75,12 +76,14 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             Map<String, Object> adminResponse = runSql(
                 null,
                 new StringEntity(query(adminSql).mode(mode).fetchSize(1).toString(), ContentType.APPLICATION_JSON),
-                mode
+                mode,
+                false
             );
             Map<String, Object> otherResponse = runSql(
                 user,
                 new StringEntity(query(adminSql).mode(mode).fetchSize(1).toString(), ContentType.APPLICATION_JSON),
-                mode
+                mode,
+                false
             );
 
             String adminCursor = (String) adminResponse.remove("cursor");
@@ -92,12 +95,14 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
                 adminResponse = runSql(
                     null,
                     new StringEntity(cursor(adminCursor).mode(mode).toString(), ContentType.APPLICATION_JSON),
-                    mode
+                    mode,
+                    false
                 );
                 otherResponse = runSql(
                     user,
                     new StringEntity(cursor(otherCursor).mode(mode).toString(), ContentType.APPLICATION_JSON),
-                    mode
+                    mode,
+                    false
                 );
                 adminCursor = (String) adminResponse.remove("cursor");
                 otherCursor = (String) otherResponse.remove("cursor");
@@ -131,13 +136,14 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             }
             expected.put("rows", rows);
 
-            assertResponse(expected, runSql(user, mode, "DESCRIBE test"));
+            assertResponse(expected, runSql(user, mode, "DESCRIBE test", false));
         }
 
         @Override
         public void expectShowTables(List<String> tables, String user) throws Exception {
             String mode = randomMode();
             List<Object> columns = new ArrayList<>();
+            columns.add(columnInfo(mode, "catalog", "keyword", JDBCType.VARCHAR, 32766));
             columns.add(columnInfo(mode, "name", "keyword", JDBCType.VARCHAR, 32766));
             columns.add(columnInfo(mode, "type", "keyword", JDBCType.VARCHAR, 32766));
             columns.add(columnInfo(mode, "kind", "keyword", JDBCType.VARCHAR, 32766));
@@ -146,6 +152,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             List<List<String>> rows = new ArrayList<>();
             for (String table : tables) {
                 List<String> fields = new ArrayList<>();
+                fields.add("integTest"); // gradle defined
                 fields.add(table);
                 fields.add("TABLE");
                 fields.add("INDEX");
@@ -153,7 +160,8 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             }
             expected.put("rows", rows);
 
-            Map<String, Object> actual = runSql(user, mode, "SHOW TABLES");
+            // Allow system index deprecation warnings, because this may return `.security*` indices.
+            Map<String, Object> actual = runSql(user, mode, "SHOW TABLES", true);
             /*
              * Security automatically creates either a `.security` or a
              * `.security6` index but it might not have created the index
@@ -161,7 +169,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
              */
             @SuppressWarnings("unchecked")
             List<List<String>> rowsNoSecurity = ((List<List<String>>) actual.get("rows")).stream()
-                .filter(ls -> ls.get(0).startsWith(".security") == false)
+                .filter(ls -> ls.get(1).startsWith(".security") == false)
                 .collect(Collectors.toList());
             actual.put("rows", rowsNoSecurity);
             assertResponse(expected, actual);
@@ -169,21 +177,21 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void expectForbidden(String user, String sql) {
-            ResponseException e = expectThrows(ResponseException.class, () -> runSql(user, randomMode(), sql));
+            ResponseException e = expectThrows(ResponseException.class, () -> runSql(user, randomMode(), sql, false));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(e.getMessage(), containsString("unauthorized"));
         }
 
         @Override
         public void expectUnknownIndex(String user, String sql) {
-            ResponseException e = expectThrows(ResponseException.class, () -> runSql(user, randomMode(), sql));
+            ResponseException e = expectThrows(ResponseException.class, () -> runSql(user, randomMode(), sql, false));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(e.getMessage(), containsString("Unknown index"));
         }
 
         @Override
         public void expectUnknownColumn(String user, String sql, String column) throws Exception {
-            ResponseException e = expectThrows(ResponseException.class, () -> runSql(user, randomMode(), sql));
+            ResponseException e = expectThrows(ResponseException.class, () -> runSql(user, randomMode(), sql, false));
             assertThat(e.getMessage(), containsString("Unknown column [" + column + "]"));
         }
 
@@ -195,17 +203,50 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             expectMatchesAdmin("DESCRIBE test", user, "DESCRIBE test");
         }
 
-        private static Map<String, Object> runSql(@Nullable String asUser, String mode, String sql) throws IOException {
-            return runSql(asUser, new StringEntity(query(sql).mode(mode).toString(), ContentType.APPLICATION_JSON), mode);
+        private static Map<String, Object> runSql(
+            @Nullable String asUser,
+            String mode,
+            String sql,
+            boolean allowSystemIndexDeprecationWarning
+        ) throws IOException {
+            return runSql(
+                asUser,
+                new StringEntity(query(sql).mode(mode).toString(), ContentType.APPLICATION_JSON),
+                mode,
+                allowSystemIndexDeprecationWarning
+            );
         }
 
-        private static Map<String, Object> runSql(@Nullable String asUser, HttpEntity entity, String mode) throws IOException {
+        private static Map<String, Object> runSql(
+            @Nullable String asUser,
+            HttpEntity entity,
+            String mode,
+            boolean allowSystemIndexDeprecationWarning
+        ) throws IOException {
             Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+            RequestOptions.Builder options = request.getOptions().toBuilder();
             if (asUser != null) {
-                RequestOptions.Builder options = request.getOptions().toBuilder();
                 options.addHeader("es-security-runas-user", asUser);
-                request.setOptions(options);
             }
+            if (allowSystemIndexDeprecationWarning) {
+                options.setWarningsHandler(warnings -> {
+                    if (warnings.isEmpty()) {
+                        // No warnings is OK
+                        return false;
+                    } else if (warnings.size() > 2) {
+                        return true;
+                    } else {
+                        for (String warning : warnings) {
+                            if (warning.startsWith("this request accesses system indices: ") == false
+                                && warning.startsWith("this request accesses aliases with names reserved for system indices: ") == false) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+                });
+            }
+            request.setOptions(options);
             request.setEntity(entity);
             return toMap(client().performRequest(request), mode);
         }
@@ -251,7 +292,8 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         Map<String, Object> adminResponse = RestActions.runSql(
             null,
             new StringEntity(query("SELECT * FROM test").mode(mode).fetchSize(1).toString(), ContentType.APPLICATION_JSON),
-            mode
+            mode,
+            false
         );
 
         String cursor = (String) adminResponse.remove("cursor");
@@ -262,7 +304,8 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             () -> RestActions.runSql(
                 "full_access",
                 new StringEntity(cursor(cursor).mode(mode).toString(), ContentType.APPLICATION_JSON),
-                mode
+                mode,
+                false
             )
         );
         // TODO return a better error message for bad scrolls

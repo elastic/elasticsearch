@@ -1,10 +1,15 @@
 {
   "clear_scroll":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#_clear_scroll_api",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/clear-scroll-api.html",
       "description":"Explicitly clears the search context for a scroll."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json","text/plain"]
+    },
     "url":{
       "paths":[
         {

@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.ml;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Request;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response;
@@ -33,7 +35,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -43,30 +45,11 @@ import static org.mockito.Mockito.when;
  */
 public class JobStatsCollectorTests extends BaseCollectorTestCase {
 
-    public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
-        final Settings settings = randomFrom(mlEnabledSettings(), mlDisabledSettings());
-        final boolean mlAllowed = randomBoolean();
-        final boolean isElectedMaster = randomBoolean();
-        whenLocalNodeElectedMaster(isElectedMaster);
-
-        // this controls the blockage
-        when(licenseState.isAllowed(Feature.MONITORING)).thenReturn(false);
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(mlAllowed);
-
-        final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, licenseState, client);
-
-        assertThat(collector.shouldCollect(isElectedMaster), is(false));
-        if (isElectedMaster) {
-            verify(licenseState).isAllowed(Feature.MONITORING);
-        }
-    }
-
     public void testShouldCollectReturnsFalseIfNotMaster() {
         // regardless of ML being enabled
         final Settings settings = randomFrom(mlEnabledSettings(), mlDisabledSettings());
 
-        when(licenseState.isAllowed(Feature.MONITORING)).thenReturn(randomBoolean());
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(randomBoolean());
+        when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(randomBoolean());
         // this controls the blockage
         final boolean isElectedMaster = false;
 
@@ -79,8 +62,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         // this is controls the blockage
         final Settings settings = mlDisabledSettings();
 
-        when(licenseState.isAllowed(Feature.MONITORING)).thenReturn(randomBoolean());
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(randomBoolean());
+        when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(randomBoolean());
 
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
@@ -88,42 +70,30 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
-
-        if (isElectedMaster) {
-            verify(licenseState).isAllowed(Feature.MONITORING);
-        }
     }
 
     public void testShouldCollectReturnsFalseIfMLIsNotAllowed() {
         final Settings settings = randomFrom(mlEnabledSettings(), mlDisabledSettings());
 
-        when(licenseState.isAllowed(Feature.MONITORING)).thenReturn(randomBoolean());
         // this is controls the blockage
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(false);
+        when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(false);
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
 
         final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
-
-        if (isElectedMaster) {
-            verify(licenseState).isAllowed(Feature.MONITORING);
-        }
     }
 
     public void testShouldCollectReturnsTrue() {
         final Settings settings = mlEnabledSettings();
 
-        when(licenseState.isAllowed(Feature.MONITORING)).thenReturn(true);
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
+        when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(true);
         final boolean isElectedMaster = true;
 
         final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(true));
-
-        verify(licenseState).isAllowed(Feature.MONITORING);
     }
 
     public void testDoCollect() throws Exception {
@@ -143,11 +113,11 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final List<JobStats> jobStats = mockJobStats();
 
         @SuppressWarnings("unchecked")
-        final ActionFuture<Response> future = (ActionFuture<Response>)mock(ActionFuture.class);
+        final ActionFuture<Response> future = (ActionFuture<Response>) mock(ActionFuture.class);
         final Response response = new Response(new QueryPage<>(jobStats, jobStats.size(), Job.RESULTS_FIELD));
 
-        when(client.execute(eq(GetJobsStatsAction.INSTANCE), eq(new Request(Metadata.ALL)))).thenReturn(future);
-        when(future.actionGet(timeout)).thenReturn(response);
+        when(client.execute(eq(GetJobsStatsAction.INSTANCE), eq(new Request(Metadata.ALL).setTimeout(timeout)))).thenReturn(future);
+        when(future.actionGet()).thenReturn(response);
 
         final long interval = randomNonNegativeLong();
 
@@ -158,7 +128,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(monitoringDocs, hasSize(jobStats.size()));
 
         for (int i = 0; i < monitoringDocs.size(); ++i) {
-            final JobStatsMonitoringDoc jobStatsMonitoringDoc = (JobStatsMonitoringDoc)monitoringDocs.get(i);
+            final JobStatsMonitoringDoc jobStatsMonitoringDoc = (JobStatsMonitoringDoc) monitoringDocs.get(i);
             final JobStats jobStat = jobStats.get(i);
 
             assertThat(jobStatsMonitoringDoc.getCluster(), is(clusterUuid));
@@ -171,6 +141,48 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
 
             assertThat(jobStatsMonitoringDoc.getJobStats(), is(jobStat));
         }
+
+        assertWarnings(
+            "[xpack.monitoring.collection.ml.job.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release! See the breaking changes documentation for the next major version."
+        );
+    }
+
+    public void testDoCollectThrowsTimeoutException() throws Exception {
+        final String clusterUuid = randomAlphaOfLength(5);
+        whenClusterStateWithUUID(clusterUuid);
+
+        final MonitoringDoc.Node node = randomMonitoringNode(random());
+        final Client client = mock(Client.class);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
+        withCollectionTimeout(JobStatsCollector.JOB_STATS_TIMEOUT, timeout);
+
+        final JobStatsCollector collector = new JobStatsCollector(Settings.EMPTY, clusterService, licenseState, client, threadContext);
+        assertEquals(timeout, collector.getCollectionTimeout());
+
+        final List<JobStats> jobStats = mockJobStats();
+
+        @SuppressWarnings("unchecked")
+        final ActionFuture<Response> future = (ActionFuture<Response>) mock(ActionFuture.class);
+        final Response response = new Response(
+            List.of(),
+            List.of(new FailedNodeException("node", "msg", new ElasticsearchTimeoutException("test timeout"))),
+            new QueryPage<>(jobStats, jobStats.size(), Job.RESULTS_FIELD)
+        );
+
+        when(client.execute(eq(GetJobsStatsAction.INSTANCE), eq(new Request(Metadata.ALL).setTimeout(timeout)))).thenReturn(future);
+        when(future.actionGet()).thenReturn(response);
+
+        final long interval = randomNonNegativeLong();
+
+        expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
+
+        assertWarnings(
+            "[xpack.monitoring.collection.ml.job.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private List<JobStats> mockJobStats() {

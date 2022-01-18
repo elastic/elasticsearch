@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.single_node;
 
@@ -39,12 +40,12 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(command("EXPLAIN (PLAN EXECUTABLE) SELECT * FROM test"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
         assertThat(readLine(), startsWith("EsQueryExec[test,{"));
-        assertThat(readLine(), startsWith("  \"_source\" : {"));
-        assertThat(readLine(), startsWith("    \"includes\" : ["));
-        assertThat(readLine(), startsWith("      \"test_field\""));
-        assertThat(readLine(), startsWith("    ],"));
-        assertThat(readLine(), startsWith("    \"excludes\" : [ ]"));
-        assertThat(readLine(), startsWith("  },"));
+        assertThat(readLine(), startsWith("  \"_source\" : false,"));
+        assertThat(readLine(), startsWith("  \"fields\" : ["));
+        assertThat(readLine(), startsWith("    {"));
+        assertThat(readLine(), startsWith("      \"field\" : \"test_field\""));
+        assertThat(readLine(), startsWith("    }"));
+        assertThat(readLine(), startsWith("  ],"));
         assertThat(readLine(), startsWith("  \"sort\" : ["));
         assertThat(readLine(), startsWith("    {"));
         assertThat(readLine(), startsWith("      \"_doc\" :"));
@@ -96,13 +97,15 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("      }"));
         assertThat(readLine(), startsWith("    }"));
         assertThat(readLine(), startsWith("  },"));
-        assertThat(readLine(), startsWith("  \"_source\" : {"));
-        assertThat(readLine(), startsWith("    \"includes\" : ["));
-        assertThat(readLine(), startsWith("      \"i\""));
-        assertThat(readLine(), startsWith("      \"test_field\""));
-        assertThat(readLine(), startsWith("    ],"));
-        assertThat(readLine(), startsWith("    \"excludes\" : [ ]"));
-        assertThat(readLine(), startsWith("  },"));
+        assertThat(readLine(), startsWith("  \"_source\" : false,"));
+        assertThat(readLine(), startsWith("  \"fields\" : ["));
+        assertThat(readLine(), startsWith("    {"));
+        assertThat(readLine(), startsWith("      \"field\" : \"i\""));
+        assertThat(readLine(), startsWith("    },"));
+        assertThat(readLine(), startsWith("    {"));
+        assertThat(readLine(), startsWith("      \"field\" : \"test_field\""));
+        assertThat(readLine(), startsWith("    }"));
+        assertThat(readLine(), startsWith("  ],"));
         assertThat(readLine(), startsWith("  \"sort\" : ["));
         assertThat(readLine(), startsWith("    {"));
         assertThat(readLine(), startsWith("      \"_doc\" :"));
@@ -127,13 +130,13 @@ public class CliExplainIT extends CliIntegrationTestCase {
 
         assertThat(command("EXPLAIN " + (randomBoolean() ? "" : "(PLAN ANALYZED) ") + "SELECT COUNT(*) FROM test"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
-        assertThat(readLine(), startsWith("Aggregate[[],[COUNT(*)"));
+        assertThat(readLine(), startsWith("Aggregate[[],[COUNT(1[INTEGER]) AS COUNT(*)"));
         assertThat(readLine(), startsWith("\\_EsRelation[test][i{f}#"));
         assertEquals("", readLine());
 
         assertThat(command("EXPLAIN (PLAN OPTIMIZED) SELECT COUNT(*) FROM test"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
-        assertThat(readLine(), startsWith("Aggregate[[],[COUNT(*)"));
+        assertThat(readLine(), startsWith("Aggregate[[],[COUNT(1[INTEGER]) AS COUNT(*)"));
         assertThat(readLine(), startsWith("\\_EsRelation[test][i{f}#"));
         assertEquals("", readLine());
 
@@ -142,7 +145,6 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("EsQueryExec[test,{"));
         assertThat(readLine(), startsWith("  \"size\" : 0,"));
         assertThat(readLine(), startsWith("  \"_source\" : false,"));
-        assertThat(readLine(), startsWith("  \"stored_fields\" : \"_none_\","));
         assertThat(readLine(), startsWith("  \"sort\" : ["));
         assertThat(readLine(), startsWith("    {"));
         assertThat(readLine(), startsWith("      \"_doc\" :"));

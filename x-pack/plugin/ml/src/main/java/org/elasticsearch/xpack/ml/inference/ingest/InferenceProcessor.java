@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.inference.ingest;
 
@@ -12,7 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -28,43 +29,58 @@ import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
+import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.ingest.IngestDocument.INGEST_KEY;
 import static org.elasticsearch.ingest.Pipeline.PROCESSORS_KEY;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.MODEL_ID_RESULTS_FIELD;
 
 public class InferenceProcessor extends AbstractProcessor {
 
     // How many total inference processors are allowed to be used in the cluster.
-    public static final Setting<Integer> MAX_INFERENCE_PROCESSORS = Setting.intSetting("xpack.ml.max_inference_processors",
+    public static final Setting<Integer> MAX_INFERENCE_PROCESSORS = Setting.intSetting(
+        "xpack.ml.max_inference_processors",
         50,
         1,
         Setting.Property.Dynamic,
-        Setting.Property.NodeScope);
+        Setting.Property.NodeScope
+    );
 
     public static final String TYPE = "inference";
-    public static final String MODEL_ID = "model_id";
     public static final String INFERENCE_CONFIG = "inference_config";
     public static final String TARGET_FIELD = "target_field";
     public static final String FIELD_MAPPINGS = "field_mappings";
@@ -81,19 +97,21 @@ public class InferenceProcessor extends AbstractProcessor {
     private volatile boolean previouslyLicensed;
     private final AtomicBoolean shouldAudit = new AtomicBoolean(true);
 
-    public InferenceProcessor(Client client,
-                              InferenceAuditor auditor,
-                              String tag,
-                              String description,
-                              String targetField,
-                              String modelId,
-                              InferenceConfigUpdate inferenceConfig,
-                              Map<String, String> fieldMap) {
+    public InferenceProcessor(
+        Client client,
+        InferenceAuditor auditor,
+        String tag,
+        String description,
+        String targetField,
+        String modelId,
+        InferenceConfigUpdate inferenceConfig,
+        Map<String, String> fieldMap
+    ) {
         super(tag, description);
         this.client = ExceptionsHelper.requireNonNull(client, "client");
         this.targetField = ExceptionsHelper.requireNonNull(targetField, TARGET_FIELD);
         this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");
-        this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
+        this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID_RESULTS_FIELD);
         this.inferenceConfig = ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
         this.fieldMap = ExceptionsHelper.requireNonNull(fieldMap, FIELD_MAP);
     }
@@ -104,19 +122,20 @@ public class InferenceProcessor extends AbstractProcessor {
 
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-        executeAsyncWithOrigin(client,
+        executeAsyncWithOrigin(
+            client,
             ML_ORIGIN,
             InternalInferModelAction.INSTANCE,
             this.buildRequest(ingestDocument),
-            ActionListener.wrap(
-                r -> handleResponse(r, ingestDocument, handler),
-                e -> handler.accept(ingestDocument, e)
-            ));
+            ActionListener.wrap(r -> handleResponse(r, ingestDocument, handler), e -> handler.accept(ingestDocument, e))
+        );
     }
 
-    void handleResponse(InternalInferModelAction.Response response,
-                        IngestDocument ingestDocument,
-                        BiConsumer<IngestDocument, Exception> handler) {
+    void handleResponse(
+        InternalInferModelAction.Response response,
+        IngestDocument ingestDocument,
+        BiConsumer<IngestDocument, Exception> handler
+    ) {
         if (previouslyLicensed == false) {
             previouslyLicensed = true;
         }
@@ -126,14 +145,18 @@ public class InferenceProcessor extends AbstractProcessor {
         try {
             mutateDocument(response, ingestDocument);
             handler.accept(ingestDocument, null);
-        } catch(ElasticsearchException ex) {
+        } catch (ElasticsearchException ex) {
             handler.accept(ingestDocument, ex);
         }
     }
 
     InternalInferModelAction.Request buildRequest(IngestDocument ingestDocument) {
         Map<String, Object> fields = new HashMap<>(ingestDocument.getSourceAndMetadata());
-        Model.mapFieldsIfNecessary(fields, fieldMap);
+        // Add ingestMetadata as previous processors might have added metadata from which we are predicting (see: foreach processor)
+        if (ingestDocument.getIngestMetadata().isEmpty() == false) {
+            fields.put(INGEST_KEY, ingestDocument.getIngestMetadata());
+        }
+        LocalModel.mapFieldsIfNecessary(fields, fieldMap);
         return new InternalInferModelAction.Request(modelId, fields, inferenceConfig, previouslyLicensed);
     }
 
@@ -141,8 +164,9 @@ public class InferenceProcessor extends AbstractProcessor {
         if (shouldAudit.compareAndSet(true, false)) {
             auditor.warning(
                 modelId,
-                "This cluster is no longer licensed to use this model in the inference ingest processor. " +
-                    "Please update your license information.");
+                "This cluster is no longer licensed to use this model in the inference ingest processor. "
+                    + "Please update your license information."
+            );
         }
     }
 
@@ -151,8 +175,12 @@ public class InferenceProcessor extends AbstractProcessor {
             throw new ElasticsearchStatusException("Unexpected empty inference response", RestStatus.INTERNAL_SERVER_ERROR);
         }
         assert response.getInferenceResults().size() == 1;
-        response.getInferenceResults().get(0).writeResult(ingestDocument, this.targetField);
-        ingestDocument.setFieldValue(targetField + "." + MODEL_ID, modelId);
+        InferenceResults.writeResult(
+            response.getInferenceResults().get(0),
+            ingestDocument,
+            targetField,
+            response.getModelId() != null ? response.getModelId() : modelId
+        );
     }
 
     @Override
@@ -168,13 +196,9 @@ public class InferenceProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory, Consumer<ClusterState> {
 
         private static final String FOREACH_PROCESSOR_NAME = "foreach";
-        //Any more than 10 nestings of processors, we stop searching for inference processor definitions
+        // Any more than 10 nestings of processors, we stop searching for inference processor definitions
         private static final int MAX_INFERENCE_PROCESSOR_SEARCH_RECURSIONS = 10;
         private static final Logger logger = LogManager.getLogger(Factory.class);
-
-        private static final Set<String> RESERVED_ML_FIELD_NAMES = new HashSet<>(Arrays.asList(
-            WarningInferenceResults.WARNING.getPreferredName(),
-            MODEL_ID));
 
         private final Client client;
         private final InferenceAuditor auditor;
@@ -185,22 +209,24 @@ public class InferenceProcessor extends AbstractProcessor {
         public Factory(Client client, ClusterService clusterService, Settings settings) {
             this.client = client;
             this.maxIngestProcessors = MAX_INFERENCE_PROCESSORS.get(settings);
-            this.auditor = new InferenceAuditor(client, clusterService.getNodeName());
+            this.auditor = new InferenceAuditor(client, clusterService);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_INFERENCE_PROCESSORS, this::setMaxIngestProcessors);
         }
 
         @Override
         public void accept(ClusterState state) {
             minNodeVersion = state.nodes().getMinNodeVersion();
+            currentInferenceProcessors = countNumberInferenceProcessors(state);
+        }
+
+        public static int countNumberInferenceProcessors(ClusterState state) {
             Metadata metadata = state.getMetadata();
             if (metadata == null) {
-                currentInferenceProcessors = 0;
-                return;
+                return 0;
             }
             IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
             if (ingestMetadata == null) {
-                currentInferenceProcessors = 0;
-                return;
+                return 0;
             }
 
             int count = 0;
@@ -213,19 +239,20 @@ public class InferenceProcessor extends AbstractProcessor {
                             count += numInferenceProcessors(entry.getKey(), entry.getValue());
                         }
                     }
-                // We cannot throw any exception here. It might break other pipelines.
+                    // We cannot throw any exception here. It might break other pipelines.
                 } catch (Exception ex) {
                     logger.debug(
                         () -> new ParameterizedMessage("failed gathering processors for pipeline [{}]", configuration.getId()),
-                        ex);
+                        ex
+                    );
                 }
             }
-            currentInferenceProcessors = count;
+            return count;
         }
 
         @SuppressWarnings("unchecked")
         static int numInferenceProcessors(String processorType, Object processorDefinition) {
-            return numInferenceProcessors(processorType, (Map<String, Object>)processorDefinition, 0);
+            return numInferenceProcessors(processorType, (Map<String, Object>) processorDefinition, 0);
         }
 
         @SuppressWarnings("unchecked")
@@ -242,13 +269,15 @@ public class InferenceProcessor extends AbstractProcessor {
                 count++;
             }
             if (FOREACH_PROCESSOR_NAME.equals(processorType)) {
-                Map<String, Object> innerProcessor = (Map<String, Object>)processorDefinition.get("processor");
+                Map<String, Object> innerProcessor = (Map<String, Object>) processorDefinition.get("processor");
                 if (innerProcessor != null) {
                     // a foreach processor should only have a SINGLE nested processor. Iteration is for simplicity's sake.
                     for (Map.Entry<String, Object> innerProcessorWithName : innerProcessor.entrySet()) {
-                        count += numInferenceProcessors(innerProcessorWithName.getKey(),
+                        count += numInferenceProcessors(
+                            innerProcessorWithName.getKey(),
                             (Map<String, Object>) innerProcessorWithName.getValue(),
-                            level + 1);
+                            level + 1
+                        );
                     }
                 }
             }
@@ -257,10 +286,12 @@ public class InferenceProcessor extends AbstractProcessor {
                     null,
                     null,
                     processorDefinition,
-                    Pipeline.ON_FAILURE_KEY);
+                    Pipeline.ON_FAILURE_KEY
+                );
                 count += onFailureConfigs.stream()
                     .flatMap(map -> map.entrySet().stream())
-                    .mapToInt(entry -> numInferenceProcessors(entry.getKey(), (Map<String, Object>)entry.getValue(), level + 1)).sum();
+                    .mapToInt(entry -> numInferenceProcessors(entry.getKey(), (Map<String, Object>) entry.getValue(), level + 1))
+                    .sum();
             }
             return count;
         }
@@ -271,19 +302,25 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         @Override
-        public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, String description,
-                                         Map<String, Object> config) {
+        public InferenceProcessor create(
+            Map<String, Processor.Factory> processorFactories,
+            String tag,
+            String description,
+            Map<String, Object> config
+        ) {
 
             if (this.maxIngestProcessors <= currentInferenceProcessors) {
-                throw new ElasticsearchStatusException("Max number of inference processors reached, total inference processors [{}]. " +
-                    "Adjust the setting [{}]: [{}] if a greater number is desired.",
+                throw new ElasticsearchStatusException(
+                    "Max number of inference processors reached, total inference processors [{}]. "
+                        + "Adjust the setting [{}]: [{}] if a greater number is desired.",
                     RestStatus.CONFLICT,
                     currentInferenceProcessors,
                     MAX_INFERENCE_PROCESSORS.getKey(),
-                    maxIngestProcessors);
+                    maxIngestProcessors
+                );
             }
 
-            String modelId = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_ID);
+            String modelId = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_ID_RESULTS_FIELD);
             String defaultTargetField = tag == null ? DEFAULT_TARGET_FIELD : DEFAULT_TARGET_FIELD + "." + tag;
             // If multiple inference processors are in the same pipeline, it is wise to tag them
             // The tag will keep default value entries from stepping on each other
@@ -291,22 +328,29 @@ public class InferenceProcessor extends AbstractProcessor {
             Map<String, String> fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAP);
             if (fieldMap == null) {
                 fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
-                //TODO Remove in 8.x
+                // TODO Remove in 9?.x
                 if (fieldMap != null) {
-                    LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, () -> null, FIELD_MAPPINGS, FIELD_MAP);
+                    LoggingDeprecationHandler.INSTANCE.logRenamedField(null, () -> null, FIELD_MAPPINGS, FIELD_MAP);
                 }
             }
-            InferenceConfigUpdate inferenceConfig =
-                inferenceConfigFromMap(ConfigurationUtils.readMap(TYPE, tag, config, INFERENCE_CONFIG));
+            if (fieldMap == null) {
+                fieldMap = Collections.emptyMap();
+            }
 
-            return new InferenceProcessor(client,
-                auditor,
-                tag,
-                description,
-                targetField,
-                modelId,
-                inferenceConfig,
-                fieldMap);
+            InferenceConfigUpdate inferenceConfigUpdate;
+            Map<String, Object> inferenceConfigMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, INFERENCE_CONFIG);
+            if (inferenceConfigMap == null) {
+                if (minNodeVersion.before(EmptyConfigUpdate.minimumSupportedVersion())) {
+                    // an inference config is required when the empty update is not supported
+                    throw ConfigurationUtils.newConfigurationException(TYPE, tag, INFERENCE_CONFIG, "required property is missing");
+                }
+
+                inferenceConfigUpdate = new EmptyConfigUpdate();
+            } else {
+                inferenceConfigUpdate = inferenceConfigUpdateFromMap(inferenceConfigMap);
+            }
+
+            return new InferenceProcessor(client, auditor, tag, description, targetField, modelId, inferenceConfigUpdate, fieldMap);
         }
 
         // Package private for testing
@@ -315,64 +359,90 @@ public class InferenceProcessor extends AbstractProcessor {
             this.maxIngestProcessors = maxIngestProcessors;
         }
 
-        InferenceConfigUpdate inferenceConfigFromMap(Map<String, Object> inferenceConfig) {
-            ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
-            if (inferenceConfig.size() != 1) {
-                throw ExceptionsHelper.badRequestException("{} must be an object with one inference type mapped to an object.",
-                    INFERENCE_CONFIG);
+        InferenceConfigUpdate inferenceConfigUpdateFromMap(Map<String, Object> configMap) {
+            ExceptionsHelper.requireNonNull(configMap, INFERENCE_CONFIG);
+            if (configMap.size() != 1) {
+                throw ExceptionsHelper.badRequestException(
+                    "{} must be an object with one inference type mapped to an object.",
+                    INFERENCE_CONFIG
+                );
             }
-            Object value = inferenceConfig.values().iterator().next();
+            Object value = configMap.values().iterator().next();
 
             if ((value instanceof Map<?, ?>) == false) {
-                throw ExceptionsHelper.badRequestException("{} must be an object with one inference type mapped to an object.",
-                    INFERENCE_CONFIG);
+                throw ExceptionsHelper.badRequestException(
+                    "{} must be an object with one inference type mapped to an object.",
+                    INFERENCE_CONFIG
+                );
             }
             @SuppressWarnings("unchecked")
-            Map<String, Object> valueMap = (Map<String, Object>)value;
+            Map<String, Object> valueMap = (Map<String, Object>) value;
 
-            if (inferenceConfig.containsKey(ClassificationConfig.NAME.getPreferredName())) {
+            if (configMap.containsKey(ClassificationConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(ClassificationConfig.EMPTY_PARAMS);
-                ClassificationConfigUpdate config = ClassificationConfigUpdate.fromMap(valueMap);
-                checkFieldUniqueness(config.getResultsField(), config.getTopClassesResultsField());
-                return config;
-            } else if (inferenceConfig.containsKey(RegressionConfig.NAME.getPreferredName())) {
+                return ClassificationConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(FillMaskConfig.NAME)) {
+                checkNlpSupported(FillMaskConfig.NAME);
+                return FillMaskConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(NerConfig.NAME)) {
+                checkNlpSupported(NerConfig.NAME);
+                return NerConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(PassThroughConfig.NAME)) {
+                checkNlpSupported(PassThroughConfig.NAME);
+                return PassThroughConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(RegressionConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(RegressionConfig.EMPTY_PARAMS);
-                RegressionConfigUpdate config = RegressionConfigUpdate.fromMap(valueMap);
-                checkFieldUniqueness(config.getResultsField());
-                return config;
+                return RegressionConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(TextClassificationConfig.NAME)) {
+                checkNlpSupported(TextClassificationConfig.NAME);
+                return TextClassificationConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(TextEmbeddingConfig.NAME)) {
+                checkNlpSupported(TextEmbeddingConfig.NAME);
+                return TextEmbeddingConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(ZeroShotClassificationConfig.NAME)) {
+                checkNlpSupported(ZeroShotClassificationConfig.NAME);
+                return ZeroShotClassificationConfigUpdate.fromMap(valueMap);
             } else {
-                throw ExceptionsHelper.badRequestException("unrecognized inference configuration type {}. Supported types {}",
-                    inferenceConfig.keySet(),
-                    Arrays.asList(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
+                throw ExceptionsHelper.badRequestException(
+                    "unrecognized inference configuration type {}. Supported types {}",
+                    configMap.keySet(),
+                    List.of(
+                        ClassificationConfig.NAME.getPreferredName(),
+                        RegressionConfig.NAME.getPreferredName(),
+                        FillMaskConfig.NAME,
+                        NerConfig.NAME,
+                        PassThroughConfig.NAME,
+                        TextClassificationConfig.NAME,
+                        TextEmbeddingConfig.NAME,
+                        ZeroShotClassificationConfig.NAME
+                    )
+                );
             }
         }
 
-        private static void checkFieldUniqueness(String... fieldNames) {
-            Set<String> duplicatedFieldNames = new HashSet<>();
-            Set<String> currentFieldNames = new HashSet<>(RESERVED_ML_FIELD_NAMES);
-            for(String fieldName : fieldNames) {
-                if (fieldName == null) {
-                    continue;
-                }
-                if (currentFieldNames.contains(fieldName)) {
-                    duplicatedFieldNames.add(fieldName);
-                } else {
-                    currentFieldNames.add(fieldName);
-                }
-            }
-            if (duplicatedFieldNames.isEmpty() == false) {
-                throw ExceptionsHelper.badRequestException("Cannot create processor as configured." +
-                        " More than one field is configured as {}",
-                    duplicatedFieldNames);
+        void checkNlpSupported(String taskType) {
+            if (NlpConfig.MINIMUM_NLP_SUPPORTED_VERSION.after(minNodeVersion)) {
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(
+                        Messages.INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION,
+                        taskType,
+                        NlpConfig.MINIMUM_NLP_SUPPORTED_VERSION,
+                        minNodeVersion
+                    )
+                );
             }
         }
 
         void checkSupportedVersion(InferenceConfig config) {
             if (config.getMinimalSupportedVersion().after(minNodeVersion)) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION,
-                    config.getName(),
-                    config.getMinimalSupportedVersion(),
-                    minNodeVersion));
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(
+                        Messages.INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION,
+                        config.getName(),
+                        config.getMinimalSupportedVersion(),
+                        minNodeVersion
+                    )
+                );
             }
         }
     }

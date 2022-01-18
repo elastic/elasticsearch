@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.extractor;
 
@@ -85,8 +86,10 @@ public class TimeFieldTests extends ESTestCase {
 
         final ExtractedField timeField = new TimeField("time", ExtractedField.Method.DOC_VALUE);
 
-        assertThat(expectThrows(IllegalStateException.class, () -> timeField.value(hit)).getMessage(),
-            startsWith("Unexpected value for a time field"));
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> timeField.value(hit)).getMessage(),
+            startsWith("Unexpected value for a time field")
+        );
     }
 
     public void testSourceNotSupported() {

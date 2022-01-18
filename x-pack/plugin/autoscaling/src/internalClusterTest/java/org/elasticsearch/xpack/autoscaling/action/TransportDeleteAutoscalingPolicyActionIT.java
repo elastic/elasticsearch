@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.action;
@@ -23,10 +24,15 @@ public class TransportDeleteAutoscalingPolicyActionIT extends AutoscalingIntegTe
 
     public void testDeletePolicy() {
         final AutoscalingPolicy policy = randomAutoscalingPolicy();
-        final PutAutoscalingPolicyAction.Request putRequest = new PutAutoscalingPolicyAction.Request(policy);
+        final PutAutoscalingPolicyAction.Request putRequest = new PutAutoscalingPolicyAction.Request(
+            policy.name(),
+            policy.roles(),
+            policy.deciders()
+        );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, putRequest).actionGet());
         // we trust that the policy is in the cluster state since we have tests for putting policies
-        final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(policy.name());
+        String deleteName = randomFrom("*", policy.name(), policy.name().substring(0, between(0, policy.name().length())) + "*");
+        final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(deleteName);
         assertAcked(client().execute(DeleteAutoscalingPolicyAction.INSTANCE, deleteRequest).actionGet());
         // now verify that the policy is not in the cluster state
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -52,4 +58,9 @@ public class TransportDeleteAutoscalingPolicyActionIT extends AutoscalingIntegTe
         assertThat(e.getMessage(), containsString("autoscaling policy with name [" + name + "] does not exist"));
     }
 
+    public void testDeleteNonExistentPolicyByWildcard() {
+        final String name = randomFrom("*", randomAlphaOfLength(8) + "*");
+        final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(name);
+        assertAcked(client().execute(DeleteAutoscalingPolicyAction.INSTANCE, deleteRequest).actionGet());
+    }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.frozen;
 
@@ -25,17 +26,10 @@ public class FrozenIndicesFeatureSetUsageTests extends AbstractWireSerializingTe
         boolean enabled = instance.enabled();
         int numFrozenIndices = instance.getNumberOfFrozenIndices();
         switch (between(0, 2)) {
-            case 0:
-                available = available == false;
-                break;
-            case 1:
-                enabled = enabled == false;
-                break;
-            case 2:
-                numFrozenIndices = randomValueOtherThan(numFrozenIndices, () -> randomIntBetween(0, 100000));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> available = available == false;
+            case 1 -> enabled = enabled == false;
+            case 2 -> numFrozenIndices = randomValueOtherThan(numFrozenIndices, () -> randomIntBetween(0, 100000));
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new FrozenIndicesFeatureSetUsage(available, enabled, numFrozenIndices);
     }

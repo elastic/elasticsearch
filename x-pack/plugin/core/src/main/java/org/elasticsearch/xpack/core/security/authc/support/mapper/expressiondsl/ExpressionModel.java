@@ -1,11 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.Strings;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -22,6 +27,8 @@ import java.util.function.Predicate;
 public class ExpressionModel {
 
     public static final Predicate<FieldExpression.FieldValue> NULL_PREDICATE = field -> field.getValue() == null;
+
+    private static final Logger logger = LogManager.getLogger();
 
     private final Map<String, Object> fieldValues;
     private final Map<String, Predicate<FieldExpression.FieldValue>> fieldPredicates;
@@ -54,7 +61,22 @@ public class ExpressionModel {
      */
     public boolean test(String field, List<FieldExpression.FieldValue> values) {
         final Predicate<FieldExpression.FieldValue> predicate = this.fieldPredicates.getOrDefault(field, NULL_PREDICATE);
-        return values.stream().anyMatch(predicate);
+        boolean isMatch = values.stream().anyMatch(predicate);
+        if (isMatch == false && predicate == NULL_PREDICATE && fieldPredicates.containsKey(field) == false) {
+            logger.debug(
+                () -> new ParameterizedMessage(
+                    "Attempt to test field [{}] against value(s) [{}],"
+                        + " but the field [{}] does not have a value on this object;"
+                        + " known fields are [{}]",
+                    field,
+                    Strings.collectionToCommaDelimitedString(values),
+                    field,
+                    Strings.collectionToCommaDelimitedString(fieldPredicates.keySet())
+                )
+            );
+        }
+
+        return isMatch;
     }
 
     /**
@@ -75,9 +97,9 @@ public class ExpressionModel {
         }
         if (object instanceof Collection) {
             return ((Collection<?>) object).stream()
-                    .map(element -> buildPredicate(element))
-                    .reduce((a, b) -> a.or(b))
-                    .orElse(fieldValue -> false);
+                .map(element -> buildPredicate(element))
+                .reduce((a, b) -> a.or(b))
+                .orElse(fieldValue -> false);
         }
         throw new IllegalArgumentException("Unsupported value type " + object.getClass());
     }
@@ -94,8 +116,7 @@ public class ExpressionModel {
             return false;
         }
         Number right = (Number) other;
-        if (left instanceof Double || left instanceof Float
-                || right instanceof Double || right instanceof Float) {
+        if (left instanceof Double || left instanceof Float || right instanceof Double || right instanceof Float) {
             return Double.compare(left.doubleValue(), right.doubleValue()) == 0;
         }
         return Numbers.toLongExact(left) == Numbers.toLongExact(right);

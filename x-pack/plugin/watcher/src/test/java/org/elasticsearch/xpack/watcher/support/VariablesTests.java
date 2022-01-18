@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.support;
 
-import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
@@ -35,24 +35,22 @@ public class VariablesTests extends ESTestCase {
         TriggerEvent event = new ScheduleTriggerEvent("_watch_id", triggeredTime, scheduledTime);
         Wid wid = new Wid("_watch_id", executionTime);
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContextBuilder("_watch_id")
-                .wid(wid)
-                .executionTime(executionTime)
-                .triggerEvent(event)
-                .payload(payload)
-                .metadata(metatdata)
-                .buildMock();
+            .wid(wid)
+            .executionTime(executionTime)
+            .triggerEvent(event)
+            .payload(payload)
+            .metadata(metatdata)
+            .buildMock();
 
         Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
         assertThat(model, notNullValue());
         assertThat(model.size(), is(1));
 
-        JodaCompatibleZonedDateTime jodaJavaExecutionTime =
-            new JodaCompatibleZonedDateTime(executionTime.toInstant(), ZoneOffset.UTC);
         assertThat(ObjectPath.eval("ctx", model), instanceOf(Map.class));
         assertThat(ObjectPath.eval("ctx.id", model), is(wid.value()));
         // NOTE: we use toString() here because two ZonedDateTime are *not* equal, we need to check with isEqual
         // for date/time equality, but no hamcrest matcher exists for that
-        assertThat(ObjectPath.eval("ctx.execution_time", model), Matchers.hasToString(jodaJavaExecutionTime.toString()));
+        assertThat(ObjectPath.eval("ctx.execution_time", model), Matchers.hasToString(executionTime.toString()));
         assertThat(ObjectPath.eval("ctx.trigger", model), is(event.data()));
         assertThat(ObjectPath.eval("ctx.payload", model), is(payload.data()));
         assertThat(ObjectPath.eval("ctx.metadata", model), is(metatdata));

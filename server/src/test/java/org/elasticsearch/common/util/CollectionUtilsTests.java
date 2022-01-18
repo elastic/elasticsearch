@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util;
@@ -134,50 +123,31 @@ public class CollectionUtilsTests extends ESTestCase {
     }
 
     public void testEmptyPartition() {
-        assertEquals(
-                Collections.emptyList(),
-                eagerPartition(Collections.emptyList(), 1)
-        );
+        assertEquals(Collections.emptyList(), eagerPartition(Collections.emptyList(), 1));
     }
 
     public void testSimplePartition() {
         assertEquals(
-                Arrays.asList(
-                        Arrays.asList(1, 2),
-                        Arrays.asList(3, 4),
-                        Arrays.asList(5)
-                ),
-                eagerPartition(Arrays.asList(1, 2, 3, 4, 5), 2)
+            Arrays.asList(Arrays.asList(1, 2), Arrays.asList(3, 4), Arrays.asList(5)),
+            eagerPartition(Arrays.asList(1, 2, 3, 4, 5), 2)
         );
     }
 
     public void testSingletonPartition() {
         assertEquals(
-                Arrays.asList(
-                        Arrays.asList(1),
-                        Arrays.asList(2),
-                        Arrays.asList(3),
-                        Arrays.asList(4),
-                        Arrays.asList(5)
-                ),
-                eagerPartition(Arrays.asList(1, 2, 3, 4, 5), 1)
+            Arrays.asList(Arrays.asList(1), Arrays.asList(2), Arrays.asList(3), Arrays.asList(4), Arrays.asList(5)),
+            eagerPartition(Arrays.asList(1, 2, 3, 4, 5), 1)
         );
     }
 
     public void testOversizedPartition() {
-        assertEquals(
-                Arrays.asList(Arrays.asList(1, 2, 3, 4, 5)),
-                eagerPartition(Arrays.asList(1, 2, 3, 4, 5), 15)
-        );
+        assertEquals(Arrays.asList(Arrays.asList(1, 2, 3, 4, 5)), eagerPartition(Arrays.asList(1, 2, 3, 4, 5), 15));
     }
 
     public void testPerfectPartition() {
         assertEquals(
-                Arrays.asList(
-                        Arrays.asList(1, 2, 3, 4, 5, 6),
-                        Arrays.asList(7, 8, 9, 10, 11, 12)
-                ),
-                eagerPartition(Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), 6)
+            Arrays.asList(Arrays.asList(1, 2, 3, 4, 5, 6), Arrays.asList(7, 8, 9, 10, 11, 12)),
+            eagerPartition(Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), 6)
         );
     }
 
@@ -189,16 +159,20 @@ public class CollectionUtilsTests extends ESTestCase {
             Map<String, Object> map = new HashMap<>();
             map.put("field", map);
 
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> CollectionUtils.ensureNoSelfReferences(map, "test with self ref value"));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> CollectionUtils.ensureNoSelfReferences(map, "test with self ref value")
+            );
             assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself (test with self ref value)"));
         }
         {
             Map<Object, Object> map = new HashMap<>();
             map.put(map, 1);
 
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> CollectionUtils.ensureNoSelfReferences(map, "test with self ref key"));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> CollectionUtils.ensureNoSelfReferences(map, "test with self ref key")
+            );
             assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself (test with self ref key)"));
         }
 

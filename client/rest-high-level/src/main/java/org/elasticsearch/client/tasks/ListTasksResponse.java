@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.tasks;
 
@@ -36,9 +25,7 @@ public class ListTasksResponse {
     protected final List<TaskInfo> tasks = new ArrayList<>();
     protected final List<TaskGroup> taskGroups = new ArrayList<>();
 
-    ListTasksResponse(List<NodeData> nodesInfoData,
-                        List<TaskOperationFailure> taskFailures,
-                        List<ElasticsearchException> nodeFailures) {
+    ListTasksResponse(List<NodeData> nodesInfoData, List<TaskOperationFailure> taskFailures, List<ElasticsearchException> nodeFailures) {
         if (taskFailures != null) {
             this.taskFailures.addAll(taskFailures);
         }
@@ -48,28 +35,23 @@ public class ListTasksResponse {
         if (nodesInfoData != null) {
             this.nodesInfoData.addAll(nodesInfoData);
         }
-        this.tasks.addAll(this
-            .nodesInfoData
-            .stream()
-            .flatMap(nodeData -> nodeData.getTasks().stream())
-            .collect(toList())
-        );
+        this.tasks.addAll(this.nodesInfoData.stream().flatMap(nodeData -> nodeData.getTasks().stream()).collect(toList()));
         this.taskGroups.addAll(buildTaskGroups());
     }
 
     private List<TaskGroup> buildTaskGroups() {
-        Map<TaskId, TaskGroup.Builder> taskGroups = new HashMap<>();
+        Map<TaskId, TaskGroup.Builder> taskIdToBuilderMap = new HashMap<>();
         List<TaskGroup.Builder> topLevelTasks = new ArrayList<>();
         // First populate all tasks
         for (TaskInfo taskInfo : this.tasks) {
-            taskGroups.put(taskInfo.getTaskId(), TaskGroup.builder(taskInfo));
+            taskIdToBuilderMap.put(taskInfo.getTaskId(), TaskGroup.builder(taskInfo));
         }
 
         // Now go through all task group builders and add children to their parents
-        for (TaskGroup.Builder taskGroup : taskGroups.values()) {
+        for (TaskGroup.Builder taskGroup : taskIdToBuilderMap.values()) {
             TaskId parentTaskId = taskGroup.getTaskInfo().getParentTaskId();
             if (parentTaskId != null) {
-                TaskGroup.Builder parentTask = taskGroups.get(parentTaskId);
+                TaskGroup.Builder parentTask = taskIdToBuilderMap.get(parentTaskId);
                 if (parentTask != null) {
                     // we found parent in the list of tasks - add it to the parent list
                     parentTask.addGroup(taskGroup);
@@ -90,9 +72,7 @@ public class ListTasksResponse {
     }
 
     public Map<String, List<TaskInfo>> getPerNodeTasks() {
-        return getTasks()
-            .stream()
-            .collect(groupingBy(TaskInfo::getNodeId));
+        return getTasks().stream().collect(groupingBy(TaskInfo::getNodeId));
     }
 
     public List<TaskOperationFailure> getTaskFailures() {
@@ -110,14 +90,13 @@ public class ListTasksResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof ListTasksResponse)) return false;
+        if ((o instanceof ListTasksResponse) == false) return false;
         ListTasksResponse response = (ListTasksResponse) o;
-        return nodesInfoData.equals(response.nodesInfoData) &&
-            Objects.equals
-                (getTaskFailures(), response.getTaskFailures()) &&
-            Objects.equals(getNodeFailures(), response.getNodeFailures()) &&
-            Objects.equals(getTasks(), response.getTasks()) &&
-            Objects.equals(getTaskGroups(), response.getTaskGroups());
+        return nodesInfoData.equals(response.nodesInfoData)
+            && Objects.equals(getTaskFailures(), response.getTaskFailures())
+            && Objects.equals(getNodeFailures(), response.getNodeFailures())
+            && Objects.equals(getTasks(), response.getTasks())
+            && Objects.equals(getTaskGroups(), response.getTaskGroups());
     }
 
     @Override
@@ -127,12 +106,17 @@ public class ListTasksResponse {
 
     @Override
     public String toString() {
-        return "CancelTasksResponse{" +
-            "nodesInfoData=" + nodesInfoData +
-            ", taskFailures=" + taskFailures +
-            ", nodeFailures=" + nodeFailures +
-            ", tasks=" + tasks +
-            ", taskGroups=" + taskGroups +
-            '}';
+        return "CancelTasksResponse{"
+            + "nodesInfoData="
+            + nodesInfoData
+            + ", taskFailures="
+            + taskFailures
+            + ", nodeFailures="
+            + nodeFailures
+            + ", tasks="
+            + tasks
+            + ", taskGroups="
+            + taskGroups
+            + '}';
     }
 }

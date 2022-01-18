@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.indices;
 
@@ -52,8 +41,12 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
 
     public void testStartDeleteIndexEventCallback() throws Throwable {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+        );
         ensureGreen();
         Index idx = resolveIndex("test");
         IndexMetadata metadata = indicesService.indexService(idx).getMetadata();
@@ -76,7 +69,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             }
 
             @Override
-            public void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
+            public void beforeIndexShardCreated(ShardRouting shardRouting, Settings indexSettings) {
                 assertEquals(3, counter.get());
                 counter.incrementAndGet();
             }
@@ -134,8 +127,13 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             IndexShard shard = index.createShard(newRouting, s -> {}, RetentionLeaseSyncer.EMPTY);
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(5, counter.get());
-            final DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
-                    emptyMap(), emptySet(), Version.CURRENT);
+            final DiscoveryNode localNode = new DiscoveryNode(
+                "foo",
+                buildNewFakeTransportAddress(),
+                emptyMap(),
+                emptySet(),
+                Version.CURRENT
+            );
             shard.markAsRecovering("store", new RecoveryState(newRouting, localNode, null));
             IndexShardTestCase.recoverFromStore(shard);
             newRouting = ShardRoutingHelper.moveToStarted(newRouting);

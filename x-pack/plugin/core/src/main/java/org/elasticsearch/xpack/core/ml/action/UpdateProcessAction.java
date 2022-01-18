@@ -1,20 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
@@ -31,13 +30,6 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
 
     private UpdateProcessAction() {
         super(NAME, UpdateProcessAction.Response::new);
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client, UpdateProcessAction action) {
-            super(client, action, new Request());
-        }
     }
 
     public static class Response extends BaseTasksResponse implements StatusToXContentObject, Writeable {
@@ -104,8 +96,6 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
         private MlFilter filter;
         private boolean updateScheduledEvents = false;
 
-        public Request() {}
-
         public Request(StreamInput in) throws IOException {
             super(in);
             modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);
@@ -131,8 +121,14 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
             out.writeBoolean(updateScheduledEvents);
         }
 
-        public Request(String jobId, ModelPlotConfig modelPlotConfig, PerPartitionCategorizationConfig perPartitionCategorizationConfig,
-                       List<JobUpdate.DetectorUpdate> detectorUpdates, MlFilter filter, boolean updateScheduledEvents) {
+        public Request(
+            String jobId,
+            ModelPlotConfig modelPlotConfig,
+            PerPartitionCategorizationConfig perPartitionCategorizationConfig,
+            List<JobUpdate.DetectorUpdate> detectorUpdates,
+            MlFilter filter,
+            boolean updateScheduledEvents
+        ) {
             super(jobId);
             this.modelPlotConfig = modelPlotConfig;
             this.perPartitionCategorizationConfig = perPartitionCategorizationConfig;
@@ -163,8 +159,14 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
 
         @Override
         public int hashCode() {
-            return Objects.hash(getJobId(), modelPlotConfig, perPartitionCategorizationConfig, detectorUpdates, filter,
-                updateScheduledEvents);
+            return Objects.hash(
+                getJobId(),
+                modelPlotConfig,
+                perPartitionCategorizationConfig,
+                detectorUpdates,
+                filter,
+                updateScheduledEvents
+            );
         }
 
         @Override
@@ -177,12 +179,12 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
             }
             Request other = (Request) obj;
 
-            return Objects.equals(getJobId(), other.getJobId()) &&
-                    Objects.equals(modelPlotConfig, other.modelPlotConfig) &&
-                    Objects.equals(perPartitionCategorizationConfig, other.perPartitionCategorizationConfig) &&
-                    Objects.equals(detectorUpdates, other.detectorUpdates) &&
-                    Objects.equals(filter, other.filter) &&
-                    Objects.equals(updateScheduledEvents, other.updateScheduledEvents);
+            return Objects.equals(getJobId(), other.getJobId())
+                && Objects.equals(modelPlotConfig, other.modelPlotConfig)
+                && Objects.equals(perPartitionCategorizationConfig, other.perPartitionCategorizationConfig)
+                && Objects.equals(detectorUpdates, other.detectorUpdates)
+                && Objects.equals(filter, other.filter)
+                && Objects.equals(updateScheduledEvents, other.updateScheduledEvents);
         }
     }
 }

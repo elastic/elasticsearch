@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[info-api]]
 == Info API
 
@@ -10,6 +9,13 @@ Provides general information about the installed {xpack} features.
 === {api-request-title}
 
 `GET /_xpack`
+
+[discrete]
+[[info-api-prereqs]]
+=== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [discrete]
 [[info-api-desc]]
@@ -31,7 +37,7 @@ The information provided by this API includes:
   include in the response. For example, `build,license,features`.
 
 `human`::
-  (Optional, boolean) Defines whether additional human-readable information is
+  (Optional, Boolean) Defines whether additional human-readable information is
   included in the response. In particular, it adds descriptions and a tag line.
   The default value is `true`.
 
@@ -66,6 +72,10 @@ Example response:
       "ccr" : {
         "available" : true,
         "enabled" : true
+      },
+     "aggregate_metric" : {
+          "available" : true,
+          "enabled" : true
       },
       "analytics" : {
           "available" : true,
@@ -103,6 +113,10 @@ Example response:
          "available": true,
          "enabled": true
       },
+      "searchable_snapshots" : {
+         "available" : true,
+         "enabled" : true
+      },
       "security" : {
          "available" : true,
          "enabled" : false
@@ -127,15 +141,19 @@ Example response:
          "available" : true,
          "enabled" : true
       },
-      "vectors" : {
-         "available" : true,
-         "enabled" : true
-      },
       "voting_only" : {
          "available" : true,
          "enabled" : true
       },
       "watcher" : {
+         "available" : true,
+         "enabled" : true
+      },
+      "data_streams" : {
+         "available" : true,
+         "enabled" : true
+      },
+      "data_tiers" : {
          "available" : true,
          "enabled" : true
       }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr;
 
@@ -14,11 +15,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -34,30 +36,38 @@ import static org.mockito.Mockito.when;
 
 public class CCRInfoTransportActionTests extends ESTestCase {
 
-    private XPackLicenseState licenseState;
+    private MockLicenseState licenseState;
     private ClusterService clusterService;
 
     @Before
     public void init() {
-        licenseState = mock(XPackLicenseState.class);
+        licenseState = mock(MockLicenseState.class);
         clusterService = mock(ClusterService.class);
     }
 
     public void testAvailable() {
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            Settings.EMPTY,
+            licenseState
+        );
 
-        when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(false);
+        when(licenseState.isAllowed(CcrConstants.CCR_FEATURE)).thenReturn(false);
         assertThat(featureSet.available(), equalTo(false));
 
-        when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(true);
+        when(licenseState.isAllowed(CcrConstants.CCR_FEATURE)).thenReturn(true);
         assertThat(featureSet.available(), equalTo(true));
     }
 
     public void testEnabled() {
         Settings.Builder settings = Settings.builder().put("xpack.ccr.enabled", false);
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            settings.build(),
+            licenseState
+        );
         assertThat(featureSet.enabled(), equalTo(false));
 
         settings = Settings.builder().put("xpack.ccr.enabled", true);
@@ -67,7 +77,11 @@ public class CCRInfoTransportActionTests extends ESTestCase {
 
     public void testName() {
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            Settings.EMPTY,
+            licenseState
+        );
         assertThat(featureSet.name(), equalTo("ccr"));
     }
 
@@ -99,6 +113,7 @@ public class CCRInfoTransportActionTests extends ESTestCase {
             AutoFollowMetadata.AutoFollowPattern pattern = new AutoFollowMetadata.AutoFollowPattern(
                 "remote_cluser",
                 Collections.singletonList("logs" + i + "*"),
+                Collections.emptyList(),
                 null,
                 Settings.EMPTY,
                 true,
@@ -120,8 +135,15 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
-        var usageAction = new CCRUsageTransportAction(mock(TransportService.class), null, null,
-            mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
+        var usageAction = new CCRUsageTransportAction(
+            mock(TransportService.class),
+            null,
+            null,
+            mock(ActionFilters.class),
+            null,
+            Settings.EMPTY,
+            licenseState
+        );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, clusterState, future);
         CCRInfoTransportAction.Usage ccrUsage = (CCRInfoTransportAction.Usage) future.get().getUsage();

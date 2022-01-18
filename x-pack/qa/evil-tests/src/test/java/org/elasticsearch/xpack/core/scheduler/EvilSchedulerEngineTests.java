@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.scheduler;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -20,7 +22,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class EvilSchedulerEngineTests extends ESTestCase {
@@ -52,16 +57,14 @@ public class EvilSchedulerEngineTests extends ESTestCase {
                     }
                 });
                 final CountDownLatch schedulerLatch = new CountDownLatch(1);
-                engine.add(new SchedulerEngine.Job(
-                        getTestName(),
-                        (startTime, now) -> {
-                            if (schedulerLatch.getCount() == 1) {
-                                schedulerLatch.countDown();
-                                return 0;
-                            } else {
-                                throw new AssertionError("nextScheduledTimeAfter invoked more than the expected number of times");
-                            }
-                        }));
+                engine.add(new SchedulerEngine.Job(getTestName(), (startTime, now) -> {
+                    if (schedulerLatch.getCount() == 1) {
+                        schedulerLatch.countDown();
+                        return 0;
+                    } else {
+                        throw new AssertionError("nextScheduledTimeAfter invoked more than the expected number of times");
+                    }
+                }));
 
                 uncaughtLatuch.await();
                 assertTrue(trigger.get());
@@ -71,6 +74,7 @@ public class EvilSchedulerEngineTests extends ESTestCase {
                 assertNotNull(maybeThread.get());
                 assertThat(maybeThread.get(), not(equalTo(Thread.currentThread()))); // the error should be rethrown on another thread
                 schedulerLatch.await();
+                verify(mockLogger, atLeastOnce()).debug(any(MessageSupplier.class));
                 verifyNoMoreInteractions(mockLogger); // we never logged anything
             } finally {
                 engine.stop();

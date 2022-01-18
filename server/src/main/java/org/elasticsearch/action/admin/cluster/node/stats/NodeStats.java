@@ -1,35 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.ingest.IngestStats;
@@ -42,6 +29,8 @@ import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -95,6 +84,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private AdaptiveSelectionStats adaptiveSelectionStats;
 
+    @Nullable
+    private IndexingPressureStats indexingPressureStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -110,25 +102,32 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         http = in.readOptionalWriteable(HttpStats::new);
         breaker = in.readOptionalWriteable(AllCircuitBreakerStats::new);
         scriptStats = in.readOptionalWriteable(ScriptStats::new);
+        scriptCacheStats = scriptStats != null ? scriptStats.toScriptCacheStats() : null;
         discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
         ingestStats = in.readOptionalWriteable(IngestStats::new);
         adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            scriptCacheStats = in.readOptionalWriteable(ScriptCacheStats::new);
-        } else {
-            scriptCacheStats = null;
-        }
+        indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
     }
 
-    public NodeStats(DiscoveryNode node, long timestamp, @Nullable NodeIndicesStats indices,
-                     @Nullable OsStats os, @Nullable ProcessStats process, @Nullable JvmStats jvm, @Nullable ThreadPoolStats threadPool,
-                     @Nullable FsInfo fs, @Nullable TransportStats transport, @Nullable HttpStats http,
-                     @Nullable AllCircuitBreakerStats breaker,
-                     @Nullable ScriptStats scriptStats,
-                     @Nullable DiscoveryStats discoveryStats,
-                     @Nullable IngestStats ingestStats,
-                     @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
-                     @Nullable ScriptCacheStats scriptCacheStats) {
+    public NodeStats(
+        DiscoveryNode node,
+        long timestamp,
+        @Nullable NodeIndicesStats indices,
+        @Nullable OsStats os,
+        @Nullable ProcessStats process,
+        @Nullable JvmStats jvm,
+        @Nullable ThreadPoolStats threadPool,
+        @Nullable FsInfo fs,
+        @Nullable TransportStats transport,
+        @Nullable HttpStats http,
+        @Nullable AllCircuitBreakerStats breaker,
+        @Nullable ScriptStats scriptStats,
+        @Nullable DiscoveryStats discoveryStats,
+        @Nullable IngestStats ingestStats,
+        @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
+        @Nullable ScriptCacheStats scriptCacheStats,
+        @Nullable IndexingPressureStats indexingPressureStats
+    ) {
         super(node);
         this.timestamp = timestamp;
         this.indices = indices;
@@ -145,6 +144,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.ingestStats = ingestStats;
         this.adaptiveSelectionStats = adaptiveSelectionStats;
         this.scriptCacheStats = scriptCacheStats;
+        this.indexingPressureStats = indexingPressureStats;
     }
 
     public long getTimestamp() {
@@ -244,6 +244,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return scriptCacheStats;
     }
 
+    @Nullable
+    public IndexingPressureStats getIndexingPressureStats() {
+        return indexingPressureStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -266,9 +271,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(discoveryStats);
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeOptionalWriteable(scriptCacheStats);
-        }
+        out.writeOptionalWriteable(indexingPressureStats);
     }
 
     @Override
@@ -285,7 +288,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         builder.endArray();
 
-        if (!getNode().getAttributes().isEmpty()) {
+        if (getNode().getAttributes().isEmpty() == false) {
             builder.startObject("attributes");
             for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
                 builder.field(attrEntry.getKey(), attrEntry.getValue());
@@ -334,6 +337,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getScriptCacheStats() != null) {
             getScriptCacheStats().toXContent(builder, params);
+        }
+        if (getIndexingPressureStats() != null) {
+            getIndexingPressureStats().toXContent(builder, params);
         }
         return builder;
     }

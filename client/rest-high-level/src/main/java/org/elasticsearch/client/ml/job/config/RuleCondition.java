@@ -1,29 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -36,23 +23,15 @@ public class RuleCondition implements ToXContentObject {
     public static final ParseField APPLIES_TO_FIELD = new ParseField("applies_to");
     public static final ParseField VALUE_FIELD = new ParseField("value");
 
-    public static final ConstructingObjectParser<RuleCondition, Void> PARSER =
-        new ConstructingObjectParser<>(RULE_CONDITION_FIELD.getPreferredName(), true,
-            a -> new RuleCondition((AppliesTo) a[0], (Operator) a[1], (double) a[2]));
+    public static final ConstructingObjectParser<RuleCondition, Void> PARSER = new ConstructingObjectParser<>(
+        RULE_CONDITION_FIELD.getPreferredName(),
+        true,
+        a -> new RuleCondition((AppliesTo) a[0], (Operator) a[1], (double) a[2])
+    );
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return AppliesTo.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, APPLIES_TO_FIELD, ValueType.STRING);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return Operator.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, Operator.OPERATOR_FIELD, ValueType.STRING);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), AppliesTo::fromString, APPLIES_TO_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Operator::fromString, Operator.OPERATOR_FIELD);
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), VALUE_FIELD);
     }
 

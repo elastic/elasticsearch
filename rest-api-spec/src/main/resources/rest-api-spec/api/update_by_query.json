@@ -5,6 +5,11 @@
       "description":"Performs an update on every document in the index without changing the source,\nfor example to pick up a mapping change."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -119,18 +124,6 @@
       "sort":{
         "type":"list",
         "description":"A comma-separated list of <field>:<direction> pairs"
-      },
-      "_source":{
-        "type":"list",
-        "description":"True or false to return the _source field or not, or a list of fields to return"
-      },
-      "_source_excludes":{
-        "type":"list",
-        "description":"A list of fields to exclude from the returned _source field"
-      },
-      "_source_includes":{
-        "type":"list",
-        "description":"A list of fields to extract and return from the _source field"
       },
       "terminate_after":{
         "type":"number",

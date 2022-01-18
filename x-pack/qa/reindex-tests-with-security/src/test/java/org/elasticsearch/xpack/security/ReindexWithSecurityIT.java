@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security;
 
@@ -13,10 +14,10 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -32,30 +33,29 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.util.Collections;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-
+@SuppressWarnings("removal")
 public class ReindexWithSecurityIT extends ESRestTestCase {
 
     private static final String USER = "test_admin";
     private static final String PASS = "x-pack-test-password";
 
-    private static Path httpTrustStore;
+    private static Path httpCertificateAuthority;
 
     @BeforeClass
-    public static void findTrustStore( ) throws Exception {
-        final URL resource = ReindexWithSecurityClientYamlTestSuiteIT.class.getResource("/ssl/ca.p12");
+    public static void findTrustStore() throws Exception {
+        final URL resource = ReindexWithSecurityClientYamlTestSuiteIT.class.getResource("/ssl/ca.crt");
         if (resource == null) {
-            throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.p12");
+            throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.crt");
         }
-        httpTrustStore = PathUtils.get(resource.toURI());
+        httpCertificateAuthority = PathUtils.get(resource.toURI());
     }
 
     @AfterClass
     public static void cleanupStatics() {
-        httpTrustStore = null;
+        httpCertificateAuthority = null;
     }
 
     @Override
@@ -71,8 +71,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
         String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
-            .put(TRUSTSTORE_PATH , httpTrustStore)
-            .put(TRUSTSTORE_PASSWORD, "password")
+            .put(CERTIFICATE_AUTHORITIES, httpCertificateAuthority)
             .build();
     }
 
@@ -80,20 +79,25 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
         createIndicesWithRandomAliases("test1", "test2", "test3");
 
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        BulkByScrollResponse response = restClient.deleteByQuery((DeleteByQueryRequest) new DeleteByQueryRequest()
-            .setQuery(QueryBuilders.matchAllQuery())
-            .indices("test1", "test2"), RequestOptions.DEFAULT);
+        BulkByScrollResponse response = restClient.deleteByQuery(
+            new DeleteByQueryRequest().setQuery(QueryBuilders.matchAllQuery()).indices("test1", "test2"),
+            RequestOptions.DEFAULT
+        );
         assertNotNull(response);
 
-        response = restClient.deleteByQuery((DeleteByQueryRequest) new DeleteByQueryRequest()
-            .setQuery(QueryBuilders.matchAllQuery())
-            .indices("test*"), RequestOptions.DEFAULT);
+        response = restClient.deleteByQuery(
+            new DeleteByQueryRequest().setQuery(QueryBuilders.matchAllQuery()).indices("test*"),
+            RequestOptions.DEFAULT
+        );
         assertNotNull(response);
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> restClient.deleteByQuery((DeleteByQueryRequest) new DeleteByQueryRequest()
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .indices("test1", "index1"), RequestOptions.DEFAULT));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> restClient.deleteByQuery(
+                new DeleteByQueryRequest().setQuery(QueryBuilders.matchAllQuery()).indices("test1", "index1"),
+                RequestOptions.DEFAULT
+            )
+        );
         assertThat(e.getMessage(), containsString("no such index [index1]"));
     }
 
@@ -101,16 +105,22 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
         createIndicesWithRandomAliases("test1", "test2", "test3");
 
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        BulkByScrollResponse response =
-            restClient.updateByQuery((UpdateByQueryRequest) new UpdateByQueryRequest().indices("test1", "test2"), RequestOptions.DEFAULT);
+        BulkByScrollResponse response = restClient.updateByQuery(
+            (UpdateByQueryRequest) new UpdateByQueryRequest().indices("test1", "test2"),
+            RequestOptions.DEFAULT
+        );
         assertNotNull(response);
 
         response = restClient.updateByQuery((UpdateByQueryRequest) new UpdateByQueryRequest().indices("test*"), RequestOptions.DEFAULT);
         assertNotNull(response);
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> restClient.updateByQuery((UpdateByQueryRequest) new UpdateByQueryRequest().indices("test1", "index1"),
-                    RequestOptions.DEFAULT));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> restClient.updateByQuery(
+                (UpdateByQueryRequest) new UpdateByQueryRequest().indices("test1", "index1"),
+                RequestOptions.DEFAULT
+            )
+        );
         assertThat(e.getMessage(), containsString("no such index [index1]"));
     }
 
@@ -118,17 +128,19 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
         createIndicesWithRandomAliases("test1", "test2", "test3", "dest");
 
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        BulkByScrollResponse response = restClient.reindex(new ReindexRequest().setSourceIndices("test1", "test2").setDestIndex("dest"),
-            RequestOptions.DEFAULT);
+        BulkByScrollResponse response = restClient.reindex(
+            new ReindexRequest().setSourceIndices("test1", "test2").setDestIndex("dest"),
+            RequestOptions.DEFAULT
+        );
         assertNotNull(response);
 
-        response = restClient.reindex(new ReindexRequest().setSourceIndices("test*").setDestIndex("dest"),
-            RequestOptions.DEFAULT);
+        response = restClient.reindex(new ReindexRequest().setSourceIndices("test*").setDestIndex("dest"), RequestOptions.DEFAULT);
         assertNotNull(response);
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> restClient.reindex(new ReindexRequest().setSourceIndices("test1", "index1").setDestIndex("dest"),
-                    RequestOptions.DEFAULT));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> restClient.reindex(new ReindexRequest().setSourceIndices("test1", "index1").setDestIndex("dest"), RequestOptions.DEFAULT)
+        );
         assertThat(e.getMessage(), containsString("no such index [index1]"));
     }
 
@@ -148,7 +160,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
             IndicesAliasesRequest request = new IndicesAliasesRequest();
             for (String index : indices) {
                 if (frequently()) {
-                    //one alias per index with prefix "alias-"
+                    // one alias per index with prefix "alias-"
                     request.addAliasAction(AliasActions.add().index(index).alias("alias-" + index));
                     aliasAdded = true;
                 }
@@ -156,7 +168,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
             // If we get to this point and we haven't added an alias to the request we need to add one
             // or the request will fail so use noAliasAdded to force adding the alias in this case
             if (aliasAdded == false || randomBoolean()) {
-                //one alias pointing to all indices
+                // one alias pointing to all indices
                 for (String index : indices) {
                     request.addAliasAction(AliasActions.add().index(index).alias("alias"));
                 }

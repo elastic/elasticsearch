@@ -1,6 +1,9 @@
 [role="xpack"]
 [[condition-compare]]
-=== Compare condition
+=== {watcher} compare condition
+++++
+<titleabbrev>Compare condition</titleabbrev>
+++++
 
 Use the `compare` condition to perform a simple comparison against a value in 
 the watch payload. You can use the `compare` condition without enabling 

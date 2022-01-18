@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security;
 
@@ -24,8 +25,9 @@ public class TokenSSLBootsrapCheckTests extends AbstractBootstrapCheckTestCase {
         assertTrue(new TokenSSLBootstrapCheck().check(createTestContext(settings, null)).isFailure());
 
         settings = Settings.builder()
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
-                .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true).build();
+            .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
+            .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
+            .build();
         assertTrue(new TokenSSLBootstrapCheck().check(createTestContext(settings, null)).isSuccess());
     }
 

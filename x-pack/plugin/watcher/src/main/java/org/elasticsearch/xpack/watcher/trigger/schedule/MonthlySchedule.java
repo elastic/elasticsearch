@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.MonthTimes;
 
 import java.io.IOException;
@@ -95,8 +96,12 @@ public class MonthlySchedule extends CronnableSchedule {
                 }
                 return times.isEmpty() ? new MonthlySchedule() : new MonthlySchedule(times.toArray(new MonthTimes[times.size()]));
             }
-            throw new ElasticsearchParseException("could not parse [{}] schedule. expected either an object or an array " +
-                    "of objects representing month times, but found [{}] instead", TYPE, parser.currentToken());
+            throw new ElasticsearchParseException(
+                "could not parse [{}] schedule. expected either an object or an array "
+                    + "of objects representing month times, but found [{}] instead",
+                TYPE,
+                parser.currentToken()
+            );
         }
     }
 
@@ -104,8 +109,7 @@ public class MonthlySchedule extends CronnableSchedule {
 
         private final Set<MonthTimes> times = new HashSet<>();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder time(MonthTimes time) {
             times.add(time);

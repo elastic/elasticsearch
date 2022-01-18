@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.monitoring.action;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 
 import java.io.IOException;
@@ -28,13 +30,15 @@ public class MonitoringBulkDoc implements Writeable {
     private final BytesReference source;
     private final XContentType xContentType;
 
-    public MonitoringBulkDoc(final MonitoredSystem system,
-                             final String type,
-                             @Nullable final String id,
-                             final long timestamp,
-                             final long intervalMillis,
-                             final BytesReference source,
-                             final XContentType xContentType) {
+    public MonitoringBulkDoc(
+        final MonitoredSystem system,
+        final String type,
+        @Nullable final String id,
+        final long timestamp,
+        final long intervalMillis,
+        final BytesReference source,
+        final XContentType xContentType
+    ) {
 
         this.system = Objects.requireNonNull(system);
         this.type = Objects.requireNonNull(type);
@@ -46,7 +50,7 @@ public class MonitoringBulkDoc implements Writeable {
         this.xContentType = Objects.requireNonNull(xContentType);
     }
 
-    public MonitoringBulkDoc (StreamInput in) throws IOException {
+    public MonitoringBulkDoc(StreamInput in) throws IOException {
         this.system = MonitoredSystem.fromSystem(in.readOptionalString());
         this.timestamp = in.readVLong();
 
@@ -65,7 +69,7 @@ public class MonitoringBulkDoc implements Writeable {
         out.writeOptionalString(id);
         out.writeBytesReference(source);
         if (source != BytesArray.EMPTY) {
-            out.writeEnum(xContentType);
+            XContentHelper.writeTo(out, xContentType);
         }
         out.writeVLong(intervalMillis);
 
@@ -109,12 +113,12 @@ public class MonitoringBulkDoc implements Writeable {
         }
         MonitoringBulkDoc that = (MonitoringBulkDoc) o;
         return timestamp == that.timestamp
-                && intervalMillis == that.intervalMillis
-                && system == that.system
-                && Objects.equals(type, that.type)
-                && Objects.equals(id, that.id)
-                && Objects.equals(source, that.source)
-                && xContentType == that.xContentType;
+            && intervalMillis == that.intervalMillis
+            && system == that.system
+            && Objects.equals(type, that.type)
+            && Objects.equals(id, that.id)
+            && Objects.equals(source, that.source)
+            && xContentType == that.xContentType;
     }
 
     @Override

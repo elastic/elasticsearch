@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.Tuple;
 import org.relique.io.TableReader;
 import org.relique.jdbc.csv.CsvConnection;
 
@@ -142,28 +143,18 @@ public final class CsvTestUtils {
     }
 
     private static String resolveColumnType(String type) {
-        switch (type.toLowerCase(Locale.ROOT)) {
-            case "s":
-                return "string";
-            case "b":
-                return "boolean";
-            case "i":
-                return "integer";
-            case "l":
-                return "long";
-            case "f":
-                return "float";
-            case "d":
-                return "double";
-            case "ts":
-                return "timestamp";
-            case "bt":
-                return "byte";
-            case "sh":
-                return "short";
-            default:
-                return type;
-        }
+        return switch (type.toLowerCase(Locale.ROOT)) {
+            case "s" -> "string";
+            case "b" -> "boolean";
+            case "i" -> "integer";
+            case "l" -> "long";
+            case "f" -> "float";
+            case "d" -> "double";
+            case "ts" -> "timestamp";
+            case "bt" -> "byte";
+            case "sh" -> "short";
+            default -> type;
+        };
     }
 
     /**

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.support;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -42,18 +43,18 @@ public class RealmUserLookup {
      * {@link ActionListener#onResponse(Object)} is called with a {@code null} {@link Tuple}.
      */
     public void lookup(String principal, ActionListener<Tuple<User, Realm>> listener) {
-        final IteratingActionListener<Tuple<User, Realm>, ? extends Realm> userLookupListener =
-            new IteratingActionListener<>(listener,
-                (realm, lookupUserListener) -> realm.lookupUser(principal,
-                    ActionListener.wrap(foundUser -> {
-                            if (foundUser != null) {
-                                lookupUserListener.onResponse(new Tuple<>(foundUser, realm));
-                            } else {
-                                lookupUserListener.onResponse(null);
-                            }
-                        },
-                        lookupUserListener::onFailure)),
-                realms, threadContext);
+        final IteratingActionListener<Tuple<User, Realm>, ? extends Realm> userLookupListener = new IteratingActionListener<>(
+            listener,
+            (realm, lookupUserListener) -> realm.lookupUser(principal, ActionListener.wrap(foundUser -> {
+                if (foundUser != null) {
+                    lookupUserListener.onResponse(new Tuple<>(foundUser, realm));
+                } else {
+                    lookupUserListener.onResponse(null);
+                }
+            }, lookupUserListener::onFailure)),
+            realms,
+            threadContext
+        );
         try {
             userLookupListener.run();
         } catch (Exception e) {

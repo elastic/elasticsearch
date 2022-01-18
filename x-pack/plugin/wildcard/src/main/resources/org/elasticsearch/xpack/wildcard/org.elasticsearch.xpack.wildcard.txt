@@ -7,6 +7,4 @@
 #
 
 class org.elasticsearch.xpack.wildcard.WildcardDocValuesField @dynamic_type {
-  String get(String)
-  String get(int, String)
 }

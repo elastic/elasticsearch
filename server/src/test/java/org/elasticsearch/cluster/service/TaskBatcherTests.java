@@ -118,9 +118,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
     @Override
     public void testTimedOutTaskCleanedUp() throws Exception {
         super.testTimedOutTaskCleanedUp();
-        synchronized (taskBatcher.tasksPerBatchingKey) {
-            assertTrue("expected empty map but was " + taskBatcher.tasksPerBatchingKey, taskBatcher.tasksPerBatchingKey.isEmpty());
-        }
+        assertTrue("expected empty map but was " + taskBatcher.tasksPerBatchingKey, taskBatcher.tasksPerBatchingKey.isEmpty());
     }
 
     public void testOneExecutorDoesntStarveAnother() throws InterruptedException {
@@ -309,8 +307,8 @@ public class TaskBatcherTests extends TaskExecutorTests {
 
             submitTask("first time", task, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
 
-            final IllegalStateException e = expectThrows(
-                IllegalStateException.class,
+            final AssertionError e = expectThrows(
+                AssertionError.class,
                 () -> submitTask("second time", task, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener)
             );
             assertThat(e, hasToString(containsString("task [1] with source [second time] is already queued")));

@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
@@ -115,19 +114,11 @@ public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransp
             )
         );
 
-        return ClusterState.builder(currentState)
-            .metadata(
-                Metadata.builder(currentState.getMetadata())
-                    .putCustom(
-                        AutoFollowMetadata.TYPE,
-                        new AutoFollowMetadata(
-                            newPatterns,
-                            autoFollowMetadata.getFollowedLeaderIndexUUIDs(),
-                            autoFollowMetadata.getHeaders()
-                        )
-                    )
-                    .build()
+        return currentState.copyAndUpdateMetadata(
+            metadata -> metadata.putCustom(
+                AutoFollowMetadata.TYPE,
+                new AutoFollowMetadata(newPatterns, autoFollowMetadata.getFollowedLeaderIndexUUIDs(), autoFollowMetadata.getHeaders())
             )
-            .build();
+        );
     }
 }

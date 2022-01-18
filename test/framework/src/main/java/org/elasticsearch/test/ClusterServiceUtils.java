@@ -89,7 +89,7 @@ public class ClusterServiceUtils {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 fail("unexpected exception" + e);
             }
         }, ClusterStateTaskExecutor.unbatched());

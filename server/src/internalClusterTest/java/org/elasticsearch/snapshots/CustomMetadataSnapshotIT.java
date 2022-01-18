@@ -8,12 +8,9 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.plugins.Plugin;
@@ -24,12 +21,13 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
@@ -43,59 +41,23 @@ public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
         return Collections.singletonList(TestCustomMetadataPlugin.class);
     }
 
-    public void testRestoreCustomMetadata() throws Exception {
-        Path tempDir = randomRepoPath();
+    public void testShouldNotRestoreRepositoryMetadata() {
+        var repoPath = randomRepoPath();
 
-        logger.info("--> start node");
-        internalCluster().startNode();
-        createIndex("test-idx");
-        logger.info("--> add custom persistent metadata");
-        updateClusterState(currentState -> {
-            ClusterState.Builder builder = ClusterState.builder(currentState);
-            Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
-            metadataBuilder.putCustom(SnapshottableMetadata.TYPE, new SnapshottableMetadata("before_snapshot_s"));
-            metadataBuilder.putCustom(NonSnapshottableMetadata.TYPE, new NonSnapshottableMetadata("before_snapshot_ns"));
-            metadataBuilder.putCustom(SnapshottableGatewayMetadata.TYPE, new SnapshottableGatewayMetadata("before_snapshot_s_gw"));
-            metadataBuilder.putCustom(NonSnapshottableGatewayMetadata.TYPE, new NonSnapshottableGatewayMetadata("before_snapshot_ns_gw"));
-            metadataBuilder.putCustom(
-                SnapshotableGatewayNoApiMetadata.TYPE,
-                new SnapshotableGatewayNoApiMetadata("before_snapshot_s_gw_noapi")
-            );
-            builder.metadata(metadataBuilder);
-            return builder.build();
-        });
+        logger.info("create repository");
+        createRepository("test-repo-1", "fs", repoPath);
 
-        createRepository("test-repo", "fs", tempDir);
-        createFullSnapshot("test-repo", "test-snap");
-        assertThat(getSnapshot("test-repo", "test-snap").state(), equalTo(SnapshotState.SUCCESS));
+        logger.info("create snapshot");
+        createFullSnapshot("test-repo-1", "test-snap");
+        assertThat(getSnapshot("test-repo-1", "test-snap").state(), equalTo(SnapshotState.SUCCESS));
 
-        logger.info("--> change custom persistent metadata");
-        updateClusterState(currentState -> {
-            ClusterState.Builder builder = ClusterState.builder(currentState);
-            Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
-            if (randomBoolean()) {
-                metadataBuilder.putCustom(SnapshottableMetadata.TYPE, new SnapshottableMetadata("after_snapshot_s"));
-            } else {
-                metadataBuilder.removeCustom(SnapshottableMetadata.TYPE);
-            }
-            metadataBuilder.putCustom(NonSnapshottableMetadata.TYPE, new NonSnapshottableMetadata("after_snapshot_ns"));
-            if (randomBoolean()) {
-                metadataBuilder.putCustom(SnapshottableGatewayMetadata.TYPE, new SnapshottableGatewayMetadata("after_snapshot_s_gw"));
-            } else {
-                metadataBuilder.removeCustom(SnapshottableGatewayMetadata.TYPE);
-            }
-            metadataBuilder.putCustom(NonSnapshottableGatewayMetadata.TYPE, new NonSnapshottableGatewayMetadata("after_snapshot_ns_gw"));
-            metadataBuilder.removeCustom(SnapshotableGatewayNoApiMetadata.TYPE);
-            builder.metadata(metadataBuilder);
-            return builder.build();
-        });
+        logger.info("delete repository");
+        assertAcked(clusterAdmin().prepareDeleteRepository("test-repo-1"));
 
-        logger.info("--> delete repository");
-        assertAcked(clusterAdmin().prepareDeleteRepository("test-repo"));
+        logger.info("create another repository");
+        createRepository("test-repo-2", "fs", repoPath);
 
-        createRepository("test-repo-2", "fs", tempDir);
-
-        logger.info("--> restore snapshot");
+        logger.info("restore snapshot");
         clusterAdmin().prepareRestoreSnapshot("test-repo-2", "test-snap")
             .setRestoreGlobalState(true)
             .setIndices("-*")
@@ -103,51 +65,86 @@ public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
             .execute()
             .actionGet();
 
-        logger.info("--> make sure old repository wasn't restored");
-        assertRequestBuilderThrows(clusterAdmin().prepareGetRepositories("test-repo"), RepositoryMissingException.class);
+        logger.info("make sure old repository wasn't restored");
+        assertRequestBuilderThrows(clusterAdmin().prepareGetRepositories("test-repo-1"), RepositoryMissingException.class);
         assertThat(clusterAdmin().prepareGetRepositories("test-repo-2").get().repositories().size(), equalTo(1));
+    }
 
-        logger.info("--> check that custom persistent metadata was restored");
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
-        logger.info("Cluster state: {}", clusterState);
-        Metadata metadata = clusterState.getMetadata();
-        assertThat(((SnapshottableMetadata) metadata.custom(SnapshottableMetadata.TYPE)).getData(), equalTo("before_snapshot_s"));
-        assertThat(((NonSnapshottableMetadata) metadata.custom(NonSnapshottableMetadata.TYPE)).getData(), equalTo("after_snapshot_ns"));
-        assertThat(
-            ((SnapshottableGatewayMetadata) metadata.custom(SnapshottableGatewayMetadata.TYPE)).getData(),
-            equalTo("before_snapshot_s_gw")
-        );
-        assertThat(
-            ((NonSnapshottableGatewayMetadata) metadata.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(),
-            equalTo("after_snapshot_ns_gw")
-        );
+    public void testShouldRestoreOnlySnapshotMetadata() throws Exception {
+        var repoPath = randomRepoPath();
 
-        logger.info("--> restart all nodes");
+        logger.info("create repository");
+        createRepository("test-repo", "fs", repoPath);
+
+        logger.info("add custom persistent metadata");
+        boolean isSnapshotMetadataSet = true;// randomBoolean();
+        updateClusterState(currentState -> currentState.copyAndUpdateMetadata(metadataBuilder -> {
+            if (isSnapshotMetadataSet) {
+                metadataBuilder.putCustom(SnapshotMetadata.TYPE, new SnapshotMetadata("before_snapshot_s"));
+            }
+            metadataBuilder.putCustom(ApiMetadata.TYPE, new ApiMetadata("before_snapshot_ns"));
+        }));
+
+        logger.info("create snapshot");
+        createFullSnapshot("test-repo", "test-snapshot");
+        assertThat(getSnapshot("test-repo", "test-snapshot").state(), equalTo(SnapshotState.SUCCESS));
+
+        logger.info("update custom persistent metadata");
+        updateClusterState(currentState -> currentState.copyAndUpdateMetadata(metadataBuilder -> {
+            if (isSnapshotMetadataSet == false || randomBoolean()) {
+                metadataBuilder.putCustom(SnapshotMetadata.TYPE, new SnapshotMetadata("after_snapshot_s"));
+            } else {
+                metadataBuilder.removeCustom(SnapshotMetadata.TYPE);
+            }
+            metadataBuilder.putCustom(ApiMetadata.TYPE, new ApiMetadata("after_snapshot_ns"));
+        }));
+
+        logger.info("restore snapshot");
+        clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snapshot")
+            .setRestoreGlobalState(true)
+            .setIndices("-*")
+            .setWaitForCompletion(true)
+            .execute()
+            .actionGet();
+
+        var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
+        logger.info("check that custom persistent metadata [{}] is correctly restored", metadata);
+        if (isSnapshotMetadataSet) {
+            assertThat(metadata.<SnapshotMetadata>custom(SnapshotMetadata.TYPE).getData(), equalTo("before_snapshot_s"));
+        } else {
+            assertThat(metadata.<SnapshotMetadata>custom(SnapshotMetadata.TYPE), nullValue());
+        }
+        assertThat(metadata.<ApiMetadata>custom(ApiMetadata.TYPE).getData(), equalTo("after_snapshot_ns"));
+    }
+
+    public void testShouldKeepGatewayMetadataAfterRestart() throws Exception {
+        logger.info("add custom gateway metadata");
+        updateClusterState(currentState -> currentState.copyAndUpdateMetadata(metadataBuilder -> {
+            metadataBuilder.putCustom(GatewayMetadata.TYPE, new GatewayMetadata("before_restart_s_gw"));
+            metadataBuilder.putCustom(ApiMetadata.TYPE, new ApiMetadata("before_restart_ns"));
+        }));
+
+        logger.info("restart all nodes");
         internalCluster().fullRestart();
         ensureYellow();
 
-        logger.info("--> check that gateway-persistent custom metadata survived full cluster restart");
-        clusterState = clusterAdmin().prepareState().get().getState();
-        logger.info("Cluster state: {}", clusterState);
-        metadata = clusterState.getMetadata();
-        assertThat(metadata.custom(SnapshottableMetadata.TYPE), nullValue());
-        assertThat(metadata.custom(NonSnapshottableMetadata.TYPE), nullValue());
-        assertThat(
-            ((SnapshottableGatewayMetadata) metadata.custom(SnapshottableGatewayMetadata.TYPE)).getData(),
-            equalTo("before_snapshot_s_gw")
-        );
-        assertThat(
-            ((NonSnapshottableGatewayMetadata) metadata.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(),
-            equalTo("after_snapshot_ns_gw")
-        );
-        // Shouldn't be returned as part of API response
-        assertThat(metadata.custom(SnapshotableGatewayNoApiMetadata.TYPE), nullValue());
-        // But should still be in state
-        metadata = internalCluster().getInstance(ClusterService.class).state().metadata();
-        assertThat(
-            ((SnapshotableGatewayNoApiMetadata) metadata.custom(SnapshotableGatewayNoApiMetadata.TYPE)).getData(),
-            equalTo("before_snapshot_s_gw_noapi")
-        );
+        var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
+        logger.info("check that gateway custom metadata [{}] survived full cluster restart", metadata);
+        assertThat(metadata.<GatewayMetadata>custom(GatewayMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
+        assertThat(metadata.<ApiMetadata>custom(ApiMetadata.TYPE), nullValue());
+    }
+
+    public void testShouldExposeApiMetadata() throws Exception {
+        logger.info("add custom api metadata");
+        updateClusterState(currentState -> currentState.copyAndUpdateMetadata(metadataBuilder -> {
+            metadataBuilder.putCustom(ApiMetadata.TYPE, new ApiMetadata("before_restart_s_gw"));
+            metadataBuilder.putCustom(NonApiMetadata.TYPE, new NonApiMetadata("before_restart_ns"));
+        }));
+
+        var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
+        logger.info("check that api custom metadata [{}] is visible via api", metadata);
+        assertThat(metadata.<ApiMetadata>custom(ApiMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
+        assertThat(metadata.<NonApiMetadata>custom(NonApiMetadata.TYPE), nullValue());
     }
 
     public static class TestCustomMetadataPlugin extends Plugin {
@@ -171,36 +168,24 @@ public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
 
         private void registerBuiltinWritables() {
-            registerMetadataCustom(
-                SnapshottableMetadata.TYPE,
-                SnapshottableMetadata::readFrom,
-                SnapshottableMetadata::readDiffFrom,
-                SnapshottableMetadata::fromXContent
-            );
-            registerMetadataCustom(
-                NonSnapshottableMetadata.TYPE,
-                NonSnapshottableMetadata::readFrom,
-                NonSnapshottableMetadata::readDiffFrom,
-                NonSnapshottableMetadata::fromXContent
-            );
-            registerMetadataCustom(
-                SnapshottableGatewayMetadata.TYPE,
-                SnapshottableGatewayMetadata::readFrom,
-                SnapshottableGatewayMetadata::readDiffFrom,
-                SnapshottableGatewayMetadata::fromXContent
-            );
-            registerMetadataCustom(
-                NonSnapshottableGatewayMetadata.TYPE,
-                NonSnapshottableGatewayMetadata::readFrom,
-                NonSnapshottableGatewayMetadata::readDiffFrom,
-                NonSnapshottableGatewayMetadata::fromXContent
-            );
-            registerMetadataCustom(
-                SnapshotableGatewayNoApiMetadata.TYPE,
-                SnapshotableGatewayNoApiMetadata::readFrom,
-                NonSnapshottableGatewayMetadata::readDiffFrom,
-                SnapshotableGatewayNoApiMetadata::fromXContent
-            );
+            Map.<String, Function<String, TestCustomMetadata>>of(
+                SnapshotMetadata.TYPE,
+                SnapshotMetadata::new,
+                GatewayMetadata.TYPE,
+                GatewayMetadata::new,
+                ApiMetadata.TYPE,
+                ApiMetadata::new,
+                NonApiMetadata.TYPE,
+                NonApiMetadata::new
+            )
+                .forEach(
+                    (type, constructor) -> registerMetadataCustom(
+                        type,
+                        in -> TestCustomMetadata.readFrom(constructor, in),
+                        in -> TestCustomMetadata.readDiffFrom(type, in),
+                        parser -> TestCustomMetadata.fromXContent(constructor, parser)
+                    )
+                );
         }
 
         @Override
@@ -214,16 +199,19 @@ public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private static class SnapshottableMetadata extends TestCustomMetadata {
-        public static final String TYPE = "test_snapshottable";
+    private abstract static class ThisTestCustomMetadata extends TestCustomMetadata {
+        private final String type;
+        private final EnumSet<Metadata.XContentContext> context;
 
-        SnapshottableMetadata(String data) {
+        ThisTestCustomMetadata(String data, String type, EnumSet<Metadata.XContentContext> context) {
             super(data);
+            this.type = type;
+            this.context = context;
         }
 
         @Override
         public String getWriteableName() {
-            return TYPE;
+            return type;
         }
 
         @Override
@@ -231,158 +219,41 @@ public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
             return Version.CURRENT;
         }
 
-        public static SnapshottableMetadata readFrom(StreamInput in) throws IOException {
-            return readFrom(SnapshottableMetadata::new, in);
-        }
-
-        public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
-            return readDiffFrom(TYPE, in);
-        }
-
-        public static SnapshottableMetadata fromXContent(XContentParser parser) throws IOException {
-            return fromXContent(SnapshottableMetadata::new, parser);
-        }
-
         @Override
         public EnumSet<Metadata.XContentContext> context() {
-            return Metadata.API_AND_SNAPSHOT;
+            return context;
         }
     }
 
-    private static class NonSnapshottableMetadata extends TestCustomMetadata {
-        public static final String TYPE = "test_non_snapshottable";
+    private static class SnapshotMetadata extends ThisTestCustomMetadata {
+        public static final String TYPE = "test_metadata_scope_snapshot";
 
-        NonSnapshottableMetadata(String data) {
-            super(data);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        public static NonSnapshottableMetadata readFrom(StreamInput in) throws IOException {
-            return readFrom(NonSnapshottableMetadata::new, in);
-        }
-
-        public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
-            return readDiffFrom(TYPE, in);
-        }
-
-        public static NonSnapshottableMetadata fromXContent(XContentParser parser) throws IOException {
-            return fromXContent(NonSnapshottableMetadata::new, parser);
-        }
-
-        @Override
-        public EnumSet<Metadata.XContentContext> context() {
-            return Metadata.API_ONLY;
+        SnapshotMetadata(String data) {
+            super(data, TYPE, Metadata.API_AND_SNAPSHOT);
         }
     }
 
-    private static class SnapshottableGatewayMetadata extends TestCustomMetadata {
-        public static final String TYPE = "test_snapshottable_gateway";
+    private static class GatewayMetadata extends ThisTestCustomMetadata {
+        public static final String TYPE = "test_metadata_scope_gateway";
 
-        SnapshottableGatewayMetadata(String data) {
-            super(data);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        public static SnapshottableGatewayMetadata readFrom(StreamInput in) throws IOException {
-            return readFrom(SnapshottableGatewayMetadata::new, in);
-        }
-
-        public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
-            return readDiffFrom(TYPE, in);
-        }
-
-        public static SnapshottableGatewayMetadata fromXContent(XContentParser parser) throws IOException {
-            return fromXContent(SnapshottableGatewayMetadata::new, parser);
-        }
-
-        @Override
-        public EnumSet<Metadata.XContentContext> context() {
-            return EnumSet.of(Metadata.XContentContext.API, Metadata.XContentContext.SNAPSHOT, Metadata.XContentContext.GATEWAY);
+        GatewayMetadata(String data) {
+            super(data, TYPE, Metadata.API_AND_GATEWAY);
         }
     }
 
-    private static class NonSnapshottableGatewayMetadata extends TestCustomMetadata {
-        public static final String TYPE = "test_non_snapshottable_gateway";
+    private static class ApiMetadata extends ThisTestCustomMetadata {
+        public static final String TYPE = "test_metadata_scope_api";
 
-        NonSnapshottableGatewayMetadata(String data) {
-            super(data);
+        ApiMetadata(String data) {
+            super(data, TYPE, Metadata.API_ONLY);
         }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        public static NonSnapshottableGatewayMetadata readFrom(StreamInput in) throws IOException {
-            return readFrom(NonSnapshottableGatewayMetadata::new, in);
-        }
-
-        public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
-            return readDiffFrom(TYPE, in);
-        }
-
-        public static NonSnapshottableGatewayMetadata fromXContent(XContentParser parser) throws IOException {
-            return fromXContent(NonSnapshottableGatewayMetadata::new, parser);
-        }
-
-        @Override
-        public EnumSet<Metadata.XContentContext> context() {
-            return Metadata.API_AND_GATEWAY;
-        }
-
     }
 
-    private static class SnapshotableGatewayNoApiMetadata extends TestCustomMetadata {
-        public static final String TYPE = "test_snapshottable_gateway_no_api";
+    private static class NonApiMetadata extends ThisTestCustomMetadata {
+        public static final String TYPE = "test_metadata_scope_non_api";
 
-        SnapshotableGatewayNoApiMetadata(String data) {
-            super(data);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        public static SnapshotableGatewayNoApiMetadata readFrom(StreamInput in) throws IOException {
-            return readFrom(SnapshotableGatewayNoApiMetadata::new, in);
-        }
-
-        public static SnapshotableGatewayNoApiMetadata fromXContent(XContentParser parser) throws IOException {
-            return fromXContent(SnapshotableGatewayNoApiMetadata::new, parser);
-        }
-
-        @Override
-        public EnumSet<Metadata.XContentContext> context() {
-            return EnumSet.of(Metadata.XContentContext.GATEWAY, Metadata.XContentContext.SNAPSHOT);
+        NonApiMetadata(String data) {
+            super(data, TYPE, EnumSet.of(Metadata.XContentContext.GATEWAY, Metadata.XContentContext.SNAPSHOT));
         }
     }
 }

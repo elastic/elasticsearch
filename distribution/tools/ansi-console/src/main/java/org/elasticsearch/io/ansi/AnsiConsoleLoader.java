@@ -7,12 +7,15 @@
  */
 package org.elasticsearch.io.ansi;
 
+import org.fusesource.jansi.Ansi;
 import org.fusesource.jansi.AnsiConsole;
 import org.fusesource.jansi.AnsiPrintStream;
 import org.fusesource.jansi.AnsiType;
 
 import java.io.PrintStream;
 import java.util.function.Supplier;
+
+import static org.fusesource.jansi.Ansi.ansi;
 
 /**
  * Loads the({@link PrintStream} print stream) from {@link AnsiConsole} and checks whether it meets our requirements for a "Console".
@@ -23,6 +26,8 @@ public class AnsiConsoleLoader implements Supplier<PrintStream> {
     public PrintStream get() {
         final AnsiPrintStream out = AnsiConsole.out();
         if (isValidConsole(out)) {
+            Ansi a = ansi().bold().a("Salut").boldOff();
+            out.print(a);
             return out;
         } else {
             return null;

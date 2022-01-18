@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -45,6 +46,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -145,7 +147,8 @@ public class QueryParserHelperBenchmark {
             mapperService.mappingLookup(),
             similarityService,
             null,
-            new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
+            XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(ClusterModule.getNamedXWriteables()))
+                .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
             new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
             null,
             new IndexSearcher(indexReader),
@@ -176,7 +179,8 @@ public class QueryParserHelperBenchmark {
                 Map.of(),
                 Map.of()
             ),
-            new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
+            XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(ClusterModule.getNamedXWriteables()))
+                .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
             similarityService,
             mapperRegistry,
             () -> { throw new UnsupportedOperationException(); },

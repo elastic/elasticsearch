@@ -1181,7 +1181,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testApiKeyRunAsAnotherUserCanCreateApiKey() {
-        final RoleDescriptor descriptor = new RoleDescriptor("role", Strings.EMPTY_ARRAY, null, new String[] { "test_superuser" });
+        final RoleDescriptor descriptor = new RoleDescriptor("role", Strings.EMPTY_ARRAY, null, new String[] { ES_TEST_ROOT_USER });
         Client client = client().filterWithHeader(
             Map.of("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
         );
@@ -1194,7 +1194,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .encodeToString((response1.getId() + ":" + response1.getKey()).getBytes(StandardCharsets.UTF_8));
 
         final CreateApiKeyResponse response2 = new CreateApiKeyRequestBuilder(
-            client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue, "es-security-runas-user", "test_superuser"))
+            client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue, "es-security-runas-user", ES_TEST_ROOT_USER))
         ).setName("create-by run-as user").setRoleDescriptors(List.of(new RoleDescriptor("a", new String[] { "all" }, null, null))).get();
 
         final GetApiKeyResponse getApiKeyResponse = client.execute(

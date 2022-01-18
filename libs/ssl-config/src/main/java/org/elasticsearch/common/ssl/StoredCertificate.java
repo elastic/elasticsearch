@@ -24,45 +24,8 @@ public record StoredCertificate(
     @Nullable String alias,
     boolean hasPrivateKey
 ) {
-
-    public StoredCertificate(X509Certificate certificate, String path, String format, String alias, boolean hasPrivateKey) {
-        this.certificate = Objects.requireNonNull(certificate, "Certificate may not be null");
-        this.path = path;
-        this.format = Objects.requireNonNull(format, "Format may not be null");
-        this.alias = alias;
-        this.hasPrivateKey = hasPrivateKey;
-    }
-
-    public X509Certificate getCertificate() {
-        return certificate;
-    }
-
-    public String getPath() {
-        return path;
-    }
-
-    public String getFormat() {
-        return format;
-    }
-
-    public String getAlias() {
-        return alias;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        StoredCertificate that = (StoredCertificate) o;
-        return hasPrivateKey == that.hasPrivateKey
-            && certificate.equals(that.certificate)
-            && Objects.equals(path, that.path)
-            && format.equals(that.format)
-            && Objects.equals(alias, that.alias);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(certificate, path, format, alias, hasPrivateKey);
+    public StoredCertificate {
+        Objects.requireNonNull(certificate, "Certificate may not be null");
+        Objects.requireNonNull(format, "Format may not be null");
     }
 }

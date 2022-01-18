@@ -670,7 +670,7 @@ public class SSLService {
             .map(SslConfiguration::getConfiguredCertificates)
             .flatMap(Collection::stream)
             .map(
-                cert -> new CertificateInfo(cert.getPath(), cert.getFormat(), cert.getAlias(), cert.hasPrivateKey(), cert.getCertificate())
+                cert -> new CertificateInfo(cert.path(), cert.format(), cert.alias(), cert.hasPrivateKey(), cert.certificate())
             )
             .collect(Sets.toUnmodifiableSortedSet());
     }

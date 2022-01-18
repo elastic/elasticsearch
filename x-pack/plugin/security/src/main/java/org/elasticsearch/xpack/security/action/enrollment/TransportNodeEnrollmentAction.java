@@ -102,7 +102,7 @@ public class TransportNodeEnrollmentAction extends HandledTransportAction<NodeEn
         try {
             transportCaCertificates = ((StoreKeyConfig) transportKeyConfig).getConfiguredCertificates()
                 .stream()
-                .map(StoredCertificate::getCertificate)
+                .map(StoredCertificate::certificate)
                 .filter(x509Certificate -> x509Certificate.getBasicConstraints() != -1)
                 .collect(Collectors.toList());
         } catch (Exception e) {

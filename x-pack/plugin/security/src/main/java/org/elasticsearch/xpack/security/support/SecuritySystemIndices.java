@@ -761,6 +761,10 @@ public class SecuritySystemIndices {
                                     builder.field("type", "search_as_you_type");
                                     builder.endObject();
 
+                                    builder.startObject("roles");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+
                                     builder.startObject("realm");
                                     {
                                         builder.field("type", "object");
@@ -813,9 +817,7 @@ public class SecuritySystemIndices {
                                 builder.field("type", "object");
                                 builder.startObject("properties");
                                 {
-                                    builder.startObject("roles");
-                                    builder.field("type", "keyword");
-                                    builder.endObject();
+
 
                                     // Application specific access data, e.g. kibana spaces
                                     builder.startObject("applications");

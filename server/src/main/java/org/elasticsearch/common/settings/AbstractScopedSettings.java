@@ -959,15 +959,7 @@ public abstract class AbstractScopedSettings {
         }
     }
 
-    private static final class Entry implements Map.Entry<String, String> {
-
-        private final String key;
-        private final Settings settings;
-
-        private Entry(String key, Settings settings) {
-            this.key = key;
-            this.settings = settings;
-        }
+    private record Entry(String key, Settings settings) implements Map.Entry<String, String> {
 
         @Override
         public String getKey() {

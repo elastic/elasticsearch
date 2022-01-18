@@ -125,9 +125,9 @@ public class BreakingChangesGenerator {
         bindings.put("breakingIncludeList", breakingIncludeList);
         bindings.put("deprecationsByArea", deprecationsByArea);
         bindings.put("isElasticsearchSnapshot", version.isSnapshot());
-        bindings.put("majorDotMinor", version.getMajor() + "." + version.getMinor());
-        bindings.put("majorMinor", String.valueOf(version.getMajor()) + version.getMinor());
-        bindings.put("nextMajor", (version.getMajor() + 1) + ".0");
+        bindings.put("majorDotMinor", version.major() + "." + version.minor());
+        bindings.put("majorMinor", String.valueOf(version.major()) + version.minor());
+        bindings.put("nextMajor", (version.major() + 1) + ".0");
         bindings.put("version", version);
 
         return TemplateUtils.render(template, bindings);
@@ -152,7 +152,7 @@ public class BreakingChangesGenerator {
         bindings.put("breakingArea", breakingArea);
         bindings.put("breakingEntriesByNotability", breakingEntriesByNotability);
         bindings.put("breakingAreaAnchor", breakingArea.toLowerCase(Locale.ROOT).replaceFirst(" and", "").replaceAll(" ", "_"));
-        bindings.put("majorMinor", String.valueOf(version.getMajor()) + version.getMinor());
+        bindings.put("majorMinor", String.valueOf(version.major()) + version.minor());
 
         return TemplateUtils.render(template, bindings);
     }

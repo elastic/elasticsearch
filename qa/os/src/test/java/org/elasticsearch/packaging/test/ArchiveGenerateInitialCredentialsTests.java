@@ -55,9 +55,9 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         ServerUtils.disableSecurityAutoConfiguration(installation);
         Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
-        assertThat(parseElasticPassword(result.stdout), nullValue());
-        assertThat(parseKibanaToken(result.stdout), nullValue());
-        assertThat(parseFingerprint(result.stdout), nullValue());
+        assertThat(parseElasticPassword(result.stdout()), nullValue());
+        assertThat(parseKibanaToken(result.stdout()), nullValue());
+        assertThat(parseFingerprint(result.stdout()), nullValue());
         stopElasticsearch();
     }
 
@@ -79,10 +79,10 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         stopElasticsearch();
         ServerUtils.enableSecurityAutoConfiguration(installation);
         Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
-        assertThat(parseElasticPassword(result.stdout), notNullValue());
-        assertThat(parseKibanaToken(result.stdout), notNullValue());
-        assertThat(parseFingerprint(result.stdout), notNullValue());
-        String response = makeRequestAsElastic("https://localhost:9200", parseElasticPassword(result.stdout));
+        assertThat(parseElasticPassword(result.stdout()), notNullValue());
+        assertThat(parseKibanaToken(result.stdout()), notNullValue());
+        assertThat(parseFingerprint(result.stdout()), notNullValue());
+        String response = makeRequestAsElastic("https://localhost:9200", parseElasticPassword(result.stdout()));
         assertThat(response, containsString("You Know, for Search"));
     }
 
@@ -92,9 +92,9 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         stopElasticsearch();
         Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
-        assertThat(parseElasticPassword(result.stdout), nullValue());
-        assertThat(parseKibanaToken(result.stdout), nullValue());
-        assertThat(parseFingerprint(result.stdout), nullValue());
+        assertThat(parseElasticPassword(result.stdout()), nullValue());
+        assertThat(parseKibanaToken(result.stdout()), nullValue());
+        assertThat(parseFingerprint(result.stdout()), nullValue());
     }
 
     private String parseElasticPassword(String output) {

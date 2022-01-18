@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.Compressor;
@@ -343,14 +344,19 @@ public class PublicationTransportHandler {
                 // handling to share the serialized representation of the cluster state across requests, so we must also handle local
                 // requests differently to avoid having to decompress and deserialize the request on the master.
 
+                final boolean isVotingOnlyNode = discoveryNodes.getLocalNode().getRoles().contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
                 logger.trace("handling cluster state version [{}] locally on [{}]", newState.version(), destination);
                 transportService.getThreadPool()
                     .generic()
-                    .execute(
-                        transportService.getThreadPool()
-                            .getThreadContext()
-                            .preserveContext(ActionRunnable.supply(listener, () -> handlePublishRequest.apply(publishRequest)))
-                    );
+                    .execute(transportService.getThreadPool().getThreadContext().preserveContext(ActionRunnable.supply(listener, () -> {
+                        if (isVotingOnlyNode) {
+                            throw new TransportException(
+                                new ElasticsearchException("voting-only node skipping local publication to " + destination)
+                            );
+                        } else {
+                            return handlePublishRequest.apply(publishRequest);
+                        }
+                    })));
             } else if (sendFullVersion || previousState.nodes().nodeExists(destination) == false) {
                 logger.trace("sending full cluster state version [{}] to [{}]", newState.version(), destination);
                 sendFullClusterState(destination, listener);

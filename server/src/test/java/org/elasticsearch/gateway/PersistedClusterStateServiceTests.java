@@ -1120,7 +1120,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 && corruptDocIsLastPage;
             if (isOnlyPageForIndex == false // don't remove the only doc for an index, this just loses the index and doesn't corrupt
                 && rarely()) {
-                documents.remove(between(0, documents.size() - 1));
+                documents.remove(corruptIndex);
             } else {
                 if (randomBoolean()) {
                     corruptDocument.removeFields(PAGE_FIELD_NAME);

@@ -250,7 +250,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     if (changed) {
                         if (found) {
                             logger.info("updated repository [{}]", request.name());
@@ -319,7 +319,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(null);
                 }
             },
@@ -373,7 +373,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     if (deletedRepositories.isEmpty() == false) {
                         logger.info("deleted repositories [{}]", deletedRepositories);
                     }

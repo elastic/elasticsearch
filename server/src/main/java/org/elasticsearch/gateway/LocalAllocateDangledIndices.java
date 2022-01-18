@@ -229,7 +229,7 @@ public class LocalAllocateDangledIndices {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     try {
                         channel.sendResponse(new AllocateDangledResponse());
                     } catch (IOException e) {

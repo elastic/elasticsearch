@@ -153,8 +153,4 @@ public record SslConfiguration(
             "no supported SSL/TLS protocol was found in the configured supported protocols: " + supportedProtocols
         );
     }
-
-    public boolean isExplicitlyConfigured() {
-        return explicitlyConfigured;
-    }
 }

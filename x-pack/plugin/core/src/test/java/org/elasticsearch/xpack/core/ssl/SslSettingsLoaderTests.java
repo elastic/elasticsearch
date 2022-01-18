@@ -391,7 +391,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
     }
 
     public void testExplicitlyConfigured() {
-        assertThat(SslSettingsLoader.load(Settings.EMPTY, null, environment).isExplicitlyConfigured(), is(false));
+        assertThat(SslSettingsLoader.load(Settings.EMPTY, null, environment).explicitlyConfigured(), is(false));
         assertThat(
             SslSettingsLoader.load(
                 Settings.builder()
@@ -401,7 +401,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
                     .build(),
                 "xpack.http.ssl.",
                 environment
-            ).isExplicitlyConfigured(),
+            ).explicitlyConfigured(),
             is(false)
         );
 
@@ -410,7 +410,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
                 Settings.builder().put("verification_mode", randomFrom(SslVerificationMode.values()).name()).build(),
                 null,
                 environment
-            ).isExplicitlyConfigured(),
+            ).explicitlyConfigured(),
             is(true)
         );
 
@@ -419,7 +419,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
                 Settings.builder().putList("xpack.security.transport.ssl.truststore.path", "truststore.p12").build(),
                 "xpack.security.transport.ssl.",
                 environment
-            ).isExplicitlyConfigured(),
+            ).explicitlyConfigured(),
             is(true)
         );
     }

@@ -346,7 +346,7 @@ public class VersionTests extends ESTestCase {
             Version version = declaredVersions.get(i);
             assertTrue(version.before(randomVersion));
             if (randomVersion.major == previousFirstMinor.major) {
-                assertTrue(previousFirstMinor.minor == randomVersion.minor - 1 || previousFirstMinor.minor == randomVersion.minor);
+                assertTrue(previousFirstMinor.minor == randomVersion.minor - 1);
             } else {
                 assertTrue((randomVersion.major - 1) == previousFirstMinor.major);
                 assertTrue(randomVersion.minor == 0);

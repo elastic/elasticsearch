@@ -29,7 +29,7 @@ public class CCSVersionCheckHelper {
                         + request.method()
                         + " "
                         + request.path()
-                        + "] not serializable to previous minor and 'ccs_force_fail' enabled.",
+                        + "] not serializable to previous minor and ' + CCS_VERSION_CHECK_FLAG + ' enabled.",
                     e
                 );
             }

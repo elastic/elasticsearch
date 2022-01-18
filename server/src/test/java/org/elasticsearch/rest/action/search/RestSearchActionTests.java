@@ -150,7 +150,7 @@ public class RestSearchActionTests extends RestActionTestCase {
 
             Exception ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
             assertEquals(
-                "request [POST /some_index/_search] not serializable to previous minor and 'ccs_force_fail' enabled.",
+                "request [POST /some_index/_search] not serializable to previous minor and 'check_ccs_compatibility' enabled.",
                 ex.getMessage()
             );
             assertEquals("This query isn't serializable to nodes on or before 8.0.0", ex.getCause().getMessage());
@@ -169,7 +169,7 @@ public class RestSearchActionTests extends RestActionTestCase {
 
             Exception ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
             assertEquals(
-                "request [POST /some_index/_search] not serializable to previous minor and 'ccs_force_fail' enabled.",
+                "request [POST /some_index/_search] not serializable to previous minor and 'check_ccs_compatibility' enabled.",
                 ex.getMessage()
             );
             assertEquals(
@@ -182,7 +182,7 @@ public class RestSearchActionTests extends RestActionTestCase {
         // this shouldn't fail without the flag enabled
         params = new HashMap<>();
         if (randomBoolean()) {
-            params.put("ccs_force_fail", "false");
+            params.put("check_ccs_compatibility", "false");
         }
         {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)

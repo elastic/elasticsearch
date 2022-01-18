@@ -555,7 +555,7 @@ public class PersistedClusterStateService {
 
                         if (pageIndex == 0 && isLastPage) {
                             // common case: metadata fits in a single page
-                            bytesReferenceConsumer.accept(CompressorFactory.COMPRESSOR.uncompress(documentData));
+                            bytesReferenceConsumer.accept(uncompress(documentData));
                             continue;
                         }
 
@@ -577,7 +577,7 @@ public class PersistedClusterStateService {
                         final BytesReference bytesReference = reader.addPage(key, documentData, pageIndex, isLastPage);
                         if (bytesReference != null) {
                             documentReaders.remove(key);
-                            bytesReferenceConsumer.accept(CompressorFactory.COMPRESSOR.uncompress(bytesReference));
+                            bytesReferenceConsumer.accept(uncompress(bytesReference));
                         }
                     }
                 }
@@ -588,6 +588,15 @@ public class PersistedClusterStateService {
             throw new CorruptStateException(
                 "incomplete paginated documents " + documentReaders.keySet() + " when reading cluster state index [type=" + type + "]"
             );
+        }
+    }
+
+    private static BytesReference uncompress(BytesReference bytesReference) throws IOException {
+        try {
+            return CompressorFactory.COMPRESSOR.uncompress(bytesReference);
+        } catch (IOException e) {
+            // no actual IO takes place, the data is all in-memory, so an exception indicates corruption
+            throw new CorruptStateException(e);
         }
     }
 

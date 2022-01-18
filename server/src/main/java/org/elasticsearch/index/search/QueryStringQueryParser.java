@@ -130,7 +130,7 @@ public class QueryStringQueryParser extends QueryParser {
      * @param lenient If set to `true` will cause format based failures (like providing text to a numeric field) to be ignored.
      */
     public QueryStringQueryParser(SearchExecutionContext context, boolean lenient) {
-        this(context, "*", resolveMappingField(context, "*", 1.0f, false, false, null), lenient);
+        this(context, "*", resolveMappingField(context, "*", 1.0f, null), lenient);
     }
 
     private QueryStringQueryParser(
@@ -264,22 +264,7 @@ public class QueryStringQueryParser extends QueryParser {
     private Map<String, Float> extractMultiFields(String field, boolean quoted) {
         Map<String, Float> extractedFields;
         if (field != null) {
-            boolean allFields = Regex.isMatchAllPattern(field);
-            if (allFields && this.field != null && this.field.equals(field)) {
-                // "*" is the default field
-                extractedFields = fieldsAndWeights;
-            }
-            boolean multiFields = Regex.isSimpleMatchPattern(field);
-            // Filters unsupported fields if a pattern is requested
-            // Filters metadata fields if all fields are requested
-            extractedFields = resolveMappingField(
-                context,
-                field,
-                1.0f,
-                allFields == false,
-                multiFields == false,
-                quoted ? quoteFieldSuffix : null
-            );
+            extractedFields = resolveMappingField(context, field, 1.0f, quoted ? quoteFieldSuffix : null);
         } else if (quoted && quoteFieldSuffix != null) {
             extractedFields = resolveMappingFields(context, fieldsAndWeights, quoteFieldSuffix);
         } else {

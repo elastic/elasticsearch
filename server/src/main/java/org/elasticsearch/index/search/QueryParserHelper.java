@@ -74,17 +74,8 @@ public final class QueryParserHelper {
     ) {
         Map<String, Float> resolvedFields = new HashMap<>();
         for (Map.Entry<String, Float> fieldEntry : fieldsAndWeights.entrySet()) {
-            boolean allField = Regex.isMatchAllPattern(fieldEntry.getKey());
-            boolean multiField = Regex.isSimpleMatchPattern(fieldEntry.getKey());
             float weight = fieldEntry.getValue() == null ? 1.0f : fieldEntry.getValue();
-            Map<String, Float> fieldMap = resolveMappingField(
-                context,
-                fieldEntry.getKey(),
-                weight,
-                multiField == false,
-                allField == false,
-                fieldSuffix
-            );
+            Map<String, Float> fieldMap = resolveMappingField(context, fieldEntry.getKey(), weight, fieldSuffix);
 
             for (Map.Entry<String, Float> field : fieldMap.entrySet()) {
                 float boost = field.getValue();
@@ -104,21 +95,13 @@ public final class QueryParserHelper {
      * @param context The context of the query
      * @param fieldOrPattern The field name or the pattern to resolve
      * @param weight The weight for the field
-     * @param acceptAllTypes Whether all field type should be added when a pattern is expanded.
-     *                       If false, only searchable field types are added.
-     * @param acceptMetadataField Whether metadata fields should be added when a pattern is expanded.
      * @param fieldSuffix The suffix name to add to the expanded field names if a mapping exists for that name.
      *                    The original name of the field is kept if adding the suffix to the field name does not point to a valid field
      *                    in the mapping.
      */
-    static Map<String, Float> resolveMappingField(
-        SearchExecutionContext context,
-        String fieldOrPattern,
-        float weight,
-        boolean acceptAllTypes,
-        boolean acceptMetadataField,
-        String fieldSuffix
-    ) {
+    static Map<String, Float> resolveMappingField(SearchExecutionContext context, String fieldOrPattern, float weight, String fieldSuffix) {
+        boolean allField = Regex.isMatchAllPattern(fieldOrPattern);
+        boolean wildcard = Regex.isSimpleMatchPattern(fieldOrPattern);
         Set<String> allFields = context.getMatchingFieldNames(fieldOrPattern);
         Map<String, Float> fields = new HashMap<>();
 
@@ -128,16 +111,12 @@ public final class QueryParserHelper {
             }
 
             MappedFieldType fieldType = context.getFieldType(fieldName);
-            if (acceptMetadataField == false && fieldType.name().startsWith("_")) {
-                // Ignore metadata fields
-                continue;
-            }
-            if (acceptMetadataField == false && fieldType.isIndexed() == false) {
-                // Don't include runtime fields or doc-value-only fields when expanding '*'
+            if (allField && (fieldType.name().startsWith("_") || fieldType.isIndexed())) {
+                // Ignore metadata fields, runtime fields and doc-value-only fields
                 continue;
             }
 
-            if (acceptAllTypes == false) {
+            if (wildcard) {
                 if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE || fieldType.mayExistInIndex(context) == false) {
                     continue;
                 }

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.xcontent;
 
-import org.elasticsearch.common.Strings;
-
 import java.io.IOException;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -48,10 +46,5 @@ record SimpleStruct(int i, double d, String s) implements ToXContentObject {
             .field(D.getPreferredName(), d)
             .field(S.getPreferredName(), s)
             .endObject();
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this);
     }
 }

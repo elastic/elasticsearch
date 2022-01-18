@@ -19,7 +19,7 @@ setup:
           { "test_wc": "adc" }
 
 ---
-"Constant Keyword Fields API":
+"Wildcard Fields API":
   - do:
       search:
         index: test

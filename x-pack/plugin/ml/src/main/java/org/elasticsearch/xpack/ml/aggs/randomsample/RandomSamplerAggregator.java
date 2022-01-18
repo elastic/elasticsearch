@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.ml.aggs.randomsample;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -72,8 +74,12 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        RandomSamplingQuery query = new RandomSamplingQuery(probability, seed, hash, topLevelQuery());
-        Weight weight = searcher().rewrite(query).createWeight(searcher(), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        RandomSamplingQuery query = new RandomSamplingQuery(probability, seed, hash);
+        BooleanQuery booleanQuery = new BooleanQuery.Builder()
+            .add(query, BooleanClause.Occur.FILTER)
+            .add(topLevelQuery(), BooleanClause.Occur.FILTER)
+            .build();
+        Weight weight = searcher().createWeight(searcher().rewrite(booleanQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
         Scorer scorer = weight.scorer(ctx);
         if (scorer == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;

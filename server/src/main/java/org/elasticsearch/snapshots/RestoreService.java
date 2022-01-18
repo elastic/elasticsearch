@@ -1082,7 +1082,7 @@ public class RestoreService implements ClusterStateApplier {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 cleanupInProgress = false;
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -1575,7 +1575,7 @@ public class RestoreService implements ClusterStateApplier {
         }
 
         @Override
-        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             listener.onResponse(new RestoreCompletionResponse(restoreUUID, snapshot, restoreInfo));
         }
     }

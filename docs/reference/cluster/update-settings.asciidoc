@@ -21,6 +21,7 @@ Configures <<dynamic-cluster-setting,dynamic cluster settings>>.
 [[cluster-update-settings-api-desc]]
 ==== {api-description-title}
 
+:strip-api-link: true
 include::{es-repo-dir}/setup/configuration.asciidoc[tag=cluster-setting-precedence]
 
 [[cluster-update-settings-api-query-params]]

@@ -75,8 +75,7 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         RandomSamplingQuery query = new RandomSamplingQuery(probability, seed, hash);
-        BooleanQuery booleanQuery = new BooleanQuery.Builder()
-            .add(query, BooleanClause.Occur.FILTER)
+        BooleanQuery booleanQuery = new BooleanQuery.Builder().add(query, BooleanClause.Occur.FILTER)
             .add(topLevelQuery(), BooleanClause.Occur.FILTER)
             .build();
         Weight weight = searcher().createWeight(searcher().rewrite(booleanQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);

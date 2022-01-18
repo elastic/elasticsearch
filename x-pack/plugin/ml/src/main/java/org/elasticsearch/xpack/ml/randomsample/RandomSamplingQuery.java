@@ -59,35 +59,35 @@ public final class RandomSamplingQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-            return new Weight(this) {
-                @Override
-                public boolean isCacheable(LeafReaderContext ctx) {
-                    return true;
-                }
+        return new Weight(this) {
+            @Override
+            public boolean isCacheable(LeafReaderContext ctx) {
+                return true;
+            }
 
-                @Override
-                public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-                    final Scorer s = scorer(context);
-                    final boolean exists = s.iterator().advance(doc) == doc;
-                    if (exists) {
-                        return Explanation.match(boost, getQuery().toString());
-                    } else {
-                        return Explanation.noMatch(getQuery().toString() + " doesn't match id " + doc);
-                    }
+            @Override
+            public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                final Scorer s = scorer(context);
+                final boolean exists = s.iterator().advance(doc) == doc;
+                if (exists) {
+                    return Explanation.match(boost, getQuery().toString());
+                } else {
+                    return Explanation.noMatch(getQuery().toString() + " doesn't match id " + doc);
                 }
+            }
 
-                @Override
-                public Scorer scorer(LeafReaderContext context) {
-                    final SplittableRandom random = splittableRandom.split();
-                    int maxDoc = context.reader().maxDoc();
-                    return new ConstantScoreScorer(
-                        this,
-                        boost,
-                        ScoreMode.COMPLETE_NO_SCORES,
-                        new RandomSamplingIterator(maxDoc, p, random::nextInt)
-                    );
-                }
-            };
+            @Override
+            public Scorer scorer(LeafReaderContext context) {
+                final SplittableRandom random = splittableRandom.split();
+                int maxDoc = context.reader().maxDoc();
+                return new ConstantScoreScorer(
+                    this,
+                    boost,
+                    ScoreMode.COMPLETE_NO_SCORES,
+                    new RandomSamplingIterator(maxDoc, p, random::nextInt)
+                );
+            }
+        };
     }
 
     @Override

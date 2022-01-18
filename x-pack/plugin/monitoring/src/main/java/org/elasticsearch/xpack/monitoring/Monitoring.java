@@ -301,7 +301,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         return Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS).filter(id -> {
             IndexTemplateMetadata templateMetadata = map.get(templateName(id));
             return templateMetadata == null
-                || (templateMetadata.version() != null && (templateMetadata.version() >= LAST_UPDATED_VERSION == false));
+                || (templateMetadata.version() != null && templateMetadata.version() < LAST_UPDATED_VERSION);
         }).collect(Collectors.toList());
     }
 

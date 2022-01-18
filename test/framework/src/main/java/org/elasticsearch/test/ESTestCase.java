@@ -93,7 +93,7 @@ import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -1248,11 +1248,11 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static String getTestTransportType() {
-        return MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME;
+        return Netty4Plugin.NETTY_TRANSPORT_NAME;
     }
 
     public static Class<? extends Plugin> getTestTransportPlugin() {
-        return MockNioTransportPlugin.class;
+        return Netty4Plugin.class;
     }
 
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();

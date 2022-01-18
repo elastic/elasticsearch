@@ -1137,7 +1137,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     assert false : e;
                 }
             });
@@ -1224,7 +1224,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     assert false : e;
                 }
             });
@@ -1285,7 +1285,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     notifyAdvancer.advanceTime();
                 }
             });
@@ -1428,7 +1428,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 return ClusterState.builder(cs)
                     .metadata(Metadata.builder(cs.metadata()).persistentSettings(settingsBuilder.build()))
                     .build();
-            }, (source, e) -> {});
+            }, (e) -> {});
             cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing setting update");
 
             final ClusterNode removedNode = cluster.getAnyNode();
@@ -1829,15 +1829,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             logger.info("--> submitting broken task to [{}]", leader1);
 
             final AtomicBoolean failed = new AtomicBoolean();
-            leader1.submitUpdateTask(
-                "broken-task",
-                cs -> ClusterState.builder(cs).putCustom("broken", new BrokenCustom()).build(),
-                (source, e) -> {
-                    assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
-                    assertThat(e.getCause().getMessage(), equalTo(BrokenCustom.EXCEPTION_MESSAGE));
-                    failed.set(true);
-                }
-            );
+            leader1.submitUpdateTask("broken-task", cs -> ClusterState.builder(cs).putCustom("broken", new BrokenCustom()).build(), (e) -> {
+                assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
+                assertThat(e.getCause().getMessage(), equalTo(BrokenCustom.EXCEPTION_MESSAGE));
+                failed.set(true);
+            });
             cluster.runFor(2 * DEFAULT_DELAY_VARIABILITY + 1, "processing broken task");
             assertTrue(failed.get());
 

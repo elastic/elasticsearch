@@ -5,8 +5,6 @@
 clusters. For example, you can use a {ccs} to filter and analyze log data stored
 on clusters in different data centers.
 
-IMPORTANT: {ccs-cap} requires <<remote-clusters,remote clusters>>.
-
 [discrete]
 [[ccs-supported-apis]]
 === Supported APIs
@@ -24,6 +22,37 @@ The following APIs support {ccs}:
 * experimental:[] <<search-vector-tile-api,Vector tile search>>
 
 [discrete]
+[[ccs-prereqs]]
+=== Prerequisites
+
+* {ccs-cap} requires remote clusters. To set up remote clusters on {ess},
+see link:{cloud}/ec-enable-ccs.html[configure remote clusters on {ess}]. If you
+run {es} on your own hardware, see <<remote-clusters>>.
++
+To ensure your remote cluster configuration supports {ccs}, see
+<<ccs-supported-configurations>>.
+
+* The local coordinating node must have the
+<<remote-node,`remote_cluster_client`>> node role.
+
+[[ccs-gateway-seed-nodes]]
+* If you use <<sniff-mode,sniff mode>>, the local coordinating node
+must be able to connect to seed and gateway nodes on the remote cluster.
++
+We recommend using gateway nodes capable of serving as coordinating nodes.
+The seed nodes can be a subset of these gateway nodes.
+
+[[ccs-proxy-mode]]
+* If you use <<proxy-mode,proxy mode>>, the local coordinating node must be able
+to connect to the configured `proxy_address`. The proxy at this address must be
+able to route connections to gateway and coordinating nodes on the remote
+cluster.
+
+* {ccs-cap} requires different security privileges on the local cluster and
+remote cluster. See <<remote-clusters-privileges-ccs>> and
+<<clusters-privileges-ccs-kibana>>.
+
+[discrete]
 [[ccs-example]]
 === {ccs-cap} examples
 
@@ -31,15 +60,8 @@ The following APIs support {ccs}:
 [[ccs-remote-cluster-setup]]
 ==== Remote cluster setup
 
-To perform a {ccs}, you must have at least one
-<<remote-clusters-connect,remote cluster configured>>.
-
-TIP: If you want to search across clusters in the cloud, you can
-link:{cloud}/ec-enable-ccs.html[configure remote clusters on {ess}]. Then, you
-can search across clusters and <<ccr-getting-started-tutorial,set up {ccr}>>.
-
 The following <<cluster-update-settings,cluster update settings>> API request
-adds three remote clusters:`cluster_one`, `cluster_two`, and `cluster_three`.
+adds three remote clusters: `cluster_one`, `cluster_two`, and `cluster_three`.
 
 [source,console]
 --------------------------------
@@ -74,6 +96,9 @@ PUT _cluster/settings
 [discrete]
 [[ccs-search-remote-cluster]]
 ==== Search a single remote cluster
+
+In the search request, you specify data streams and indices on a remote cluster
+as `<remote_cluster_name>:<target>``.
 
 The following <<search-search,search>> API request searches the
 `my-index-000001` index on a single remote cluster, `cluster_one`.
@@ -289,30 +314,6 @@ If `cluster_two` is disconnected or unavailable during a {ccs}, {es} won't
 include matching documents from that cluster in the final results.
 
 [discrete]
-[[ccs-gateway-seed-nodes]]
-=== Selecting gateway and seed nodes in sniff mode
-
-For remote clusters using the <<sniff-mode,sniff connection>> mode, gateway and
-seed nodes need to be accessible from the local cluster via your network.
-
-By default, any non-<<master-node,master-eligible>> node can act as a
-gateway node. If wanted, you can define the gateway nodes for a cluster by
-setting `cluster.remote.node.attr.gateway` to `true`.
-
-For {ccs}, we recommend you use gateway nodes that are capable of serving as
-<<coordinating-node,coordinating nodes>> for search requests. If
-wanted, the seed nodes for a cluster can be a subset of these gateway nodes.
-
-[discrete]
-[[ccs-proxy-mode]]
-=== {ccs-cap} in proxy mode
-
-<<proxy-mode,Proxy mode>> remote cluster connections support {ccs}. All remote
-connections connect to the configured `proxy_address`. Any desired connection
-routing to gateway or <<coordinating-node,coordinating nodes>> must
-be implemented by the intermediate proxy at this configured address.
-
-[discrete]
 [[ccs-network-delays]]
 === How {ccs} handles network delays
 
@@ -414,27 +415,56 @@ image:images/ccs/ccs-min-roundtrip-client-response.svg[]
 
 [discrete]
 [[ccs-supported-configurations]]
-=== Supported configurations
+=== Supported {ccs} configurations
 
-Generally, <<gateway-nodes-selection,cross-cluster search>> can search remote
-clusters that are one major version ahead or behind the coordinating node's
-version.
+Elastic only supports searches from a local cluster to a remote cluster running:
+
+* The previous minor version.
+* The same version.
+* A newer version. This version must also be compatible with the local cluster
+as outlined in the following matrix.
++
+[%collapsible]
+[[ccs-version-compatibility]]
+.Version compatibility matrix
+====
+include::{es-repo-dir}/modules/remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
+====
 
 IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
 clusters must use the same {es} version.
 
-Cross-cluster search can also search remote clusters that are being
-<<rolling-upgrades, upgraded>> so long as both the "upgrade from" and
-"upgrade to" version are compatible with the gateway node.
+For example, a local 8.0 cluster can search a remote 7.17, 8.0, or 8.1 cluster.
+However, a search from a local 8.0 cluster to a remote 7.16 or 6.8 cluster is
+not supported.
 
-For example, a coordinating node running {es} 5.6 can search a remote cluster
-running {es} 6.8, but that cluster can not be upgraded to 7.1. In this case
-you should first upgrade the coordinating node to 7.1 and then upgrade remote
-cluster.
+A {ccs} using an unsupported configuration may still work. However, such
+searches aren't tested by Elastic, and their behavior isn't guaranteed.
+
+[discrete]
+[[ensure-ccs-support]]
+==== Ensure {ccs} support
+
+The simplest way to ensure your clusters support {ccs} is to keep each cluster
+on the same version of {es}. If you need to maintain clusters with different
+versions, you can:
+
+* Maintain a dedicated cluster for {ccs}. Keep this cluster on the earliest
+version needed to search the other clusters. For example, if you have 6.8, 7.14,
+and 7.17 clusters, you can maintain a dedicated 6.8 cluster to use as the local
+cluster for {ccs}.
+
+* Keep each cluster no more than one minor version apart. This lets you use any
+cluster as the local cluster when running a {ccs}.
+
+[discrete]
+[[ccs-during-upgrade]]
+==== {ccs-cap} during an upgrade
+
+You can still search a remote cluster while performing a
+<<rolling-upgrades,rolling upgrade>> on the local cluster. However, the local
+coordinating node's "upgrade from" and "upgrade to" version must be compatible
+with the remote cluster's gateway node.
 
 WARNING: Running multiple versions of {es} in the same cluster beyond the
 duration of an upgrade is not supported.
-
-Only features that exist across all searched clusters are supported. Using
-a recent feature with a remote cluster where the feature is not supported
-will result in undefined behavior.

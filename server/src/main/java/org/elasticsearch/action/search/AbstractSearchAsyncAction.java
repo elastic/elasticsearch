@@ -195,7 +195,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
             listener.onResponse(
                 new SearchResponse(
-                    InternalSearchResponse.empty(withTotalHits),
+                    withTotalHits ? InternalSearchResponse.EMPTY_WITH_TOTAL_HITS : InternalSearchResponse.EMPTY_WITHOUT_TOTAL_HITS,
                     null,
                     0,
                     0,

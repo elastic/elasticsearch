@@ -28,6 +28,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -50,6 +51,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * This defines the core properties and functions to operate on a field.
@@ -141,9 +144,16 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Returns true if the field is indexed.
+     */
+    public final boolean isIndexed() {
+        return isIndexed;
+    }
+
+    /**
      * Returns true if the field is stored separately.
      */
-    public boolean isStored() {
+    public final boolean isStored() {
         return isStored;
     }
 
@@ -446,11 +456,39 @@ public abstract class MappedFieldType {
         }
     }
 
+    protected final void failIfNotIndexedNorDocValuesFallback(SearchExecutionContext context) {
+        if (isIndexed == false && docValues == false) {
+            // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
+            throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed nor has doc values.");
+        } else if (isIndexed == false && docValues && context.allowExpensiveQueries() == false) {
+            // if query can only run using doc values, ensure running expensive queries are allowed
+            throw new ElasticsearchException(
+                "Cannot search on field ["
+                    + name()
+                    + "] since it is not indexed and '"
+                    + ALLOW_EXPENSIVE_QUERIES.getKey()
+                    + "' is set to false."
+            );
+        }
+    }
+
     /**
      * @return if this field type should load global ordinals eagerly
      */
     public boolean eagerGlobalOrdinals() {
         return false;
+    }
+
+    /**
+     * @return if the field may have values in the underlying index
+     *
+     * Note that this should only return {@code false} if it is not possible for it to
+     * match on a term query.
+     *
+     * @see org.elasticsearch.index.search.QueryParserHelper
+     */
+    public boolean mayExistInIndex(SearchExecutionContext context) {
+        return true;
     }
 
     /**

@@ -17,6 +17,7 @@ import org.apache.lucene.sandbox.search.CombinedFieldQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.CoreMatchers;
 import org.junit.Before;
@@ -42,10 +44,11 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
     private SearchExecutionContext context;
+    private MapperService mapperService;
 
     @Before
     public void createSearchExecutionContext() throws IOException {
-        MapperService mapperService = createMapperService(
+        this.mapperService = createMapperService(
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject(MapperService.SINGLE_MAPPING_NAME)
@@ -130,13 +133,21 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
     }
 
     public void testWildcardFieldPattern() throws Exception {
-        Query query = combinedFieldsQuery("quick fox").field("field*").toQuery(context);
-        assertThat(query, instanceOf(BooleanQuery.class));
 
-        BooleanQuery booleanQuery = (BooleanQuery) query;
-        assertThat(booleanQuery.clauses().size(), equalTo(2));
-        assertThat(booleanQuery.clauses().get(0).getQuery(), instanceOf(CombinedFieldQuery.class));
-        assertThat(booleanQuery.clauses().get(1).getQuery(), instanceOf(CombinedFieldQuery.class));
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            { "field1" : "foo", "field2" : "foo" }
+            """));
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
+            SearchExecutionContext searcherContext = createSearchExecutionContext(mapperService, new IndexSearcher(ir));
+            Query query = combinedFieldsQuery("quick fox").field("field*").toQuery(searcherContext);
+            assertThat(query, instanceOf(BooleanQuery.class));
+
+            BooleanQuery booleanQuery = (BooleanQuery) query;
+            assertThat(booleanQuery.clauses().size(), equalTo(2));
+            assertThat(booleanQuery.clauses().get(0).getQuery(), instanceOf(CombinedFieldQuery.class));
+            assertThat(booleanQuery.clauses().get(1).getQuery(), instanceOf(CombinedFieldQuery.class));
+        });
     }
 
     public void testOperator() throws Exception {

@@ -77,7 +77,6 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -509,19 +508,23 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, i, metadata)) {
                     continue;
                 }
-                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices)) {
+                if (addFailureIfIndexCannotBeCreated(docWriteRequest, i)) {
                     continue;
                 }
-                Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
+                IndexAbstraction ia = null;
+                boolean includeDataStreams = docWriteRequest.opType() == DocWriteRequest.OpType.CREATE;
                 try {
+                    ia = concreteIndices.resolveIfAbsent(docWriteRequest);
+                    if (ia.isDataStreamRelated() && includeDataStreams == false) {
+                        throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
+                    }
                     // The ConcreteIndices#resolveIfAbsent(...) method validates via IndexNameExpressionResolver whether
                     // an operation is allowed in index into a data stream, but this isn't done when resolve call is cached, so
                     // the validation needs to be performed here too.
-                    IndexAbstraction indexAbstraction = clusterState.getMetadata().getIndicesLookup().get(concreteIndex.getName());
-                    if (indexAbstraction.getParentDataStream() != null &&
+                    if (ia.getParentDataStream() != null &&
                     // avoid valid cases when directly indexing into a backing index
                     // (for example when directly indexing into .ds-logs-foobar-000001)
-                        concreteIndex.getName().equals(docWriteRequest.index()) == false
+                        ia.getName().equals(docWriteRequest.index()) == false
                         && docWriteRequest.opType() != DocWriteRequest.OpType.CREATE) {
                         throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
                     }
@@ -531,6 +534,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
                     docWriteRequest.process();
 
+                    final Index concreteIndex = docWriteRequest.getConcreteWriteIndex(ia, metadata);
+                    if (addFailureIfIndexIsClosed(docWriteRequest, concreteIndex, i, metadata)) {
+                        continue;
+                    }
                     IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
                     int shardId = docWriteRequest.route(indexRouting);
                     List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
@@ -538,8 +545,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         shard -> new ArrayList<>()
                     );
                     shardRequests.add(new BulkItemRequest(i, docWriteRequest));
-                } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException e) {
-                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(), docWriteRequest.id(), e);
+                } catch (ElasticsearchParseException | IllegalArgumentException | IndexNotFoundException | RoutingMissingException e) {
+                    String name = ia != null ? ia.getName() : docWriteRequest.index();
+                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(name, docWriteRequest.id(), e);
                     BulkItemResponse bulkItemResponse = BulkItemResponse.failure(i, docWriteRequest.opType(), failure);
                     responses.set(i, bulkItemResponse);
                     // make sure the request gets never processed again
@@ -676,18 +684,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return false;
         }
 
-        private boolean addFailureIfIndexIsUnavailable(DocWriteRequest<?> request, int idx, final ConcreteIndices concreteIndices) {
+        private boolean addFailureIfIndexIsClosed(DocWriteRequest<?> request, Index concreteIndex, int idx, final Metadata metadata) {
+            IndexMetadata indexMetadata = metadata.getIndexSafe(concreteIndex);
+            if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
+                addFailure(request, idx, new IndexClosedException(concreteIndex));
+                return true;
+            }
+            return false;
+        }
+
+        private boolean addFailureIfIndexCannotBeCreated(DocWriteRequest<?> request, int idx) {
             IndexNotFoundException cannotCreate = indicesThatCannotBeCreated.get(request.index());
             if (cannotCreate != null) {
                 addFailure(request, idx, cannotCreate);
-                return true;
-            }
-            try {
-                assert request.indicesOptions().forbidClosedIndices() : "only open indices can be resolved";
-                Index concreteIndex = concreteIndices.resolveIfAbsent(request);
-                assert concreteIndex != null;
-            } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
-                addFailure(request, idx, ex);
                 return true;
             }
             return false;
@@ -717,7 +726,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private static class ConcreteIndices {
         private final ClusterState state;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
-        private final Map<String, Index> indices = new HashMap<>();
+        private final Map<String, IndexAbstraction> indexAbstractions = new HashMap<>();
         private final Map<Index, IndexRouting> routings = new HashMap<>();
 
         ConcreteIndices(ClusterState state, IndexNameExpressionResolver indexNameExpressionResolver) {
@@ -725,28 +734,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             this.indexNameExpressionResolver = indexNameExpressionResolver;
         }
 
-        Index resolveIfAbsent(DocWriteRequest<?> request) {
-            Index concreteIndex = indices.get(request.index());
-            if (concreteIndex == null) {
-                boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE;
-                try {
-                    concreteIndex = indexNameExpressionResolver.concreteWriteIndex(
-                        state,
-                        request.indicesOptions(),
-                        request.indices()[0],
-                        false,
-                        includeDataStreams
-                    );
-                } catch (IndexNotFoundException e) {
-                    if (includeDataStreams == false && e.getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {
-                        throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
-                    } else {
-                        throw e;
-                    }
-                }
-                indices.put(request.index(), concreteIndex);
-            }
-            return concreteIndex;
+        IndexAbstraction resolveIfAbsent(DocWriteRequest<?> request) {
+            return indexAbstractions.computeIfAbsent(
+                request.index(),
+                key -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
+            );
         }
 
         IndexRouting routing(Index index) {

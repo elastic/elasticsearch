@@ -112,7 +112,7 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         final ProfileService profileService = node().injector().getInstance(ProfileService.class);
         final Authentication authentication = new Authentication(
             new User("foo"),
-            new Authentication.RealmRef("realm_name", "realm_type", randomAlphaOfLengthBetween(3, 8)),
+            new Authentication.RealmRef("realm_name_1", "realm_type_1", randomAlphaOfLengthBetween(3, 8)),
             null
         );
 
@@ -170,7 +170,7 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(profile3.uid(), not(equalTo(profile1.uid())));
         assertThat(profile3.user().email(), equalTo(RAC_USER_NAME + "@example.com"));
         assertThat(profile3.user().fullName(), nullValue());
-        assertThat(profile3.access().roles(), containsInAnyOrder("rac_role"));
+        assertThat(profile3.user().roles(), containsInAnyOrder("rac_role"));
 
         // Update native rac user
         final PutUserRequest putUserRequest2 = new PutUserRequest();
@@ -185,7 +185,7 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(profile4.uid(), equalTo(profile3.uid()));
         assertThat(profile4.user().email(), nullValue());
         assertThat(profile4.user().fullName(), equalTo("Native RAC User"));
-        assertThat(profile4.access().roles(), containsInAnyOrder("rac_role", "superuser"));
+        assertThat(profile4.user().roles(), containsInAnyOrder("rac_role", "superuser"));
     }
 
     private Profile doActivateProfile(String username, SecureString password) {

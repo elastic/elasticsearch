@@ -51,7 +51,6 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -230,7 +229,7 @@ public class ProfileService {
 
     private void updateProfileForActivate(Subject subject, VersionedDocument versionedDocument, ActionListener<Profile> listener)
         throws IOException {
-        final ProfileDocument profileDocument = updateWithSubjectAndStripApplicationData(versionedDocument.doc, subject);
+        final ProfileDocument profileDocument = updateWithSubjectAndNullifyApplicationSpecificData(versionedDocument.doc, subject);
 
         doUpdate(
             buildUpdateRequest(
@@ -330,7 +329,7 @@ public class ProfileService {
         return Optional.of(frozenProfileIndex);
     }
 
-    private ProfileDocument updateWithSubjectAndStripApplicationData(ProfileDocument doc, Subject subject) {
+    private ProfileDocument updateWithSubjectAndNullifyApplicationSpecificData(ProfileDocument doc, Subject subject) {
         final User subjectUser = subject.getUser();
         return new ProfileDocument(
             doc.uid(),
@@ -338,6 +337,7 @@ public class ProfileService {
             Instant.now().toEpochMilli(),
             new ProfileDocument.ProfileDocumentUser(
                 subjectUser.principal(),
+                Arrays.asList(subjectUser.roles()),
                 subject.getRealm(),
                 // Replace with incoming information even when they are null
                 subjectUser.email(),
@@ -346,7 +346,7 @@ public class ProfileService {
                 doc.user().displayName(),
                 subjectUser.enabled()
             ),
-            new ProfileDocument.Access(List.of(subjectUser.roles()), doc.access().applications()),
+            null,
             null
         );
     }
@@ -372,7 +372,7 @@ public class ProfileService {
                 doc.enabled(),
                 doc.lastSynchronized(),
                 doc.user().toProfileUser(realmDomain),
-                doc.access().toProfileAccess(),
+                doc.access(),
                 applicationData,
                 new Profile.VersionControl(primaryTerm, seqNo)
             );

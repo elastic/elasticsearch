@@ -53,11 +53,7 @@ public class SimpleFeatureFactory {
         if (posLat > extent || posLat < 0) {
             return EMPTY;
         }
-        final int[] commands = new int[3];
-        commands[0] = encodeCommand(MOVETO, 1);
-        commands[1] = BitUtil.zigZagEncode(posLon);
-        commands[2] = BitUtil.zigZagEncode(posLat);
-        return writeCommands(commands, 1, 3);
+        return point(posLon, posLat);
     }
 
     /**
@@ -100,7 +96,6 @@ public class SimpleFeatureFactory {
      * Returns a {@code byte[]} containing the mvt representation of the provided rectangle
      */
     public byte[] box(double minLon, double maxLon, double minLat, double maxLat) throws IOException {
-        int[] commands = new int[11];
         final int minX = Math.max(0, lon(minLon));
         if (minX > extent) {
             return EMPTY;
@@ -110,13 +105,56 @@ public class SimpleFeatureFactory {
             return EMPTY;
         }
         final int maxX = Math.min(extent, lon(maxLon));
-        if (maxX < 0 || minX == maxX) {
+        if (maxX < 0) {
             return EMPTY;
         }
         final int maxY = Math.max(0, lat(maxLat));
-        if (maxY < 0 || minY == maxY) {
+        if (maxY < 0) {
             return EMPTY;
         }
+        if (minX == maxX) {
+            if (minY == maxY) {
+                return point(minX, minY);
+            } else {
+                return line(minX, minY, minX, maxY);
+            }
+        } else if (minY == maxY) {
+            return line(minX, minY, maxX, minY);
+        } else {
+            return box(minX, maxX, minY, maxY);
+        }
+    }
+
+    private int lat(double lat) {
+        return (int) Math.round(pointYScale * SphericalMercatorUtils.latToSphericalMercator(lat) + pointYTranslate) + extent;
+    }
+
+    private int lon(double lon) {
+        return (int) Math.round(pointXScale * SphericalMercatorUtils.lonToSphericalMercator(lon) + pointXTranslate);
+    }
+
+    private static byte[] point(int x, int y) throws IOException {
+        final int[] commands = new int[3];
+        commands[0] = encodeCommand(MOVETO, 1);
+        commands[1] = BitUtil.zigZagEncode(x);
+        commands[2] = BitUtil.zigZagEncode(y);
+        return writeCommands(commands, 1, 3);
+    }
+
+    private static byte[] line(int x1, int y1, int x2, int y2) throws IOException {
+        final int[] commands = new int[6];
+        commands[0] = encodeCommand(MOVETO, 1);
+        commands[1] = BitUtil.zigZagEncode(x1);
+        commands[2] = BitUtil.zigZagEncode(y1);
+
+        commands[3] = encodeCommand(LINETO, 1);
+        commands[4] = BitUtil.zigZagEncode(x2 - x1);
+        commands[5] = BitUtil.zigZagEncode(y2 - y1);
+        return writeCommands(commands, 2, 6);
+    }
+
+    private static byte[] box(int minX, int maxX, int minY, int maxY) throws IOException {
+        final int[] commands = new int[11];
         commands[0] = encodeCommand(MOVETO, 1);
         commands[1] = BitUtil.zigZagEncode(minX);
         commands[2] = BitUtil.zigZagEncode(minY);
@@ -133,14 +171,6 @@ public class SimpleFeatureFactory {
         // close
         commands[10] = encodeCommand(CLOSEPATH, 1);
         return writeCommands(commands, 3, 11);
-    }
-
-    private int lat(double lat) {
-        return (int) Math.round(pointYScale * SphericalMercatorUtils.latToSphericalMercator(lat) + pointYTranslate) + extent;
-    }
-
-    private int lon(double lon) {
-        return (int) Math.round(pointXScale * SphericalMercatorUtils.lonToSphericalMercator(lon) + pointXTranslate);
     }
 
     private static int encodeCommand(int id, int length) {

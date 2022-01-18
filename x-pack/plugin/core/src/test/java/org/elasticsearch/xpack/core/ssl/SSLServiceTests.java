@@ -300,7 +300,7 @@ public class SSLServiceTests extends ESTestCase {
 
         final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         assertThat(sslConfiguration, notNullValue());
-        final SslTrustConfig trust = sslConfiguration.getTrustConfig();
+        final SslTrustConfig trust = sslConfiguration.trustConfig();
         assertThat(trust, notNullValue());
         final Collection<Path> files = trust.getDependentFiles();
         assertThat(files, hasItem(testnodeStore));
@@ -351,7 +351,7 @@ public class SSLServiceTests extends ESTestCase {
         assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
         SSLService sslService = new SSLService(env);
         assertThat(
-            sslService.getSSLConfiguration("xpack.security.transport.ssl").getVerificationMode(),
+            sslService.getSSLConfiguration("xpack.security.transport.ssl").verificationMode(),
             is(XPackSettings.VERIFICATION_MODE_DEFAULT)
         );
 
@@ -361,19 +361,16 @@ public class SSLServiceTests extends ESTestCase {
             .put("transport.profiles.foo.xpack.security.ssl.verification_mode", "full")
             .build();
         sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
+        assertThat(sslService.getSSLConfiguration("xpack.security.transport.ssl.").verificationMode(), is(SslVerificationMode.CERTIFICATE));
         assertThat(
-            sslService.getSSLConfiguration("xpack.security.transport.ssl.").getVerificationMode(),
-            is(SslVerificationMode.CERTIFICATE)
-        );
-        assertThat(
-            sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl.").getVerificationMode(),
+            sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl.").verificationMode(),
             is(SslVerificationMode.FULL)
         );
     }
 
     public void testIsSSLClientAuthEnabled() throws Exception {
         SSLService sslService = new SSLService(env);
-        assertTrue(sslService.getSSLConfiguration("xpack.security.transport.ssl").getClientAuth().enabled());
+        assertTrue(sslService.getSSLConfiguration("xpack.security.transport.ssl").clientAuth().enabled());
 
         Settings settings = Settings.builder()
             .put("xpack.security.transport.ssl.enabled", false)
@@ -403,10 +400,10 @@ public class SSLServiceTests extends ESTestCase {
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(globalSettings)));
 
         final SslConfiguration globalConfig = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        assertThat(globalConfig.getClientAuth(), is(SslClientAuthenticationMode.OPTIONAL));
+        assertThat(globalConfig.clientAuth(), is(SslClientAuthenticationMode.OPTIONAL));
 
         final SslConfiguration httpConfig = sslService.getHttpTransportSSLConfiguration();
-        assertThat(httpConfig.getClientAuth(), is(SslClientAuthenticationMode.NONE));
+        assertThat(httpConfig.clientAuth(), is(SslClientAuthenticationMode.NONE));
     }
 
     public void testThatTruststorePasswordIsRequired() throws Exception {
@@ -517,7 +514,7 @@ public class SSLServiceTests extends ESTestCase {
         final String[] ciphers = sslService.supportedCiphers(factory.getSupportedCipherSuites(), config.getCipherSuites(), false);
         assertThat(factory.getDefaultCipherSuites(), is(ciphers));
 
-        final String[] getSupportedProtocols = config.getSupportedProtocols().toArray(Strings.EMPTY_ARRAY);
+        final String[] getSupportedProtocols = config.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
         try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
             assertThat(socket.getEnabledCipherSuites(), is(ciphers));
             // the order we set the protocols in is not going to be what is returned as internally the JDK may sort the versions
@@ -541,7 +538,7 @@ public class SSLServiceTests extends ESTestCase {
         SslConfiguration configuration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
         final String[] ciphers = sslService.supportedCiphers(engine.getSupportedCipherSuites(), configuration.getCipherSuites(), false);
-        final String[] getSupportedProtocols = configuration.getSupportedProtocols().toArray(Strings.EMPTY_ARRAY);
+        final String[] getSupportedProtocols = configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
         assertThat(engine.getEnabledCipherSuites(), is(ciphers));
         assertArrayEquals(ciphers, engine.getSSLParameters().getCipherSuites());
         // the order we set the protocols in is not going to be what is returned as internally the JDK may sort the versions
@@ -642,7 +639,7 @@ public class SSLServiceTests extends ESTestCase {
             final String name = contextNames[i];
             final SslConfiguration configuration = sslService.getSSLConfiguration(name);
             assertThat("Configuration for " + name, configuration, notNullValue());
-            final SslKeyConfig keyConfig = configuration.getKeyConfig();
+            final SslKeyConfig keyConfig = configuration.keyConfig();
             assertThat("KeyStore Path for " + name, keyConfig.getDependentFiles(), contains(testnodeStore));
             assertThat("Cipher for " + name, configuration.getCipherSuites(), contains(getCipherSuites[i]));
             assertThat("Configuration for " + name + ".", sslService.getSSLConfiguration(name + "."), sameInstance(configuration));

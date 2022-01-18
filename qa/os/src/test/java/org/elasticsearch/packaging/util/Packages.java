@@ -51,23 +51,23 @@ public class Packages {
 
     public static void assertInstalled(Distribution distribution) throws Exception {
         final Result status = packageStatus(distribution);
-        assertThat(status.exitCode, is(0));
+        assertThat(status.exitCode(), is(0));
 
-        Platforms.onDPKG(() -> assertFalse(Pattern.compile("(?m)^Status:.+deinstall ok").matcher(status.stdout).find()));
+        Platforms.onDPKG(() -> assertFalse(Pattern.compile("(?m)^Status:.+deinstall ok").matcher(status.stdout()).find()));
     }
 
     public static void assertRemoved(Distribution distribution) throws Exception {
         final Result status = packageStatus(distribution);
 
-        Platforms.onRPM(() -> assertThat(status.exitCode, is(1)));
+        Platforms.onRPM(() -> assertThat(status.exitCode(), is(1)));
 
         Platforms.onDPKG(() -> {
-            assertThat(status.exitCode, anyOf(is(0), is(1)));
-            if (status.exitCode == 0) {
+            assertThat(status.exitCode(), anyOf(is(0), is(1)));
+            if (status.exitCode() == 0) {
                 assertTrue(
-                    "an uninstalled status should be indicated: " + status.stdout,
-                    Pattern.compile("(?m)^Status:.+deinstall ok").matcher(status.stdout).find()
-                        || Pattern.compile("(?m)^Status:.+ok not-installed").matcher(status.stdout).find()
+                    "an uninstalled status should be indicated: " + status.stdout(),
+                    Pattern.compile("(?m)^Status:.+deinstall ok").matcher(status.stdout()).find()
+                        || Pattern.compile("(?m)^Status:.+ok not-installed").matcher(status.stdout()).find()
                 );
             }
         });
@@ -84,16 +84,16 @@ public class Packages {
 
     public static Installation installPackage(Shell sh, Distribution distribution, @Nullable Predicate<String> outputPredicate)
         throws IOException {
-        String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+        String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout().trim();
         if (distribution.hasJdk == false) {
             sh.getEnv().put("ES_JAVA_HOME", systemJavaHome);
         }
         final Result result = runPackageManager(distribution, sh, PackageManagerCommand.INSTALL);
-        if (result.exitCode != 0) {
+        if (result.exitCode() != 0) {
             throw new RuntimeException("Installing distribution " + distribution + " failed: " + result);
         }
         if (null != outputPredicate) {
-            assertThat(outputPredicate.test(result.stdout), is(true));
+            assertThat(outputPredicate.test(result.stdout()), is(true));
         }
         Installation installation = Installation.ofPackage(sh, distribution);
         installation.setElasticPassword(captureElasticPasswordFromOutput(result));
@@ -109,7 +109,7 @@ public class Packages {
     }
 
     private static String captureElasticPasswordFromOutput(Result result) {
-        return Arrays.stream(result.stdout.split(System.lineSeparator()))
+        return Arrays.stream(result.stdout().split(System.lineSeparator()))
             .filter(l -> l.contains("The generated password for the elastic built-in superuser is : "))
             .map(l -> l.substring(63, 83))
             .findFirst()
@@ -118,7 +118,7 @@ public class Packages {
 
     public static Installation upgradePackage(Shell sh, Distribution distribution) throws IOException {
         final Result result = runPackageManager(distribution, sh, PackageManagerCommand.UPGRADE);
-        if (result.exitCode != 0) {
+        if (result.exitCode() != 0) {
             throw new RuntimeException("Upgrading distribution " + distribution + " failed: " + result);
         }
 
@@ -127,7 +127,7 @@ public class Packages {
 
     public static Installation forceUpgradePackage(Shell sh, Distribution distribution) throws IOException {
         final Result result = runPackageManager(distribution, sh, PackageManagerCommand.FORCE_UPGRADE);
-        if (result.exitCode != 0) {
+        if (result.exitCode() != 0) {
             throw new RuntimeException("Force upgrading distribution " + distribution + " failed: " + result);
         }
 
@@ -145,9 +145,9 @@ public class Packages {
         } else {
             String debOptions = DEB_OPTIONS.get(command);
             Result r = sh.runIgnoreExitCode("dpkg " + debOptions + " " + distributionArg);
-            if (r.exitCode != 0) {
+            if (r.exitCode() != 0) {
                 Result lockOF = sh.runIgnoreExitCode("lsof /var/lib/dpkg/lock");
-                if (lockOF.exitCode == 0) {
+                if (lockOF.exitCode() == 0) {
                     throw new RuntimeException("dpkg failed and the lockfile still exists. " + "Failure:\n" + r + "\nLockfile:\n" + lockOF);
                 }
             }
@@ -162,13 +162,13 @@ public class Packages {
 
         Platforms.onRPM(() -> {
             final Result status = packageStatus(distribution);
-            assertThat(status.exitCode, is(1));
+            assertThat(status.exitCode(), is(1));
         });
 
         Platforms.onDPKG(() -> {
             final Result status = packageStatus(distribution);
-            assertThat(status.exitCode, is(0));
-            assertTrue(Pattern.compile("(?m)^Status:.+deinstall ok").matcher(status.stdout).find());
+            assertThat(status.exitCode(), is(0));
+            assertTrue(Pattern.compile("(?m)^Status:.+deinstall ok").matcher(status.stdout()).find());
         });
     }
 
@@ -183,7 +183,7 @@ public class Packages {
         sh.run("getent group elasticsearch");
 
         final Result passwdResult = sh.run("getent passwd elasticsearch");
-        final Path homeDir = Paths.get(passwdResult.stdout.trim().split(":")[5]);
+        final Path homeDir = Paths.get(passwdResult.stdout().trim().split(":")[5]);
         assertThat("elasticsearch user home directory must not exist", homeDir, fileDoesNotExist());
 
         Stream.of(es.home, es.plugins, es.modules).forEach(dir -> assertThat(dir, file(Directory, "root", "root", p755)));
@@ -192,19 +192,19 @@ public class Packages {
 
         // we shell out here because java's posix file permission view doesn't support special modes
         assertThat(es.config, file(Directory, "root", "elasticsearch", p750));
-        assertThat(sh.run("find \"" + es.config + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
+        assertThat(sh.run("find \"" + es.config + "\" -maxdepth 0 -printf \"%m\"").stdout(), containsString("2750"));
 
         // We introduced the jvm.options.d folder in 7.7
         if (Version.fromString(distribution.baseVersion).onOrAfter(Version.V_7_7_0)) {
             final Path jvmOptionsDirectory = es.config.resolve("jvm.options.d");
             assertThat(jvmOptionsDirectory, file(Directory, "root", "elasticsearch", p750));
-            assertThat(sh.run("find \"" + jvmOptionsDirectory + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
+            assertThat(sh.run("find \"" + jvmOptionsDirectory + "\" -maxdepth 0 -printf \"%m\"").stdout(), containsString("2750"));
         }
 
         Stream.of("elasticsearch.keystore", "elasticsearch.yml", "jvm.options", "log4j2.properties")
             .forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));
 
-        assertThat(sh.run("sudo -u elasticsearch " + es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
+        assertThat(sh.run("sudo -u elasticsearch " + es.bin("elasticsearch-keystore") + " list").stdout(), containsString("keystore.seed"));
 
         Stream.of(es.bin, es.lib).forEach(dir -> assertThat(dir, file(Directory, "root", "root", p755)));
 
@@ -218,7 +218,7 @@ public class Packages {
         if (distribution.packaging == Distribution.Packaging.RPM) {
             assertThat(es.home.resolve("LICENSE.txt"), file(File, "root", "root", p644));
         } else {
-            Path copyrightDir = Paths.get(sh.run("readlink -f /usr/share/doc/elasticsearch").stdout.trim());
+            Path copyrightDir = Paths.get(sh.run("readlink -f /usr/share/doc/elasticsearch").stdout().trim());
             assertThat(copyrightDir, file(Directory, "root", "root", p755));
             assertThat(copyrightDir.resolve("copyright"), file(File, "root", "root", p644));
         }
@@ -231,7 +231,7 @@ public class Packages {
             ).forEach(confFile -> assertThat(confFile, file(File, "root", "root", p644)));
 
             final String sysctlExecutable = (distribution.packaging == Distribution.Packaging.RPM) ? "/usr/sbin/sysctl" : "/sbin/sysctl";
-            assertThat(sh.run(sysctlExecutable + " vm.max_map_count").stdout, containsString("vm.max_map_count = 262144"));
+            assertThat(sh.run(sysctlExecutable + " vm.max_map_count").stdout(), containsString("vm.max_map_count = 262144"));
         }
     }
 
@@ -271,8 +271,8 @@ public class Packages {
             sh.run("systemctl is-enabled elasticsearch.service");
             Result exitCode = sh.runIgnoreExitCode("systemctl start elasticsearch.service");
             if (exitCode.isSuccess() == false) {
-                logger.warn(sh.runIgnoreExitCode("systemctl status elasticsearch.service").stdout);
-                logger.warn(journald.getLogs().stdout);
+                logger.warn(sh.runIgnoreExitCode("systemctl status elasticsearch.service").stdout());
+                logger.warn(journald.getLogs().stdout());
             }
             return exitCode;
         }
@@ -332,7 +332,7 @@ public class Packages {
          */
         public void clear() {
             final String script = "sudo journalctl --unit=elasticsearch.service --lines=0 --show-cursor -o cat | sed -e 's/-- cursor: //'";
-            cursor = sh.run(script).stdout.trim();
+            cursor = sh.run(script).stdout().trim();
         }
 
         /**

@@ -80,40 +80,23 @@ public final class RandomObjects {
         int dataType = randomIntBetween(random, 0, 8);
         for (int i = 0; i < numValues; i++) {
             switch (dataType) {
-                case 0:
-                    values.add(random.nextLong());
-                    break;
-                case 1:
-                    values.add(random.nextInt());
-                    break;
-                case 2:
-                    values.add((short) random.nextInt());
-                    break;
-                case 3:
-                    values.add((byte) random.nextInt());
-                    break;
-                case 4:
-                    values.add(random.nextDouble());
-                    break;
-                case 5:
-                    values.add(random.nextFloat());
-                    break;
-                case 6:
-                    values.add(random.nextBoolean());
-                    break;
-                case 7:
-                    values.add(
-                        random.nextBoolean()
-                            ? RandomStrings.randomAsciiLettersOfLengthBetween(random, 3, 10)
-                            : randomUnicodeOfLengthBetween(random, 3, 10)
-                    );
-                    break;
-                case 8:
+                case 0 -> values.add(random.nextLong());
+                case 1 -> values.add(random.nextInt());
+                case 2 -> values.add((short) random.nextInt());
+                case 3 -> values.add((byte) random.nextInt());
+                case 4 -> values.add(random.nextDouble());
+                case 5 -> values.add(random.nextFloat());
+                case 6 -> values.add(random.nextBoolean());
+                case 7 -> values.add(
+                    random.nextBoolean()
+                        ? RandomStrings.randomAsciiLettersOfLengthBetween(random, 3, 10)
+                        : randomUnicodeOfLengthBetween(random, 3, 10)
+                );
+                case 8 -> {
                     byte[] randomBytes = RandomStrings.randomUnicodeOfLengthBetween(random, 10, 50).getBytes(StandardCharsets.UTF_8);
                     values.add(new BytesArray(randomBytes));
-                    break;
-                default:
-                    throw new UnsupportedOperationException();
+                }
+                default -> throw new UnsupportedOperationException();
             }
         }
         return values;
@@ -231,18 +214,13 @@ public final class RandomObjects {
     }
 
     private static Object randomFieldValue(Random random, int dataType) {
-        switch (dataType) {
-            case 0:
-                return RandomStrings.randomAsciiLettersOfLengthBetween(random, 3, 10);
-            case 1:
-                return RandomStrings.randomAsciiLettersOfLengthBetween(random, 3, 10);
-            case 2:
-                return random.nextLong();
-            case 3:
-                return random.nextDouble();
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (dataType) {
+            case 0 -> RandomStrings.randomAsciiLettersOfLengthBetween(random, 3, 10);
+            case 1 -> RandomStrings.randomAsciiLettersOfLengthBetween(random, 3, 10);
+            case 2 -> random.nextLong();
+            case 3 -> random.nextDouble();
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     /**
@@ -306,36 +284,35 @@ public final class RandomObjects {
 
         int type = randomIntBetween(random, 0, 3);
         switch (type) {
-            case 0:
+            case 0 -> {
                 actualException = new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
                 expectedException = new ElasticsearchException(
                     "Elasticsearch exception [type=cluster_block_exception, " + "reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]"
                 );
-                break;
-            case 1:
+            }
+            case 1 -> {
                 actualException = new ShardNotFoundException(shard);
                 expectedException = new ElasticsearchException(
                     "Elasticsearch exception [type=shard_not_found_exception, " + "reason=no such shard]"
                 );
                 expectedException.setShard(shard);
-                break;
-            case 2:
+            }
+            case 2 -> {
                 actualException = new IllegalArgumentException("Closed resource", new RuntimeException("Resource"));
                 expectedException = new ElasticsearchException(
                     "Elasticsearch exception [type=illegal_argument_exception, " + "reason=Closed resource]",
                     new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=Resource]")
                 );
-                break;
-            case 3:
+            }
+            case 3 -> {
                 actualException = new IndexShardRecoveringException(shard);
                 expectedException = new ElasticsearchException(
                     "Elasticsearch exception [type=index_shard_recovering_exception, "
                         + "reason=CurrentState[RECOVERING] Already recovering]"
                 );
                 expectedException.setShard(shard);
-                break;
-            default:
-                throw new UnsupportedOperationException("No randomized exceptions generated for type [" + type + "]");
+            }
+            default -> throw new UnsupportedOperationException("No randomized exceptions generated for type [" + type + "]");
         }
 
         Failure actual = new Failure(shard, nodeId, actualException, status, primary);
@@ -356,27 +333,24 @@ public final class RandomObjects {
             int entryCount = RandomNumbers.randomIntBetween(random, 0, 6);
             for (int i = 0; i < entryCount; i++) {
                 switch (RandomNumbers.randomIntBetween(random, 0, 6)) {
-                    case 0:
-                    case 1:
-                    case 2:
-                    case 3:
+                    case 0, 1, 2, 3 -> {
                         String key = RandomStrings.randomAsciiLettersOfLength(random, 5);
                         String value = RandomStrings.randomAsciiLettersOfLength(random, 10);
                         extras.put(key, value);
-                        break;
-                    case 4:
+                    }
+                    case 4 -> {
                         String objkey = RandomStrings.randomAsciiLettersOfLength(random, 5);
                         Map<String, String> obj = new HashMap<>();
                         obj.put(RandomStrings.randomAsciiLettersOfLength(random, 5), RandomStrings.randomAsciiLettersOfLength(random, 10));
                         extras.put(objkey, obj);
-                        break;
-                    case 5:
+                    }
+                    case 5 -> {
                         String listkey = RandomStrings.randomAsciiLettersOfLength(random, 5);
                         List<String> list = new ArrayList<>();
                         list.add(RandomStrings.randomAsciiLettersOfLength(random, 4));
                         list.add(RandomStrings.randomAsciiLettersOfLength(random, 6));
                         extras.put(listkey, list);
-                        break;
+                    }
                 }
             }
         }

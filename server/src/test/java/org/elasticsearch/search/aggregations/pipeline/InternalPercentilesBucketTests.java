@@ -195,27 +195,24 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
         DocValueFormat formatter = instance.formatter();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
                 percents = Arrays.copyOf(percents, percents.length);
                 percents[percents.length - 1] = randomDouble();
-                break;
-            case 2:
+            }
+            case 2 -> {
                 percentiles = Arrays.copyOf(percentiles, percentiles.length);
                 percentiles[percentiles.length - 1] = randomDouble();
-                break;
-            case 3:
+            }
+            case 3 -> {
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalPercentilesBucket(name, percents, percentiles, randomBoolean(), formatter, metadata);
     }

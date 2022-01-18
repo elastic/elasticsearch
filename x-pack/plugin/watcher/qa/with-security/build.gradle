@@ -31,7 +31,7 @@ testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'logger.org.elasticsearch.xpack.watcher', 'debug'
   setting 'logger.org.elasticsearch.xpack.core.watcher', 'debug'
-  extraConfigFile 'roles.yml', file('roles.yml')
+  rolesFile file('roles.yml')
   user username: "test_admin", password: "x-pack-test-password"
   user username: "x_pack_rest_user", password: "x-pack-test-password", role: "watcher_manager"
   user username: "watcher_manager", password: "x-pack-test-password", role: "watcher_manager"

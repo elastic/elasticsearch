@@ -8,6 +8,8 @@
 
 package org.elasticsearch.plugins.cli;
 
+import org.elasticsearch.common.Strings;
+
 import java.util.Objects;
 
 /**
@@ -27,7 +29,7 @@ public class PluginDescriptor {
      *                 coordinates. Can be null for official plugins.
      */
     public PluginDescriptor(String id, String location) {
-        this.id = Objects.requireNonNull(id, "id cannot be null");
+        this.id = Strings.requireNonBlank(id, "plugin id cannot be null or blank");
         this.location = location;
     }
 
@@ -40,7 +42,7 @@ public class PluginDescriptor {
     }
 
     public void setId(String id) {
-        this.id = id;
+        this.id = Strings.requireNonBlank(id, "plugin id cannot be null or blank");
     }
 
     public String getLocation() {

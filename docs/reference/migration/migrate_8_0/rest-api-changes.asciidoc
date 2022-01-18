@@ -163,6 +163,46 @@ Update your application to use typeless REST API endpoints. Requests to
 endpoints that contain a mapping type will return an error.
 ====
 
+.{ccs-cap} ({ccs-init}) is now only backward-compatible with the previous minor version.
+[%collapsible]
+====
+*Details* +
+Elastic only supports searches from a local cluster to a remote cluster running:
+
+* The previous minor version.
+* The same version.
+* A newer version. This version must also be compatible with the local cluster
+as outlined in the
+{ref}/modules-cross-cluster-search.html#ccs-version-compatibility[compatibility
+matrix].
+
+IMPORTANT: For the {ref}/eql-search-api.html[EQL search API], the local and
+remote clusters must use the same {es} version.
+
+For example, a local 8.0 cluster can search a remote 7.7, 8.0, or
+8.1 cluster. However, a search from a local 8.0 cluster to a remote 7.16 or 6.8
+cluster is not supported.
+
+Previously, we also supported searches on remote clusters running:
+
+* Any minor version of the local cluster's major version.
+* The last minor release of the previous major version.
+
+However, such searches can result in undefined behavior, particularly if the
+search uses a recent feature that's unsupported in the remote cluster.
+
+*Impact* +
+If you only run cross-cluster searches on remote clusters using the same or a
+newer version, no changes are needed.
+
+If you previously searched remote clusters running an earlier version of {es},
+see {ref}/modules-cross-cluster-search.html#ensure-ccs-support[Ensure {ccs}
+support] for recommended solutions.
+
+A {ccs} using an unsupported configuration may still work. However, such
+searches aren't tested by Elastic, and their behavior isn't guaranteed.
+====
+
 [[remove-term-order-key]]
 .The `terms` aggregation no longer supports the `_term` order key.
 [%collapsible]

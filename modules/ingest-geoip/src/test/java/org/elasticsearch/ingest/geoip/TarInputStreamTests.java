@@ -36,11 +36,11 @@ public class TarInputStreamTests extends ESTestCase {
             assertNotNull(is);
             for (Entry entry : entries) {
                 TarInputStream.TarEntry tarEntry = tis.getNextEntry();
-                assertEquals(entry.name, tarEntry.getName());
+                assertEquals(entry.name, tarEntry.name());
                 if (entry.notFile == false) {
                     assertEquals(entry.data, new String(tis.readAllBytes(), StandardCharsets.UTF_8));
                 }
-                assertEquals(entry.notFile, tarEntry.isNotFile());
+                assertEquals(entry.notFile, tarEntry.notFile());
             }
             assertNull(tis.getNextEntry());
         }

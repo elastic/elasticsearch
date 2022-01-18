@@ -295,7 +295,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             return;
         }
         List<IndexableField> fields = indexer.indexShape(geometry);
-        if (fieldType().isSearchable()) {
+        if (fieldType().isIndexed()) {
             context.doc().addAll(fields);
         }
         if (fieldType().hasDocValues()) {
@@ -306,7 +306,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 context.doc().addWithKey(name, docValuesField);
             }
             docValuesField.add(fields, geometry);
-        } else if (fieldType().isSearchable()) {
+        } else if (fieldType().isIndexed()) {
             context.addToFieldNames(fieldType().name());
         }
     }

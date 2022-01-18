@@ -2526,13 +2526,13 @@ public final class TokenService {
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
+                    public void onFailure(Exception e) {
                         installTokenMetadataInProgress.set(false);
                         logger.error("unable to install token metadata", e);
                     }
 
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         installTokenMetadataInProgress.set(false);
                     }
                 }, ClusterStateTaskExecutor.unbatched());

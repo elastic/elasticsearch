@@ -72,12 +72,12 @@ public class SearchableSnapshotIndexMetadataUpgrader {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     clusterService.removeListener(listener);
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     logger.warn(
                         "upgrading frozen indices to have frozen shard limit group failed, will retry on the next cluster state update",
                         e

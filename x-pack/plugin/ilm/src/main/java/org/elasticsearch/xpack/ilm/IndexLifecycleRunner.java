@@ -302,7 +302,7 @@ class IndexLifecycleRunner {
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
+                    public void onFailure(Exception e) {
                         logger.error(
                             new ParameterizedMessage(
                                 "retry execution of step [{}] for index [{}] failed",
@@ -314,7 +314,7 @@ class IndexLifecycleRunner {
                     }
 
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         if (oldState.equals(newState) == false) {
                             IndexMetadata newIndexMeta = newState.metadata().index(index);
                             Step indexMetaCurrentStep = getCurrentStep(stepRegistry, policy, newIndexMeta);

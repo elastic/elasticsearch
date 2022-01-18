@@ -1223,7 +1223,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -1287,13 +1287,13 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 settingVersionOnLeader.set(newState.metadata().index("leader").getSettingsVersion());
                 latch.countDown();
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
         }, ClusterStateTaskExecutor.unbatched());

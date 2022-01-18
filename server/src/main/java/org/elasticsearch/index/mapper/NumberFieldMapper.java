@@ -1246,6 +1246,10 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(this.name());
+        }
+
         public boolean isSearchable() {
             return isIndexed() || hasDocValues();
         }

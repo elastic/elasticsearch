@@ -145,12 +145,12 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(ActionResponse.Empty.INSTANCE);
                 }
             },

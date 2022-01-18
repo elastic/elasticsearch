@@ -336,7 +336,14 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                         List.of("unknown_caller"),
                         "_failure",
                         List.of(
-                            Map.of("type", "resource_not_found_exception", "reason", "id [unknown_caller] on index [users] doesn't exist")
+                            Map.of(
+                                "type",
+                                "resource_not_found_exception",
+                                "status",
+                                "NOT_FOUND",
+                                "reason",
+                                "id [unknown_caller] on index [users] doesn't exist"
+                            )
                         )
                     )
                 )
@@ -377,7 +384,14 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                         List.of("unknown_caller"),
                         "_failure",
                         List.of(
-                            Map.of("type", "resource_not_found_exception", "reason", "id [unknown_caller] on index [users] doesn't exist")
+                            Map.of(
+                                "type",
+                                "resource_not_found_exception",
+                                "status",
+                                "NOT_FOUND",
+                                "reason",
+                                "id [unknown_caller] on index [users] doesn't exist"
+                            )
                         )
                     )
                 )

@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * An {@link AuthenticationToken} to hold JWT authentication related content.
@@ -34,15 +33,14 @@ public class JwtAuthenticationToken implements AuthenticationToken {
     protected final SecureString clientAuthorizationSharedSecret; // optional, nullable
 
     // Parsed members
-    protected final AtomicReference<SignedJWT> signedJwt = new AtomicReference<>(null);
-    protected final AtomicReference<JWSHeader> jwsHeader = new AtomicReference<>(null);
-    protected final AtomicReference<JWTClaimsSet> jwtClaimsSet = new AtomicReference<>(null);
-    protected final AtomicReference<byte[]> jwtSignature = new AtomicReference<>(null);
-    protected final String issuerClaim;
-    protected final List<String> audiencesClaim;
-    protected final String subjectClaim;
-    protected final String principal;
-    protected final SecureString credentials;
+    protected SignedJWT signedJwt;
+    protected JWSHeader jwsHeader;
+    protected JWTClaimsSet jwtClaimsSet;
+    protected byte[] jwtSignature;
+    protected String issuerClaim;
+    protected List<String> audiencesClaim;
+    protected String subjectClaim;
+    protected String principal;
 
     /**
      * Store a mandatory JWT and optional Shared Secret. Parse the JWT, and extract the header, claims set, and signature.
@@ -62,18 +60,14 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         this.clientAuthorizationSharedSecret = clientAuthorizationSharedSecret; // optional, nullable
         try {
             final SignedJWT parsed = SignedJWT.parse(this.endUserSignedJwt.toString());
-            this.signedJwt.set(parsed);
-            this.jwsHeader.set(parsed.getHeader());
-            this.jwtClaimsSet.set(parsed.getJWTClaimsSet());
-            this.jwtSignature.set(parsed.getSignature().decode());
+            this.signedJwt = parsed;
+            this.jwsHeader = parsed.getHeader();
+            this.jwtClaimsSet = parsed.getJWTClaimsSet();
+            this.jwtSignature = parsed.getSignature().decode();
         } catch (ParseException e) {
-            this.signedJwt.set(null);
-            this.jwsHeader.set(null);
-            this.jwtClaimsSet.set(null);
-            this.jwtSignature.set(null);
             throw new IllegalArgumentException("Failed to parse JWT bearer token", e);
         }
-        final JWTClaimsSet jwtClaimsSet = this.jwtClaimsSet.get();
+        final JWTClaimsSet jwtClaimsSet = this.jwtClaimsSet;
         this.issuerClaim = jwtClaimsSet.getIssuer();
         this.audiencesClaim = jwtClaimsSet.getAudience();
         this.subjectClaim = jwtClaimsSet.getSubject();
@@ -100,7 +94,6 @@ public class JwtAuthenticationToken implements AuthenticationToken {
             computedSubject = orderedClaimsSubset.toString(); // principal = "iss/aud/orderedClaimsSubset"
         }
         this.principal = this.issuerClaim + "/" + orderedAudiences + "/" + computedSubject;
-        this.credentials = new SecureString(this.principal.toCharArray());
     }
 
     @Override
@@ -110,7 +103,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
 
     @Override
     public SecureString credentials() {
-        return this.credentials;
+        return this.endUserSignedJwt;
     }
 
     public SecureString getEndUserSignedJwt() {
@@ -122,19 +115,19 @@ public class JwtAuthenticationToken implements AuthenticationToken {
     }
 
     public SignedJWT getSignedJwt() {
-        return this.signedJwt.get();
+        return this.signedJwt;
     }
 
     public JWSHeader getJwsHeader() {
-        return this.jwsHeader.get();
+        return this.jwsHeader;
     }
 
     public JWTClaimsSet getJwtClaimsSet() {
-        return this.jwtClaimsSet.get();
+        return this.jwtClaimsSet;
     }
 
     public byte[] getSignatureBytes() {
-        return this.jwtSignature.get();
+        return this.jwtSignature;
     }
 
     public String getIssuerClaim() {
@@ -155,9 +148,14 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         if (this.clientAuthorizationSharedSecret != null) {
             this.clientAuthorizationSharedSecret.close();
         }
-        this.signedJwt.set(null);
-        this.jwsHeader.set(null);
-        this.jwtClaimsSet.set(null);
-        Arrays.fill(this.jwtSignature.getAndSet(null), (byte) 0);
+        this.signedJwt = null;
+        this.jwsHeader = null;
+        this.jwtClaimsSet = null;
+        Arrays.fill(this.jwtSignature, (byte) 0);
+        this.jwtSignature = null;
+        this.issuerClaim = null;
+        this.audiencesClaim = null;
+        this.subjectClaim = null;
+        this.principal = null;
     }
 }

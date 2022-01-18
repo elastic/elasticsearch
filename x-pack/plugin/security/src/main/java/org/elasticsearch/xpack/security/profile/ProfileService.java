@@ -35,6 +35,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -229,12 +230,12 @@ public class ProfileService {
 
     private void updateProfileForActivate(Subject subject, VersionedDocument versionedDocument, ActionListener<Profile> listener)
         throws IOException {
-        final ProfileDocument profileDocument = updateWithSubjectAndNullifyApplicationSpecificData(versionedDocument.doc, subject);
+        final ProfileDocument profileDocument = updateWithSubject(versionedDocument.doc, subject);
 
         doUpdate(
             buildUpdateRequest(
                 profileDocument.uid(),
-                wrapProfileDocument(profileDocument),
+                wrapProfileDocumentWithoutApplicationData(profileDocument),
                 RefreshPolicy.WAIT_UNTIL,
                 versionedDocument.primaryTerm,
                 versionedDocument.seqNo
@@ -304,10 +305,23 @@ public class ProfileService {
         }
     }
 
-    XContentBuilder wrapProfileDocument(ProfileDocument profileDocument) throws IOException {
+    private XContentBuilder wrapProfileDocument(ProfileDocument profileDocument) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field("user_profile", profileDocument);
+        builder.endObject();
+        return builder;
+    }
+
+    private XContentBuilder wrapProfileDocumentWithoutApplicationData(ProfileDocument profileDocument) throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        builder.field(
+            "user_profile",
+            profileDocument,
+            // NOT including the access and data in the update request so they will not be changed
+            new ToXContent.MapParams(Map.of("include_access", Boolean.FALSE.toString(), "include_data", Boolean.FALSE.toString()))
+        );
         builder.endObject();
         return builder;
     }
@@ -329,7 +343,7 @@ public class ProfileService {
         return Optional.of(frozenProfileIndex);
     }
 
-    private ProfileDocument updateWithSubjectAndNullifyApplicationSpecificData(ProfileDocument doc, Subject subject) {
+    private ProfileDocument updateWithSubject(ProfileDocument doc, Subject subject) {
         final User subjectUser = subject.getUser();
         return new ProfileDocument(
             doc.uid(),
@@ -346,8 +360,8 @@ public class ProfileService {
                 doc.user().displayName(),
                 subjectUser.enabled()
             ),
-            null,
-            null
+            doc.access(),
+            doc.applicationData()
         );
     }
 

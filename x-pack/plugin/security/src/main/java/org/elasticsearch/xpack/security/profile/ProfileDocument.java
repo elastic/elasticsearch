@@ -86,12 +86,13 @@ public record ProfileDocument(
         builder.field("enabled", enabled);
         builder.field("last_synchronized", lastSynchronized);
         user.toXContent(builder, params);
-        if (access != null) {
+
+        if (params.paramAsBoolean("include_access", true) && access != null) {
             builder.field("access", access);
         } else {
             builder.startObject("access").endObject();
         }
-        if (applicationData != null) {
+        if (params.paramAsBoolean("include_data", true) && applicationData != null) {
             builder.field("application_data", applicationData);
         } else {
             builder.startObject("application_data").endObject();

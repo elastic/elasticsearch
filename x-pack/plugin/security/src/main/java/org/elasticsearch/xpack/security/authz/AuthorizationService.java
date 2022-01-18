@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRespon
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
@@ -838,17 +837,12 @@ public class AuthorizationService {
 
     private static String getAction(BulkItemRequest item) {
         final DocWriteRequest<?> docWriteRequest = item.request();
-        switch (docWriteRequest.opType()) {
-            case INDEX:
-                return IMPLIED_INDEX_ACTION;
-            case CREATE:
-                return IMPLIED_CREATE_ACTION;
-            case UPDATE:
-                return UpdateAction.NAME;
-            case DELETE:
-                return DeleteAction.NAME;
-        }
-        throw new IllegalArgumentException("No equivalent action for opType [" + docWriteRequest.opType() + "]");
+        return switch (docWriteRequest.opType()) {
+            case INDEX -> IMPLIED_INDEX_ACTION;
+            case CREATE -> IMPLIED_CREATE_ACTION;
+            case UPDATE -> UpdateAction.NAME;
+            case DELETE -> DeleteAction.NAME;
+        };
     }
 
     private void putTransientIfNonExisting(String key, Object value) {
@@ -891,7 +885,7 @@ public class AuthorizationService {
             userText = userText + " run as [" + authentication.getUser().principal() + "]";
         }
         // check for authentication by API key
-        if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+        if (authentication.isAuthenticatedWithApiKey()) {
             final String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
             assert apiKeyId != null : "api key id must be present in the metadata";
             userText = "API key id [" + apiKeyId + "] of " + userText;
@@ -900,9 +894,7 @@ public class AuthorizationService {
         // The run-as user is always from a realm. So it must have roles that can be printed.
         // If the user is not run-as, we cannot print the roles if it's an API key or a service account (both do not have
         // roles, but privileges)
-        if (authentication.getUser().isRunAs()
-            || (false == authentication.isAuthenticatedWithServiceAccount()
-                && AuthenticationType.API_KEY != authentication.getAuthenticationType())) {
+        if (false == authentication.isServiceAccount() && false == authentication.isApiKey()) {
             userText = userText + " with roles [" + Strings.arrayToCommaDelimitedString(authentication.getUser().roles()) + "]";
         }
 

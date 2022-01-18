@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -168,11 +169,11 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                 }
 
                 @Override
-                public void onFailure(final String source, final Exception e) {
+                public void onFailure(final Exception e) {
                     listener.onFailure(e);
                 }
 
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         }
 
         @Override

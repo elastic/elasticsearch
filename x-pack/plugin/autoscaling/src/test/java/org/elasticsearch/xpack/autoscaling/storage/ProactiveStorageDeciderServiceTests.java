@@ -124,6 +124,9 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             public SnapshotShardSizeInfo snapshotShardSizeInfo() {
                 return null;
             }
+
+            @Override
+            public void ensureNotCancelled() {}
         };
         AutoscalingDeciderResult deciderResult = service.scale(Settings.EMPTY, context);
 
@@ -293,7 +296,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     private ClusterState randomAllocate(ClusterState state) {
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(List.of()),
-            new RoutingNodes(state, false),
+            state.mutableRoutingNodes(),
             state,
             null,
             null,
@@ -324,7 +327,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     private ClusterState startAll(ClusterState state) {
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(List.of()),
-            new RoutingNodes(state, false),
+            state.mutableRoutingNodes(),
             state,
             null,
             null,

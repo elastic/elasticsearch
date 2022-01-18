@@ -21,6 +21,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -97,6 +98,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         IdFieldType(BooleanSupplier fieldDataEnabled) {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.fieldDataEnabled = fieldDataEnabled;
+            assert isSearchable();
         }
 
         @Override
@@ -107,6 +109,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public boolean isSearchable() {
             // The _id field is always searchable.
+            return true;
+        }
+
+        @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
             return true;
         }
 
@@ -152,7 +159,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
-                CoreValuesSourceType.KEYWORD
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new DelegateDocValuesField(
+                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                    n
+                )
             );
             return new IndexFieldData.Builder() {
                 @Override
@@ -220,7 +231,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
             @Override
             public DocValuesField<?> getScriptField(String name) {
-                return new DelegateDocValuesField(new ScriptDocValues.Strings(getBytesValues()), name);
+                return new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(getBytesValues())), name);
             }
 
             @Override

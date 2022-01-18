@@ -20,13 +20,12 @@ import java.util.Locale;
 public class TextStructureIT extends ESRestHighLevelClientTestCase {
 
     public void testFindFileStructure() throws IOException {
-
-        String sample = "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\","
-            + "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\","
-            + "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n"
-            + "{\"logger\":\"controller\",\"timestamp\":1478261151445,"
-            + "\"level\":\"INFO\",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 2\",\"class\":\"ml\","
-            + "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
+        String sample = """
+            {"logger":"controller","timestamp":1478261151445,"level":"INFO","pid":42,"thread":"0x7fff7d2a8000","message":"message 1",\
+            "class":"ml","method":"core::SomeNoiseMaker","file":"Noisemaker.cc","line":333}
+            {"logger":"controller","timestamp":1478261151445,"level":"INFO","pid":42,"thread":"0x7fff7d2a8000","message":"message 2",\
+            "class":"ml","method":"core::SomeNoiseMaker","file":"Noisemaker.cc","line":333}
+            """;
 
         TextStructureClient textStructureClient = highLevelClient().textStructure();
 

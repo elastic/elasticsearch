@@ -591,7 +591,8 @@ end::mappings[]
 tag::max_docs[]
 `max_docs`::
 (Optional, integer) Maximum number of documents to process. Defaults to all
-documents.
+documents. When set to a value less then or equal to `scroll_size` then a
+scroll will not be used to retrieve the results for the operation.
 end::max_docs[]
 
 tag::memory[]
@@ -617,7 +618,7 @@ end::require-alias[]
 tag::bulk-dynamic-templates[]
 `dynamic_templates`::
 (Optional, map)
-A map from the full name of fields to the name of <<dynamic-templates, dynamic templates>.
+A map from the full name of fields to the name of <<dynamic-templates,dynamic templates>>.
 Defaults to an empty map. If a name matches a dynamic template, then that template will be
 applied regardless of other match predicates defined in the template. And if a field is
 already defined in the mapping, then this parameter won't be used.
@@ -1033,6 +1034,11 @@ destination index will be performed thus improving overall performance.
 The default value is `true`, which means the checkpoint ranges will be optimized if possible.
 end::transform-settings-align-checkpoints[]
 
+tag::transform-settings-deduce-mappings[]
+Specifies whether the transform should deduce the destination index mappings from the transform config.
+The default value is `true`, which means the destination index mappings will be deduced if possible.
+end::transform-settings-deduce-mappings[]
+
 tag::transform-settings-max-page-search-size[]
 Defines the initial page size to use for the composite aggregation for each
 checkpoint. If circuit breaker exceptions occur, the page size is dynamically
@@ -1107,9 +1113,7 @@ end::timeout[]
 end::timeoutparms[]
 
 tag::transform-id[]
-Identifier for the {transform}. This identifier can contain lowercase
-alphanumeric characters (a-z and 0-9), hyphens, and underscores. It has a 64
-character limit and must start and end with alphanumeric characters.
+Identifier for the {transform}.
 end::transform-id[]
 
 tag::transform-id-wildcard[]

@@ -97,14 +97,16 @@ public class SqlSearchIT extends ESRestTestCase {
             // floats were indexed as Doubles and the values returned had a greater precision and more decimals
             builder.append(",");
             if (isBwcNodeBeforeFieldsApiInQL) {
-                builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
+                builder.append("""
+                    "geo_point_field":{"lat":"37.386483", "lon":"-122.083843"},""");
                 fieldValues.put("geo_point_field", "POINT (-122.08384302444756 37.38648299127817)");
                 builder.append("\"float_field\":" + randomFloat + ",");
                 fieldValues.put("float_field", Double.valueOf(randomFloat));
                 builder.append("\"half_float_field\":123.456");
                 fieldValues.put("half_float_field", 123.45600128173828d);
             } else {
-                builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
+                builder.append("""
+                    "geo_point_field":{"lat":"37.386483", "lon":"-122.083843"},""");
                 fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
                 builder.append("\"float_field\":" + randomFloat + ",");
                 /*
@@ -133,14 +135,16 @@ public class SqlSearchIT extends ESRestTestCase {
             Float randomFloat = randomFloat();
             builder.append(",");
             if (isBwcNodeBeforeFieldsApiInQL) {
-                builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
+                builder.append("""
+                    "geo_point_field":{"lat":"37.386483", "lon":"-122.083843"},""");
                 fieldValues.put("geo_point_field", "POINT (-122.08384302444756 37.38648299127817)");
                 builder.append("\"float_field\":" + randomFloat + ",");
                 fieldValues.put("float_field", Double.valueOf(randomFloat));
                 builder.append("\"half_float_field\":123.456");
                 fieldValues.put("half_float_field", 123.45600128173828d);
             } else {
-                builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
+                builder.append("""
+                    "geo_point_field":{"lat":"37.386483", "lon":"-122.083843"},""");
                 fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
                 builder.append("\"float_field\":" + randomFloat + ",");
                 /*
@@ -214,7 +218,8 @@ public class SqlSearchIT extends ESRestTestCase {
                 "\"constant_keyword_field\": \"" + fieldValues.computeIfAbsent("constant_keyword_field", v -> constantKeywordValue) + "\","
             );
             builder.append("\"wildcard_field\": \"" + fieldValues.computeIfAbsent("wildcard_field", v -> randomAlphaOfLength(5)) + "\",");
-            builder.append("\"geo_point_no_dv_field\":{\"lat\":\"40.123456\", \"lon\":\"100.234567\"},");
+            builder.append("""
+                "geo_point_no_dv_field":{"lat":"40.123456", "lon":"100.234567"},""");
             fieldValues.put("geo_point_no_dv_field", "POINT (100.234567 40.123456)");
             builder.append("\"geo_shape_field\":\"POINT (-122.083843 37.386483 30)\",");
             fieldValues.put("geo_shape_field", "POINT (-122.083843 37.386483 30.0)");

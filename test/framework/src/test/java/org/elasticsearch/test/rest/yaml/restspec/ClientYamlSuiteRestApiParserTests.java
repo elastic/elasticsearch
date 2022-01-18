@@ -122,28 +122,29 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
     }
 
     public void testRequiredBodyWithoutUrlParts() throws Exception {
-        String spec = "{\n"
-            + "  \"count\": {\n"
-            + "    \"documentation\": \"whatever\",\n"
-            + "    \"stability\": \"stable\",\n"
-            + "    \"visibility\": \"public\",\n"
-            + "    \"url\": {\n"
-            + "      \"paths\": [ \n"
-            + "        {\n"
-            + "          \"path\":\"/whatever\",\n"
-            + "          \"methods\":[\n"
-            + "            \"POST\",\n"
-            + "            \"GET\"\n"
-            + "          ]\n"
-            + "        }\n"
-            + "      ]\n"
-            + "    },\n"
-            + "    \"body\": {\n"
-            + "      \"description\" : \"whatever\",\n"
-            + "      \"required\" : true\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String spec = """
+            {
+              "count": {
+                "documentation": "whatever",
+                "stability": "stable",
+                "visibility": "public",
+                "url": {
+                  "paths": [\s
+                    {
+                      "path":"/whatever",
+                      "methods":[
+                        "POST",
+                        "GET"
+                      ]
+                    }
+                  ]
+                },
+                "body": {
+                  "description" : "whatever",
+                  "required" : true
+                }
+              }
+            }""";
 
         parser = createParser(YamlXContent.yamlXContent, spec);
         ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("count.json", parser);
@@ -155,195 +156,201 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         assertThat(restApi.isBodyRequired(), equalTo(true));
     }
 
-    private static final String REST_SPEC_COUNT_API = "{\n"
-        + "  \"count\":{\n"
-        + "    \"documentation\":{\n"
-        + "      \"url\":\"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-count.html\",\n"
-        + "      \"description\":\"Returns number of documents matching a query.\"\n"
-        + "    },\n"
-        + "    \"stability\": \"stable\",\n"
-        + "    \"visibility\": \"public\",\n"
-        + "    \"headers\": { \"accept\": [\"application/json\"] },\n"
-        + "    \"url\":{\n"
-        + "      \"paths\":[\n"
-        + "        {\n"
-        + "          \"path\":\"/_count\",\n"
-        + "          \"methods\":[\n"
-        + "            \"POST\",\n"
-        + "            \"GET\"\n"
-        + "          ]\n"
-        + "        },\n"
-        + "        {\n"
-        + "          \"path\":\"/{index}/_count\",\n"
-        + "          \"methods\":[\n"
-        + "            \"POST\",\n"
-        + "            \"GET\"\n"
-        + "          ],\n"
-        + "          \"parts\":{\n"
-        + "            \"index\":{\n"
-        + "              \"type\":\"list\",\n"
-        + "              \"description\":\"A comma-separated list of indices to restrict the results\"\n"
-        + "            }\n"
-        + "          }\n"
-        + "        },\n"
-        + "        {\n"
-        + "          \"path\":\"/{index}/{type}/_count\",\n"
-        + "          \"methods\":[\n"
-        + "            \"POST\",\n"
-        + "            \"GET\"\n"
-        + "          ],\n"
-        + "          \"parts\":{\n"
-        + "            \"index\":{\n"
-        + "              \"type\":\"list\",\n"
-        + "              \"description\":\"A comma-separated list of indices to restrict the results\"\n"
-        + "            },\n"
-        + "            \"type\":{\n"
-        + "              \"type\":\"list\",\n"
-        + "              \"description\":\"A comma-separated list of types to restrict the results\",\n"
-        + "              \"deprecated\":true\n"
-        + "            }\n"
-        + "          }\n"
-        + "        }\n"
-        + "      ]\n"
-        + "    },\n"
-        + "    \"params\":{\n"
-        + "      \"ignore_unavailable\":{\n"
-        + "        \"type\":\"boolean\",\n"
-        + "        \"description\":\"Whether specified concrete indices should be ignored when unavailable (missing or closed)\"\n"
-        + "      }\n"
-        + "    },\n"
-        + "    \"body\":{\n"
-        + "      \"description\":\"A query to restrict the results specified with the Query DSL (optional)\",\n"
-        + "      \"content_type\": [\"application/json\"]\n"
-        + "    }\n"
-        + "  }\n"
-        + "}\n\n";
+    private static final String REST_SPEC_COUNT_API = """
+        {
+          "count":{
+            "documentation":{
+              "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-count.html",
+              "description":"Returns number of documents matching a query."
+            },
+            "stability": "stable",
+            "visibility": "public",
+            "headers": { "accept": ["application/json"] },
+            "url":{
+              "paths":[
+                {
+                  "path":"/_count",
+                  "methods":[
+                    "POST",
+                    "GET"
+                  ]
+                },
+                {
+                  "path":"/{index}/_count",
+                  "methods":[
+                    "POST",
+                    "GET"
+                  ],
+                  "parts":{
+                    "index":{
+                      "type":"list",
+                      "description":"A comma-separated list of indices to restrict the results"
+                    }
+                  }
+                },
+                {
+                  "path":"/{index}/{type}/_count",
+                  "methods":[
+                    "POST",
+                    "GET"
+                  ],
+                  "parts":{
+                    "index":{
+                      "type":"list",
+                      "description":"A comma-separated list of indices to restrict the results"
+                    },
+                    "type":{
+                      "type":"list",
+                      "description":"A comma-separated list of types to restrict the results",
+                      "deprecated":true
+                    }
+                  }
+                }
+              ]
+            },
+            "params":{
+              "ignore_unavailable":{
+                "type":"boolean",
+                "description":"Whether specified concrete indices should be ignored when unavailable (missing or closed)"
+              }
+            },
+            "body":{
+              "description":"A query to restrict the results specified with the Query DSL (optional)",
+              "content_type": ["application/json"]
+            }
+          }
+        }
 
-    private static final String REST_SPEC_GET_TEMPLATE_API = "{\n"
-        + "  \"indices.get_template\":{\n"
-        + "    \"documentation\":{\n"
-        + "      \"url\":\"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html\",\n"
-        + "      \"description\":\"Returns an index template.\"\n"
-        + "    },\n"
-        + "    \"headers\": { \"accept\": [\"application/json\"] },\n"
-        + "    \"stability\": \"stable\",\n"
-        + "    \"visibility\": \"public\",\n"
-        + "    \"url\":{\n"
-        + "      \"paths\":[\n"
-        + "        {\n"
-        + "          \"path\":\"/_template\",\n"
-        + "          \"methods\":[\n"
-        + "            \"GET\"\n"
-        + "          ]\n"
-        + "        },\n"
-        + "        {\n"
-        + "          \"path\":\"/_template/{name}\",\n"
-        + "          \"methods\":[\n"
-        + "            \"GET\"\n"
-        + "          ],\n"
-        + "          \"parts\":{\n"
-        + "            \"name\":{\n"
-        + "              \"type\":\"list\",\n"
-        + "              \"description\":\"The comma separated names of the index templates\"\n"
-        + "            }\n"
-        + "          }\n"
-        + "        }\n"
-        + "      ]\n"
-        + "    }\n"
-        + "  }\n"
-        + "}\n";
+        """;
 
-    private static final String REST_SPEC_INDEX_API = "{\n"
-        + "  \"index\":{\n"
-        + "    \"documentation\":{\n"
-        + "      \"url\":\"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html\",\n"
-        + "      \"description\":\"Creates or updates a document in an index.\"\n"
-        + "    },\n"
-        + "    \"stability\": \"stable\",\n"
-        + "    \"visibility\": \"public\",\n"
-        + "    \"headers\": { "
-        + "       \"accept\": [\"application/json\"],\n "
-        + "       \"content_type\": [\"application/json\", \"a/mime-type\"]\n "
-        + "   },\n"
-        + "    \"url\":{\n"
-        + "      \"paths\":[\n"
-        + "        {\n"
-        + "          \"path\":\"/{index}/{type}\",\n"
-        + "          \"methods\":[\n"
-        + "            \"POST\"\n"
-        + "          ],\n"
-        + "          \"parts\":{\n"
-        + "            \"index\":{\n"
-        + "              \"type\":\"string\",\n"
-        + "              \"description\":\"The name of the index\"\n"
-        + "            },\n"
-        + "            \"type\":{\n"
-        + "              \"type\":\"string\",\n"
-        + "              \"description\":\"The type of the document\",\n"
-        + "              \"deprecated\":true\n"
-        + "            }\n"
-        + "          }\n"
-        + "        },\n"
-        + "        {\n"
-        + "          \"path\":\"/{index}/{type}/{id}\",\n"
-        + "          \"methods\":[\n"
-        + "            \"PUT\"\n"
-        + "          ],\n"
-        + "          \"parts\":{\n"
-        + "            \"id\":{\n"
-        + "              \"type\":\"string\",\n"
-        + "              \"description\":\"Document ID\"\n"
-        + "            },\n"
-        + "            \"index\":{\n"
-        + "              \"type\":\"string\",\n"
-        + "              \"description\":\"The name of the index\"\n"
-        + "            },\n"
-        + "            \"type\":{\n"
-        + "              \"type\":\"string\",\n"
-        + "              \"description\":\"The type of the document\",\n"
-        + "              \"deprecated\":true\n"
-        + "            }\n"
-        + "          },\n"
-        + "          \"deprecated\":{\n"
-        + "            \"version\":\"7.0.0\",\n"
-        + "            \"description\":\"Specifying types in urls has been deprecated\"\n"
-        + "          }\n"
-        + "        }\n"
-        + "      ]\n"
-        + "    },\n"
-        + "    \"params\":{\n"
-        + "      \"wait_for_active_shards\":{\n"
-        + "        \"type\":\"string\",\n"
-        + "        \"description\":\"Sets the number of shard copies that must be active before proceeding with the index operation. \"\n"
-        + "      },\n"
-        + "      \"op_type\":{\n"
-        + "        \"type\":\"enum\",\n"
-        + "        \"options\":[\n"
-        + "          \"index\",\n"
-        + "          \"create\"\n"
-        + "        ],\n"
-        + "        \"default\":\"index\",\n"
-        + "        \"description\":\"Explicit operation type\"\n"
-        + "      },\n"
-        + "      \"refresh\":{\n"
-        + "        \"type\":\"enum\",\n"
-        + "        \"options\":[\n"
-        + "          \"true\",\n"
-        + "          \"false\",\n"
-        + "          \"wait_for\"\n"
-        + "        ],\n"
-        + "        \"description\":\"If `true` then refresh the affected shards to make this operation visible to search\"\n"
-        + "      },\n"
-        + "      \"routing\":{\n"
-        + "        \"type\":\"string\",\n"
-        + "        \"description\":\"Specific routing value\"\n"
-        + "      }\n"
-        + "    },\n"
-        + "    \"body\":{\n"
-        + "      \"description\":\"The document\",\n"
-        + "      \"content_type\": [\"application/json\"],\n"
-        + "      \"required\":true\n"
-        + "    }\n"
-        + "  }\n"
-        + "}\n";
+    private static final String REST_SPEC_GET_TEMPLATE_API = """
+        {
+          "indices.get_template":{
+            "documentation":{
+              "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
+              "description":"Returns an index template."
+            },
+            "headers": { "accept": ["application/json"] },
+            "stability": "stable",
+            "visibility": "public",
+            "url":{
+              "paths":[
+                {
+                  "path":"/_template",
+                  "methods":[
+                    "GET"
+                  ]
+                },
+                {
+                  "path":"/_template/{name}",
+                  "methods":[
+                    "GET"
+                  ],
+                  "parts":{
+                    "name":{
+                      "type":"list",
+                      "description":"The comma separated names of the index templates"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+        """;
+
+    private static final String REST_SPEC_INDEX_API = """
+        {
+          "index":{
+            "documentation":{
+              "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html",
+              "description":"Creates or updates a document in an index."
+            },
+            "stability": "stable",
+            "visibility": "public",
+            "headers": {        "accept": ["application/json"],
+                "content_type": ["application/json", "a/mime-type"]
+            },
+            "url":{
+              "paths":[
+                {
+                  "path":"/{index}/{type}",
+                  "methods":[
+                    "POST"
+                  ],
+                  "parts":{
+                    "index":{
+                      "type":"string",
+                      "description":"The name of the index"
+                    },
+                    "type":{
+                      "type":"string",
+                      "description":"The type of the document",
+                      "deprecated":true
+                    }
+                  }
+                },
+                {
+                  "path":"/{index}/{type}/{id}",
+                  "methods":[
+                    "PUT"
+                  ],
+                  "parts":{
+                    "id":{
+                      "type":"string",
+                      "description":"Document ID"
+                    },
+                    "index":{
+                      "type":"string",
+                      "description":"The name of the index"
+                    },
+                    "type":{
+                      "type":"string",
+                      "description":"The type of the document",
+                      "deprecated":true
+                    }
+                  },
+                  "deprecated":{
+                    "version":"7.0.0",
+                    "description":"Specifying types in urls has been deprecated"
+                  }
+                }
+              ]
+            },
+            "params":{
+              "wait_for_active_shards":{
+                "type":"string",
+                "description":"Sets the number of shard copies that must be active before proceeding with the index operation. "
+              },
+              "op_type":{
+                "type":"enum",
+                "options":[
+                  "index",
+                  "create"
+                ],
+                "default":"index",
+                "description":"Explicit operation type"
+              },
+              "refresh":{
+                "type":"enum",
+                "options":[
+                  "true",
+                  "false",
+                  "wait_for"
+                ],
+                "description":"If `true` then refresh the affected shards to make this operation visible to search"
+              },
+              "routing":{
+                "type":"string",
+                "description":"Specific routing value"
+              }
+            },
+            "body":{
+              "description":"The document",
+              "content_type": ["application/json"],
+              "required":true
+            }
+          }
+        }
+        """;
 }

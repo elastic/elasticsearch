@@ -184,19 +184,16 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
     private Interval readInterval(StreamInput in) throws IOException {
         byte id = in.readByte();
-        switch (id) {
-            case FIXED_INTERVAL_ID:
-                return new FixedInterval(in);
-            case CALENDAR_INTERVAL_ID:
-                return new CalendarInterval(in);
-            default:
-                throw new IllegalArgumentException("unknown interval type [" + id + "]");
-        }
+        return switch (id) {
+            case FIXED_INTERVAL_ID -> new FixedInterval(in);
+            case CALENDAR_INTERVAL_ID -> new CalendarInterval(in);
+            default -> throw new IllegalArgumentException("unknown interval type [" + id + "]");
+        };
     }
 
-    private void writeInterval(Interval interval, StreamOutput out) throws IOException {
-        out.write(interval.getIntervalTypeId());
-        interval.writeTo(out);
+    private void writeInterval(Interval anInterval, StreamOutput out) throws IOException {
+        out.write(anInterval.getIntervalTypeId());
+        anInterval.writeTo(out);
     }
 
     private static final String NAME = "data_frame_date_histogram_group";

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -33,9 +31,10 @@ import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -193,7 +192,7 @@ public class MetadataIndexStateService {
                                                 }
 
                                                 @Override
-                                                public void onFailure(final String source, final Exception e) {
+                                                public void onFailure(final Exception e) {
                                                     listener.onFailure(e);
                                                 }
 
@@ -240,7 +239,8 @@ public class MetadataIndexStateService {
                                                         listener.onResponse(new CloseIndexResponse(acknowledged, false, indices));
                                                     }
                                                 }
-                                            }
+                                            },
+                                            ClusterStateTaskExecutor.unbatched()
                                         ),
                                         listener::onFailure
                                     )
@@ -250,10 +250,11 @@ public class MetadataIndexStateService {
                 }
 
                 @Override
-                public void onFailure(final String source, final Exception e) {
+                public void onFailure(final Exception e) {
                     listener.onFailure(e);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -499,7 +500,7 @@ public class MetadataIndexStateService {
                                                 }
 
                                                 @Override
-                                                public void onFailure(final String source, final Exception e) {
+                                                public void onFailure(final Exception e) {
                                                     listener.onFailure(e);
                                                 }
 
@@ -513,7 +514,8 @@ public class MetadataIndexStateService {
                                                     final boolean acknowledged = indices.stream().noneMatch(AddBlockResult::hasFailures);
                                                     listener.onResponse(new AddIndexBlockResponse(acknowledged, acknowledged, indices));
                                                 }
-                                            }
+                                            },
+                                            ClusterStateTaskExecutor.unbatched()
                                         ),
                                         listener::onFailure
                                     )
@@ -523,10 +525,11 @@ public class MetadataIndexStateService {
                 }
 
                 @Override
-                public void onFailure(final String source, final Exception e) {
+                public void onFailure(final Exception e) {
                     listener.onFailure(e);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -594,8 +597,8 @@ public class MetadataIndexStateService {
             final AtomicArray<ShardResult> results = new AtomicArray<>(shards.size());
             final CountDown countDown = new CountDown(shards.size());
 
-            for (IntObjectCursor<IndexShardRoutingTable> shard : shards) {
-                final IndexShardRoutingTable shardRoutingTable = shard.value;
+            for (Map.Entry<Integer, IndexShardRoutingTable> shard : shards.entrySet()) {
+                final IndexShardRoutingTable shardRoutingTable = shard.getValue();
                 final int shardId = shardRoutingTable.shardId().id();
                 sendVerifyShardBeforeCloseRequest(shardRoutingTable, closingBlock, new NotifyOnceListener<ReplicationResponse>() {
                     @Override
@@ -725,8 +728,8 @@ public class MetadataIndexStateService {
             final AtomicArray<AddBlockShardResult> results = new AtomicArray<>(shards.size());
             final CountDown countDown = new CountDown(shards.size());
 
-            for (IntObjectCursor<IndexShardRoutingTable> shard : shards) {
-                final IndexShardRoutingTable shardRoutingTable = shard.value;
+            for (Map.Entry<Integer, IndexShardRoutingTable> shard : shards.entrySet()) {
+                final IndexShardRoutingTable shardRoutingTable = shard.getValue();
                 final int shardId = shardRoutingTable.shardId().id();
                 sendVerifyShardBlockRequest(shardRoutingTable, clusterBlock, new NotifyOnceListener<ReplicationResponse>() {
                     @Override
@@ -923,7 +926,8 @@ public class MetadataIndexStateService {
                     // no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
                     return allocationService.reroute(updatedState, "indices opened [" + indicesAsString + "]");
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

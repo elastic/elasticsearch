@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -70,7 +71,7 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
@@ -78,7 +79,7 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 listener.onResponse(new Response(failedIndexes));
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
 }

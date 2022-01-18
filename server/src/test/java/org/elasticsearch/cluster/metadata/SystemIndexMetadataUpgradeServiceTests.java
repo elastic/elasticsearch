@@ -29,9 +29,11 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
 
     private static final String MAPPINGS = "{ \"_doc\": { \"_meta\": { \"version\": \"7.4.0\" } } }";
     private static final String SYSTEM_INDEX_NAME = ".myindex-1";
+    private static final String SYSTEM_ALIAS_NAME = ".myindex-alias";
     private static final SystemIndexDescriptor DESCRIPTOR = SystemIndexDescriptor.builder()
         .setIndexPattern(".myindex-*")
         .setPrimaryIndex(SYSTEM_INDEX_NAME)
+        .setAliasName(SYSTEM_ALIAS_NAME)
         .setSettings(getSettingsBuilder().build())
         .setMappings(MAPPINGS)
         .setVersionMetaKey("version")
@@ -51,31 +53,49 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
 
     /**
      * When we upgrade Elasticsearch versions, existing indices may be newly
-     * defined as system indices. If such indices are set to "hidden," we need
-     * to remove that setting.
+     * defined as system indices. If such indices are set without "hidden," we need
+     * to update that setting.
      */
-    public void testUpgradeHiddenIndexToSystemIndex() throws Exception {
+    public void testUpgradeVisibleIndexToSystemIndex() throws Exception {
         // create an initial cluster state with a hidden index that matches the system index descriptor
         IndexMetadata.Builder hiddenIndexMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
             .system(false)
-            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false));
 
-        assertSystemUpgradeRemovesHiddenSetting(hiddenIndexMetadata);
+        assertSystemUpgradeAppliesHiddenSetting(hiddenIndexMetadata);
     }
 
     /**
-     * If a system index erroneously is set to hidden, we should remedy that situation.
+     * If a system index erroneously is set to visible, we should remedy that situation.
      */
     public void testHiddenSettingRemovedFromSystemIndices() throws Exception {
         // create an initial cluster state with a hidden index that matches the system index descriptor
         IndexMetadata.Builder hiddenIndexMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
             .system(true)
-            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false));
 
-        assertSystemUpgradeRemovesHiddenSetting(hiddenIndexMetadata);
+        assertSystemUpgradeAppliesHiddenSetting(hiddenIndexMetadata);
     }
 
-    private void assertSystemUpgradeRemovesHiddenSetting(IndexMetadata.Builder hiddenIndexMetadata) throws Exception {
+    public void testUpgradeIndexWithVisibleAlias() throws Exception {
+        IndexMetadata.Builder visibleAliasMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+            .system(false)
+            .settings(getSettingsBuilder())
+            .putAlias(AliasMetadata.builder(SYSTEM_ALIAS_NAME).isHidden(false));
+
+        assertSystemUpgradeHidesAlias(visibleAliasMetadata);
+    }
+
+    public void testSystemAliasesBecomeHidden() throws Exception {
+        IndexMetadata.Builder visibleAliasMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+            .system(true)
+            .settings(getSettingsBuilder())
+            .putAlias(AliasMetadata.builder(SYSTEM_ALIAS_NAME).isHidden(false));
+
+        assertSystemUpgradeHidesAlias(visibleAliasMetadata);
+    }
+
+    private void assertSystemUpgradeAppliesHiddenSetting(IndexMetadata.Builder hiddenIndexMetadata) throws Exception {
         Metadata.Builder clusterMetadata = new Metadata.Builder();
         clusterMetadata.put(hiddenIndexMetadata);
 
@@ -89,7 +109,24 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
 
         IndexMetadata result = newState.metadata().index(SYSTEM_INDEX_NAME);
         assertThat(result.isSystem(), equalTo(true));
-        assertThat(result.getSettings().get(IndexMetadata.SETTING_INDEX_HIDDEN), equalTo("false"));
+        assertThat(result.isHidden(), equalTo(true));
+    }
+
+    private void assertSystemUpgradeHidesAlias(IndexMetadata.Builder visibleAliasMetadata) throws Exception {
+        Metadata.Builder clusterMetadata = new Metadata.Builder();
+        clusterMetadata.put(visibleAliasMetadata);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
+            .metadata(clusterMetadata.build())
+            .customs(ImmutableOpenMap.of())
+            .build();
+
+        // Get a metadata upgrade task and execute it on the initial cluster state
+        ClusterState newState = service.getTask().execute(clusterState);
+
+        IndexMetadata result = newState.metadata().index(SYSTEM_INDEX_NAME);
+        assertThat(result.isSystem(), equalTo(true));
+        assertThat(result.getAliases().values().stream().allMatch(AliasMetadata::isHidden), equalTo(true));
     }
 
     private static Settings.Builder getSettingsBuilder() {

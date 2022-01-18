@@ -78,7 +78,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
 
         public Builder ignoreZValue(boolean ignoreZValue) {
-            this.ignoreZValue.setValue(new Explicit<>(ignoreZValue, true));
+            this.ignoreZValue.setValue(Explicit.explicitBoolean(ignoreZValue));
             return this;
         }
 
@@ -101,7 +101,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
                 coerce.get().value(),
                 ignoreZValue.get().value()
             );
-            GeoShapeParser geoShapeParser = new GeoShapeParser(geometryParser);
+            GeoShapeParser geoShapeParser = new GeoShapeParser(geometryParser, orientation.get().value());
             GeoShapeFieldType ft = new GeoShapeFieldType(
                 context.buildFullName(name),
                 indexed.get(),

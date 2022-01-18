@@ -25,11 +25,11 @@ class NioHttpRequestCreator extends MessageToMessageDecoder<FullHttpRequest> {
         if (msg.decoderResult().isFailure()) {
             final Throwable cause = msg.decoderResult().cause();
             final Exception nonError;
-            if (cause instanceof Error) {
+            if (cause instanceof Exception exception) {
+                nonError = exception;
+            } else {
                 ExceptionsHelper.maybeDieOnAnotherThread(cause);
                 nonError = new Exception(cause);
-            } else {
-                nonError = (Exception) cause;
             }
             out.add(new NioHttpRequest(msg.retain(), nonError));
         } else {

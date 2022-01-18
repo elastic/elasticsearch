@@ -1084,23 +1084,19 @@ public final class TimestampFormatFinder {
             StringBuilder builder = new StringBuilder();
             for (int groupNum = 1; groupNum <= matcher.groupCount(); ++groupNum) {
                 switch (groupNum) {
-                    case 2: {
+                    case 2 -> {
                         char formatChar = isDayFirst ? 'd' : 'M';
                         for (int count = matcher.group(groupNum).length(); count > 0; --count) {
                             builder.append(formatChar);
                         }
-                        break;
                     }
-                    case 4: {
+                    case 4 -> {
                         char formatChar = isDayFirst ? 'M' : 'd';
                         for (int count = matcher.group(groupNum).length(); count > 0; --count) {
                             builder.append(formatChar);
                         }
-                        break;
                     }
-                    default:
-                        builder.append(matcher.group(groupNum));
-                        break;
+                    default -> builder.append(matcher.group(groupNum));
                 }
             }
             return builder.toString();
@@ -1159,16 +1155,12 @@ public final class TimestampFormatFinder {
         Map<String, String> mapping = new LinkedHashMap<>();
         mapping.put(TextStructureUtils.MAPPING_TYPE_SETTING, needNanosecondPrecision() ? "date_nanos" : "date");
         String formats = javaTimestampFormats.stream().map(format -> {
-            switch (format) {
-                case "ISO8601":
-                    return "iso8601";
-                case "UNIX_MS":
-                    return "epoch_millis";
-                case "UNIX":
-                    return "epoch_second";
-                default:
-                    return format;
-            }
+            return switch (format) {
+                case "ISO8601" -> "iso8601";
+                case "UNIX_MS" -> "epoch_millis";
+                case "UNIX" -> "epoch_second";
+                default -> format;
+            };
         }).collect(Collectors.joining("||"));
         if (formats.isEmpty() == false) {
             mapping.put(TextStructureUtils.MAPPING_FORMAT_SETTING, formats);

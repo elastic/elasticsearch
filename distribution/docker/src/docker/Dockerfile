@@ -20,32 +20,55 @@
 */ %>
 
 <% if (docker_base == 'iron_bank') { %>
+ARG BASE_REGISTRY=registry1.dso.mil
+ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
+ARG BASE_TAG=8.5
+<% } %>
+
 ################################################################################
-# Build stage 0 `builder`:
+# Build stage 0 `zlib`:
+# Compile zlib for the current architecture
+################################################################################
+
+FROM ${base_image} AS zlib
+
+<% if (docker_base == 'default' || docker_base == 'cloud') { %>
+RUN <%= retry.loop(package_manager, "${package_manager} update && DEBIAN_FRONTEND=noninteractive ${package_manager} install -y curl gcc make") %>
+<% } else { %>
+RUN <%= retry.loop(package_manager, "${package_manager} install -y curl gcc make tar gzip") %>
+<% } %>
+
+<%
+// Fetch the zlib source.  Keep this command on one line - it is replaced
+// with a `COPY` during local builds.
+%>
+WORKDIR /tmp
+RUN curl --retry 10 -S -L -o zlib-${zlib_version}.tar.gz https://github.com/cloudflare/zlib/archive/refs/tags/v${zlib_version}.tar.gz
+RUN echo "7e393976368975446b263ae4143fb404bc33bf3b436e72007700b5b88e5be332cd461cdec42d31a4b6dffdca2368550f01b9fa1165d81c0aa818bbf2b1ac191e zlib-${zlib_version}.tar.gz" \\
+      | sha512sum --check -
+RUN tar xf zlib-${zlib_version}.tar.gz
+
+WORKDIR /tmp/zlib-${zlib_version}
+RUN ./configure --prefix=/usr/local/cloudflare-zlib && make && make install
+
+################################################################################
+# Build stage 1 `builder`:
 # Extract Elasticsearch artifact
 ################################################################################
 
-ARG BASE_REGISTRY=registry1.dso.mil
-ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
-ARG BASE_TAG=8.4
-
 FROM ${base_image} AS builder
 
+<% if (docker_base == 'iron_bank') { %>
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
 COPY tini /bin/tini
 RUN chmod 0555 /bin/tini
 
 <% } else { %>
-################################################################################
-# Build stage 0 `builder`:
-# Extract Elasticsearch artifact
-################################################################################
-FROM ${base_image} AS builder
 
 # Install required packages to extract the Elasticsearch distribution
 <% if (docker_base == 'default' || docker_base == 'cloud') { %>
-RUN <%= retry.loop(package_manager, "${package_manager} update && DEBIAN_FRONTEND=noninteractive ${package_manager} install -y curl ca-certificates-java") %>
+RUN <%= retry.loop(package_manager, "${package_manager} update && DEBIAN_FRONTEND=noninteractive ${package_manager} install -y curl ") %>
 <% } else { %>
 RUN <%= retry.loop(package_manager, "${package_manager} install -y findutils tar gzip") %>
 <% } %>
@@ -76,13 +99,15 @@ RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
 <% if (docker_base == "iron_bank") {
-  // Iron Bank always copies the local artifact
+  // Iron Bank always copies the local artifact. It uses `arch` from the
+  // template context variables.
 %>
-COPY elasticsearch-${version}-linux-x86_64.tar.gz /tmp/elasticsearch.tar.gz
+COPY elasticsearch-${version}-linux-${arch}.tar.gz /tmp/elasticsearch.tar.gz
 <% } else {
   // Fetch the appropriate Elasticsearch distribution for this architecture.
   // Keep this command on one line - it is replaced with a `COPY` during local builds.
-  // It uses the `arch` command to fetch the correct distro for the build machine.
+  // It uses the `arch` shell command to fetch the correct distro for the build machine,
+  // which is needed for Docker Hub builds.
 %>
 RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
 <% } %>
@@ -114,23 +139,20 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     find config -type f -exec chmod 0664 {} +
 
 <% if (docker_base == "cloud") { %>
-# Preinstall common plugins. Note that these are installed as root, meaning the `elasticsearch` user cannot delete them.
-COPY repository-s3-${version}.zip repository-gcs-${version}.zip repository-azure-${version}.zip /tmp/
-RUN bin/elasticsearch-plugin install --batch --verbose \\
-    file:/tmp/repository-s3-${version}.zip \\
-    file:/tmp/repository-gcs-${version}.zip \\
-    file:/tmp/repository-azure-${version}.zip
-# Generate a replacement example plugins config that reflects what is actually installed
-RUN echo "plugins:" > config/elasticsearch-plugins.example.yml && \\
-    echo "  - id: repository-azure" >> config/elasticsearch-plugins.example.yml && \\
-    echo "  - id: repository-gcs"   >> config/elasticsearch-plugins.example.yml && \\
-    echo "  - id: repository-s3"    >> config/elasticsearch-plugins.example.yml
-
-<% /*  I tried to use `ADD` here, but I couldn't force it to do what I wanted */ %>
 COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /tmp/
-RUN mkdir -p /opt/filebeat /opt/metricbeat && \\
-    tar xf /tmp/filebeat-${version}.tar.gz -C /opt/filebeat --strip-components=1 && \\
-    tar xf /tmp/metricbeat-${version}.tar.gz -C /opt/metricbeat --strip-components=1
+RUN set -eux ; \\
+    for beat in filebeat metricbeat ; do \\
+      if [ ! -s /tmp/\$beat-${version}.tar.gz ]; then \\
+        echo "/tmp/\$beat-${version}.tar.gz is empty - cannot uncompress" 2>&1 ; \\
+        exit 1 ; \\
+      fi ; \\
+      if ! tar tf /tmp/\$beat-${version}.tar.gz >/dev/null; then \\
+        echo "/tmp/\$beat-${version}.tar.gz is corrupt - cannot uncompress" 2>&1 ; \\
+        exit 1 ; \\
+      fi ; \\
+      mkdir -p /opt/\$beat ; \\
+      tar xf /tmp/\$beat-${version}.tar.gz -C /opt/\$beat --strip-components=1 ; \\
+    done
 
 # Add plugins infrastructure
 RUN mkdir -p /opt/plugins/archive
@@ -138,9 +160,10 @@ RUN chmod -R 0555 /opt/plugins
 <% } %>
 
 ################################################################################
-# Build stage 1 (the actual Elasticsearch image):
+# Build stage 2 (the actual Elasticsearch image):
 #
-# Copy elasticsearch from stage 0
+# Copy zlib from stage 2
+# Copy elasticsearch from stage 1
 # Add entrypoint
 ################################################################################
 
@@ -158,14 +181,17 @@ RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
 
 <% } else if (docker_base == "default" || docker_base == "cloud") { %>
 
-RUN <%= retry.loop(
+# Change default shell to bash, then install required packages with retries.
+RUN yes no | dpkg-reconfigure dash && \\
+    <%= retry.loop(
     package_manager,
       "export DEBIAN_FRONTEND=noninteractive && \n" +
-      "${package_manager} update && \n" +
-      "${package_manager} upgrade -y && \n" +
-      "${package_manager} install -y --no-install-recommends curl netcat zip unzip vim-tiny ${docker_base == 'cloud' ? 'wget' : '' } && \n" +
-      "${package_manager} clean && \n" +
-      "rm -rf /var/lib/apt/lists/*"
+      "      ${package_manager} update && \n" +
+      "      ${package_manager} upgrade -y && \n" +
+      "      ${package_manager} install -y --no-install-recommends \n" +
+      "        ca-certificates curl netcat p11-kit unzip vim-tiny zip ${docker_base == 'cloud' ? 'wget' : '' } && \n" +
+      "      ${package_manager} clean && \n" +
+      "      rm -rf /var/lib/apt/lists/*"
   ) %>
 
 <% } else { %>
@@ -174,7 +200,7 @@ RUN <%= retry.loop(
     package_manager,
       "${package_manager} update --setopt=tsflags=nodocs -y && \n" +
       "      ${package_manager} install --setopt=tsflags=nodocs -y \n" +
-      "      nc shadow-utils zip unzip findutils procps-ng && \n" +
+      "        nc shadow-utils zip unzip findutils procps-ng && \n" +
       "      ${package_manager} clean all"
     ) %>
 
@@ -195,19 +221,17 @@ RUN groupadd -g 1000 elasticsearch && \\
 ENV ELASTIC_CONTAINER true
 
 WORKDIR /usr/share/elasticsearch
+
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
-
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
-
-<% if (docker_base == 'default' || docker_base == 'cloud') { %>
-COPY --from=builder --chown=0:0 /etc/ssl/certs/java/cacerts /etc/ssl/certs/java/cacerts
-<% } %>
+COPY --from=zlib --chown=0:0 /usr/local/cloudflare-zlib /usr/local/cloudflare-zlib
 
 <% if (docker_base == 'cloud') { %>
 COPY --from=builder --chown=0:0 /opt /opt
 <% } %>
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
+ENV ES_ZLIB_PATH /usr/local/cloudflare-zlib/lib
 
 COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
@@ -225,10 +249,17 @@ COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod g=u /etc/passwd && \\
     chmod 0555 /usr/local/bin/docker-entrypoint.sh && \\
     find / -xdev -perm -4000 -exec chmod ug-s {} + && \\
-    ln -sf <%= docker_base == 'default' || docker_base == 'cloud' ? '/etc/ssl/certs/java/cacerts' : '/etc/pki/ca-trust/extracted/java/cacerts' %> \\
-      /usr/share/elasticsearch/jdk/lib/security/cacerts && \\
     chmod 0775 /usr/share/elasticsearch && \\
     chown elasticsearch bin config config/jvm.options.d data logs plugins
+
+<% if (docker_base == 'default' || docker_base == 'cloud') { %>
+# Update "cacerts" bundle to use Ubuntu's CA certificates (and make sure it
+# stays up-to-date with changes to Ubuntu's store)
+COPY bin/docker-openjdk /etc/ca-certificates/update.d/docker-openjdk
+RUN /etc/ca-certificates/update.d/docker-openjdk
+<% } else { %>
+RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
+<% } %>
 
 EXPOSE 9200 9300
 
@@ -276,7 +307,7 @@ ENTRYPOINT ["/bin/tini", "--"]
 CMD ["/app/elasticsearch.sh"]
 # Generate a stub command that will be overwritten at runtime
 RUN mkdir /app && \\
-    echo '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
+    echo -e '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
     chmod 0555 /app/elasticsearch.sh
 
 <% } else { %>

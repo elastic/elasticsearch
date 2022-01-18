@@ -12,7 +12,7 @@ import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -294,26 +294,22 @@ public class RestVectorTileAction extends BaseRestHandler {
             final String bucketKey = bucket.getKeyAsString();
             // Add geometry
             switch (request.getGridType()) {
-                case GRID: {
+                case GRID -> {
                     final Rectangle r = GeoTileUtils.toBoundingBox(bucketKey);
                     featureBuilder.mergeFrom(geomBuilder.box(r.getMinLon(), r.getMaxLon(), r.getMinLat(), r.getMaxLat()));
-                    break;
                 }
-                case POINT: {
+                case POINT -> {
                     final GeoPoint point = (GeoPoint) bucket.getKey();
                     featureBuilder.mergeFrom(geomBuilder.point(point.lon(), point.lat()));
-                    break;
                 }
-                case CENTROID: {
+                case CENTROID -> {
                     final Rectangle r = GeoTileUtils.toBoundingBox(bucketKey);
                     final InternalGeoCentroid centroid = bucket.getAggregations().get(CENTROID_AGG_NAME);
                     final double featureLon = Math.min(Math.max(centroid.centroid().lon(), r.getMinLon()), r.getMaxLon());
                     final double featureLat = Math.min(Math.max(centroid.centroid().lat(), r.getMinLat()), r.getMaxLat());
                     featureBuilder.mergeFrom(geomBuilder.point(featureLon, featureLat));
-                    break;
                 }
-                default:
-                    throw new IllegalArgumentException("unsupported grid type + [" + request.getGridType() + "]");
+                default -> throw new IllegalArgumentException("unsupported grid type + [" + request.getGridType() + "]");
             }
             // Add bucket key as key value pair
             VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, KEY_TAG, bucketKey);

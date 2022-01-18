@@ -191,6 +191,18 @@
           "title": "max page search size",
           "type": "integer",
           "default": 500
+        },
+        "use_point_in_time": {
+          "$id": "#root/settings/use_point_in_time",
+          "title": "use_point_in_time",
+          "type": "boolean",
+          "default": true
+        },
+        "deduce_mappings": {
+          "$id": "#root/settings/deduce_mappings",
+          "title": "deduce mappings",
+          "type": "boolean",
+          "default": true
         }
       }
     },

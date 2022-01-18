@@ -153,13 +153,13 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
         // cipher used to decrypt only the current packetInputStream
         Cipher packetCipher = getPacketDecryptionCipher(packetBuffer);
         // read the rest of the packet, reusing the packetBuffer
-        int packetLength = packetInputStream.readNBytes(packetBuffer, 0, packetBuffer.length);
-        if (packetLength < GCM_TAG_LENGTH_IN_BYTES) {
+        int packetLen = packetInputStream.readNBytes(packetBuffer, 0, packetBuffer.length);
+        if (packetLen < GCM_TAG_LENGTH_IN_BYTES) {
             throw new IOException("Encrypted packet is too short");
         }
         try {
             // in-place decryption of the whole packet and return decrypted length
-            return packetCipher.doFinal(packetBuffer, 0, packetLength, packetBuffer);
+            return packetCipher.doFinal(packetBuffer, 0, packetLen, packetBuffer);
         } catch (ShortBufferException | IllegalBlockSizeException | BadPaddingException e) {
             throw new IOException("Exception during packet decryption", e);
         }

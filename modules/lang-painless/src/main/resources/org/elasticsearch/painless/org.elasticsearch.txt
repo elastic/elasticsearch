@@ -49,6 +49,8 @@ class org.elasticsearch.painless.api.Debug {
 #### ES Scripting API
 
 class org.elasticsearch.common.geo.GeoPoint {
+  ()
+  (double, double)
   double getLat()
   double getLon()
 }
@@ -120,11 +122,6 @@ class org.apache.lucene.util.BytesRef {
   int length
   boolean bytesEquals(BytesRef)
   String utf8ToString()
-}
-
-class org.elasticsearch.index.mapper.IpFieldMapper$IpFieldType$IpScriptDocValues {
-  String get(int)
-  String getValue()
 }
 
 class org.elasticsearch.search.lookup.FieldLookup {

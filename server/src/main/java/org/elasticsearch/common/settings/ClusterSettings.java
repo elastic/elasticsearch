@@ -15,7 +15,7 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -239,6 +239,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         GatewayService.RECOVER_AFTER_DATA_NODES_SETTING,
         GatewayService.RECOVER_AFTER_TIME_SETTING,
         PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD,
+        PersistedClusterStateService.DOCUMENT_PAGE_SIZE,
         NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
         NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
         NetworkModule.HTTP_TYPE_SETTING,
@@ -355,6 +356,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         TransportSettings.TRACE_LOG_EXCLUDE_SETTING,
         TransportSettings.TRACE_LOG_INCLUDE_SETTING,
         TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING,
+        TransportSettings.RST_ON_CLOSE,
         NetworkService.NETWORK_SERVER,
         NetworkService.GLOBAL_NETWORK_HOST_SETTING,
         NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING,
@@ -457,6 +459,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
         SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING,
         ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
+        ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING,
+        ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING,
         FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
         Node.BREAKER_TYPE_KEY,
         OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,

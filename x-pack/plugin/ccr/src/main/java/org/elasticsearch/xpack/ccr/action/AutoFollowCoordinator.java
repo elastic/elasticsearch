@@ -15,10 +15,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -241,8 +242,10 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
     }
 
     void updateAutoFollowers(ClusterState followerClusterState) {
-        final AutoFollowMetadata autoFollowMetadata = followerClusterState.getMetadata().custom(AutoFollowMetadata.TYPE);
-        if (autoFollowMetadata == null) {
+        final AutoFollowMetadata autoFollowMetadata = followerClusterState.getMetadata()
+            .custom(AutoFollowMetadata.TYPE, AutoFollowMetadata.EMPTY);
+
+        if (autoFollowMetadata.getPatterns().isEmpty() && this.autoFollowers.isEmpty()) {
             return;
         }
 
@@ -320,7 +323,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         }
 
                         @Override
-                        public void onFailure(String source, Exception e) {
+                        public void onFailure(Exception e) {
                             handler.accept(e);
                         }
 
@@ -328,7 +331,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                             handler.accept(null);
                         }
-                    });
+                    }, ClusterStateTaskExecutor.unbatched());
                 }
 
             };

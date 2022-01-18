@@ -153,4 +153,24 @@ public record SslConfiguration(
             "no supported SSL/TLS protocol was found in the configured supported protocols: " + supportedProtocols
         );
     }
+
+    // TODO Add explicitlyConfigured to equals&hashCode?
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        final SslConfiguration that = (SslConfiguration) o;
+        return Objects.equals(this.trustConfig, that.trustConfig)
+            && Objects.equals(this.keyConfig, that.keyConfig)
+            && this.verificationMode == that.verificationMode
+            && this.clientAuth == that.clientAuth
+            && Objects.equals(this.ciphers, that.ciphers)
+            && Objects.equals(this.supportedProtocols, that.supportedProtocols);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(trustConfig, keyConfig, verificationMode, clientAuth, ciphers, supportedProtocols);
+    }
+
 }

@@ -104,8 +104,8 @@ public class AllocationBenchmark {
 
     public int numTags = 2;
 
-    protected AllocationService strategy;
-    protected ClusterState initialClusterState;
+    private AllocationService strategy;
+    private ClusterState initialClusterState;
 
     @Setup
     public void setUp() throws Exception {
@@ -146,7 +146,7 @@ public class AllocationBenchmark {
             .build();
     }
 
-    int toInt(String v) {
+    private int toInt(String v) {
         return Integer.valueOf(v.trim());
     }
 

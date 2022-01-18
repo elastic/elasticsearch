@@ -525,6 +525,11 @@ public class TextFieldMapper extends FieldMapper {
             throw new UnsupportedOperationException();
         }
 
+        @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return false;
+        }
+
         boolean accept(int length) {
             return length >= minChars - 1 && length <= maxChars;
         }

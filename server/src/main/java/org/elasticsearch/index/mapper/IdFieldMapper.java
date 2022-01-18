@@ -110,6 +110,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return true;
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return new StoredValueFetcher(context.lookup(), NAME);
         }

@@ -387,11 +387,13 @@ public class Node implements Closeable {
                     ClusterModule.getNamedXWriteables().stream()
                 ).flatMap(Function.identity()).collect(toList())
             );
+
             /*
              * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
              * values, no matter they ask for them from.
              */
             this.environment = new Environment(settings, initialEnvironment.configFile());
+
             Environment.assertEquivalent(initialEnvironment, this.environment);
             nodeEnvironment = new NodeEnvironment(tmpSettings, environment, tmpContentRegistry);
             logger.info(

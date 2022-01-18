@@ -141,8 +141,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                           },
                           "index-graveyard": {
                             "tombstones": []
-                          },
-                          "oldest_index_version" : %s
+                          }
                         },
                         "routing_table": {
                           "indices": {}
@@ -154,7 +153,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                           }
                         }
                       }
-                    }""".formatted(clusterState.stateUUID(), node0.getEphemeralId(), Version.CURRENT.id, Version.CURRENT.id)),
+                    }""".formatted(clusterState.stateUUID(), node0.getEphemeralId(), Version.CURRENT.id)),
                 XContentHelper.stripWhitespace(Strings.toString(builder))
             );
         }
@@ -246,11 +245,10 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                       },
                       "index-graveyard" : {
                         "tombstones" : [ ]
-                      },
-                      "oldest_index_version" : %s
+                      }
                     }
                   }
-                }""".formatted(Version.CURRENT.id)), XContentHelper.stripWhitespace(Strings.toString(builder)));
+                }"""), XContentHelper.stripWhitespace(Strings.toString(builder)));
         }
     }
 }

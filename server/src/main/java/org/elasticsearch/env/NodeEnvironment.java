@@ -297,7 +297,7 @@ public final class NodeEnvironment implements Closeable {
 
             ensureAtomicMoveSupported(nodePaths);
 
-            if (upgradeLegacyNodeFolders(logger, settings, environment, nodeLock)) {
+            if (upgradeLegacyNodeFolders(logger, settings, environment, nodeLock, xContentRegistry)) {
                 assertCanWrite();
             }
 
@@ -322,7 +322,7 @@ public final class NodeEnvironment implements Closeable {
                 ensureNoShardData(nodePaths);
             }
 
-            this.nodeMetadata = loadNodeMetadata(settings, logger, xContentRegistry, nodePaths);
+            this.nodeMetadata = loadNodeMetadata(settings, logger, nodePaths);
 
             success = true;
         } finally {
@@ -336,8 +336,13 @@ public final class NodeEnvironment implements Closeable {
      * Upgrades all data paths that have been written to by an older ES version to the 8.0+ compatible folder layout,
      * removing the "nodes/${lockId}" folder prefix
      */
-    private static boolean upgradeLegacyNodeFolders(Logger logger, Settings settings, Environment environment, NodeLock nodeLock)
-        throws IOException {
+    private static boolean upgradeLegacyNodeFolders(
+        Logger logger,
+        Settings settings,
+        Environment environment,
+        NodeLock nodeLock,
+        NamedXContentRegistry xContentRegistry
+    ) throws IOException {
         boolean upgradeNeeded = false;
 
         // check if we can do an auto-upgrade
@@ -398,6 +403,10 @@ public final class NodeEnvironment implements Closeable {
                 Arrays.toString(environment.dataFiles())
             );
             throw new IllegalStateException(message, e);
+        }
+
+        if (xContentRegistry.equals(NamedXContentRegistry.EMPTY) == false) {
+            checkForIndexCompatibility(settings, xContentRegistry, logger, legacyNodeLock.getNodePaths());
         }
 
         // move contents from legacy path to new path
@@ -482,6 +491,50 @@ public final class NodeEnvironment implements Closeable {
         return true;
     }
 
+    /**
+     * Checks to see if we can upgrade to this version based on the existing index state. Upgrading
+     * from older versions can cause irreversible changes if allowed.
+     * @param settings
+     * @param xContentRegistry
+     * @param logger
+     * @param nodePaths
+     * @throws IOException
+     */
+    private static void checkForIndexCompatibility(
+        Settings settings,
+        NamedXContentRegistry xContentRegistry,
+        Logger logger,
+        NodePath... nodePaths
+    ) throws IOException {
+        final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
+        NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(paths);
+
+        PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
+            paths,
+            metadata.nodeId(),
+            xContentRegistry,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            () -> TimeValue.nsecToMSec(System.nanoTime())
+        );
+
+        PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState();
+
+        logger.info("oldest index version recorded in ClusterState {}", onDiskState.metadata.oldestIndexVersion());
+
+        if (onDiskState.metadata.oldestIndexVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+            throw new IllegalStateException(
+                "cannot upgrade node because incompatible indices created with version ["
+                    + onDiskState.metadata.oldestIndexVersion()
+                    + "] exist, while the minimum compatible index version is ["
+                    + Version.CURRENT.minimumIndexCompatibilityVersion()
+                    + "]. "
+                    + "Upgrade your older indices by booting version ["
+                    + Version.CURRENT.minimumCompatibilityVersion()
+                    + "] first."
+            );
+        }
+    }
+
     private void maybeLogPathDetails() throws IOException {
 
         // We do some I/O in here, so skip this if DEBUG/INFO are not enabled:
@@ -544,12 +597,7 @@ public final class NodeEnvironment implements Closeable {
     /**
      * scans the node paths and loads existing metadata file. If not found a new meta data will be generated
      */
-    private static NodeMetadata loadNodeMetadata(
-        Settings settings,
-        Logger logger,
-        NamedXContentRegistry xContentRegistry,
-        NodePath... nodePaths
-    ) throws IOException {
+    private static NodeMetadata loadNodeMetadata(Settings settings, Logger logger, NodePath... nodePaths) throws IOException {
         final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
         NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(paths);
         if (metadata == null) {
@@ -572,33 +620,6 @@ public final class NodeEnvironment implements Closeable {
             } else {
                 assert nodeIds.equals(Collections.singleton(legacyMetadata.nodeId())) : nodeIds + " doesn't match " + legacyMetadata;
                 metadata = legacyMetadata;
-            }
-        }
-
-        if (xContentRegistry.equals(NamedXContentRegistry.EMPTY) == false) {
-            PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
-                paths,
-                metadata.nodeId(),
-                xContentRegistry,
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> TimeValue.nsecToMSec(System.nanoTime())
-            );
-
-            PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState();
-
-            logger.info("oldest index version recorded in ClusterState {}", onDiskState.metadata.oldestIndexVersion());
-
-            if (onDiskState.metadata.oldestIndexVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
-                throw new IllegalStateException(
-                    "cannot upgrade node because incompatible indices created with version ["
-                        + onDiskState.metadata.oldestIndexVersion()
-                        + "] exist, while the minimum compatible index version is ["
-                        + Version.CURRENT.minimumIndexCompatibilityVersion()
-                        + "]. "
-                        + "Upgrade your older indices by booting version ["
-                        + Version.CURRENT.minimumCompatibilityVersion()
-                        + "] first."
-                );
             }
         }
 

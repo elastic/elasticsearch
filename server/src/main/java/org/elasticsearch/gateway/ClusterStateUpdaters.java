@@ -11,7 +11,6 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -143,21 +142,5 @@ public class ClusterStateUpdaters {
             return ClusterState.builder(state).metadata(metadata).blocks(blocks.build()).build();
         }
         return state;
-    }
-
-    public static ClusterState determineOldestIndex(ClusterState state) {
-        Version oldest = state.getMetadata()
-            .getIndices()
-            .values()
-            .stream()
-            .map(IndexMetadata::getCreationVersion)
-            .min(Version::compareTo)
-            .orElse(Version.CURRENT);
-
-        logger.debug("discovered oldest index version of {}", oldest);
-
-        final Metadata metadata = Metadata.builder(state.metadata()).oldestIndexVersion(oldest).build();
-
-        return ClusterState.builder(state).metadata(metadata).build();
     }
 }

@@ -164,7 +164,12 @@ class LoadAuthorizedIndicesTimeChecker implements Consumer<Collection<String>> {
         }
 
         public static Set<Setting<?>> getSettings() {
-            return Set.of(LOGGING_ENABLED_SETTING, DEBUG_THRESHOLD_SETTING, INFO_THRESHOLD_SETTING, WARN_THRESHOLD_SETTING);
+            return org.elasticsearch.core.Set.of(
+                LOGGING_ENABLED_SETTING,
+                DEBUG_THRESHOLD_SETTING,
+                INFO_THRESHOLD_SETTING,
+                WARN_THRESHOLD_SETTING
+            );
         }
 
         public Consumer<Collection<String>> newTimer(AuthorizationEngine.RequestInfo requestInfo) {

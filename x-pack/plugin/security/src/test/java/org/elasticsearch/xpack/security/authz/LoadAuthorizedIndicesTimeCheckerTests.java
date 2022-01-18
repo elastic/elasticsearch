@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
-import java.util.List;
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
@@ -38,7 +38,7 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
 
     @Before
     public void setUpLogger() throws Exception {
-        this.timerLogger = LogManager.getLogger(getClass().getPackageName() + ".timer");
+        this.timerLogger = LogManager.getLogger(getClass().getPackage().getName() + ".timer");
     }
 
     public void testResolveThresholdSettings() {
@@ -182,7 +182,6 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
             null
         );
 
-        final Logger timerLogger = LogManager.getLogger(getClass().getPackageName() + ".timer");
         final LoadAuthorizedIndicesTimeChecker checker = new LoadAuthorizedIndicesTimeChecker(
             timerLogger,
             System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(elapsedMs),
@@ -194,7 +193,7 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
         try {
             Loggers.addAppender(timerLogger, mockAppender);
             mockAppender.addExpectation(expectation);
-            checker.accept(List.of());
+            checker.accept(Collections.emptyList());
             mockAppender.assertAllExpectationsMatched();
         } finally {
             Loggers.removeAppender(timerLogger, mockAppender);

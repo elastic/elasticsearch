@@ -22,7 +22,6 @@ import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.transform.UnzipTransform;
-import org.elasticsearch.gradle.util.GradleUtils;
 import org.elasticsearch.gradle.util.Pair;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
@@ -760,7 +759,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private File getBuildPluginFile(String name) {
-        return project.getRootProject().getName().equals("elaticsearch")
+        return project.getRootProject().getName().equals("elasticsearch")
             ? project.getRootProject().file("build-tools/src/main/resources/" + name)
             : project.getGradle()
                 .getIncludedBuilds()

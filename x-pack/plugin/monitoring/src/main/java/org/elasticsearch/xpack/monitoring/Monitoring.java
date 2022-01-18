@@ -300,8 +300,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     static List<String> getMissingMonitoringTemplateIds(Map<String, IndexTemplateMetadata> map) {
         return Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS).filter(id -> {
             IndexTemplateMetadata templateMetadata = map.get(templateName(id));
-            return templateMetadata == null
-                || (templateMetadata.version() != null && templateMetadata.version() < LAST_UPDATED_VERSION);
+            return templateMetadata == null || (templateMetadata.version() != null && templateMetadata.version() < LAST_UPDATED_VERSION);
         }).collect(Collectors.toList());
     }
 

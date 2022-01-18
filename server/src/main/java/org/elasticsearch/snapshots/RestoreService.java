@@ -1469,7 +1469,7 @@ public class RestoreService implements ClusterStateApplier {
                 }
             }
 
-            // override existing restorable customs (as there might be noting in snapshot to override them)
+            // override existing restorable customs (as there might be nothing in snapshot to override them)
             mdBuilder.removeCustomIf((key, value) -> value.isRestorable());
 
             // restore customs from the snapshot

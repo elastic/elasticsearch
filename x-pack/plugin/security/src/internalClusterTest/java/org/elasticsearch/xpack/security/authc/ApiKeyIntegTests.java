@@ -1183,7 +1183,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     public void testApiKeyRunAsAnotherUserCanCreateApiKey() {
         final RoleDescriptor descriptor = new RoleDescriptor("role", Strings.EMPTY_ARRAY, null, new String[] { "test_superuser" });
         Client client = client().filterWithHeader(
-            Map.of("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+            Map.of("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
         );
         final CreateApiKeyResponse response1 = new CreateApiKeyRequestBuilder(client).setName("run-as-key")
             .setRoleDescriptors(List.of(descriptor))
@@ -1204,7 +1204,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(getApiKeyResponse.getApiKeyInfos(), arrayWithSize(1));
         final ApiKey apiKeyInfo = getApiKeyResponse.getApiKeyInfos()[0];
         assertThat(apiKeyInfo.getId(), equalTo(response2.getId()));
-        assertThat(apiKeyInfo.getUsername(), equalTo(TEST_SUPERUSER));
+        assertThat(apiKeyInfo.getUsername(), equalTo(ES_TEST_ROOT_USER));
         assertThat(apiKeyInfo.getRealm(), equalTo("file"));
     }
 

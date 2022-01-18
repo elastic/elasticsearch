@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardUpdate
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.coordination.JoinTask;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -94,7 +95,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -103,6 +103,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static java.util.stream.Collectors.toMap;
@@ -353,35 +354,42 @@ public class ClusterStateChanges {
         return runTasks(
             joinTaskExecutor,
             clusterState,
-            nodes.stream()
-                .map(
-                    node -> new JoinTaskExecutor.Task(
-                        node,
-                        "dummy reason",
-                        ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
-                    )
+            List.of(
+                new JoinTask(
+                    nodes.stream()
+                        .map(
+                            node -> new JoinTask.NodeJoinTask(
+                                node,
+                                "dummy reason",
+                                ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
+                            )
+                        )
+                        .collect(Collectors.toList()),
+                    false
                 )
-                .toList()
+            )
         );
     }
 
     public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
-        List<JoinTaskExecutor.Task> joinNodes = new ArrayList<>();
-        joinNodes.add(JoinTaskExecutor.newBecomeMasterTask());
-        joinNodes.add(JoinTaskExecutor.newFinishElectionTask());
-        joinNodes.addAll(
-            nodes.stream()
-                .map(
-                    node -> new JoinTaskExecutor.Task(
-                        node,
-                        "dummy reason",
-                        ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
-                    )
+        return runTasks(
+            joinTaskExecutor,
+            clusterState,
+            List.of(
+                new JoinTask(
+                    nodes.stream()
+                        .map(
+                            node -> new JoinTask.NodeJoinTask(
+                                node,
+                                "dummy reason",
+                                ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
+                            )
+                        )
+                        .collect(Collectors.toList()),
+                    true
                 )
-                .toList()
+            )
         );
-
-        return runTasks(joinTaskExecutor, clusterState, joinNodes);
     }
 
     public ClusterState removeNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {

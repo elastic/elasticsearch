@@ -168,9 +168,9 @@ public class DelegatedAuthorizationSupport {
 
     @Override
     public String toString() {
-        return "security-delegated-authorization: "
-            + Security.DELEGATED_AUTHORIZATION_FEATURE.check(licenseState)
-            + ", lookup-realms: ["
+        return "security-delegated-authorization: available ["
+            + Security.DELEGATED_AUTHORIZATION_FEATURE.checkWithoutTracking(licenseState)
+            + "], lookup-realms ["
             + collectionToDelimitedString(this.lookup.getRealms(), ",")
             + "]";
     }

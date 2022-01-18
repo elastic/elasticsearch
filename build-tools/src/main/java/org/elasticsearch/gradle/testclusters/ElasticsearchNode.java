@@ -24,6 +24,7 @@ import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.elasticsearch.gradle.util.Pair;
 import org.gradle.api.Action;
+import org.gradle.api.GradleException;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
@@ -758,6 +759,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         credentials.add(cred);
     }
 
+    /**
+     * Todo we should replace usage of mutable project object here.
+     * */
     private File getBuildPluginFile(String name) {
         return project.getRootProject().getName().equals("elasticsearch")
             ? project.getRootProject().file("build-tools/src/main/resources/" + name)
@@ -767,7 +771,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 .filter(b -> b.getName().equals("elasticsearch"))
                 .map(i -> new File(i.getProjectDir(), "build-tools/src/main/resources/" + name))
                 .findFirst()
-                .get();
+                .orElseThrow(() -> new GradleException("Cannot resolve build plugin file " + name +
+                        " from root project " + project.getRootProject()));
     }
 
     @Override

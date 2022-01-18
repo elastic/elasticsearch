@@ -9,7 +9,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexSettings;
+
+import java.util.List;
 
 public class DocumentMapper {
     private final String type;
@@ -26,14 +29,16 @@ public class DocumentMapper {
         RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME).build(MapperBuilderContext.ROOT);
         MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
         Mapping mapping = new Mapping(root, metadata, null);
-        return new DocumentMapper(mapperService.documentParser(), mapping);
+        return new DocumentMapper(mapperService.documentParser(), mapping, mapping.toCompressedXContent());
     }
 
-    DocumentMapper(DocumentParser documentParser, Mapping mapping) {
+    DocumentMapper(DocumentParser documentParser, Mapping mapping, CompressedXContent source) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().name();
         this.mappingLookup = MappingLookup.fromMapping(mapping);
-        this.mappingSource = mapping.toCompressedXContent();
+        this.mappingSource = source;
+        assert mapping.toCompressedXContent().equals(source)
+            : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
     }
 
     public Mapping mapping() {
@@ -80,15 +85,38 @@ public class DocumentMapper {
         this.mapping().validate(this.mappingLookup);
         if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
             if (routingFieldMapper().required() == false) {
-                throw new IllegalArgumentException("mapping type [" + type() + "] must have routing "
-                    + "required for partitioned index [" + settings.getIndex().getName() + "]");
+                throw new IllegalArgumentException(
+                    "mapping type ["
+                        + type()
+                        + "] must have routing "
+                        + "required for partitioned index ["
+                        + settings.getIndex().getName()
+                        + "]"
+                );
             }
         }
         if (settings.getIndexSortConfig().hasIndexSort() && mappers().nestedLookup() != NestedLookup.EMPTY) {
             throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
         }
+        List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
+        for (String path : routingPaths) {
+            for (String match : mappingLookup.getMatchingFieldNames(path)) {
+                mappingLookup.getFieldType(match).validateMatchedRoutingPath();
+            }
+            for (String objectName : mappingLookup.objectMappers().keySet()) {
+                if (Regex.simpleMatch(path, objectName)) {
+                    throw new IllegalArgumentException(
+                        "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                            + "and without the [script] parameter. ["
+                            + objectName
+                            + "] was [object]."
+                    );
+                }
+            }
+        }
         if (checkLimits) {
             this.mappingLookup.checkLimits(settings);
         }
+        settings.getMode().validateMapping(mappingLookup);
     }
 }

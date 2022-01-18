@@ -25,10 +25,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.index.fielddata.GeoPointScriptFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.fielddata.GeoPointScriptFieldData;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.ScoreScript;
@@ -211,24 +211,21 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     }
 
     private static GeoPointFieldScript.Factory factory(Script script) {
-        switch (script.getIdOrCode()) {
-            case "fromLatLon":
-                return (fieldName, params, lookup) -> (ctx) -> new GeoPointFieldScript(fieldName, params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        Map<?, ?> foo = (Map<?, ?>) lookup.source().get("foo");
-                        emit(((Number) foo.get("lat")).doubleValue(), ((Number) foo.get("lon")).doubleValue());
-                    }
-                };
-            case "loop":
-                return (fieldName, params, lookup) -> {
-                    // Indicate that this script wants the field call "test", which *is* the name of this field
-                    lookup.forkAndTrackFieldReferences("test");
-                    throw new IllegalStateException("shoud have thrown on the line above");
-                };
-            default:
-                throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
-        }
+        return switch (script.getIdOrCode()) {
+            case "fromLatLon" -> (fieldName, params, lookup) -> (ctx) -> new GeoPointFieldScript(fieldName, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    Map<?, ?> foo = (Map<?, ?>) lookup.source().get("foo");
+                    emit(((Number) foo.get("lat")).doubleValue(), ((Number) foo.get("lon")).doubleValue());
+                }
+            };
+            case "loop" -> (fieldName, params, lookup) -> {
+                // Indicate that this script wants the field call "test", which *is* the name of this field
+                lookup.forkAndTrackFieldReferences("test");
+                throw new IllegalStateException("shoud have thrown on the line above");
+            };
+            default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
+        };
     }
 
     private static GeoPointScriptFieldType build(Script script) {

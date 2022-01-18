@@ -29,6 +29,7 @@ public class InternalUserSerializationHelper {
         }
         return User.partialReadFrom(username, input);
     }
+
     public static void writeTo(User user, StreamOutput output) throws IOException {
         if (SystemUser.is(user)) {
             output.writeBoolean(true);

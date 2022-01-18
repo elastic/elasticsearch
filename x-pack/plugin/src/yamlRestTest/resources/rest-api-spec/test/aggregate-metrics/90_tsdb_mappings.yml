@@ -9,7 +9,6 @@ aggregate_double_metric with time series mappings:
           body:
             settings:
               index:
-                mode: time_series
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -59,7 +58,6 @@ aggregate_double_metric with wrong time series mappings:
         body:
           settings:
             index:
-              mode: time_series
               number_of_replicas: 0
               number_of_shards: 2
           mappings:

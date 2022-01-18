@@ -12,9 +12,9 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,12 +39,14 @@ public class GetIndexResponse {
     private Map<String, String> dataStreams;
     private String[] indices;
 
-    GetIndexResponse(String[] indices,
-                     Map<String, MappingMetadata> mappings,
-                     Map<String, List<AliasMetadata>> aliases,
-                     Map<String, Settings> settings,
-                     Map<String, Settings> defaultSettings,
-                     Map<String, String> dataStreams) {
+    GetIndexResponse(
+        String[] indices,
+        Map<String, MappingMetadata> mappings,
+        Map<String, List<AliasMetadata>> aliases,
+        Map<String, Settings> settings,
+        Map<String, Settings> defaultSettings,
+        Map<String, String> dataStreams
+    ) {
         this.indices = indices;
         // to have deterministic order
         Arrays.sort(indices);
@@ -147,20 +149,11 @@ public class GetIndexResponse {
             parser.nextToken();
             if (parser.currentToken() == Token.START_OBJECT) {
                 switch (parser.currentName()) {
-                    case "aliases":
-                        indexAliases = parseAliases(parser);
-                        break;
-                    case "mappings":
-                        indexMappings = parseMappings(parser);
-                        break;
-                    case "settings":
-                        indexSettings = Settings.fromXContent(parser);
-                        break;
-                    case "defaults":
-                        indexDefaultSettings = Settings.fromXContent(parser);
-                        break;
-                    default:
-                        parser.skipChildren();
+                    case "aliases" -> indexAliases = parseAliases(parser);
+                    case "mappings" -> indexMappings = parseMappings(parser);
+                    case "settings" -> indexSettings = Settings.fromXContent(parser);
+                    case "defaults" -> indexDefaultSettings = Settings.fromXContent(parser);
+                    default -> parser.skipChildren();
                 }
             } else if (parser.currentToken() == Token.VALUE_STRING) {
                 if (parser.currentName().equals("data_stream")) {
@@ -181,8 +174,14 @@ public class GetIndexResponse {
         Settings indexSettings = Settings.EMPTY;
         Settings indexDefaultSettings = Settings.EMPTY;
         String dataStream;
-        IndexEntry(List<AliasMetadata> indexAliases, MappingMetadata indexMappings, Settings indexSettings, Settings indexDefaultSettings,
-                   String dataStream) {
+
+        IndexEntry(
+            List<AliasMetadata> indexAliases,
+            MappingMetadata indexMappings,
+            Settings indexSettings,
+            Settings indexDefaultSettings,
+            String dataStream
+        ) {
             if (indexAliases != null) this.indexAliases = indexAliases;
             if (indexMappings != null) this.indexMappings = indexMappings;
             if (indexSettings != null) this.indexSettings = indexSettings;

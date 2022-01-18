@@ -34,6 +34,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -53,8 +55,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
-import static org.elasticsearch.search.SearchCancellationIT.ScriptedBlockPlugin.SCRIPT_NAME;
+import static org.elasticsearch.search.SearchCancellationIT.ScriptedBlockPlugin.SEARCH_BLOCK_SCRIPT_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
@@ -94,7 +97,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
     private List<ScriptedBlockPlugin> initBlockFactory() {
         List<ScriptedBlockPlugin> plugins = new ArrayList<>();
-        for (PluginsService pluginsService : internalCluster().getDataNodeInstances(PluginsService.class)) {
+        for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
             plugins.addAll(pluginsService.filterPlugins(ScriptedBlockPlugin.class));
         }
         for (ScriptedBlockPlugin plugin : plugins) {
@@ -128,7 +131,11 @@ public class SearchCancellationIT extends ESIntegTestCase {
         TaskInfo searchTask = listTasksResponse.getTasks().get(0);
 
         logger.info("Cancelling search");
-        CancelTasksResponse cancelTasksResponse = client().admin().cluster().prepareCancelTasks().setTaskId(searchTask.getTaskId()).get();
+        CancelTasksResponse cancelTasksResponse = client().admin()
+            .cluster()
+            .prepareCancelTasks()
+            .setTargetTaskId(searchTask.getTaskId())
+            .get();
         assertThat(cancelTasksResponse.getTasks(), hasSize(1));
         assertThat(cancelTasksResponse.getTasks().get(0).getTaskId(), equalTo(searchTask.getTaskId()));
     }
@@ -157,9 +164,8 @@ public class SearchCancellationIT extends ESIntegTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test").setQuery(
-            scriptQuery(new Script(
-                ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .execute();
 
         awaitForBlock(plugins);
@@ -176,14 +182,59 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
         logger.info("Executing search");
         ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
-            .addScriptField("test_field",
-                new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())
-            ).execute();
+            .addScriptField("test_field", new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap()))
+            .execute();
 
         awaitForBlock(plugins);
         cancelSearch(SearchAction.NAME);
         disableBlocks(plugins);
         logger.info("Segments {}", Strings.toString(client().admin().indices().prepareSegments("test").get()));
+        ensureSearchWasCancelled(searchResponse);
+    }
+
+    public void testCancellationDuringAggregation() throws Exception {
+        List<ScriptedBlockPlugin> plugins = initBlockFactory();
+        // This test is only meaningful with at least 2 shards to trigger reduce
+        int numberOfShards = between(2, 5);
+        createIndex(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()
+        );
+        indexTestData();
+
+        logger.info("Executing search");
+        TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("test_agg");
+        if (randomBoolean()) {
+            termsAggregationBuilder.script(
+                new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.TERM_SCRIPT_NAME, Collections.emptyMap())
+            );
+        } else {
+            termsAggregationBuilder.field("field.keyword");
+        }
+
+        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                termsAggregationBuilder.subAggregation(
+                    new ScriptedMetricAggregationBuilder("sub_agg").initScript(
+                        new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.INIT_SCRIPT_NAME, Collections.emptyMap())
+                    )
+                        .mapScript(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.MAP_SCRIPT_NAME, Collections.emptyMap()))
+                        .combineScript(
+                            new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.COMBINE_SCRIPT_NAME, Collections.emptyMap())
+                        )
+                        .reduceScript(
+                            new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.REDUCE_SCRIPT_NAME, Collections.emptyMap())
+                        )
+                )
+            )
+            .execute();
+        awaitForBlock(plugins);
+        cancelSearch(SearchAction.NAME);
+        disableBlocks(plugins);
         ensureSearchWasCancelled(searchResponse);
     }
 
@@ -196,9 +247,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .setScroll(TimeValue.timeValueSeconds(10))
             .setSize(5)
-            .setQuery(
-                scriptQuery(new Script(
-                    ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .execute();
 
         awaitForBlock(plugins);
@@ -211,7 +260,6 @@ public class SearchCancellationIT extends ESIntegTestCase {
             client().prepareClearScroll().addScrollId(response.getScrollId()).get();
         }
     }
-
 
     public void testCancellationOfScrollSearchesOnFollowupRequests() throws Exception {
 
@@ -226,9 +274,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test")
             .setScroll(keepAlive)
             .setSize(2)
-            .setQuery(
-                scriptQuery(new Script(
-                    ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .get();
 
         assertNotNull(searchResponse.getScrollId());
@@ -242,7 +288,8 @@ public class SearchCancellationIT extends ESIntegTestCase {
         String scrollId = searchResponse.getScrollId();
         logger.info("Executing scroll with id {}", scrollId);
         ActionFuture<SearchResponse> scrollResponse = client().prepareSearchScroll(searchResponse.getScrollId())
-            .setScroll(keepAlive).execute();
+            .setScroll(keepAlive)
+            .execute();
 
         awaitForBlock(plugins);
         cancelSearch(SearchScrollAction.NAME);
@@ -260,8 +307,14 @@ public class SearchCancellationIT extends ESIntegTestCase {
     public void testCancelMultiSearch() throws Exception {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
-        ActionFuture<MultiSearchResponse> msearchResponse = client().prepareMultiSearch().add(client().prepareSearch("test")
-            .addScriptField("test_field", new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+        ActionFuture<MultiSearchResponse> msearchResponse = client().prepareMultiSearch()
+            .add(
+                client().prepareSearch("test")
+                    .addScriptField(
+                        "test_field",
+                        new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())
+                    )
+            )
             .execute();
         awaitForBlock(plugins);
         cancelSearch(MultiSearchAction.NAME);
@@ -302,17 +355,24 @@ public class SearchCancellationIT extends ESIntegTestCase {
                 }
             });
         }
-        createIndex("test", Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build());
+        createIndex(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()
+        );
         indexTestData();
         Thread searchThread = new Thread(() -> {
-            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
-                client().prepareSearch("test")
+            SearchPhaseExecutionException e = expectThrows(
+                SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("test")
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
-                    .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
-                    .setAllowPartialSearchResults(false).setSize(1000).get());
+                    .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
+                    .setAllowPartialSearchResults(false)
+                    .setSize(1000)
+                    .get()
+            );
             assertThat(e.getMessage(), containsString("Partial shards failure"));
         });
         searchThread.start();
@@ -351,7 +411,12 @@ public class SearchCancellationIT extends ESIntegTestCase {
     }
 
     public static class ScriptedBlockPlugin extends MockScriptPlugin {
-        static final String SCRIPT_NAME = "search_block";
+        static final String SEARCH_BLOCK_SCRIPT_NAME = "search_block";
+        static final String INIT_SCRIPT_NAME = "init";
+        static final String MAP_SCRIPT_NAME = "map";
+        static final String COMBINE_SCRIPT_NAME = "combine";
+        static final String REDUCE_SCRIPT_NAME = "reduce";
+        static final String TERM_SCRIPT_NAME = "term";
 
         private final AtomicInteger hits = new AtomicInteger();
 
@@ -377,21 +442,59 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
         @Override
         public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Collections.singletonMap(SCRIPT_NAME, params -> {
-                final Runnable runnable = beforeExecution.get();
-                if (runnable != null) {
-                    runnable.run();
-                }
-                LeafStoredFieldsLookup fieldsLookup = (LeafStoredFieldsLookup) params.get("_fields");
-                LogManager.getLogger(SearchCancellationIT.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
-                hits.incrementAndGet();
-                try {
-                    assertBusy(() -> assertFalse(shouldBlock.get()));
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-                return true;
-            });
+            return Map.of(
+                SEARCH_BLOCK_SCRIPT_NAME,
+                this::searchBlockScript,
+                INIT_SCRIPT_NAME,
+                this::nullScript,
+                MAP_SCRIPT_NAME,
+                this::nullScript,
+                COMBINE_SCRIPT_NAME,
+                this::nullScript,
+                REDUCE_SCRIPT_NAME,
+                this::blockScript,
+                TERM_SCRIPT_NAME,
+                this::termScript
+            );
+        }
+
+        private Object searchBlockScript(Map<String, Object> params) {
+            final Runnable runnable = beforeExecution.get();
+            if (runnable != null) {
+                runnable.run();
+            }
+            LeafStoredFieldsLookup fieldsLookup = (LeafStoredFieldsLookup) params.get("_fields");
+            LogManager.getLogger(SearchCancellationIT.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
+            hits.incrementAndGet();
+            try {
+                assertBusy(() -> assertFalse(shouldBlock.get()));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            return true;
+        }
+
+        private Object nullScript(Map<String, Object> params) {
+            return null;
+        }
+
+        private Object blockScript(Map<String, Object> params) {
+            final Runnable runnable = beforeExecution.get();
+            if (runnable != null) {
+                runnable.run();
+            }
+            LogManager.getLogger(SearchCancellationIT.class).info("Blocking in reduce");
+            hits.incrementAndGet();
+            try {
+                assertBusy(() -> assertFalse(shouldBlock.get()));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            return 42;
+        }
+
+        private Object termScript(Map<String, Object> params) {
+            return 1;
         }
     }
 }

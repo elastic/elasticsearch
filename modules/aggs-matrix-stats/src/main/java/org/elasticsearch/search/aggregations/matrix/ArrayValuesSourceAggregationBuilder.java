@@ -9,8 +9,6 @@ package org.elasticsearch.search.aggregations.matrix;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -20,6 +18,8 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -130,11 +130,11 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
      * Sets the field to use for this aggregation.
      */
     @SuppressWarnings("unchecked")
-    public AB fields(List<String> fields) {
-        if (fields == null) {
+    public AB fields(List<String> fieldsArg) {
+        if (fieldsArg == null) {
             throw new IllegalArgumentException("[field] must not be null: [" + name + "]");
         }
-        this.fields = fields;
+        this.fields = fieldsArg;
         return (AB) this;
     }
 
@@ -149,11 +149,11 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
      * Sets the format to use for the output of the aggregation.
      */
     @SuppressWarnings("unchecked")
-    public AB format(String format) {
-        if (format == null) {
+    public AB format(String formatArg) {
+        if (formatArg == null) {
             throw new IllegalArgumentException("[format] must not be null: [" + name + "]");
         }
-        this.format = format;
+        this.format = formatArg;
         return (AB) this;
     }
 
@@ -169,11 +169,11 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
      * document
      */
     @SuppressWarnings("unchecked")
-    public AB missingMap(Map<String, Object> missingMap) {
-        if (missingMap == null) {
+    public AB missingMap(Map<String, Object> missingMapArg) {
+        if (missingMapArg == null) {
             throw new IllegalArgumentException("[missing] must not be null: [" + name + "]");
         }
-        this.missingMap = missingMap;
+        this.missingMap = missingMapArg;
         return (AB) this;
     }
 

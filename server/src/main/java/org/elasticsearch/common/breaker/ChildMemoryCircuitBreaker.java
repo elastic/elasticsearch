@@ -57,10 +57,21 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     public void circuitBreak(String fieldName, long bytesNeeded) {
         final long memoryBytesLimit = this.limitAndOverhead.limit;
         this.trippedCount.incrementAndGet();
-        final String message = "[" + this.name + "] Data too large, data for [" + fieldName + "]" +
-                " would be [" + bytesNeeded + "/" + new ByteSizeValue(bytesNeeded) + "]" +
-                ", which is larger than the limit of [" +
-                memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]";
+        final String message = "["
+            + this.name
+            + "] Data too large, data for ["
+            + fieldName
+            + "]"
+            + " would be ["
+            + bytesNeeded
+            + "/"
+            + new ByteSizeValue(bytesNeeded)
+            + "]"
+            + ", which is larger than the limit of ["
+            + memoryBytesLimit
+            + "/"
+            + new ByteSizeValue(memoryBytesLimit)
+            + "]";
         logger.debug(() -> new ParameterizedMessage("{}", message));
         throw new CircuitBreakingException(message, bytesNeeded, memoryBytesLimit, durability);
     }
@@ -108,8 +119,15 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private long noLimit(long bytes, String label) {
         long newUsed;
         newUsed = this.used.addAndGet(bytes);
-        logger.trace(() -> new ParameterizedMessage("[{}] Adding [{}][{}] to used bytes [new used: [{}], limit: [-1b]]",
-                this.name, new ByteSizeValue(bytes), label, new ByteSizeValue(newUsed)));
+        logger.trace(
+            () -> new ParameterizedMessage(
+                "[{}] Adding [{}][{}] to used bytes [new used: [{}], limit: [-1b]]",
+                this.name,
+                new ByteSizeValue(bytes),
+                label,
+                new ByteSizeValue(newUsed)
+            )
+        );
         return newUsed;
     }
 
@@ -123,17 +141,28 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             newUsed = currentUsed + bytes;
             long newUsedWithOverhead = (long) (newUsed * overheadConstant);
             if (logger.isTraceEnabled()) {
-                logger.trace("[{}] Adding [{}][{}] to used bytes [new used: [{}], limit: {} [{}], estimate: {} [{}]]",
-                        this.name,
-                        new ByteSizeValue(bytes), label, new ByteSizeValue(newUsed),
-                        memoryBytesLimit, new ByteSizeValue(memoryBytesLimit),
-                        newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead));
+                logger.trace(
+                    "[{}] Adding [{}][{}] to used bytes [new used: [{}], limit: {} [{}], estimate: {} [{}]]",
+                    this.name,
+                    new ByteSizeValue(bytes),
+                    label,
+                    new ByteSizeValue(newUsed),
+                    memoryBytesLimit,
+                    new ByteSizeValue(memoryBytesLimit),
+                    newUsedWithOverhead,
+                    new ByteSizeValue(newUsedWithOverhead)
+                );
             }
             if (memoryBytesLimit > 0 && newUsedWithOverhead > memoryBytesLimit) {
-                logger.warn("[{}] New used memory {} [{}] for data of [{}] would be larger than configured breaker: {} [{}], breaking",
-                        this.name,
-                        newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead), label,
-                        memoryBytesLimit, new ByteSizeValue(memoryBytesLimit));
+                logger.warn(
+                    "[{}] New used memory {} [{}] for data of [{}] would be larger than configured breaker: {} [{}], breaking",
+                    this.name,
+                    newUsedWithOverhead,
+                    new ByteSizeValue(newUsedWithOverhead),
+                    label,
+                    memoryBytesLimit,
+                    new ByteSizeValue(memoryBytesLimit)
+                );
                 circuitBreak(label, newUsedWithOverhead);
             }
             // Attempt to set the new used value, but make sure it hasn't changed

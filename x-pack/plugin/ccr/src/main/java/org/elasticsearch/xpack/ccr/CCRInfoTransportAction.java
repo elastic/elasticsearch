@@ -12,14 +12,15 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -30,8 +31,12 @@ public class CCRInfoTransportAction extends XPackInfoFeatureTransportAction {
     private final XPackLicenseState licenseState;
 
     @Inject
-    public CCRInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                  Settings settings, XPackLicenseState licenseState) {
+    public CCRInfoTransportAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Settings settings,
+        XPackLicenseState licenseState
+    ) {
         super(XPackInfoFeatureAction.CCR.name(), transportService, actionFilters);
         this.enabled = XPackSettings.CCR_ENABLED_SETTING.get(settings);
         this.licenseState = licenseState;
@@ -44,7 +49,7 @@ public class CCRInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Override
     public boolean available() {
-        return licenseState.isAllowed(XPackLicenseState.Feature.CCR);
+        return CcrConstants.CCR_FEATURE.checkWithoutTracking(licenseState);
     }
 
     @Override
@@ -58,11 +63,13 @@ public class CCRInfoTransportAction extends XPackInfoFeatureTransportAction {
         private final int numberOfAutoFollowPatterns;
         private final Long lastFollowTimeInMillis;
 
-        public Usage(boolean available,
-                     boolean enabled,
-                     int numberOfFollowerIndices,
-                     int numberOfAutoFollowPatterns,
-                     Long lastFollowTimeInMillis) {
+        public Usage(
+            boolean available,
+            boolean enabled,
+            int numberOfFollowerIndices,
+            int numberOfAutoFollowPatterns,
+            Long lastFollowTimeInMillis
+        ) {
             super(XPackField.CCR, available, enabled);
             this.numberOfFollowerIndices = numberOfFollowerIndices;
             this.numberOfAutoFollowPatterns = numberOfAutoFollowPatterns;
@@ -125,9 +132,9 @@ public class CCRInfoTransportAction extends XPackInfoFeatureTransportAction {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Usage usage = (Usage) o;
-            return numberOfFollowerIndices == usage.numberOfFollowerIndices &&
-                numberOfAutoFollowPatterns == usage.numberOfAutoFollowPatterns &&
-                Objects.equals(lastFollowTimeInMillis, usage.lastFollowTimeInMillis);
+            return numberOfFollowerIndices == usage.numberOfFollowerIndices
+                && numberOfAutoFollowPatterns == usage.numberOfAutoFollowPatterns
+                && Objects.equals(lastFollowTimeInMillis, usage.lastFollowTimeInMillis);
         }
 
         @Override

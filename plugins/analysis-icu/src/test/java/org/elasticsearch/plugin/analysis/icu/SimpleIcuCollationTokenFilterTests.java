@@ -11,6 +11,7 @@ package org.elasticsearch.plugin.analysis.icu;
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
+
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
@@ -18,7 +19,6 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -33,14 +33,15 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
      */
     public void testDefaultUsage() throws Exception {
         Settings settings = Settings.builder()
-                .put("index.analysis.filter.myCollator.type", "icu_collation")
-                .put("index.analysis.filter.myCollator.strength", "primary")
-                .build();
+            .put("index.analysis.filter.myCollator.type", "icu_collation")
+            .put("index.analysis.filter.myCollator.strength", "primary")
+            .build();
         TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "FOO", "foo");
     }
+
     /*
     * Turkish has some funny casing.
     * This test shows how you can solve this kind of thing easily with collation.
@@ -49,10 +50,10 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     */
     public void testBasicUsage() throws Exception {
         Settings settings = Settings.builder()
-                .put("index.analysis.filter.myCollator.type", "icu_collation")
-                .put("index.analysis.filter.myCollator.language", "tr")
-                .put("index.analysis.filter.myCollator.strength", "primary")
-                .build();
+            .put("index.analysis.filter.myCollator.type", "icu_collation")
+            .put("index.analysis.filter.myCollator.language", "tr")
+            .put("index.analysis.filter.myCollator.strength", "primary")
+            .build();
         TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
@@ -64,11 +65,11 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     */
     public void testNormalization() throws IOException {
         Settings settings = Settings.builder()
-                .put("index.analysis.filter.myCollator.type", "icu_collation")
-                .put("index.analysis.filter.myCollator.language", "tr")
-                .put("index.analysis.filter.myCollator.strength", "primary")
-                .put("index.analysis.filter.myCollator.decomposition", "canonical")
-                .build();
+            .put("index.analysis.filter.myCollator.type", "icu_collation")
+            .put("index.analysis.filter.myCollator.language", "tr")
+            .put("index.analysis.filter.myCollator.strength", "primary")
+            .put("index.analysis.filter.myCollator.decomposition", "canonical")
+            .build();
         TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
@@ -80,11 +81,11 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     */
     public void testSecondaryStrength() throws IOException {
         Settings settings = Settings.builder()
-                .put("index.analysis.filter.myCollator.type", "icu_collation")
-                .put("index.analysis.filter.myCollator.language", "en")
-                .put("index.analysis.filter.myCollator.strength", "secondary")
-                .put("index.analysis.filter.myCollator.decomposition", "no")
-                .build();
+            .put("index.analysis.filter.myCollator.type", "icu_collation")
+            .put("index.analysis.filter.myCollator.language", "en")
+            .put("index.analysis.filter.myCollator.strength", "secondary")
+            .put("index.analysis.filter.myCollator.decomposition", "no")
+            .build();
         TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
@@ -97,11 +98,11 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     */
     public void testIgnorePunctuation() throws IOException {
         Settings settings = Settings.builder()
-                .put("index.analysis.filter.myCollator.type", "icu_collation")
-                .put("index.analysis.filter.myCollator.language", "en")
-                .put("index.analysis.filter.myCollator.strength", "primary")
-                .put("index.analysis.filter.myCollator.alternate", "shifted")
-                .build();
+            .put("index.analysis.filter.myCollator.type", "icu_collation")
+            .put("index.analysis.filter.myCollator.language", "en")
+            .put("index.analysis.filter.myCollator.strength", "primary")
+            .put("index.analysis.filter.myCollator.alternate", "shifted")
+            .build();
         TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
@@ -114,12 +115,12 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     */
     public void testIgnoreWhitespace() throws IOException {
         Settings settings = Settings.builder()
-                .put("index.analysis.filter.myCollator.type", "icu_collation")
-                .put("index.analysis.filter.myCollator.language", "en")
-                .put("index.analysis.filter.myCollator.strength", "primary")
-                .put("index.analysis.filter.myCollator.alternate", "shifted")
-                .put("index.analysis.filter.myCollator.variableTop", " ")
-                .build();
+            .put("index.analysis.filter.myCollator.type", "icu_collation")
+            .put("index.analysis.filter.myCollator.language", "en")
+            .put("index.analysis.filter.myCollator.strength", "primary")
+            .put("index.analysis.filter.myCollator.alternate", "shifted")
+            .put("index.analysis.filter.myCollator.variableTop", " ")
+            .build();
         TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
@@ -134,10 +135,10 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     */
     public void testNumerics() throws IOException {
         Settings settings = Settings.builder()
-                .put("index.analysis.filter.myCollator.type", "icu_collation")
-                .put("index.analysis.filter.myCollator.language", "en")
-                .put("index.analysis.filter.myCollator.numeric", "true")
-                .build();
+            .put("index.analysis.filter.myCollator.type", "icu_collation")
+            .put("index.analysis.filter.myCollator.language", "en")
+            .put("index.analysis.filter.myCollator.numeric", "true")
+            .build();
         TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
@@ -150,11 +151,11 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     */
     public void testIgnoreAccentsButNotCase() throws IOException {
         Settings settings = Settings.builder()
-                .put("index.analysis.filter.myCollator.type", "icu_collation")
-                .put("index.analysis.filter.myCollator.language", "en")
-                .put("index.analysis.filter.myCollator.strength", "primary")
-                .put("index.analysis.filter.myCollator.caseLevel", "true")
-                .build();
+            .put("index.analysis.filter.myCollator.type", "icu_collation")
+            .put("index.analysis.filter.myCollator.language", "en")
+            .put("index.analysis.filter.myCollator.strength", "primary")
+            .put("index.analysis.filter.myCollator.caseLevel", "true")
+            .build();
         TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
@@ -170,11 +171,11 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     */
     public void testUpperCaseFirst() throws IOException {
         Settings settings = Settings.builder()
-                .put("index.analysis.filter.myCollator.type", "icu_collation")
-                .put("index.analysis.filter.myCollator.language", "en")
-                .put("index.analysis.filter.myCollator.strength", "tertiary")
-                .put("index.analysis.filter.myCollator.caseFirst", "upper")
-                .build();
+            .put("index.analysis.filter.myCollator.type", "icu_collation")
+            .put("index.analysis.filter.myCollator.language", "en")
+            .put("index.analysis.filter.myCollator.strength", "tertiary")
+            .put("index.analysis.filter.myCollator.caseFirst", "upper")
+            .build();
         TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
@@ -190,19 +191,16 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     */
     public void testCustomRules() throws Exception {
         RuleBasedCollator baseCollator = (RuleBasedCollator) Collator.getInstance(new ULocale("de_DE"));
-        String DIN5007_2_tailorings =
-                "& ae , a\u0308 & AE , A\u0308"+
-                        "& oe , o\u0308 & OE , O\u0308"+
-                        "& ue , u\u0308 & UE , u\u0308";
+        String DIN5007_2_tailorings = "& ae , a\u0308 & AE , A\u0308" + "& oe , o\u0308 & OE , O\u0308" + "& ue , u\u0308 & UE , u\u0308";
 
         RuleBasedCollator tailoredCollator = new RuleBasedCollator(baseCollator.getRules() + DIN5007_2_tailorings);
         String tailoredRules = tailoredCollator.getRules();
 
         Settings settings = Settings.builder()
-                .put("index.analysis.filter.myCollator.type", "icu_collation")
-                .put("index.analysis.filter.myCollator.rules", tailoredRules)
-                .put("index.analysis.filter.myCollator.strength", "primary")
-                .build();
+            .put("index.analysis.filter.myCollator.type", "icu_collation")
+            .put("index.analysis.filter.myCollator.rules", tailoredRules)
+            .put("index.analysis.filter.myCollator.strength", "primary")
+            .build();
         TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
@@ -216,15 +214,14 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
      */
     public void testBasicCustomRules() throws Exception {
         Settings settings = Settings.builder()
-                .put("index.analysis.filter.myCollator.type", "icu_collation")
-                .put("index.analysis.filter.myCollator.rules", "&a < g")
-                .build();
+            .put("index.analysis.filter.myCollator.type", "icu_collation")
+            .put("index.analysis.filter.myCollator.rules", "&a < g")
+            .build();
         TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollation(filterFactory, "green", "bird", -1);
     }
-
 
     private void assertCollatesToSame(TokenFilterFactory factory, String string1, String string2) throws IOException {
         assertCollation(factory, string1, string2, 0);

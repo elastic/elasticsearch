@@ -8,11 +8,11 @@
 
 package org.elasticsearch.client.security.user.privileges;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -23,7 +23,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Represents global privileges. "Global Privilege" is a mantra for granular
@@ -39,18 +39,23 @@ public final class GlobalPrivileges implements ToXContentObject {
     public static final List<String> CATEGORIES = Collections.singletonList("application");
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<GlobalPrivileges, Void> PARSER = new ConstructingObjectParser<>("global_category_privileges",
-            false, constructorObjects -> {
-                // ignore_unknown_fields is irrelevant here anyway, but let's keep it to false
-                // because this conveys strictness (woop woop)
-                return new GlobalPrivileges((Collection<GlobalOperationPrivilege>) constructorObjects[0]);
-            });
+    static final ConstructingObjectParser<GlobalPrivileges, Void> PARSER = new ConstructingObjectParser<>(
+        "global_category_privileges",
+        false,
+        constructorObjects -> {
+            // ignore_unknown_fields is irrelevant here anyway, but let's keep it to false
+            // because this conveys strictness (woop woop)
+            return new GlobalPrivileges((Collection<GlobalOperationPrivilege>) constructorObjects[0]);
+        }
+    );
 
     static {
         for (final String category : CATEGORIES) {
-            PARSER.declareNamedObjects(optionalConstructorArg(),
-                    (parser, context, operation) -> GlobalOperationPrivilege.fromXContent(category, operation, parser),
-                    new ParseField(category));
+            PARSER.declareNamedObjects(
+                optionalConstructorArg(),
+                (parser, context, operation) -> GlobalOperationPrivilege.fromXContent(category, operation, parser),
+                new ParseField(category)
+            );
         }
     }
 
@@ -71,12 +76,15 @@ public final class GlobalPrivileges implements ToXContentObject {
         }
         // duplicates are just ignored
         this.privileges = Set.copyOf(Objects.requireNonNull(privileges));
-        this.privilegesByCategoryMap = Collections
-                .unmodifiableMap(this.privileges.stream().collect(Collectors.groupingBy(GlobalOperationPrivilege::getCategory)));
+        this.privilegesByCategoryMap = Collections.unmodifiableMap(
+            this.privileges.stream().collect(Collectors.groupingBy(GlobalOperationPrivilege::getCategory))
+        );
         for (final Map.Entry<String, List<GlobalOperationPrivilege>> privilegesByCategory : privilegesByCategoryMap.entrySet()) {
             // all operations for a specific category
-            final Set<String> allOperations = privilegesByCategory.getValue().stream().map(p -> p.getOperation())
-                    .collect(Collectors.toSet());
+            final Set<String> allOperations = privilegesByCategory.getValue()
+                .stream()
+                .map(p -> p.getOperation())
+                .collect(Collectors.toSet());
             if (allOperations.size() != privilegesByCategory.getValue().size()) {
                 throw new IllegalArgumentException("Different privileges for the same category and operation are not permitted");
             }

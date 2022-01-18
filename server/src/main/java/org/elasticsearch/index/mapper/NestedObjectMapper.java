@@ -11,8 +11,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,8 +29,8 @@ public class NestedObjectMapper extends ObjectMapper {
 
     public static class Builder extends ObjectMapper.Builder {
 
-        private Explicit<Boolean> includeInRoot = new Explicit<>(false, false);
-        private Explicit<Boolean> includeInParent = new Explicit<>(false, false);
+        private Explicit<Boolean> includeInRoot = Explicit.IMPLICIT_FALSE;
+        private Explicit<Boolean> includeInParent = Explicit.IMPLICIT_FALSE;
         private final Version indexCreatedVersion;
 
         public Builder(String name, Version indexCreatedVersion) {
@@ -39,12 +39,12 @@ public class NestedObjectMapper extends ObjectMapper {
         }
 
         Builder includeInRoot(boolean includeInRoot) {
-            this.includeInRoot = new Explicit<>(includeInRoot, true);
+            this.includeInRoot = Explicit.explicitBoolean(includeInRoot);
             return this;
         }
 
         Builder includeInParent(boolean includeInParent) {
-            this.includeInParent = new Explicit<>(includeInParent, true);
+            this.includeInParent = Explicit.explicitBoolean(includeInParent);
             return this;
         }
 
@@ -56,11 +56,8 @@ public class NestedObjectMapper extends ObjectMapper {
 
     public static class TypeParser extends ObjectMapper.TypeParser {
         @Override
-        public Mapper.Builder parse(
-            String name,
-            Map<String, Object> node,
-            MappingParserContext parserContext
-        ) throws MapperParsingException {
+        public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
+            throws MapperParsingException {
             NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(name, parserContext.indexVersionCreated());
             parseNested(name, node, builder);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -95,12 +92,7 @@ public class NestedObjectMapper extends ObjectMapper {
     private final String nestedTypePath;
     private final Query nestedTypeFilter;
 
-    NestedObjectMapper(
-        String name,
-        String fullPath,
-        Map<String, Mapper> mappers,
-        Builder builder
-    ) {
+    NestedObjectMapper(String name, String fullPath, Map<String, Mapper> mappers, Builder builder) {
         super(name, fullPath, builder.enabled, builder.dynamic, mappers);
         if (builder.indexCreatedVersion.before(Version.V_8_0_0)) {
             this.nestedTypePath = "__" + fullPath;
@@ -130,7 +122,7 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     public void setIncludeInParent(boolean includeInParent) {
-        this.includeInParent = new Explicit<>(includeInParent, true);
+        this.includeInParent = Explicit.explicitBoolean(includeInParent);
     }
 
     public boolean isIncludeInRoot() {
@@ -138,7 +130,7 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     public void setIncludeInRoot(boolean includeInRoot) {
-        this.includeInRoot = new Explicit<>(includeInRoot, true);
+        this.includeInRoot = Explicit.explicitBoolean(includeInRoot);
     }
 
     public Map<String, Mapper> getChildren() {

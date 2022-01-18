@@ -8,10 +8,10 @@
 package org.elasticsearch.client.enrich;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
 import java.io.IOException;
@@ -38,12 +38,21 @@ public class StatsResponseTests extends AbstractResponseTestCase<EnrichStatsActi
         for (int i = 0; i < numCoordinatingStats; i++) {
             String nodeId = randomAlphaOfLength(4);
             EnrichStatsAction.Response.CoordinatorStats stats = new EnrichStatsAction.Response.CoordinatorStats(
-                nodeId, randomIntBetween(0, 8096), randomIntBetween(0, 8096), randomNonNegativeLong(),
-                randomNonNegativeLong());
+                nodeId,
+                randomIntBetween(0, 8096),
+                randomIntBetween(0, 8096),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
             coordinatorStats.add(stats);
             cacheStats.add(
-                new EnrichStatsAction.Response.CacheStats(nodeId, randomNonNegativeLong(), randomNonNegativeLong(),
-                    randomNonNegativeLong(), randomNonNegativeLong())
+                new EnrichStatsAction.Response.CacheStats(
+                    nodeId,
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                )
             );
         }
         return new EnrichStatsAction.Response(executingPolicies, coordinatorStats, cacheStats);
@@ -97,20 +106,21 @@ public class StatsResponseTests extends AbstractResponseTestCase<EnrichStatsActi
         boolean cancellable = randomBoolean();
         boolean cancelled = cancellable && randomBoolean();
         TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
-        Map<String, String> headers = randomBoolean() ?
-            Collections.emptyMap() :
-            Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        Map<String, String> headers = randomBoolean()
+            ? Collections.emptyMap()
+            : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
         return new TaskInfo(
-                taskId,
-                type,
-                action,
-                description,
-                null,
-                startTime,
-                runningTimeNanos,
-                cancellable,
-                cancelled,
-                parentTaskId,
-                headers);
+            taskId,
+            type,
+            action,
+            description,
+            null,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            cancelled,
+            parentTaskId,
+            headers
+        );
     }
 }

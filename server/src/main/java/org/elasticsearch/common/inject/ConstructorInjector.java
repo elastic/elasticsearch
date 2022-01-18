@@ -38,11 +38,12 @@ class ConstructorInjector<T> {
     private final ConstructionProxy<T> constructionProxy;
     private final MembersInjectorImpl<T> membersInjector;
 
-    ConstructorInjector(Set<InjectionPoint> injectableMembers,
-                        ConstructionProxy<T> constructionProxy,
-                        SingleParameterInjector<?>[] parameterInjectors,
-                        MembersInjectorImpl<T> membersInjector)
-            throws ErrorsException {
+    ConstructorInjector(
+        Set<InjectionPoint> injectableMembers,
+        ConstructionProxy<T> constructionProxy,
+        SingleParameterInjector<?>[] parameterInjectors,
+        MembersInjectorImpl<T> membersInjector
+    ) throws ErrorsException {
         this.injectableMembers = injectableMembers;
         this.constructionProxy = constructionProxy;
         this.parameterInjectors = parameterInjectors;
@@ -61,8 +62,7 @@ class ConstructorInjector<T> {
      * Construct an instance. Returns {@code Object} instead of {@code T} because
      * it may return a proxy.
      */
-    Object construct(Errors errors, InternalContext context, Class<?> expectedType)
-            throws ErrorsException {
+    Object construct(Errors errors, InternalContext context, Class<?> expectedType) throws ErrorsException {
         ConstructionContext<T> constructionContext = context.getConstructionContext(this);
 
         // We have a circular reference between constructors. Return a proxy.
@@ -97,11 +97,8 @@ class ConstructorInjector<T> {
 
             return t;
         } catch (InvocationTargetException userException) {
-            Throwable cause = userException.getCause() != null
-                    ? userException.getCause()
-                    : userException;
-            throw errors.withSource(constructionProxy.getInjectionPoint())
-                    .errorInjectingConstructor(cause).toException();
+            Throwable cause = userException.getCause() != null ? userException.getCause() : userException;
+            throw errors.withSource(constructionProxy.getInjectionPoint()).errorInjectingConstructor(cause).toException();
         } finally {
             constructionContext.removeCurrentReference();
         }

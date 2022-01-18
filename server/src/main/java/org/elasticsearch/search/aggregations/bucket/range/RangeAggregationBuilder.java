@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -20,10 +19,12 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.DoubleUnaryOperator;
 
 public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregationBuilder, Range> {
     public static final String NAME = "range";
@@ -152,19 +153,26 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     ) throws IOException {
         RangeAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
+        /*
+         This will downgrade the precision of the range bounds to match the field's precision.  Fixes float/double issues, but not
+         long/double issues.  See https://github.com/elastic/elasticsearch/issues/77033
+         */
+        DoubleUnaryOperator fixPrecision = config.reduceToStoredPrecisionFunction();
+
         // We need to call processRanges here so they are parsed before we make the decision of whether to cache the request
         Range[] ranges = processRanges(range -> {
             DocValueFormat parser = config.format();
             assert parser != null;
-            Double from = range.from;
-            Double to = range.to;
+            Double from = fixPrecision.applyAsDouble(range.from);
+            Double to = fixPrecision.applyAsDouble(range.to);
             if (range.fromAsStr != null) {
                 from = parser.parseDouble(range.fromAsStr, false, context::nowInMillis);
             }
             if (range.toAsStr != null) {
                 to = parser.parseDouble(range.toAsStr, false, context::nowInMillis);
             }
-            return new Range(range.key, from, range.fromAsStr, to, range.toAsStr);
+            String key = range.key != null ? range.key : generateKey(range.originalFrom, range.originalTo, config.format());
+            return new Range(key, from, range.from, range.fromAsStr, to, range.to, range.toAsStr);
         });
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
@@ -192,5 +200,12 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
+    }
+
+    private static String generateKey(double from, double to, DocValueFormat format) {
+        StringBuilder builder = new StringBuilder().append(Double.isInfinite(from) ? "*" : format.format(from))
+            .append("-")
+            .append(Double.isInfinite(to) ? "*" : format.format(to));
+        return builder.toString();
     }
 }

@@ -8,10 +8,15 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.xcontent.AbstractObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -25,16 +30,20 @@ public final class ObjectParserHelper<Value, Context> {
     /**
      * Helper to declare an object that will be parsed into a {@link BytesReference}
      */
-    public void declareRawObject(final AbstractObjectParser<Value, Context> parser,
-                                 final BiConsumer<Value, BytesReference> consumer,
-                                 final ParseField field) {
+    public void declareRawObject(
+        final AbstractObjectParser<Value, Context> parser,
+        final BiConsumer<Value, BytesReference> consumer,
+        final ParseField field
+    ) {
         final CheckedFunction<XContentParser, BytesReference, IOException> bytesParser = getBytesParser();
         parser.declareField(consumer, bytesParser, field, ValueType.OBJECT);
     }
 
-    public void declareRawObjectOrNull(final AbstractObjectParser<Value, Context> parser,
-                                       final BiConsumer<Value, BytesReference> consumer,
-                                       final ParseField field) {
+    public void declareRawObjectOrNull(
+        final AbstractObjectParser<Value, Context> parser,
+        final BiConsumer<Value, BytesReference> consumer,
+        final ParseField field
+    ) {
         final CheckedFunction<XContentParser, BytesReference, IOException> bytesParser = getBytesParser();
         parser.declareField(consumer, bytesParser, field, ValueType.OBJECT_OR_NULL);
     }

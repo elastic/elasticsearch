@@ -11,15 +11,15 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.RegexpFlag;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -37,8 +37,7 @@ public class RegexOptions implements ToXContentFragment, Writeable {
      *     "max_determinized_states" : INT
      * }
      */
-    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(REGEX_OPTIONS.getPreferredName(),
-            Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(REGEX_OPTIONS.getPreferredName(), Builder::new);
     static {
         PARSER.declareInt(Builder::setMaxDeterminizedStates, MAX_DETERMINIZED_STATES);
         PARSER.declareField((parser, builder, aVoid) -> {
@@ -47,8 +46,9 @@ public class RegexOptions implements ToXContentFragment, Writeable {
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 builder.setFlagsValue(parser.intValue());
             } else {
-                throw new ElasticsearchParseException(REGEX_OPTIONS.getPreferredName()
-                    + " " + FLAGS_VALUE.getPreferredName() + " supports string or number");
+                throw new ElasticsearchParseException(
+                    REGEX_OPTIONS.getPreferredName() + " " + FLAGS_VALUE.getPreferredName() + " supports string or number"
+                );
             }
         }, FLAGS_VALUE, ObjectParser.ValueType.VALUE);
     }
@@ -133,8 +133,7 @@ public class RegexOptions implements ToXContentFragment, Writeable {
         private int flagsValue = RegExp.ALL;
         private int maxDeterminizedStates = Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
 
-        public Builder() {
-        }
+        public Builder() {}
 
         /**
          * Sets the regular expression syntax flags

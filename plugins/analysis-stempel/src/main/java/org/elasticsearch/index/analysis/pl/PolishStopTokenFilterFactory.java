@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.analysis.pl;
 
-
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -38,8 +37,7 @@ public class PolishStopTokenFilterFactory extends AbstractTokenFilterFactory {
         super(indexSettings, name, settings);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.removeTrailing = settings.getAsBoolean("remove_trailing", true);
-        this.stopWords = Analysis.parseWords(env, settings, "stopwords",
-                PolishAnalyzer.getDefaultStopSet(), NAMED_STOP_WORDS, ignoreCase);
+        this.stopWords = Analysis.parseWords(env, settings, "stopwords", PolishAnalyzer.getDefaultStopSet(), NAMED_STOP_WORDS, ignoreCase);
     }
 
     @Override

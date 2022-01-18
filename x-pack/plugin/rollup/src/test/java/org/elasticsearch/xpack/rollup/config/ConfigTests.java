@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneId;
 import java.time.zone.ZoneRulesException;
 import java.util.HashMap;
 import java.util.Map;
@@ -75,17 +75,17 @@ public class ConfigTests extends ESTestCase {
 
     public void testNullTimeZone() {
         DateHistogramGroupConfig config = new CalendarInterval("foo", DateHistogramInterval.HOUR, null, null);
-        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+        assertThat(config.getTimeZone(), equalTo(ZoneId.of("UTC").getId()));
     }
 
     public void testEmptyTimeZone() {
         DateHistogramGroupConfig config = new CalendarInterval("foo", DateHistogramInterval.HOUR, null, "");
-        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+        assertThat(config.getTimeZone(), equalTo(ZoneId.of("UTC").getId()));
     }
 
     public void testDefaultTimeZone() {
         DateHistogramGroupConfig config = new CalendarInterval("foo", DateHistogramInterval.HOUR);
-        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+        assertThat(config.getTimeZone(), equalTo(ZoneId.of("UTC").getId()));
     }
 
     public void testUnkownTimeZone() {

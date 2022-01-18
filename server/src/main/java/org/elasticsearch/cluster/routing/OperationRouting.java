@@ -30,9 +30,12 @@ import java.util.stream.Collectors;
 
 public class OperationRouting {
 
-    public static final Setting<Boolean> USE_ADAPTIVE_REPLICA_SELECTION_SETTING =
-            Setting.boolSetting("cluster.routing.use_adaptive_replica_selection", true,
-                    Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Boolean> USE_ADAPTIVE_REPLICA_SELECTION_SETTING = Setting.boolSetting(
+        "cluster.routing.use_adaptive_replica_selection",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private boolean useAdaptiveReplicaSelection;
 
@@ -45,24 +48,25 @@ public class OperationRouting {
         this.useAdaptiveReplicaSelection = useAdaptiveReplicaSelection;
     }
 
-    public ShardIterator indexShards(
-        ClusterState clusterState,
-        String index,
-        IndexRouting indexRouting,
-        String id,
-        @Nullable String routing
-    ) {
-        return shards(clusterState, index, indexRouting, id, routing).shardsIt();
-    }
-
     /**
      * Shards to use for a {@code GET} operation.
      */
-    public ShardIterator getShards(ClusterState clusterState, String index, String id, @Nullable String routing,
-                                   @Nullable String preference) {
+    public ShardIterator getShards(
+        ClusterState clusterState,
+        String index,
+        String id,
+        @Nullable String routing,
+        @Nullable String preference
+    ) {
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata(clusterState, index));
+        IndexShardRoutingTable shards = clusterState.getRoutingTable().shardRoutingTable(index, indexRouting.getShard(id, routing));
+        return preferenceActiveShardIterator(shards, clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference, null, null);
+    }
+
+    public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) {
+        final IndexShardRoutingTable indexShard = clusterState.getRoutingTable().shardRoutingTable(index, shardId);
         return preferenceActiveShardIterator(
-            shards(clusterState, index, indexRouting, id, routing),
+            indexShard,
             clusterState.nodes().getLocalNodeId(),
             clusterState.nodes(),
             preference,
@@ -71,31 +75,34 @@ public class OperationRouting {
         );
     }
 
-    public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) {
-        final IndexShardRoutingTable indexShard = clusterState.getRoutingTable().shardRoutingTable(index, shardId);
-        return preferenceActiveShardIterator(indexShard, clusterState.nodes().getLocalNodeId(), clusterState.nodes(),
-            preference, null, null);
-    }
-
-    public GroupShardsIterator<ShardIterator> searchShards(ClusterState clusterState,
-                                                           String[] concreteIndices,
-                                                           @Nullable Map<String, Set<String>> routing,
-                                                           @Nullable String preference) {
+    public GroupShardsIterator<ShardIterator> searchShards(
+        ClusterState clusterState,
+        String[] concreteIndices,
+        @Nullable Map<String, Set<String>> routing,
+        @Nullable String preference
+    ) {
         return searchShards(clusterState, concreteIndices, routing, preference, null, null);
     }
 
-
-    public GroupShardsIterator<ShardIterator> searchShards(ClusterState clusterState,
-                                                           String[] concreteIndices,
-                                                           @Nullable Map<String, Set<String>> routing,
-                                                           @Nullable String preference,
-                                                           @Nullable ResponseCollectorService collectorService,
-                                                           @Nullable Map<String, Long> nodeCounts) {
+    public GroupShardsIterator<ShardIterator> searchShards(
+        ClusterState clusterState,
+        String[] concreteIndices,
+        @Nullable Map<String, Set<String>> routing,
+        @Nullable String preference,
+        @Nullable ResponseCollectorService collectorService,
+        @Nullable Map<String, Long> nodeCounts
+    ) {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
         final Set<ShardIterator> set = new HashSet<>(shards.size());
         for (IndexShardRoutingTable shard : shards) {
-            ShardIterator iterator = preferenceActiveShardIterator(shard,
-                    clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference, collectorService, nodeCounts);
+            ShardIterator iterator = preferenceActiveShardIterator(
+                shard,
+                clusterState.nodes().getLocalNodeId(),
+                clusterState.nodes(),
+                preference,
+                collectorService,
+                nodeCounts
+            );
             if (iterator != null) {
                 set.add(iterator);
             }
@@ -110,8 +117,11 @@ public class OperationRouting {
 
     private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
 
-    private Set<IndexShardRoutingTable> computeTargetedShards(ClusterState clusterState, String[] concreteIndices,
-                                                              @Nullable Map<String, Set<String>> routing) {
+    private Set<IndexShardRoutingTable> computeTargetedShards(
+        ClusterState clusterState,
+        String[] concreteIndices,
+        @Nullable Map<String, Set<String>> routing
+    ) {
         routing = routing == null ? EMPTY_ROUTING : routing; // just use an empty map
         final Set<IndexShardRoutingTable> set = new HashSet<>();
         // we use set here and not list since we might get duplicates
@@ -133,10 +143,14 @@ public class OperationRouting {
         return set;
     }
 
-    private ShardIterator preferenceActiveShardIterator(IndexShardRoutingTable indexShard, String localNodeId,
-                                                        DiscoveryNodes nodes, @Nullable String preference,
-                                                        @Nullable ResponseCollectorService collectorService,
-                                                        @Nullable Map<String, Long> nodeCounts) {
+    private ShardIterator preferenceActiveShardIterator(
+        IndexShardRoutingTable indexShard,
+        String localNodeId,
+        DiscoveryNodes nodes,
+        @Nullable String preference,
+        @Nullable ResponseCollectorService collectorService,
+        @Nullable Map<String, Long> nodeCounts
+    ) {
         if (preference == null || preference.isEmpty()) {
             return shardRoutings(indexShard, nodes, collectorService, nodeCounts);
         }
@@ -171,23 +185,24 @@ public class OperationRouting {
                     preference = preference.substring(index + 1);
                 }
             }
-            preferenceType = Preference.parse(preference);
-            switch (preferenceType) {
-                case PREFER_NODES:
-                    final Set<String> nodesIds =
-                            Arrays.stream(
-                                    preference.substring(Preference.PREFER_NODES.type().length() + 1).split(",")
-                            ).collect(Collectors.toSet());
-                    return indexShard.preferNodeActiveInitializingShardsIt(nodesIds);
-                case LOCAL:
-                    return indexShard.preferNodeActiveInitializingShardsIt(Collections.singleton(localNodeId));
-                case ONLY_LOCAL:
-                    return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
-                case ONLY_NODES:
-                    String nodeAttributes = preference.substring(Preference.ONLY_NODES.type().length() + 1);
-                    return indexShard.onlyNodeSelectorActiveInitializingShardsIt(nodeAttributes.split(","), nodes);
-                default:
-                    throw new IllegalArgumentException("unknown preference [" + preferenceType + "]");
+            if (preference.charAt(0) == '_') {
+                preferenceType = Preference.parse(preference);
+                switch (preferenceType) {
+                    case PREFER_NODES:
+                        final Set<String> nodesIds = Arrays.stream(
+                            preference.substring(Preference.PREFER_NODES.type().length() + 1).split(",")
+                        ).collect(Collectors.toSet());
+                        return indexShard.preferNodeActiveInitializingShardsIt(nodesIds);
+                    case LOCAL:
+                        return indexShard.preferNodeActiveInitializingShardsIt(Collections.singleton(localNodeId));
+                    case ONLY_LOCAL:
+                        return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
+                    case ONLY_NODES:
+                        String nodeAttributes = preference.substring(Preference.ONLY_NODES.type().length() + 1);
+                        return indexShard.onlyNodeSelectorActiveInitializingShardsIt(nodeAttributes.split(","), nodes);
+                    default:
+                        throw new IllegalArgumentException("unknown preference [" + preferenceType + "]");
+                }
             }
         }
         // if not, then use it as the index
@@ -195,8 +210,12 @@ public class OperationRouting {
         return indexShard.activeInitializingShardsIt(routingHash);
     }
 
-    private ShardIterator shardRoutings(IndexShardRoutingTable indexShard, DiscoveryNodes nodes,
-            @Nullable ResponseCollectorService collectorService, @Nullable Map<String, Long> nodeCounts) {
+    private ShardIterator shardRoutings(
+        IndexShardRoutingTable indexShard,
+        DiscoveryNodes nodes,
+        @Nullable ResponseCollectorService collectorService,
+        @Nullable Map<String, Long> nodeCounts
+    ) {
         if (useAdaptiveReplicaSelection) {
             return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
         } else {
@@ -220,12 +239,8 @@ public class OperationRouting {
         return indexMetadata;
     }
 
-    private IndexShardRoutingTable shards(ClusterState clusterState, String index, IndexRouting indexRouting, String id, String routing) {
-        return clusterState.getRoutingTable().shardRoutingTable(index, indexRouting.shardId(id, routing));
-    }
-
     public ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
         IndexMetadata indexMetadata = indexMetadata(clusterState, index);
-        return new ShardId(indexMetadata.getIndex(), IndexRouting.fromIndexMetadata(indexMetadata).shardId(id, routing));
+        return new ShardId(indexMetadata.getIndex(), IndexRouting.fromIndexMetadata(indexMetadata).getShard(id, routing));
     }
 }

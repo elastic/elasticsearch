@@ -45,8 +45,7 @@ public class CheckTargetShardsCountStep extends ClusterStateWaitStep {
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists",
-                getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
             return new Result(false, null);
         }
         String indexName = indexMetadata.getIndex().getName();
@@ -54,9 +53,15 @@ public class CheckTargetShardsCountStep extends ClusterStateWaitStep {
             int sourceNumberOfShards = indexMetadata.getNumberOfShards();
             if (sourceNumberOfShards % numberOfShards != 0) {
                 String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-                String errorMessage = String.format(Locale.ROOT, "lifecycle action of policy [%s] for index [%s] cannot make progress " +
-                        "because the target shards count [%d] must be a factor of the source index's shards count [%d]",
-                    policyName, indexName, numberOfShards, sourceNumberOfShards);
+                String errorMessage = String.format(
+                    Locale.ROOT,
+                    "lifecycle action of policy [%s] for index [%s] cannot make progress "
+                        + "because the target shards count [%d] must be a factor of the source index's shards count [%d]",
+                    policyName,
+                    indexName,
+                    numberOfShards,
+                    sourceNumberOfShards
+                );
                 logger.debug(errorMessage);
                 return new Result(false, new SingleMessageFieldInfo(errorMessage));
             }

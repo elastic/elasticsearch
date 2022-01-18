@@ -14,11 +14,11 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
@@ -38,32 +38,30 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
     }
 
     public void testAutomaticRefreshGet() throws InterruptedException {
-        runTestAutomaticRefresh(
-            numDocs -> {
-                int count = 0;
-                for (int i = 0; i < numDocs; i++) {
-                    final GetRequest request = new GetRequest();
-                    request.realtime(false);
-                    request.index("test");
-                    request.id("" + i);
-                    if (client().get(request).actionGet().isExists()) {
-                        count++;
-                    }
+        runTestAutomaticRefresh(numDocs -> {
+            int count = 0;
+            for (int i = 0; i < numDocs; i++) {
+                final GetRequest request = new GetRequest();
+                request.realtime(false);
+                request.index("test");
+                request.id("" + i);
+                if (client().get(request).actionGet().isExists()) {
+                    count++;
                 }
-                return count;
-            });
+            }
+            return count;
+        });
     }
 
     public void testAutomaticRefreshMultiGet() throws InterruptedException {
-        runTestAutomaticRefresh(
-            numDocs -> {
-                final MultiGetRequest request = new MultiGetRequest();
-                request.realtime(false);
-                for (int i = 0; i < numDocs; i++) {
-                    request.add("test", "" + i);
-                }
-                return Arrays.stream(client().multiGet(request).actionGet().getResponses()).filter(r -> r.getResponse().isExists()).count();
-            });
+        runTestAutomaticRefresh(numDocs -> {
+            final MultiGetRequest request = new MultiGetRequest();
+            request.realtime(false);
+            for (int i = 0; i < numDocs; i++) {
+                request.add("test", "" + i);
+            }
+            return Arrays.stream(client().multiGet(request).actionGet().getResponses()).filter(r -> r.getResponse().isExists()).count();
+        });
     }
 
     private void runTestAutomaticRefresh(final IntToLongFunction count) throws InterruptedException {
@@ -111,7 +109,9 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         started.await();
         assertThat(count.applyAsLong(totalNumDocs.get()), equalTo(1L));
         for (int i = 1; i < numDocs; i++) {
-            client().prepareIndex("test").setId("" + i).setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
+            client().prepareIndex("test")
+                .setId("" + i)
+                .setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
                 .execute(new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse indexResponse) {
@@ -129,7 +129,6 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         t.join();
     }
 
-
     public void testPendingRefreshWithIntervalChange() throws Exception {
         Settings.Builder builder = Settings.builder();
         builder.put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO);
@@ -142,8 +141,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         assertTrue(shard.isSearchIdle());
         CountDownLatch refreshLatch = new CountDownLatch(1);
         // async on purpose to make sure it happens concurrently
-        client().admin().indices().prepareRefresh()
-            .execute(ActionListener.wrap(refreshLatch::countDown));
+        client().admin().indices().prepareRefresh().execute(ActionListener.wrap(refreshLatch::countDown));
         assertHitCount(client().prepareSearch().get(), 1);
         client().prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertFalse(shard.scheduledRefresh());
@@ -151,7 +149,8 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
 
         // now disable background refresh and make sure the refresh happens
         CountDownLatch updateSettingsLatch = new CountDownLatch(1);
-        client().admin().indices()
+        client().admin()
+            .indices()
             .prepareUpdateSettings("test")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build())
             .execute(ActionListener.wrap(updateSettingsLatch::countDown));

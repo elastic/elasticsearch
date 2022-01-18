@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -54,7 +55,8 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
         ActionFilters actionFilters,
         InferenceAuditor auditor,
         IngestService ingestService,
-        IndexNameExpressionResolver indexNameExpressionResolver) {
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
         super(
             DeleteTrainedModelAliasAction.NAME,
             transportService,
@@ -81,13 +83,15 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
             public ClusterState execute(final ClusterState currentState) {
                 return deleteModelAlias(currentState, ingestService, auditor, request);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
-    static ClusterState deleteModelAlias(final ClusterState currentState,
-                                         final IngestService ingestService,
-                                         final InferenceAuditor inferenceAuditor,
-                                         final DeleteTrainedModelAliasAction.Request request) {
+    static ClusterState deleteModelAlias(
+        final ClusterState currentState,
+        final IngestService ingestService,
+        final InferenceAuditor inferenceAuditor,
+        final DeleteTrainedModelAliasAction.Request request
+    ) {
         final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(currentState);
         final String referencedModel = currentMetadata.getModelId(request.getModelAlias());
         if (referencedModel == null) {

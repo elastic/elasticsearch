@@ -51,9 +51,11 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
         ensureStableCluster(4);
 
         // We index data with mapping changes into cluster and have master failover at same time
-        client().admin().indices().prepareCreate("myindex")
-                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
-                .get();
+        client().admin()
+            .indices()
+            .prepareCreate("myindex")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+            .get();
         ensureGreen("myindex");
 
         final CyclicBarrier barrier = new CyclicBarrier(2);

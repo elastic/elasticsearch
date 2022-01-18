@@ -22,14 +22,18 @@ import static org.hamcrest.Matchers.equalTo;
 public class ExecutorSelectorTests extends ESTestCase {
 
     public void testNonCriticalSystemIndexThreadPools() {
-        ExecutorSelector service = new ExecutorSelector(new SystemIndices(
-            Map.of(
-                "normal system index",
-                new SystemIndices.Feature( "normal", "normal system index",
-                    Collections.singletonList(new SystemIndexDescriptor( ".non-critical-system-index", "test index"))
+        ExecutorSelector service = new ExecutorSelector(
+            new SystemIndices(
+                Map.of(
+                    "normal system index",
+                    new SystemIndices.Feature(
+                        "normal",
+                        "normal system index",
+                        Collections.singletonList(new SystemIndexDescriptor(".non-critical-system-index*", "test index"))
+                    )
                 )
             )
-        ));
+        );
         String index = ".non-critical-system-index";
         assertThat(service.executorForGet(index), equalTo(ThreadPool.Names.SYSTEM_READ));
         assertThat(service.executorForSearch(index), equalTo(ThreadPool.Names.SYSTEM_READ));
@@ -37,19 +41,25 @@ public class ExecutorSelectorTests extends ESTestCase {
     }
 
     public void testCriticalSystemIndexThreadPools() {
-        ExecutorSelector service = new ExecutorSelector(new SystemIndices(
-            Map.of(
-                "critical system index",
-                new SystemIndices.Feature( "critical", "critical system index", Collections.singletonList(
-                    SystemIndexDescriptor.builder()
-                        .setDescription("critical system indices")
-                        .setIndexPattern(".critical-system-*")
-                        .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
-                        .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
-                        .build()
-                ))
+        ExecutorSelector service = new ExecutorSelector(
+            new SystemIndices(
+                Map.of(
+                    "critical system index",
+                    new SystemIndices.Feature(
+                        "critical",
+                        "critical system index",
+                        Collections.singletonList(
+                            SystemIndexDescriptor.builder()
+                                .setDescription("critical system indices")
+                                .setIndexPattern(".critical-system-*")
+                                .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
+                                .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
+                                .build()
+                        )
+                    )
+                )
             )
-        ));
+        );
         String index = ".critical-system-index";
         assertThat(service.executorForGet(index), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_READ));
         assertThat(service.executorForSearch(index), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_READ));
@@ -57,25 +67,37 @@ public class ExecutorSelectorTests extends ESTestCase {
     }
 
     public void testDefaultSystemDataStreamThreadPools() {
-        ExecutorSelector service = new ExecutorSelector(new SystemIndices(
-            Map.of(
-            "normal system index",
-                new SystemIndices.Feature( "data stream", "data stream feature with default thread pools", Collections.emptyList(),
-                    Collections.singletonList(
-                        new SystemDataStreamDescriptor( ".test-data-stream", "a data stream for testing",
-                            SystemDataStreamDescriptor.Type.INTERNAL,
-                            new ComposableIndexTemplate(
-                                List.of(".system-data-stream"),
-                                null, null, null, null, null,
-                                new ComposableIndexTemplate.DataStreamTemplate()),
-                            Map.of(),
-                            Collections.singletonList("test"),
-                            null
+        ExecutorSelector service = new ExecutorSelector(
+            new SystemIndices(
+                Map.of(
+                    "normal system index",
+                    new SystemIndices.Feature(
+                        "data stream",
+                        "data stream feature with default thread pools",
+                        Collections.emptyList(),
+                        Collections.singletonList(
+                            new SystemDataStreamDescriptor(
+                                ".test-data-stream",
+                                "a data stream for testing",
+                                SystemDataStreamDescriptor.Type.INTERNAL,
+                                new ComposableIndexTemplate(
+                                    List.of(".system-data-stream"),
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    new ComposableIndexTemplate.DataStreamTemplate()
+                                ),
+                                Map.of(),
+                                Collections.singletonList("test"),
+                                null
+                            )
                         )
                     )
                 )
             )
-        ));
+        );
         String dataStream = ".test-data-stream";
         assertThat(service.executorForGet(dataStream), equalTo(ThreadPool.Names.GET));
         assertThat(service.executorForSearch(dataStream), equalTo(ThreadPool.Names.SEARCH));
@@ -83,26 +105,41 @@ public class ExecutorSelectorTests extends ESTestCase {
     }
 
     public void testCustomSystemDataStreamThreadPools() {
-        ExecutorSelector service = new ExecutorSelector(new SystemIndices(
-            Map.of(
-                "normal system index",
-                new SystemIndices.Feature( "data stream", "data stream feature with custom thread pools", Collections.emptyList(),
-                    Collections.singletonList(
-                        new SystemDataStreamDescriptor( ".test-data-stream", "a data stream for testing",
-                            SystemDataStreamDescriptor.Type.INTERNAL,
-                            new ComposableIndexTemplate(
-                                List.of(".system-data-stream"),
-                                null, null, null, null, null,
-                                new ComposableIndexTemplate.DataStreamTemplate()),
-                            Map.of(),
-                            Collections.singletonList("test"),
-                            new ExecutorNames(
-                                ThreadPool.Names.SYSTEM_CRITICAL_READ, ThreadPool.Names.SYSTEM_READ, ThreadPool.Names.SYSTEM_WRITE)
+        ExecutorSelector service = new ExecutorSelector(
+            new SystemIndices(
+                Map.of(
+                    "normal system index",
+                    new SystemIndices.Feature(
+                        "data stream",
+                        "data stream feature with custom thread pools",
+                        Collections.emptyList(),
+                        Collections.singletonList(
+                            new SystemDataStreamDescriptor(
+                                ".test-data-stream",
+                                "a data stream for testing",
+                                SystemDataStreamDescriptor.Type.INTERNAL,
+                                new ComposableIndexTemplate(
+                                    List.of(".system-data-stream"),
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    new ComposableIndexTemplate.DataStreamTemplate()
+                                ),
+                                Map.of(),
+                                Collections.singletonList("test"),
+                                new ExecutorNames(
+                                    ThreadPool.Names.SYSTEM_CRITICAL_READ,
+                                    ThreadPool.Names.SYSTEM_READ,
+                                    ThreadPool.Names.SYSTEM_WRITE
+                                )
+                            )
                         )
                     )
                 )
             )
-        ));
+        );
         String dataStream = ".test-data-stream";
         assertThat(service.executorForGet(dataStream), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_READ));
         assertThat(service.executorForSearch(dataStream), equalTo(ThreadPool.Names.SYSTEM_READ));
@@ -114,8 +151,7 @@ public class ExecutorSelectorTests extends ESTestCase {
         String searchThreadPool = randomFrom(ThreadPool.THREAD_POOL_TYPES.keySet());
         String writeThreadPool = randomFrom(ThreadPool.THREAD_POOL_TYPES.keySet());
 
-        ExecutorNames executorNames =
-            new ExecutorNames(getThreadPool, searchThreadPool, writeThreadPool);
+        ExecutorNames executorNames = new ExecutorNames(getThreadPool, searchThreadPool, writeThreadPool);
 
         assertThat(executorNames.threadPoolForGet(), equalTo(getThreadPool));
         assertThat(executorNames.threadPoolForSearch(), equalTo(searchThreadPool));
@@ -123,25 +159,29 @@ public class ExecutorSelectorTests extends ESTestCase {
     }
 
     public void testInvalidThreadPoolNames() {
-        String invalidThreadPool = randomValueOtherThanMany(
-            ThreadPool.THREAD_POOL_TYPES::containsKey,
-            () -> randomAlphaOfLength(8));
+        String invalidThreadPool = randomValueOtherThanMany(ThreadPool.THREAD_POOL_TYPES::containsKey, () -> randomAlphaOfLength(8));
 
         {
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new ExecutorNames(invalidThreadPool, ThreadPool.Names.SEARCH, ThreadPool.Names.WRITE));
-
-            assertThat(exception.getMessage(), containsString(invalidThreadPool + " is not a valid thread pool"));
-        }
-        {
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new ExecutorNames(ThreadPool.Names.GET, invalidThreadPool, ThreadPool.Names.WRITE));
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new ExecutorNames(invalidThreadPool, ThreadPool.Names.SEARCH, ThreadPool.Names.WRITE)
+            );
 
             assertThat(exception.getMessage(), containsString(invalidThreadPool + " is not a valid thread pool"));
         }
         {
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new ExecutorNames(ThreadPool.Names.GET, ThreadPool.Names.SEARCH, invalidThreadPool));
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new ExecutorNames(ThreadPool.Names.GET, invalidThreadPool, ThreadPool.Names.WRITE)
+            );
+
+            assertThat(exception.getMessage(), containsString(invalidThreadPool + " is not a valid thread pool"));
+        }
+        {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new ExecutorNames(ThreadPool.Names.GET, ThreadPool.Names.SEARCH, invalidThreadPool)
+            );
 
             assertThat(exception.getMessage(), containsString(invalidThreadPool + " is not a valid thread pool"));
         }

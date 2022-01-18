@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTestCase<ReindexRequest, BulkByScrollResponse> {
 
     public void testSetIndex() throws Exception {
-        Object dest = randomFrom(new Object[] {234, 234L, "pancake"});
+        Object dest = randomFrom(new Object[] { 234, 234L, "pancake" });
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_index", dest));
         assertEquals(dest.toString(), index.index());
     }
@@ -39,7 +39,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
     }
 
     public void testSetId() throws Exception {
-        Object id = randomFrom(new Object[] {null, 234, 234L, "pancake"});
+        Object id = randomFrom(new Object[] { null, 234, 234L, "pancake" });
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_id", id));
         if (id == null) {
             assertNull(index.id());
@@ -49,7 +49,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
     }
 
     public void testSetVersion() throws Exception {
-        Number version = randomFrom(new Number[] {null, 234, 234L});
+        Number version = randomFrom(new Number[] { null, 234, 234L });
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_version", version));
         if (version == null) {
             assertEquals(Versions.MATCH_ANY, index.version());

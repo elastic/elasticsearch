@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -69,19 +70,6 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                     currentShutdownMetadata = new NodesShutdownMetadata(new HashMap<>());
                 }
 
-                // Verify that there's not already a shutdown metadata for this node
-                SingleNodeShutdownMetadata existingRecord = currentShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId());
-                if (existingRecord != null) {
-                    logger.info(
-                        "updating existing shutdown record for node [{}] of type [{}] with reason [{}] with new type [{}] and reason [{}]",
-                        existingRecord.getNodeId(),
-                        existingRecord.getType(),
-                        existingRecord.getReason(),
-                        request.getType(),
-                        request.getReason()
-                    );
-                }
-
                 final boolean nodeSeen = currentState.getNodes().nodeExists(request.getNodeId());
 
                 SingleNodeShutdownMetadata newNodeMetadata = SingleNodeShutdownMetadata.builder()
@@ -94,6 +82,14 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                     .setTargetNodeName(request.getTargetNodeName())
                     .build();
 
+                // Verify that there's not already a shutdown metadata for this node
+                SingleNodeShutdownMetadata existingRecord = currentShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId());
+                if (existingRecord != null) {
+                    logger.info("updating existing shutdown record {} with new record {}", existingRecord, newNodeMetadata);
+                } else {
+                    logger.info("creating shutdown record {}", newNodeMetadata);
+                }
+
                 return ClusterState.builder(currentState)
                     .metadata(
                         Metadata.builder(currentState.metadata())
@@ -103,7 +99,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 logger.error(new ParameterizedMessage("failed to put shutdown for node [{}]", request.getNodeId()), e);
                 listener.onFailure(e);
             }
@@ -143,7 +139,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     @Override

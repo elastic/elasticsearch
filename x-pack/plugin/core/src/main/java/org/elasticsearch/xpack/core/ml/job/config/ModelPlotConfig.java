@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -29,8 +29,11 @@ public class ModelPlotConfig implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<ModelPlotConfig, Void> STRICT_PARSER = createParser(false);
 
     private static ConstructingObjectParser<ModelPlotConfig, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<ModelPlotConfig, Void> parser = new ConstructingObjectParser<>(TYPE_FIELD.getPreferredName(),
-            ignoreUnknownFields, a -> new ModelPlotConfig((boolean) a[0], (String) a[1], (Boolean) a[2]));
+        ConstructingObjectParser<ModelPlotConfig, Void> parser = new ConstructingObjectParser<>(
+            TYPE_FIELD.getPreferredName(),
+            ignoreUnknownFields,
+            a -> new ModelPlotConfig((boolean) a[0], (String) a[1], (Boolean) a[2])
+        );
 
         parser.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED_FIELD);
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), TERMS_FIELD);

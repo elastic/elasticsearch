@@ -19,9 +19,10 @@ import com.github.mustachejava.TemplateContext;
 import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
+
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -48,11 +49,17 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
     private static final String DEFAULT_MEDIA_TYPE = JSON_MEDIA_TYPE;
 
     private static final Map<String, Supplier<Encoder>> ENCODERS = Map.of(
-        V7_JSON_MEDIA_TYPE_WITH_CHARSET, JsonEscapeEncoder::new,
-        JSON_MEDIA_TYPE_WITH_CHARSET, JsonEscapeEncoder::new,
-        JSON_MEDIA_TYPE, JsonEscapeEncoder::new,
-        PLAIN_TEXT_MEDIA_TYPE, DefaultEncoder::new,
-        X_WWW_FORM_URLENCODED_MEDIA_TYPE, UrlEncoder::new);
+        V7_JSON_MEDIA_TYPE_WITH_CHARSET,
+        JsonEscapeEncoder::new,
+        JSON_MEDIA_TYPE_WITH_CHARSET,
+        JsonEscapeEncoder::new,
+        JSON_MEDIA_TYPE,
+        JsonEscapeEncoder::new,
+        PLAIN_TEXT_MEDIA_TYPE,
+        DefaultEncoder::new,
+        X_WWW_FORM_URLENCODED_MEDIA_TYPE,
+        UrlEncoder::new
+    );
 
     private final Encoder encoder;
 

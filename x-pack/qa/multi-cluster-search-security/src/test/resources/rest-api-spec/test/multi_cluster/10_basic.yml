@@ -237,7 +237,7 @@ teardown:
   - match: { aggregations.cluster.buckets.0.doc_count: 5 }
 
 ---
-"Add transient remote cluster based on the preset cluster":
+"Add persistent remote cluster based on the preset cluster":
   - do:
       cluster.get_settings:
         include_defaults: true
@@ -248,10 +248,10 @@ teardown:
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.test_remote_cluster.seeds: $remote_ip
 
-  - match: {transient: {cluster.remote.test_remote_cluster.seeds: $remote_ip}}
+  - match: {persistent: {cluster.remote.test_remote_cluster.seeds: $remote_ip}}
 
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }

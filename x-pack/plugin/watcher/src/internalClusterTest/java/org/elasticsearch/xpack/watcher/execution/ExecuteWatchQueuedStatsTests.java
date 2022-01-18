@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.watcher.execution;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
@@ -22,7 +21,8 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWat
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
-import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
+import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -35,13 +35,14 @@ import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.empty;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66392")
 public class ExecuteWatchQueuedStatsTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
@@ -63,17 +64,17 @@ public class ExecuteWatchQueuedStatsTests extends AbstractWatcherIntegrationTest
      */
     public void testQueuedStats() throws ExecutionException, InterruptedException {
         final Client client = client();
-        new PutWatchRequestBuilder(client, "id")
-                .setActive(true)
-                .setSource(
-                        new WatchSourceBuilder()
-                                .input(simpleInput("payload", "yes"))
-                                .trigger(schedule(interval("1s")))
-                                .addAction(
-                                        "action",
-                                        TimeValue.timeValueSeconds(1),
-                                        IndexAction.builder("test_index").setDocId("id")))
-                .get();
+        new PutWatchRequestBuilder(client, "id").setActive(true)
+            .setSource(
+                new WatchSourceBuilder().input(simpleInput("payload", "yes"))
+                    .trigger(schedule(interval("1h")))
+                    .addAction(
+                        "action",
+                        TimeValue.timeValueSeconds(1),
+                        LoggingAction.builder(new TextTemplate("logging action for testQueuedStats"))
+                    )
+            )
+            .get();
 
         final int numberOfIterations = 128 - scaledRandomIntBetween(0, 128);
 
@@ -89,14 +90,17 @@ public class ExecuteWatchQueuedStatsTests extends AbstractWatcherIntegrationTest
             for (int i = 0; i < numberOfIterations; i++) {
                 final ExecuteWatchRequest request = new ExecuteWatchRequest("id");
                 try {
-                    request.setTriggerEvent(new ManualTriggerEvent(
+                    request.setTriggerEvent(
+                        new ManualTriggerEvent(
                             "id-" + i,
-                            new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC))));
+                            new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC))
+                        )
+                    );
                 } catch (final IOException e) {
                     fail(e.toString());
                 }
                 request.setActionMode("_all", ActionExecutionMode.EXECUTE);
-                request.setRecordExecution(true);
+                request.setRecordExecution(false);
                 futures.add(client.execute(ExecuteWatchAction.INSTANCE, request));
             }
         });
@@ -120,7 +124,11 @@ public class ExecuteWatchQueuedStatsTests extends AbstractWatcherIntegrationTest
         watcherStatsThread.join();
 
         for (final ActionFuture<ExecuteWatchResponse> future : futures) {
-            future.get();
+            try {
+                future.get(1, TimeUnit.MINUTES);
+            } catch (TimeoutException e) {
+                fail(e.toString());
+            }
         }
 
         assertThat(failures, empty());

@@ -15,14 +15,14 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -283,7 +283,8 @@ public final class RepositoryData {
         return snapshotDetails == null
             || snapshotDetails.getVersion() == null
             || snapshotDetails.getStartTimeMillis() == -1
-            || snapshotDetails.getEndTimeMillis() == -1;
+            || snapshotDetails.getEndTimeMillis() == -1
+            || snapshotDetails.getSlmPolicy() == null;
     }
 
     /**
@@ -639,6 +640,7 @@ public final class RepositoryData {
     private static final String MIN_VERSION = "min_version";
     private static final String START_TIME_MILLIS = "start_time_millis";
     private static final String END_TIME_MILLIS = "end_time_millis";
+    private static final String SLM_POLICY = "slm_policy";
 
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.
@@ -725,6 +727,9 @@ public final class RepositoryData {
             if (snapshotDetails.getEndTimeMillis() != -1) {
                 builder.field(END_TIME_MILLIS, snapshotDetails.getEndTimeMillis());
             }
+            if (snapshotDetails.getSlmPolicy() != null) {
+                builder.field(SLM_POLICY, snapshotDetails.getSlmPolicy());
+            }
 
             builder.endObject();
         }
@@ -743,11 +748,7 @@ public final class RepositoryData {
             }
             builder.endArray();
             if (shouldWriteShardGens) {
-                builder.startArray(SHARD_GENERATIONS);
-                for (ShardGeneration gen : shardGenerations.getGens(indexId)) {
-                    builder.value(gen);
-                }
-                builder.endArray();
+                builder.xContentList(SHARD_GENERATIONS, shardGenerations.getGens(indexId));
             }
             builder.endObject();
         }
@@ -788,17 +789,13 @@ public final class RepositoryData {
         while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
             final String field = parser.currentName();
             switch (field) {
-                case SNAPSHOTS:
-                    parseSnapshots(parser, snapshots, snapshotsDetails, indexMetaLookup);
-                    break;
-                case INDICES:
-                    parseIndices(parser, fixBrokenShardGens, snapshots, indexSnapshots, indexLookup, shardGenerations);
-                    break;
-                case INDEX_METADATA_IDENTIFIERS:
+                case SNAPSHOTS -> parseSnapshots(parser, snapshots, snapshotsDetails, indexMetaLookup);
+                case INDICES -> parseIndices(parser, fixBrokenShardGens, snapshots, indexSnapshots, indexLookup, shardGenerations);
+                case INDEX_METADATA_IDENTIFIERS -> {
                     XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
                     indexMetaIdentifiers = parser.mapStrings();
-                    break;
-                case MIN_VERSION:
+                }
+                case MIN_VERSION -> {
                     XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);
                     final Version version = Version.fromString(parser.text());
                     assert SnapshotsService.useShardGenerations(version);
@@ -807,19 +804,18 @@ public final class RepositoryData {
                             "this snapshot repository format requires Elasticsearch version [" + version + "] or later"
                         );
                     }
-                    break;
-                case UUID:
+                }
+                case UUID -> {
                     XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);
                     uuid = parser.text();
                     assert uuid.equals(MISSING_UUID) == false;
-                    break;
-                case CLUSTER_UUID:
+                }
+                case CLUSTER_UUID -> {
                     XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);
                     clusterUUID = parser.text();
                     assert clusterUUID.equals(MISSING_UUID) == false;
-                    break;
-                default:
-                    XContentParserUtils.throwUnknownField(field, parser.getTokenLocation());
+                }
+                default -> XContentParserUtils.throwUnknownField(field, parser.getTokenLocation());
             }
         }
 
@@ -895,39 +891,34 @@ public final class RepositoryData {
             Version version = null;
             long startTimeMillis = -1;
             long endTimeMillis = -1;
+            String slmPolicy = null;
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 String currentFieldName = parser.currentName();
                 parser.nextToken();
                 switch (currentFieldName) {
-                    case NAME:
-                        name = parser.text();
-                        break;
-                    case UUID:
-                        uuid = parser.text();
-                        break;
-                    case STATE:
-                        state = SnapshotState.fromValue((byte) parser.intValue());
-                        break;
-                    case INDEX_METADATA_LOOKUP:
-                        metaGenerations = parser.map(HashMap::new, p -> stringDeduplicator.computeIfAbsent(p.text(), Function.identity()));
-                        break;
-                    case VERSION:
-                        version = Version.fromString(parser.text());
-                        break;
-                    case START_TIME_MILLIS:
+                    case NAME -> name = parser.text();
+                    case UUID -> uuid = parser.text();
+                    case STATE -> state = SnapshotState.fromValue((byte) parser.intValue());
+                    case INDEX_METADATA_LOOKUP -> metaGenerations = parser.map(
+                        HashMap::new,
+                        p -> stringDeduplicator.computeIfAbsent(p.text(), Function.identity())
+                    );
+                    case VERSION -> version = Version.fromString(parser.text());
+                    case START_TIME_MILLIS -> {
                         assert startTimeMillis == -1;
                         startTimeMillis = parser.longValue();
-                        break;
-                    case END_TIME_MILLIS:
+                    }
+                    case END_TIME_MILLIS -> {
                         assert endTimeMillis == -1;
                         endTimeMillis = parser.longValue();
-                        break;
+                    }
+                    case SLM_POLICY -> slmPolicy = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                 }
             }
             assert (startTimeMillis == -1) == (endTimeMillis == -1) : "unexpected: " + startTimeMillis + ", " + endTimeMillis + ", ";
             final SnapshotId snapshotId = new SnapshotId(name, uuid);
             if (state != null || version != null) {
-                snapshotsDetails.put(uuid, new SnapshotDetails(state, version, startTimeMillis, endTimeMillis));
+                snapshotsDetails.put(uuid, new SnapshotDetails(state, version, startTimeMillis, endTimeMillis, slmPolicy));
             }
             snapshots.put(uuid, snapshotId);
             if (metaGenerations != null && metaGenerations.isEmpty() == false) {
@@ -967,10 +958,8 @@ public final class RepositoryData {
                 final String indexMetaFieldName = parser.currentName();
                 final XContentParser.Token currentToken = parser.nextToken();
                 switch (indexMetaFieldName) {
-                    case INDEX_ID:
-                        indexId = new IndexId(indexName, parser.text());
-                        break;
-                    case SNAPSHOTS:
+                    case INDEX_ID -> indexId = new IndexId(indexName, parser.text());
+                    case SNAPSHOTS -> {
                         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, currentToken, parser);
                         XContentParser.Token currToken;
                         while ((currToken = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -999,13 +988,13 @@ public final class RepositoryData {
                             }
                             snapshotIds.add(snapshotId);
                         }
-                        break;
-                    case SHARD_GENERATIONS:
+                    }
+                    case SHARD_GENERATIONS -> {
                         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, currentToken, parser);
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                             gens.add(ShardGeneration.fromXContent(parser));
                         }
-                        break;
+                    }
                 }
             }
             assert indexId != null;
@@ -1041,7 +1030,7 @@ public final class RepositoryData {
      */
     public static class SnapshotDetails {
 
-        public static SnapshotDetails EMPTY = new SnapshotDetails(null, null, -1, -1);
+        public static SnapshotDetails EMPTY = new SnapshotDetails(null, null, -1, -1, null);
 
         @Nullable // TODO forbid nulls here, this only applies to very old repositories
         private final SnapshotState snapshotState;
@@ -1055,11 +1044,23 @@ public final class RepositoryData {
         // May be -1 if unknown, which happens if the snapshot was taken before 7.14 and hasn't been updated yet
         private final long endTimeMillis;
 
-        public SnapshotDetails(@Nullable SnapshotState snapshotState, @Nullable Version version, long startTimeMillis, long endTimeMillis) {
+        // May be null if unknown, which happens if the snapshot was taken before 7.16 and hasn't been updated yet. Empty string indicates
+        // that this snapshot was not created by an SLM policy.
+        @Nullable
+        private final String slmPolicy;
+
+        public SnapshotDetails(
+            @Nullable SnapshotState snapshotState,
+            @Nullable Version version,
+            long startTimeMillis,
+            long endTimeMillis,
+            @Nullable String slmPolicy
+        ) {
             this.snapshotState = snapshotState;
             this.version = version;
             this.startTimeMillis = startTimeMillis;
             this.endTimeMillis = endTimeMillis;
+            this.slmPolicy = slmPolicy;
         }
 
         @Nullable
@@ -1086,6 +1087,15 @@ public final class RepositoryData {
             return endTimeMillis;
         }
 
+        /**
+         * @return the SLM policy that the snapshot was created by or an empty string if it was not created by an SLM policy or
+         *         {@code null} if unknown.
+         */
+        @Nullable
+        public String getSlmPolicy() {
+            return slmPolicy;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -1094,12 +1104,13 @@ public final class RepositoryData {
             return startTimeMillis == that.startTimeMillis
                 && endTimeMillis == that.endTimeMillis
                 && snapshotState == that.snapshotState
-                && Objects.equals(version, that.version);
+                && Objects.equals(version, that.version)
+                && Objects.equals(slmPolicy, that.slmPolicy);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(snapshotState, version, startTimeMillis, endTimeMillis);
+            return Objects.hash(snapshotState, version, startTimeMillis, endTimeMillis, slmPolicy);
         }
 
     }

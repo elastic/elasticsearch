@@ -26,24 +26,42 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequest,
-                                                                   NodesInfoResponse,
-                                                                   TransportNodesInfoAction.NodeInfoRequest,
-                                                                   NodeInfo> {
+public class TransportNodesInfoAction extends TransportNodesAction<
+    NodesInfoRequest,
+    NodesInfoResponse,
+    TransportNodesInfoAction.NodeInfoRequest,
+    NodeInfo> {
 
     private final NodeService nodeService;
 
     @Inject
-    public TransportNodesInfoAction(ThreadPool threadPool, ClusterService clusterService,
-                                    TransportService transportService, NodeService nodeService, ActionFilters actionFilters) {
-        super(NodesInfoAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            NodesInfoRequest::new, NodeInfoRequest::new, ThreadPool.Names.MANAGEMENT, NodeInfo.class);
+    public TransportNodesInfoAction(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        NodeService nodeService,
+        ActionFilters actionFilters
+    ) {
+        super(
+            NodesInfoAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            NodesInfoRequest::new,
+            NodeInfoRequest::new,
+            ThreadPool.Names.MANAGEMENT,
+            NodeInfo.class
+        );
         this.nodeService = nodeService;
     }
 
     @Override
-    protected NodesInfoResponse newResponse(NodesInfoRequest nodesInfoRequest,
-                                            List<NodeInfo> responses, List<FailedNodeException> failures) {
+    protected NodesInfoResponse newResponse(
+        NodesInfoRequest nodesInfoRequest,
+        List<NodeInfo> responses,
+        List<FailedNodeException> failures
+    ) {
         return new NodesInfoResponse(clusterService.getClusterName(), responses, failures);
     }
 
@@ -72,7 +90,8 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
             metrics.contains(NodesInfoRequest.Metric.PLUGINS.metricName()),
             metrics.contains(NodesInfoRequest.Metric.INGEST.metricName()),
             metrics.contains(NodesInfoRequest.Metric.AGGREGATIONS.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.INDICES.metricName()));
+            metrics.contains(NodesInfoRequest.Metric.INDICES.metricName())
+        );
     }
 
     public static class NodeInfoRequest extends TransportRequest {

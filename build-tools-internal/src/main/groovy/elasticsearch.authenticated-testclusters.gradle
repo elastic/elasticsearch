@@ -22,7 +22,7 @@ tasks.withType(StandaloneRestIntegTestTask).configureEach {
     systemProperty 'tests.rest.cluster.password', clusterCredentials.password
 }
 
-testClusters.all {
+testClusters.configureEach {
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
     user clusterCredentials

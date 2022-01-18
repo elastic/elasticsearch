@@ -9,17 +9,17 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.support.ServiceTokenInfo;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Response when requesting credentials of a service account.
@@ -30,9 +30,11 @@ public final class GetServiceAccountCredentialsResponse {
     private final List<ServiceTokenInfo> indexTokenInfos;
     private final ServiceAccountCredentialsNodesResponse nodesResponse;
 
-    public GetServiceAccountCredentialsResponse(String principal,
-                                                List<ServiceTokenInfo> indexTokenInfos,
-                                                ServiceAccountCredentialsNodesResponse nodesResponse) {
+    public GetServiceAccountCredentialsResponse(
+        String principal,
+        List<ServiceTokenInfo> indexTokenInfos,
+        ServiceAccountCredentialsNodesResponse nodesResponse
+    ) {
         this.principal = Objects.requireNonNull(principal, "principal is required");
         this.indexTokenInfos = List.copyOf(Objects.requireNonNull(indexTokenInfos, "service token infos are required"));
         this.nodesResponse = Objects.requireNonNull(nodesResponse, "nodes response is required");
@@ -51,25 +53,32 @@ public final class GetServiceAccountCredentialsResponse {
     }
 
     @SuppressWarnings("unchecked")
-    static ConstructingObjectParser<GetServiceAccountCredentialsResponse, Void> PARSER =
-        new ConstructingObjectParser<>("get_service_account_credentials_response",
-            args -> {
-                final int count = (int) args[1];
-                final List<ServiceTokenInfo> indexTokenInfos = (List<ServiceTokenInfo>) args[2];
-                final ServiceAccountCredentialsNodesResponse fileTokensResponse = (ServiceAccountCredentialsNodesResponse) args[3];
-                if (count != indexTokenInfos.size() + fileTokensResponse.getFileTokenInfos().size()) {
-                    throw new IllegalArgumentException("number of tokens do not match");
-                }
-                return new GetServiceAccountCredentialsResponse((String) args[0], indexTokenInfos, fileTokensResponse);
-            });
+    static ConstructingObjectParser<GetServiceAccountCredentialsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_service_account_credentials_response",
+        args -> {
+            final int count = (int) args[1];
+            final List<ServiceTokenInfo> indexTokenInfos = (List<ServiceTokenInfo>) args[2];
+            final ServiceAccountCredentialsNodesResponse fileTokensResponse = (ServiceAccountCredentialsNodesResponse) args[3];
+            if (count != indexTokenInfos.size() + fileTokensResponse.getFileTokenInfos().size()) {
+                throw new IllegalArgumentException("number of tokens do not match");
+            }
+            return new GetServiceAccountCredentialsResponse((String) args[0], indexTokenInfos, fileTokensResponse);
+        }
+    );
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("service_account"));
         PARSER.declareInt(constructorArg(), new ParseField("count"));
-        PARSER.declareObject(constructorArg(),
-            (p, c) -> GetServiceAccountCredentialsResponse.parseIndexTokenInfos(p), new ParseField("tokens"));
-        PARSER.declareObject(constructorArg(),
-            (p, c) -> ServiceAccountCredentialsNodesResponse.fromXContent(p), new ParseField("nodes_credentials"));
+        PARSER.declareObject(
+            constructorArg(),
+            (p, c) -> GetServiceAccountCredentialsResponse.parseIndexTokenInfos(p),
+            new ParseField("tokens")
+        );
+        PARSER.declareObject(
+            constructorArg(),
+            (p, c) -> ServiceAccountCredentialsNodesResponse.fromXContent(p),
+            new ParseField("nodes_credentials")
+        );
     }
 
     public static GetServiceAccountCredentialsResponse fromXContent(XContentParser parser) throws IOException {

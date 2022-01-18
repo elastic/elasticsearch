@@ -9,8 +9,8 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.TimedRequest;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 
 /**
  * A request to simulate matching a provided index name and an optional new index template against the existing index templates.

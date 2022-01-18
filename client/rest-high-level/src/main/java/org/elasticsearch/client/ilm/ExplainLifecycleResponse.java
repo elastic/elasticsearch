@@ -8,12 +8,12 @@
 
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,11 +36,18 @@ public class ExplainLifecycleResponse implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ExplainLifecycleResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "explain_lifecycle_response", a -> new ExplainLifecycleResponse(((List<IndexLifecycleExplainResponse>) a[0]).stream()
-                    .collect(Collectors.toMap(IndexLifecycleExplainResponse::getIndex, Function.identity()))));
+        "explain_lifecycle_response",
+        a -> new ExplainLifecycleResponse(
+            ((List<IndexLifecycleExplainResponse>) a[0]).stream()
+                .collect(Collectors.toMap(IndexLifecycleExplainResponse::getIndex, Function.identity()))
+        )
+    );
     static {
-        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> IndexLifecycleExplainResponse.PARSER.apply(p, c),
-                INDICES_FIELD);
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.constructorArg(),
+            (p, c, n) -> IndexLifecycleExplainResponse.PARSER.apply(p, c),
+            INDICES_FIELD
+        );
     }
 
     public static ExplainLifecycleResponse fromXContent(XContentParser parser) {

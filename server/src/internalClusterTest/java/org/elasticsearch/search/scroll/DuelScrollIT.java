@@ -27,9 +27,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DuelScrollIT extends ESIntegTestCase {
@@ -37,19 +37,21 @@ public class DuelScrollIT extends ESIntegTestCase {
         TestContext context = create(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH);
 
         SearchResponse control = client().prepareSearch("index")
-                .setSearchType(context.searchType)
-                .addSort(context.sort)
-                .setSize(context.numDocs).get();
+            .setSearchType(context.searchType)
+            .addSort(context.sort)
+            .setSize(context.numDocs)
+            .get();
         assertNoFailures(control);
         SearchHits sh = control.getHits();
         assertThat(sh.getTotalHits().value, equalTo((long) context.numDocs));
         assertThat(sh.getHits().length, equalTo(context.numDocs));
 
         SearchResponse searchScrollResponse = client().prepareSearch("index")
-                .setSearchType(context.searchType)
-                .addSort(context.sort)
-                .setSize(context.scrollRequestSize)
-                .setScroll("10m").get();
+            .setSearchType(context.searchType)
+            .addSort(context.sort)
+            .setSize(context.scrollRequestSize)
+            .setScroll("10m")
+            .get();
 
         assertNoFailures(searchScrollResponse);
         assertThat(searchScrollResponse.getHits().getTotalHits().value, equalTo((long) context.numDocs));
@@ -88,27 +90,34 @@ public class DuelScrollIT extends ESIntegTestCase {
         clearScroll(scrollId);
     }
 
-
     private TestContext create(SearchType... searchTypes) throws Exception {
-        assertAcked(prepareCreate("index").setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
-                .startObject("field1")
+        assertAcked(
+            prepareCreate("index").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field1")
                     .field("type", "long")
-                .endObject()
-                .startObject("field2")
+                    .endObject()
+                    .startObject("field2")
                     .field("type", "keyword")
-                .endObject()
-                .startObject("nested")
+                    .endObject()
+                    .startObject("nested")
                     .field("type", "nested")
                     .startObject("properties")
-                        .startObject("field3")
-                            .field("type", "long")
-                        .endObject()
-                        .startObject("field4")
-                            .field("type", "keyword")
-                        .endObject()
+                    .startObject("field3")
+                    .field("type", "long")
                     .endObject()
-                .endObject()
-                .endObject().endObject().endObject()));
+                    .startObject("field4")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
 
         int numDocs = 2 + randomInt(512);
         int scrollRequestSize = randomIntBetween(1, rarely() ? numDocs : numDocs / 2);
@@ -117,23 +126,25 @@ public class DuelScrollIT extends ESIntegTestCase {
         int numMissingDocs = scaledRandomIntBetween(0, numDocs / 100);
         IntHashSet missingDocs = new IntHashSet(numMissingDocs);
         for (int i = 0; i < numMissingDocs; i++) {
-            while (missingDocs.add(randomInt(numDocs)) == false) {}
+            while (missingDocs.add(randomInt(numDocs)) == false) {
+            }
         }
 
         for (int i = 1; i <= numDocs; i++) {
-            IndexRequestBuilder indexRequestBuilder = client()
-                    .prepareIndex("index").setId(String.valueOf(i));
+            IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index").setId(String.valueOf(i));
             if (missingDocs.contains(i)) {
                 indexRequestBuilder.setSource("x", "y");
             } else {
-                indexRequestBuilder.setSource(jsonBuilder().startObject()
+                indexRequestBuilder.setSource(
+                    jsonBuilder().startObject()
                         .field("field1", i)
                         .field("field2", String.valueOf(i))
                         .startObject("nested")
-                            .field("field3", i)
-                            .field("field4", String.valueOf(i))
+                        .field("field3", i)
+                        .field("field4", String.valueOf(i))
                         .endObject()
-                        .endObject());
+                        .endObject()
+                );
             }
 
             if (unevenRouting && randomInt(3) <= 2) {
@@ -148,18 +159,13 @@ public class DuelScrollIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 sort = SortBuilders.fieldSort("field1").missing(1);
             } else {
-                sort = SortBuilders.fieldSort("field2")
-                        .missing("1");
+                sort = SortBuilders.fieldSort("field2").missing("1");
             }
         } else {
             if (randomBoolean()) {
-                sort = SortBuilders.fieldSort("nested.field3")
-                    .setNestedSort(new NestedSortBuilder("nested"))
-                    .missing(1);
+                sort = SortBuilders.fieldSort("nested.field3").setNestedSort(new NestedSortBuilder("nested")).missing(1);
             } else {
-                sort = SortBuilders.fieldSort("nested.field4")
-                    .setNestedSort(new NestedSortBuilder("nested"))
-                    .missing("1");
+                sort = SortBuilders.fieldSort("nested.field4").setNestedSort(new NestedSortBuilder("nested")).missing("1");
             }
         }
         sort.order(randomBoolean() ? SortOrder.ASC : SortOrder.DESC);
@@ -169,7 +175,6 @@ public class DuelScrollIT extends ESIntegTestCase {
         logger.info("numDocs={}, scrollRequestSize={}, sort={}, searchType={}", numDocs, scrollRequestSize, sort, searchType);
         return new TestContext(numDocs, scrollRequestSize, sort, searchType);
     }
-
 
     class TestContext {
 
@@ -210,21 +215,22 @@ public class DuelScrollIT extends ESIntegTestCase {
     private void testDuelIndexOrder(SearchType searchType, boolean trackScores, int numDocs) throws Exception {
         final int size = scaledRandomIntBetween(5, numDocs + 5);
         final SearchResponse control = client().prepareSearch("test")
-                .setSearchType(searchType)
-                .setSize(numDocs)
-                .setQuery(QueryBuilders.matchQuery("foo", "true"))
-                .addSort(SortBuilders.fieldSort("_doc"))
-                .setTrackScores(trackScores)
-                .get();
+            .setSearchType(searchType)
+            .setSize(numDocs)
+            .setQuery(QueryBuilders.matchQuery("foo", "true"))
+            .addSort(SortBuilders.fieldSort("_doc"))
+            .setTrackScores(trackScores)
+            .get();
         assertNoFailures(control);
 
         SearchResponse scroll = client().prepareSearch("test")
-                .setSearchType(searchType)
-                .setSize(size)
-                .setQuery(QueryBuilders.matchQuery("foo", "true"))
-                .addSort(SortBuilders.fieldSort("_doc"))
-                .setTrackScores(trackScores)
-                .setScroll("10m").get();
+            .setSearchType(searchType)
+            .setSize(size)
+            .setQuery(QueryBuilders.matchQuery("foo", "true"))
+            .addSort(SortBuilders.fieldSort("_doc"))
+            .setTrackScores(trackScores)
+            .setScroll("10m")
+            .get();
 
         int scrollDocs = 0;
         try {
@@ -254,8 +260,10 @@ public class DuelScrollIT extends ESIntegTestCase {
     }
 
     public void testDuelIndexOrderQueryThenFetch() throws Exception {
-        final SearchType searchType = RandomPicks.randomFrom(random(), Arrays.asList(SearchType.QUERY_THEN_FETCH,
-            SearchType.DFS_QUERY_THEN_FETCH));
+        final SearchType searchType = RandomPicks.randomFrom(
+            random(),
+            Arrays.asList(SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_THEN_FETCH)
+        );
         final int numDocs = createIndex(false);
         testDuelIndexOrder(searchType, false, numDocs);
         testDuelIndexOrder(searchType, true, numDocs);

@@ -23,7 +23,13 @@ import java.util.Objects;
  *
  * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-apis.html">Searchable Snapshots
  * APIs on elastic.co</a> for more information.
+ *
+ * @deprecated The High Level Rest Client is deprecated in favor of the
+ * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/introduction.html">
+ * Elasticsearch Java API Client</a>
  */
+@Deprecated(since = "7.16.0", forRemoval = true)
+@SuppressWarnings("removal")
 public class SearchableSnapshotsClient {
 
     private RestHighLevelClient restHighLevelClient;
@@ -64,8 +70,8 @@ public class SearchableSnapshotsClient {
     public Cancellable mountSnapshotAsync(
         final MountSnapshotRequest request,
         final RequestOptions options,
-        final ActionListener<RestoreSnapshotResponse> listener)
-    {
+        final ActionListener<RestoreSnapshotResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             SearchableSnapshotsRequestConverters::mountSnapshot,
@@ -108,8 +114,8 @@ public class SearchableSnapshotsClient {
     public Cancellable cacheStatsAsync(
         final CachesStatsRequest request,
         final RequestOptions options,
-        final ActionListener<CachesStatsResponse> listener)
-    {
+        final ActionListener<CachesStatsResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             SearchableSnapshotsRequestConverters::cacheStats,

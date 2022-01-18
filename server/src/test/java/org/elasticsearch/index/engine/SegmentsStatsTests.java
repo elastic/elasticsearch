@@ -29,9 +29,12 @@ public class SegmentsStatsTests extends ESTestCase {
 
     public void testFileExtensionDescriptions() throws Exception {
         try (Directory dir = newDirectory()) {
-            try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig()
-                    .setUseCompoundFile(false)
-                    .setMergePolicy(NoMergePolicy.INSTANCE))) {
+            try (
+                IndexWriter w = new IndexWriter(
+                    dir,
+                    new IndexWriterConfig().setUseCompoundFile(false).setMergePolicy(NoMergePolicy.INSTANCE)
+                )
+            ) {
                 // Create a Lucene index that uses all features
                 Document doc = new Document();
                 StringField id = new StringField("id", "1", Store.YES);
@@ -58,8 +61,10 @@ public class SegmentsStatsTests extends ESTestCase {
                     continue;
                 }
                 if (extension != null) {
-                    assertNotNull("extension [" + extension + "] was not contained in the known segment stats files",
-                        LuceneFilesExtensions.fromExtension(extension));
+                    assertNotNull(
+                        "extension [" + extension + "] was not contained in the known segment stats files",
+                        LuceneFilesExtensions.fromExtension(extension)
+                    );
                 }
             }
         }

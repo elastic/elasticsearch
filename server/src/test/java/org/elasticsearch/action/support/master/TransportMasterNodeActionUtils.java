@@ -20,8 +20,11 @@ public class TransportMasterNodeActionUtils {
      * which is a protected method.
      */
     public static <Request extends MasterNodeRequest<Request>, Response extends ActionResponse> void runMasterOperation(
-        TransportMasterNodeAction<Request, Response> masterNodeAction, Request request, ClusterState clusterState,
-        ActionListener<Response> actionListener) throws Exception {
+        TransportMasterNodeAction<Request, Response> masterNodeAction,
+        Request request,
+        ClusterState clusterState,
+        ActionListener<Response> actionListener
+    ) throws Exception {
         assert masterNodeAction.checkBlock(request, clusterState) == null;
         // TODO: pass through task here?
         masterNodeAction.masterOperation(null, request, clusterState, actionListener);

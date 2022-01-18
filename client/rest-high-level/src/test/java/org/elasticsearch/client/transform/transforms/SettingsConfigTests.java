@@ -10,13 +10,13 @@ package org.elasticsearch.client.transform.transforms;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload.XContent;
 
 import java.io.IOException;
@@ -30,6 +30,8 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         return new SettingsConfig(
             randomBoolean() ? null : randomIntBetween(10, 10_000),
             randomBoolean() ? null : randomFloat(),
+            randomBoolean() ? null : randomIntBetween(-1, 1),
+            randomBoolean() ? null : randomIntBetween(-1, 1),
             randomBoolean() ? null : randomIntBetween(-1, 1),
             randomBoolean() ? null : randomIntBetween(-1, 1)
         );
@@ -74,6 +76,8 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertNull(settingsAsMap.getOrDefault("docs_per_second", "not_set"));
         assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
         assertThat(settingsAsMap.getOrDefault("align_checkpoints", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("use_point_in_time", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("deduce_mappings", "not_set"), equalTo("not_set"));
 
         config = fromString("{\"dates_as_epoch_millis\" : null}");
         assertFalse(config.getDatesAsEpochMillis());
@@ -83,6 +87,8 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertThat(settingsAsMap.getOrDefault("docs_per_second", "not_set"), equalTo("not_set"));
         assertNull(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"));
         assertThat(settingsAsMap.getOrDefault("align_checkpoints", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("use_point_in_time", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("deduce_mappings", "not_set"), equalTo("not_set"));
 
         config = fromString("{\"align_checkpoints\" : null}");
         assertFalse(config.getAlignCheckpoints());
@@ -92,6 +98,11 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertThat(settingsAsMap.getOrDefault("docs_per_second", "not_set"), equalTo("not_set"));
         assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
         assertNull(settingsAsMap.getOrDefault("align_checkpoints", "not_set"));
+        assertThat(settingsAsMap.getOrDefault("use_point_in_time", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("deduce_mappings", "not_set"), equalTo("not_set"));
+
+        config = fromString("{\"use_point_in_time\" : null}");
+        assertFalse(config.getUsePit());
     }
 
     public void testExplicitNullOnWriteBuilder() throws IOException {
@@ -104,6 +115,8 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertThat(settingsAsMap.getOrDefault("docs_per_second", "not_set"), equalTo("not_set"));
         assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
         assertThat(settingsAsMap.getOrDefault("align_checkpoints", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("use_point_in_time", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("deduce_mappings", "not_set"), equalTo("not_set"));
 
         SettingsConfig emptyConfig = new SettingsConfig.Builder().build();
         assertNull(emptyConfig.getMaxPageSearchSize());
@@ -121,6 +134,8 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertNull(settingsAsMap.getOrDefault("docs_per_second", "not_set"));
         assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
         assertThat(settingsAsMap.getOrDefault("align_checkpoints", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("use_point_in_time", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("deduce_mappings", "not_set"), equalTo("not_set"));
 
         config = new SettingsConfig.Builder().setDatesAsEpochMillis(null).build();
         // returns false, however it's `null` as in "use default", checked next
@@ -131,6 +146,7 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertThat(settingsAsMap.getOrDefault("docs_per_second", "not_set"), equalTo("not_set"));
         assertNull(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"));
         assertThat(settingsAsMap.getOrDefault("align_checkpoints", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("deduce_mappings", "not_set"), equalTo("not_set"));
 
         config = new SettingsConfig.Builder().setAlignCheckpoints(null).build();
         // returns false, however it's `null` as in "use default", checked next
@@ -141,6 +157,7 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertThat(settingsAsMap.getOrDefault("docs_per_second", "not_set"), equalTo("not_set"));
         assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
         assertNull(settingsAsMap.getOrDefault("align_checkpoints", "not_set"));
+        assertThat(settingsAsMap.getOrDefault("deduce_mappings", "not_set"), equalTo("not_set"));
     }
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {

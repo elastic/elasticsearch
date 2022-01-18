@@ -62,7 +62,7 @@ import java.util.Objects;
 /**
  * Analyze the disk usage of each field in the index.
  */
- final class IndexDiskUsageAnalyzer {
+final class IndexDiskUsageAnalyzer {
     private final Logger logger;
     private final IndexCommit commit;
     private final TrackingReadBytesDirectory directory;
@@ -201,9 +201,11 @@ import java.util.Objects;
         }
     }
 
-    private <DV extends DocIdSetIterator> DV iterateDocValues(int maxDocs,
-                                                              CheckedSupplier<DV, IOException> dvReader,
-                                                              CheckedConsumer<DV, IOException> valueAccessor) throws IOException {
+    private <DV extends DocIdSetIterator> DV iterateDocValues(
+        int maxDocs,
+        CheckedSupplier<DV, IOException> dvReader,
+        CheckedConsumer<DV, IOException> valueAccessor
+    ) throws IOException {
         // As we track the min/max positions of read bytes, we just visit the first and last values of the docValues iterator.
         // Here we use a binary search like to visit the right most index that has values
         DV dv = dvReader.get();
@@ -242,26 +244,20 @@ import java.util.Objects;
             cancellationChecker.checkForCancellation();
             directory.resetBytesRead();
             switch (dvType) {
-                case NUMERIC:
-                    iterateDocValues(maxDocs, () -> docValuesReader.getNumeric(field), NumericDocValues::longValue);
-                    break;
-                case SORTED_NUMERIC:
-                    iterateDocValues(maxDocs, () -> docValuesReader.getSortedNumeric(field), dv -> {
-                        for (int i = 0; i < dv.docValueCount(); i++) {
-                            cancellationChecker.logEvent();
-                            dv.nextValue();
-                        }
-                    });
-                    break;
-                case BINARY:
-                    iterateDocValues(maxDocs, () -> docValuesReader.getBinary(field), BinaryDocValues::binaryValue);
-                    break;
-                case SORTED:
+                case NUMERIC -> iterateDocValues(maxDocs, () -> docValuesReader.getNumeric(field), NumericDocValues::longValue);
+                case SORTED_NUMERIC -> iterateDocValues(maxDocs, () -> docValuesReader.getSortedNumeric(field), dv -> {
+                    for (int i = 0; i < dv.docValueCount(); i++) {
+                        cancellationChecker.logEvent();
+                        dv.nextValue();
+                    }
+                });
+                case BINARY -> iterateDocValues(maxDocs, () -> docValuesReader.getBinary(field), BinaryDocValues::binaryValue);
+                case SORTED -> {
                     SortedDocValues sorted = iterateDocValues(maxDocs, () -> docValuesReader.getSorted(field), SortedDocValues::ordValue);
                     sorted.lookupOrd(0);
                     sorted.lookupOrd(sorted.getValueCount() - 1);
-                    break;
-                case SORTED_SET:
+                }
+                case SORTED_SET -> {
                     SortedSetDocValues sortedSet = iterateDocValues(maxDocs, () -> docValuesReader.getSortedSet(field), dv -> {
                         while (dv.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
                             cancellationChecker.logEvent();
@@ -269,10 +265,11 @@ import java.util.Objects;
                     });
                     sortedSet.lookupOrd(0);
                     sortedSet.lookupOrd(sortedSet.getValueCount() - 1);
-                    break;
-                default:
+                }
+                default -> {
                     assert false : "Unknown docValues type [" + dvType + "]";
                     throw new IllegalStateException("Unknown docValues type [" + dvType + "]");
+                }
             }
             stats.addDocValues(field.name, directory.getBytesRead());
         }
@@ -292,16 +289,13 @@ import java.util.Objects;
     private BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
         if (term != null && termsEnum.seekExact(term)) {
             final TermState termState = termsEnum.termState();
-            if (termState instanceof Lucene90PostingsFormat.IntBlockTermState) {
-                final Lucene90PostingsFormat.IntBlockTermState blockTermState = (Lucene90PostingsFormat.IntBlockTermState) termState;
+            if (termState instanceof final Lucene90PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
-            if (termState instanceof Lucene84PostingsFormat.IntBlockTermState) {
-                final Lucene84PostingsFormat.IntBlockTermState blockTermState = (Lucene84PostingsFormat.IntBlockTermState) termState;
+            if (termState instanceof final Lucene84PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
-            if (termState instanceof Lucene50PostingsFormat.IntBlockTermState) {
-                final Lucene50PostingsFormat.IntBlockTermState blockTermState = (Lucene50PostingsFormat.IntBlockTermState) termState;
+            if (termState instanceof final Lucene50PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
         }
@@ -348,7 +342,9 @@ import java.util.Objects;
             final BlockTermState minState = getBlockTermState(termsEnum, terms.getMin());
             if (minState != null) {
                 final BlockTermState maxState = Objects.requireNonNull(
-                    getBlockTermState(termsEnum, terms.getMax()), "can't retrieve the block term state of the max term");
+                    getBlockTermState(termsEnum, terms.getMax()),
+                    "can't retrieve the block term state of the max term"
+                );
                 final long skippedBytes = maxState.distance(minState);
                 stats.addInvertedIndex(field.name, skippedBytes);
                 termsEnum.seekExact(terms.getMax());
@@ -431,8 +427,8 @@ import java.util.Objects;
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
             for (int dim = 0; dim < numDims; dim++) {
                 int offset = dim * bytesPerDim;
-                if (Arrays.compareUnsigned(minPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) > 0 ||
-                    Arrays.compareUnsigned(maxPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) < 0) {
+                if (Arrays.compareUnsigned(minPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) > 0
+                    || Arrays.compareUnsigned(maxPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) < 0) {
                     return PointValues.Relation.CELL_OUTSIDE_QUERY;
                 }
             }
@@ -644,7 +640,6 @@ import java.util.Objects;
             maxPosition = Math.max(maxPosition, position + length - 1);
         }
 
-
         void resetBytesRead() {
             minPosition = Long.MAX_VALUE;
             maxPosition = Long.MIN_VALUE;
@@ -726,19 +721,33 @@ import java.util.Objects;
         long termVectorsTimeInNanos;
 
         long totalInNanos() {
-            return invertedIndexTimeInNanos + storedFieldsTimeInNanos + docValuesTimeInNanos
-                + pointsTimeInNanos + normsTimeInNanos + termVectorsTimeInNanos;
+            return invertedIndexTimeInNanos + storedFieldsTimeInNanos + docValuesTimeInNanos + pointsTimeInNanos + normsTimeInNanos
+                + termVectorsTimeInNanos;
         }
 
         @Override
         public String toString() {
-            return "total: " + totalInNanos() / 1000_000 + "ms" +
-                ", inverted index: " + invertedIndexTimeInNanos / 1000_000 + "ms" +
-                ", stored fields: " + storedFieldsTimeInNanos / 1000_000 + "ms" +
-                ", doc values: " + docValuesTimeInNanos / 1000_000 + "ms" +
-                ", points: " + pointsTimeInNanos / 1000_000 + "ms" +
-                ", norms: " + normsTimeInNanos / 1000_000 + "ms" +
-                ", term vectors: " + termVectorsTimeInNanos / 1000_000 + "ms";
+            return "total: "
+                + totalInNanos() / 1000_000
+                + "ms"
+                + ", inverted index: "
+                + invertedIndexTimeInNanos / 1000_000
+                + "ms"
+                + ", stored fields: "
+                + storedFieldsTimeInNanos / 1000_000
+                + "ms"
+                + ", doc values: "
+                + docValuesTimeInNanos / 1000_000
+                + "ms"
+                + ", points: "
+                + pointsTimeInNanos / 1000_000
+                + "ms"
+                + ", norms: "
+                + normsTimeInNanos / 1000_000
+                + "ms"
+                + ", term vectors: "
+                + termVectorsTimeInNanos / 1000_000
+                + "ms";
         }
     }
 }

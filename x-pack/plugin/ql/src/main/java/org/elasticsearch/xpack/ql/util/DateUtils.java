@@ -27,7 +27,6 @@ import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
-
 //FIXME: Taken from sql-proto (StringUtils)
 //Ideally it should be shared but the dependencies across projects and and SQL-client make it tricky.
 // Maybe a gradle task would fix that...
@@ -37,29 +36,27 @@ public class DateUtils {
 
     public static final String EMPTY = "";
 
-    public static final DateTimeFormatter ISO_DATE_WITH_NANOS = new DateTimeFormatterBuilder()
-            .parseCaseInsensitive()
-            .append(ISO_LOCAL_DATE)
-            .appendLiteral('T')
-            .appendValue(HOUR_OF_DAY, 2)
-            .appendLiteral(':')
-            .appendValue(MINUTE_OF_HOUR, 2)
-            .appendLiteral(':')
-            .appendValue(SECOND_OF_MINUTE, 2)
-            .appendFraction(NANO_OF_SECOND, 3, 9, true)
-            .appendOffsetId()
-            .toFormatter(Locale.ROOT);
+    public static final DateTimeFormatter ISO_DATE_WITH_NANOS = new DateTimeFormatterBuilder().parseCaseInsensitive()
+        .append(ISO_LOCAL_DATE)
+        .appendLiteral('T')
+        .appendValue(HOUR_OF_DAY, 2)
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 2)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 2)
+        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .appendOffsetId()
+        .toFormatter(Locale.ROOT);
 
-    public static final DateTimeFormatter ISO_TIME_WITH_NANOS = new DateTimeFormatterBuilder()
-            .parseCaseInsensitive()
-            .appendValue(HOUR_OF_DAY, 2)
-            .appendLiteral(':')
-            .appendValue(MINUTE_OF_HOUR, 2)
-            .appendLiteral(':')
-            .appendValue(SECOND_OF_MINUTE, 2)
-            .appendFraction(NANO_OF_SECOND, 3, 9, true)
-            .appendOffsetId()
-            .toFormatter(Locale.ROOT);
+    public static final DateTimeFormatter ISO_TIME_WITH_NANOS = new DateTimeFormatterBuilder().parseCaseInsensitive()
+        .appendValue(HOUR_OF_DAY, 2)
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 2)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 2)
+        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .appendOffsetId()
+        .toFormatter(Locale.ROOT);
 
     public static final int SECONDS_PER_MINUTE = 60;
     public static final int SECONDS_PER_HOUR = SECONDS_PER_MINUTE * 60;
@@ -85,17 +82,15 @@ public class DateUtils {
         if (value instanceof OffsetTime) {
             return ((OffsetTime) value).format(ISO_TIME_WITH_NANOS);
         }
-        if (value instanceof Timestamp) {
-            Timestamp ts = (Timestamp) value;
+        if (value instanceof Timestamp ts) {
             return ts.toInstant().toString();
         }
 
         // handle intervals
         // YEAR/MONTH/YEAR TO MONTH -> YEAR TO MONTH
-        if (value instanceof Period) {
+        if (value instanceof Period p) {
             // +yyy-mm - 7 chars
             StringBuilder sb = new StringBuilder(7);
-            Period p = (Period) value;
             if (p.isNegative()) {
                 sb.append("-");
                 p = p.negated();
@@ -109,10 +104,9 @@ public class DateUtils {
         }
 
         // DAY/HOUR/MINUTE/SECOND (and variations) -> DAY_TO_SECOND
-        if (value instanceof Duration) {
+        if (value instanceof Duration d) {
             // +ddd hh:mm:ss.mmmmmmmmm - 23 chars
             StringBuilder sb = new StringBuilder(23);
-            Duration d = (Duration) value;
             if (d.isNegative()) {
                 sb.append("-");
                 d = d.negated();

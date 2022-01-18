@@ -35,8 +35,7 @@ public abstract class BindingImpl<T> implements Binding<T> {
     private final Scoping scoping;
     private final InternalFactory<? extends T> internalFactory;
 
-    public BindingImpl(Injector injector, Key<T> key, Object source,
-                       InternalFactory<? extends T> internalFactory, Scoping scoping) {
+    public BindingImpl(Injector injector, Key<T> key, Object source, InternalFactory<? extends T> internalFactory, Scoping scoping) {
         this.injector = injector;
         this.key = key;
         this.source = source;
@@ -112,11 +111,7 @@ public abstract class BindingImpl<T> implements Binding<T> {
 
     @Override
     public String toString() {
-        return new ToStringBuilder(Binding.class)
-                .add("key", key)
-                .add("scope", scoping)
-                .add("source", source)
-                .toString();
+        return new ToStringBuilder(Binding.class).add("key", key).add("scope", scoping).add("source", source).toString();
     }
 
     public Injector getInjector() {

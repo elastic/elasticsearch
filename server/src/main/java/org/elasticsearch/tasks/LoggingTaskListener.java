@@ -29,8 +29,7 @@ public final class LoggingTaskListener<Response> implements TaskListener<Respons
 
     private static final LoggingTaskListener<Object> INSTANCE = new LoggingTaskListener<>();
 
-    private LoggingTaskListener() {
-    }
+    private LoggingTaskListener() {}
 
     @Override
     public void onResponse(Task task, Response response) {

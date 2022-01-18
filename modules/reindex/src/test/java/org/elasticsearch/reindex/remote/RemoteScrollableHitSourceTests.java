@@ -38,9 +38,9 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
@@ -73,7 +73,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -139,10 +139,9 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
 
     private void assertLookupRemoteVersion(Version expected, String s) throws Exception {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, s)
-            .lookupRemoteVersion(wrapAsListener(v -> {
-                assertEquals(expected, v);
-                called.set(true);
+        sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, s).lookupRemoteVersion(wrapAsListener(v -> {
+            assertEquals(expected, v);
+            called.set(true);
         }));
         assertTrue(called.get());
     }
@@ -243,10 +242,13 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             assertEquals((Integer) 0, r.getFailures().get(0).getShardId());
             assertEquals("87A7NvevQxSrEwMbtRCecg", r.getFailures().get(0).getNodeId());
             assertThat(r.getFailures().get(0).getReason(), instanceOf(EsRejectedExecutionException.class));
-            assertEquals("rejected execution of org.elasticsearch.transport.TransportService$5@52d06af2 on "
+            assertEquals(
+                "rejected execution of org.elasticsearch.transport.TransportService$5@52d06af2 on "
                     + "EsThreadPoolExecutor[search, queue capacity = 1000, org.elasticsearch.common.util.concurrent."
                     + "EsThreadPoolExecutor@778ea553[Running, pool size = 7, active threads = 7, queued tasks = 1000, "
-                    + "completed tasks = 4182]]", r.getFailures().get(0).getReason().getMessage());
+                    + "completed tasks = 4182]]",
+                r.getFailures().get(0).getReason().getMessage()
+            );
             assertThat(r.getHits(), hasSize(1));
             assertEquals("test", r.getHits().get(0).getIndex());
             assertEquals("AVToMiC250DjIiBO3yJ_", r.getHits().get(0).getId());
@@ -273,8 +275,10 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             assertEquals(null, r.getFailures().get(0).getShardId());
             assertEquals(null, r.getFailures().get(0).getNodeId());
             assertThat(r.getFailures().get(0).getReason(), instanceOf(RuntimeException.class));
-            assertEquals("Unknown remote exception with reason=[SearchContextMissingException[No search context found for id [82]]]",
-                    r.getFailures().get(0).getReason().getMessage());
+            assertEquals(
+                "Unknown remote exception with reason=[SearchContextMissingException[No search context found for id [82]]]",
+                r.getFailures().get(0).getReason().getMessage()
+            );
             assertThat(r.getHits(), hasSize(1));
             assertEquals("test", r.getHits().get(0).getIndex());
             assertEquals("10000", r.getHits().get(0).getId());
@@ -284,8 +288,11 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         sourceWithMockedRemoteCall("failure_with_status.json").doStart(wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
-        sourceWithMockedRemoteCall("failure_with_status.json").doStartNextScroll("scroll", timeValueMillis(0),
-            wrapAsListener(checkResponse));
+        sourceWithMockedRemoteCall("failure_with_status.json").doStartNextScroll(
+            "scroll",
+            timeValueMillis(0),
+            wrapAsListener(checkResponse)
+        );
         assertTrue(called.get());
     }
 
@@ -415,8 +422,14 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     public void testTooLargeResponse() throws Exception {
         ContentTooLongException tooLong = new ContentTooLongException("too long!");
         CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
-        when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
-                any(HttpClientContext.class), any(FutureCallback.class))).then(new Answer<Future<HttpResponse>>() {
+        when(
+            httpClient.<HttpResponse>execute(
+                any(HttpAsyncRequestProducer.class),
+                any(HttpAsyncResponseConsumer.class),
+                any(HttpClientContext.class),
+                any(FutureCallback.class)
+            )
+        ).then(new Answer<Future<HttpResponse>>() {
             @Override
             public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
                 HeapBufferedAsyncResponseConsumer consumer = (HeapBufferedAsyncResponseConsumer) invocationOnMock.getArguments()[1];
@@ -438,8 +451,11 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     }
 
     public void testNoContentTypeIsError() {
-        RuntimeException e = expectListenerFailure(RuntimeException.class, (RejectAwareActionListener<Version> listener) ->
-                sourceWithMockedRemoteCall(false, null, "main/0_20_5.json").lookupRemoteVersion(listener));
+        RuntimeException e = expectListenerFailure(
+            RuntimeException.class,
+            (RejectAwareActionListener<Version> listener) -> sourceWithMockedRemoteCall(false, null, "main/0_20_5.json")
+                .lookupRemoteVersion(listener)
+        );
         assertThat(e.getMessage(), containsString("Response didn't include Content-Type: body={"));
     }
 
@@ -494,8 +510,14 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         }
 
         CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
-        when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
-                any(HttpClientContext.class), any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
+        when(
+            httpClient.<HttpResponse>execute(
+                any(HttpAsyncRequestProducer.class),
+                any(HttpAsyncResponseConsumer.class),
+                any(HttpClientContext.class),
+                any(FutureCallback.class)
+            )
+        ).thenAnswer(new Answer<Future<HttpResponse>>() {
 
             int responseCount = 0;
 
@@ -505,7 +527,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
                 threadPool.getThreadContext().stashContext();
                 HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
                 FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
-                HttpEntityEnclosingRequest request = (HttpEntityEnclosingRequest)requestProducer.generateRequest();
+                HttpEntityEnclosingRequest request = (HttpEntityEnclosingRequest) requestProducer.generateRequest();
                 URL resource = resources[responseCount];
                 String path = paths[responseCount++];
                 ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
@@ -535,7 +557,8 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         when(clientBuilder.build()).thenReturn(httpClient);
 
         RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
-                .setHttpClientConfigCallback(httpClientBuilder -> clientBuilder).build();
+            .setHttpClientConfigCallback(httpClientBuilder -> clientBuilder)
+            .build();
 
         TestRemoteScrollableHitSource hitSource = new TestRemoteScrollableHitSource(restClient) {
             @Override
@@ -563,30 +586,32 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
 
     private class TestRemoteScrollableHitSource extends RemoteScrollableHitSource {
         TestRemoteScrollableHitSource(RestClient client) {
-            super(RemoteScrollableHitSourceTests.this.logger, backoff(), RemoteScrollableHitSourceTests.this.threadPool,
+            super(
+                RemoteScrollableHitSourceTests.this.logger,
+                backoff(),
+                RemoteScrollableHitSourceTests.this.threadPool,
                 RemoteScrollableHitSourceTests.this::countRetry,
-                responseQueue::add, failureQueue::add,
-                client, new BytesArray("{}"), RemoteScrollableHitSourceTests.this.searchRequest);
+                responseQueue::add,
+                failureQueue::add,
+                client,
+                new BytesArray("{}"),
+                RemoteScrollableHitSourceTests.this.searchRequest
+            );
         }
     }
 
     private <T> RejectAwareActionListener<T> wrapAsListener(Consumer<T> consumer) {
-        Consumer<Exception> throwing = e -> {
-            throw new AssertionError(e);
-        };
+        Consumer<Exception> throwing = e -> { throw new AssertionError(e); };
         return RejectAwareActionListener.wrap(consumer::accept, throwing, throwing);
     }
 
     @SuppressWarnings("unchecked")
     private <T extends Exception, V> T expectListenerFailure(Class<T> expectedException, Consumer<RejectAwareActionListener<V>> subject) {
         AtomicReference<T> exception = new AtomicReference<>();
-        subject.accept(RejectAwareActionListener.wrap(
-            r -> fail(),
-            e -> {
-                assertThat(e, instanceOf(expectedException));
-                assertTrue(exception.compareAndSet(null, (T) e));
-            },
-            e -> fail()));
+        subject.accept(RejectAwareActionListener.wrap(r -> fail(), e -> {
+            assertThat(e, instanceOf(expectedException));
+            assertTrue(exception.compareAndSet(null, (T) e));
+        }, e -> fail()));
         assertNotNull(exception.get());
         return exception.get();
     }

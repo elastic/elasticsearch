@@ -20,7 +20,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class HighLevelRestClientCompressionIT extends ESRestHighLevelClientTestCase {
 
     private static final String GZIP_ENCODING = "gzip";
-    private static final String SAMPLE_DOCUMENT = "{\"name\":{\"first name\":\"Steve\",\"last name\":\"Jobs\"}}";
+    private static final String SAMPLE_DOCUMENT = """
+        {"name":{"first name":"Steve","last name":"Jobs"}}""";
 
     public void testCompressesResponseIfRequested() throws IOException {
         Request doc = new Request(HttpPut.METHOD_NAME, "/company/_doc/1");
@@ -28,9 +29,7 @@ public class HighLevelRestClientCompressionIT extends ESRestHighLevelClientTestC
         client().performRequest(doc);
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
 
-        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
-            .addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING)
-            .build();
+        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder().addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING).build();
 
         SearchRequest searchRequest = new SearchRequest("company");
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync, requestOptions);

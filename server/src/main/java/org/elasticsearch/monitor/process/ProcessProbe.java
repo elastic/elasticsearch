@@ -43,8 +43,7 @@ public class ProcessProbe {
         return ProcessProbeHolder.INSTANCE;
     }
 
-    private ProcessProbe() {
-    }
+    private ProcessProbe() {}
 
     /**
      * Returns the maximum number of file descriptors allowed on the system, or -1 if not supported.

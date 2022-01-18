@@ -13,12 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
@@ -28,6 +23,11 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Pipelin
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
+import org.elasticsearch.xcontent.NamedObjectNotFoundException;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -124,11 +124,8 @@ public class AggregatorFactories {
                 token = parser.nextToken();
                 if (token == XContentParser.Token.START_OBJECT) {
                     switch (fieldName) {
-                        case "meta":
-                            metadata = parser.map();
-                            break;
-                        case "aggregations":
-                        case "aggs":
+                        case "meta" -> metadata = parser.map();
+                        case "aggregations", "aggs" -> {
                             if (subFactories != null) {
                                 throw new ParsingException(
                                     parser.getTokenLocation(),
@@ -136,8 +133,8 @@ public class AggregatorFactories {
                                 );
                             }
                             subFactories = parseAggregators(parser, level + 1);
-                            break;
-                        default:
+                        }
+                        default -> {
                             if (aggBuilder != null) {
                                 throw new ParsingException(
                                     parser.getTokenLocation(),
@@ -150,7 +147,6 @@ public class AggregatorFactories {
                                         + "]"
                                 );
                             }
-
                             try {
                                 aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName, aggregationName);
                             } catch (NamedObjectNotFoundException ex) {
@@ -162,6 +158,7 @@ public class AggregatorFactories {
                                 );
                                 throw new ParsingException(new XContentLocation(ex.getLineNumber(), ex.getColumnNumber()), message, ex);
                             }
+                        }
                     }
                 } else {
                     throw new ParsingException(

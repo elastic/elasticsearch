@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
@@ -320,7 +318,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> wait for snapshot on second data node to finish");
         awaitClusterState(state -> {
             final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-            return snapshotsInProgress.entries().size() == 2 && snapshotHasCompletedShard(secondSnapshot, snapshotsInProgress);
+            return snapshotsInProgress.count() == 2 && snapshotHasCompletedShard(repoName, secondSnapshot, snapshotsInProgress);
         });
 
         final ActionFuture<AcknowledgedResponse> deleteSnapshotsResponse = startDeleteSnapshot(repoName, firstSnapshot);
@@ -378,7 +376,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> wait for snapshot on second data node to finish");
         awaitClusterState(state -> {
             final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-            return snapshotsInProgress.entries().size() == 2 && snapshotHasCompletedShard(secondSnapshot, snapshotsInProgress);
+            return snapshotsInProgress.count() == 2 && snapshotHasCompletedShard(repoName, secondSnapshot, snapshotsInProgress);
         });
 
         final ActionFuture<AcknowledgedResponse> deleteSnapshotsResponse = startDeleteSnapshot(repoName, firstSnapshot);
@@ -398,7 +396,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertBusy(() -> {
             assertThat(currentSnapshots(repoName), hasSize(1));
             final SnapshotsInProgress snapshotsInProgress = clusterService().state().custom(SnapshotsInProgress.TYPE);
-            assertThat(snapshotsInProgress.entries().get(0).state(), is(SnapshotsInProgress.State.ABORTED));
+            assertThat(snapshotsInProgress.forRepo(repoName).get(0).state(), is(SnapshotsInProgress.State.ABORTED));
         }, 30L, TimeUnit.SECONDS);
 
         unblockNode(repoName, dataNode);
@@ -441,7 +439,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> wait for snapshot on second data node to finish");
         awaitClusterState(state -> {
             final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-            return snapshotsInProgress.entries().size() == 2 && snapshotHasCompletedShard(secondSnapshot, snapshotsInProgress);
+            return snapshotsInProgress.count() == 2 && snapshotHasCompletedShard(repoName, secondSnapshot, snapshotsInProgress);
         });
 
         final ActionFuture<AcknowledgedResponse> firstDeleteFuture = startDeleteFromNonMasterClient(repoName, firstSnapshot);
@@ -469,7 +467,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             assertThat(currentSnapshots(repoName), hasSize(2));
             for (SnapshotsInProgress.Entry entry : clusterService().state()
                 .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .entries()) {
+                .forRepo(repoName)) {
                 assertThat(entry.state(), is(SnapshotsInProgress.State.ABORTED));
                 assertThat(entry.snapshot().getSnapshotId().getName(), not(secondSnapshot));
             }
@@ -646,8 +644,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         networkDisruption.stopDisrupting();
 
         logger.info("--> make sure all failing requests get a response");
-        expectThrows(RepositoryException.class, firstDeleteFuture::actionGet);
-        expectThrows(RepositoryException.class, secondDeleteFuture::actionGet);
+        assertAcked(firstDeleteFuture.get());
+        assertAcked(secondDeleteFuture.get());
         expectThrows(SnapshotException.class, createThirdSnapshot::actionGet);
 
         awaitNoMoreRunningOperations();
@@ -677,7 +675,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
         awaitNumberOfSnapshotsInProgress(2);
 
-        final ActionFuture<AcknowledgedResponse> failedDeleteFuture = client(masterNode).admin()
+        final ActionFuture<AcknowledgedResponse> deleteFuture = client(masterNode).admin()
             .cluster()
             .prepareDeleteSnapshot(repoName, "*")
             .execute();
@@ -691,7 +689,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> make sure all failing requests get a response");
         expectThrows(SnapshotException.class, firstFailedSnapshotFuture::actionGet);
         expectThrows(SnapshotException.class, secondFailedSnapshotFuture::actionGet);
-        expectThrows(RepositoryException.class, failedDeleteFuture::actionGet);
+        assertAcked(deleteFuture.get());
 
         awaitNoMoreRunningOperations();
     }
@@ -1039,7 +1037,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final List<String> snapshotNames = createNSnapshots(repoName, randomIntBetween(2, 5));
         final String masterName = internalCluster().getMasterName();
         blockMasterFromDeletingIndexNFile(repoName);
-        final ActionFuture<CreateSnapshotResponse> snapshotThree = startFullSnapshotFromMasterClient(repoName, "snap-other");
+        final ActionFuture<CreateSnapshotResponse> snapshotOther = startFullSnapshotFromMasterClient(repoName, "snap-other");
         waitForBlock(masterName, repoName);
 
         final String snapshotOne = snapshotNames.get(0);
@@ -1052,11 +1050,14 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         networkDisruption.stopDisrupting();
         ensureStableCluster(4);
 
-        assertSuccessful(snapshotThree);
+        assertSuccessful(snapshotOther);
         try {
             deleteSnapshotOne.actionGet();
         } catch (RepositoryException re) {
             // ignored
+        } catch (SnapshotMissingException re) {
+            // When master node is isolated during this test, the newly elected master takes over and executes the snapshot deletion. In
+            // this case the retried delete snapshot operation on the new master can fail with SnapshotMissingException
         }
         awaitNoMoreRunningOperations();
     }
@@ -1503,12 +1504,15 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .execute();
 
         awaitClusterState(state -> {
-            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
-            return snapshotsInProgress.entries().size() == 2 && snapshotsInProgress.entries().get(1).state().completed();
+            final List<SnapshotsInProgress.Entry> snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                .forRepo(repository);
+            return snapshotsInProgress.size() == 2 && snapshotsInProgress.get(1).state().completed();
         });
 
         unblockAllDataNodes(repository);
-        awaitClusterState(state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().get(0).state().completed());
+        awaitClusterState(
+            state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).forRepo(repository).get(0).state().completed()
+        );
 
         unblockNode(repository, master);
         assertSuccessful(snapshot2);
@@ -1833,6 +1837,120 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
+    public void testCloneQueuedAfterMissingShard() throws Exception {
+        final String master = internalCluster().startMasterOnlyNode();
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        final String index1 = "index-1";
+        final String index2 = "index-2";
+        createIndexWithContent(index1, dataNodes.get(0), dataNodes.get(1));
+        createIndexWithContent(index2, dataNodes.get(1), dataNodes.get(0));
+
+        final String repository = "test-repo";
+        createRepository(repository, "mock");
+        final String snapshotToDelete = "snapshot-to-delete";
+        createFullSnapshot(repository, snapshotToDelete);
+        final String cloneSource = "source-snapshot";
+        createFullSnapshot(repository, cloneSource);
+
+        internalCluster().stopNode(dataNodes.get(0));
+
+        blockMasterOnWriteIndexFile(repository);
+        final ActionFuture<AcknowledgedResponse> deleteFuture = clusterAdmin().prepareDeleteSnapshot(repository, snapshotToDelete)
+            .execute();
+        awaitNDeletionsInProgress(1);
+
+        final ActionFuture<CreateSnapshotResponse> snapshot1 = startFullSnapshot(repository, "snapshot-1", true);
+        awaitNumberOfSnapshotsInProgress(1);
+
+        final ActionFuture<AcknowledgedResponse> cloneFuture = clusterAdmin().prepareCloneSnapshot(
+            repository,
+            cloneSource,
+            "target-snapshot"
+        ).setIndices(index1).execute();
+        awaitNumberOfSnapshotsInProgress(2);
+
+        unblockNode(repository, master);
+        assertAcked(deleteFuture.get());
+        assertAcked(cloneFuture.get());
+        awaitNoMoreRunningOperations();
+        assertThat(snapshot1.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+    }
+
+    public void testSnapshotQueuedAfterMissingShard() throws Exception {
+        final String master = internalCluster().startMasterOnlyNode();
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        final String index1 = "index-1";
+        final String index2 = "index-2";
+        createIndexWithContent(index1, dataNodes.get(0), dataNodes.get(1));
+        createIndexWithContent(index2, dataNodes.get(1), dataNodes.get(0));
+
+        final String repository = "test-repo";
+        createRepository(repository, "mock");
+        final String snapshotToDelete = "snapshot-to-delete";
+        createFullSnapshot(repository, snapshotToDelete);
+
+        internalCluster().stopNode(dataNodes.get(0));
+
+        blockMasterOnWriteIndexFile(repository);
+        final ActionFuture<AcknowledgedResponse> deleteFuture = startDeleteSnapshot(repository, snapshotToDelete);
+        awaitNDeletionsInProgress(1);
+
+        final ActionFuture<CreateSnapshotResponse> snapshot1 = startFullSnapshot(repository, "snapshot-1", true);
+        awaitNumberOfSnapshotsInProgress(1);
+
+        final ActionFuture<CreateSnapshotResponse> snapshot2 = startFullSnapshot(repository, "snapshot-2", true);
+        awaitNumberOfSnapshotsInProgress(2);
+
+        unblockNode(repository, master);
+        assertAcked(deleteFuture.get());
+        awaitNoMoreRunningOperations();
+        assertThat(snapshot1.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+        assertThat(snapshot2.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+    }
+
+    public void testSnapshotAndCloneQueuedAfterMissingShard() throws Exception {
+        final String master = internalCluster().startMasterOnlyNode();
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        final String index1 = "index-1";
+        final String index2 = "index-2";
+        createIndexWithContent(index1, dataNodes.get(0), dataNodes.get(1));
+        createIndexWithContent(index2, dataNodes.get(1), dataNodes.get(0));
+
+        final String repository = "test-repo";
+        createRepository(repository, "mock");
+        final String snapshotToDelete = "snapshot-to-delete";
+        createFullSnapshot(repository, snapshotToDelete);
+        final String cloneSource = "source-snapshot";
+        createFullSnapshot(repository, cloneSource);
+
+        internalCluster().stopNode(dataNodes.get(0));
+
+        blockMasterOnWriteIndexFile(repository);
+        final ActionFuture<AcknowledgedResponse> deleteFuture = clusterAdmin().prepareDeleteSnapshot(repository, snapshotToDelete)
+            .execute();
+        awaitNDeletionsInProgress(1);
+
+        final ActionFuture<CreateSnapshotResponse> snapshot1 = startFullSnapshot(repository, "snapshot-1", true);
+        awaitNumberOfSnapshotsInProgress(1);
+
+        final ActionFuture<CreateSnapshotResponse> snapshot2 = startFullSnapshot(repository, "snapshot-2", true);
+        awaitNumberOfSnapshotsInProgress(2);
+
+        final ActionFuture<AcknowledgedResponse> cloneFuture = clusterAdmin().prepareCloneSnapshot(
+            repository,
+            cloneSource,
+            "target-snapshot"
+        ).setIndices(index1).execute();
+        awaitNumberOfSnapshotsInProgress(3);
+
+        unblockNode(repository, master);
+        assertAcked(deleteFuture.get());
+        assertAcked(cloneFuture.get());
+        awaitNoMoreRunningOperations();
+        assertThat(snapshot1.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+        assertThat(snapshot2.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+    }
+
     private static void assertSnapshotStatusCountOnRepo(String otherBlockedRepoName, int count) {
         final SnapshotsStatusResponse snapshotsStatusResponse = client().admin()
             .cluster()
@@ -1876,11 +1994,11 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
-    private static boolean snapshotHasCompletedShard(String snapshot, SnapshotsInProgress snapshotsInProgress) {
-        for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
+    private static boolean snapshotHasCompletedShard(String repoName, String snapshot, SnapshotsInProgress snapshotsInProgress) {
+        for (SnapshotsInProgress.Entry entry : snapshotsInProgress.forRepo(repoName)) {
             if (entry.snapshot().getSnapshotId().getName().equals(snapshot)) {
-                for (ObjectCursor<SnapshotsInProgress.ShardSnapshotStatus> shard : entry.shards().values()) {
-                    if (shard.value.state().completed()) {
+                for (SnapshotsInProgress.ShardSnapshotStatus shard : entry.shards().values()) {
+                    if (shard.state().completed()) {
                         return true;
                     }
                 }

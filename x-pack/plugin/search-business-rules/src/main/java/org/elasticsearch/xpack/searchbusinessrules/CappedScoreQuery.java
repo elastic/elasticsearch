@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.searchbusinessrules;
 
-import java.io.IOException;
-import java.util.Objects;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
@@ -28,6 +25,9 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+
+import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A query that wraps another query and ensures scores do not exceed a maximum value
@@ -150,7 +150,7 @@ public final class CappedScoreQuery extends Query {
                                 // short-circuit if scores will not need capping
                                 innerScorer.advanceShallow(0);
                                 if (innerScorer.getMaxScore(DocIdSetIterator.NO_MORE_DOCS) <= maxScore) {
-                                  return innerScorer;
+                                    return innerScorer;
                                 }
                             }
                             return new CappedScorer(innerWeight, innerScorer, maxScore);
@@ -189,8 +189,7 @@ public final class CappedScoreQuery extends Query {
 
     @Override
     public boolean equals(Object other) {
-        return sameClassAs(other) && maxScore == ((CappedScoreQuery) other).maxScore &&
-                query.equals(((CappedScoreQuery) other).query);
+        return sameClassAs(other) && maxScore == ((CappedScoreQuery) other).maxScore && query.equals(((CappedScoreQuery) other).query);
     }
 
     @Override

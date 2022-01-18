@@ -12,9 +12,9 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -98,7 +98,7 @@ public class ClearScrollRequest extends ActionRequest implements ToXContentObjec
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if ("scroll_id".equals(currentFieldName)){
+                } else if ("scroll_id".equals(currentFieldName)) {
                     if (token == XContentParser.Token.START_ARRAY) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token.isValue() == false) {
@@ -113,8 +113,9 @@ public class ClearScrollRequest extends ActionRequest implements ToXContentObjec
                         addScrollId(parser.text());
                     }
                 } else {
-                    throw new IllegalArgumentException("Unknown parameter [" + currentFieldName
-                            + "] in request body or parameter is of the wrong type[" + token + "] ");
+                    throw new IllegalArgumentException(
+                        "Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] "
+                    );
                 }
             }
         }

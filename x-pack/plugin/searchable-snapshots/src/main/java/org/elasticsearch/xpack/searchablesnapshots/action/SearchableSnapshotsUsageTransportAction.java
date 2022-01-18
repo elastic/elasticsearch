@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotFeatureSetUsage;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
 
@@ -63,7 +62,7 @@ public class SearchableSnapshotsUsageTransportAction extends XPackUsageFeatureTr
         int numSharedCacheSnapIndices = 0;
         for (IndexMetadata indexMetadata : state.metadata()) {
             if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings())) {
-                if (SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.get(indexMetadata.getSettings())) {
+                if (SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.get(indexMetadata.getSettings())) {
                     numSharedCacheSnapIndices++;
                 } else {
                     numFullCopySnapIndices++;

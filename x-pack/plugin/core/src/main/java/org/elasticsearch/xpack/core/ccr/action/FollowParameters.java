@@ -7,16 +7,16 @@
 package org.elasticsearch.xpack.core.ccr.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.AbstractObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.AbstractObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -49,8 +49,7 @@ public class FollowParameters implements Writeable, ToXContentObject {
     TimeValue maxRetryDelay;
     TimeValue readPollTimeout;
 
-    public FollowParameters() {
-    }
+    public FollowParameters() {}
 
     public FollowParameters(FollowParameters source) {
         this.maxReadRequestOperationCount = source.maxReadRequestOperationCount;
@@ -173,13 +172,17 @@ public class FollowParameters implements Writeable, ToXContentObject {
             e = addValidationError(MAX_WRITE_BUFFER_SIZE.getPreferredName() + " must be larger than 0", e);
         }
         if (maxRetryDelay != null && maxRetryDelay.millis() <= 0) {
-            String message = "[" + MAX_RETRY_DELAY.getPreferredName() + "] must be positive but was [" +
-                maxRetryDelay.getStringRep() + "]";
+            String message = "[" + MAX_RETRY_DELAY.getPreferredName() + "] must be positive but was [" + maxRetryDelay.getStringRep() + "]";
             e = addValidationError(message, e);
         }
         if (maxRetryDelay != null && maxRetryDelay.millis() > RETRY_DELAY_MAX.millis()) {
-            String message = "[" + MAX_RETRY_DELAY.getPreferredName() + "] must be less than [" + RETRY_DELAY_MAX.getStringRep() +
-                "] but was [" + maxRetryDelay.getStringRep() + "]";
+            String message = "["
+                + MAX_RETRY_DELAY.getPreferredName()
+                + "] must be less than ["
+                + RETRY_DELAY_MAX.getStringRep()
+                + "] but was ["
+                + maxRetryDelay.getStringRep()
+                + "]";
             e = addValidationError(message, e);
         }
 
@@ -268,24 +271,33 @@ public class FollowParameters implements Writeable, ToXContentObject {
             FollowParameters::setMaxReadRequestSize,
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_READ_REQUEST_SIZE.getPreferredName()),
             MAX_READ_REQUEST_SIZE,
-            ObjectParser.ValueType.STRING);
+            ObjectParser.ValueType.STRING
+        );
         parser.declareField(
             FollowParameters::setMaxWriteRequestSize,
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_REQUEST_SIZE.getPreferredName()),
             MAX_WRITE_REQUEST_SIZE,
-            ObjectParser.ValueType.STRING);
+            ObjectParser.ValueType.STRING
+        );
         parser.declareInt(FollowParameters::setMaxWriteBufferCount, MAX_WRITE_BUFFER_COUNT);
         parser.declareField(
             FollowParameters::setMaxWriteBufferSize,
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_BUFFER_SIZE.getPreferredName()),
             MAX_WRITE_BUFFER_SIZE,
-            ObjectParser.ValueType.STRING);
-        parser.declareField(FollowParameters::setMaxRetryDelay,
+            ObjectParser.ValueType.STRING
+        );
+        parser.declareField(
+            FollowParameters::setMaxRetryDelay,
             (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY.getPreferredName()),
-            MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
-        parser.declareField(FollowParameters::setReadPollTimeout,
+            MAX_RETRY_DELAY,
+            ObjectParser.ValueType.STRING
+        );
+        parser.declareField(
+            FollowParameters::setReadPollTimeout,
             (p, c) -> TimeValue.parseTimeValue(p.text(), READ_POLL_TIMEOUT.getPreferredName()),
-            READ_POLL_TIMEOUT, ObjectParser.ValueType.STRING);
+            READ_POLL_TIMEOUT,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     @Override
@@ -293,16 +305,16 @@ public class FollowParameters implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o instanceof FollowParameters == false) return false;
         FollowParameters that = (FollowParameters) o;
-        return Objects.equals(maxReadRequestOperationCount, that.maxReadRequestOperationCount) &&
-            Objects.equals(maxWriteRequestOperationCount, that.maxWriteRequestOperationCount) &&
-            Objects.equals(maxOutstandingReadRequests, that.maxOutstandingReadRequests) &&
-            Objects.equals(maxOutstandingWriteRequests, that.maxOutstandingWriteRequests) &&
-            Objects.equals(maxReadRequestSize, that.maxReadRequestSize) &&
-            Objects.equals(maxWriteRequestSize, that.maxWriteRequestSize) &&
-            Objects.equals(maxWriteBufferCount, that.maxWriteBufferCount) &&
-            Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize) &&
-            Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
-            Objects.equals(readPollTimeout, that.readPollTimeout);
+        return Objects.equals(maxReadRequestOperationCount, that.maxReadRequestOperationCount)
+            && Objects.equals(maxWriteRequestOperationCount, that.maxWriteRequestOperationCount)
+            && Objects.equals(maxOutstandingReadRequests, that.maxOutstandingReadRequests)
+            && Objects.equals(maxOutstandingWriteRequests, that.maxOutstandingWriteRequests)
+            && Objects.equals(maxReadRequestSize, that.maxReadRequestSize)
+            && Objects.equals(maxWriteRequestSize, that.maxWriteRequestSize)
+            && Objects.equals(maxWriteBufferCount, that.maxWriteBufferCount)
+            && Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize)
+            && Objects.equals(maxRetryDelay, that.maxRetryDelay)
+            && Objects.equals(readPollTimeout, that.readPollTimeout);
     }
 
     @Override

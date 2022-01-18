@@ -24,8 +24,7 @@ public class ProfileConfigurationsTests extends ESTestCase {
 
     public void testGetSecureTransportProfileConfigurations() {
         assumeFalse("Can't run in a FIPS JVM, uses JKS/PKCS12 keystores", inFipsJvm());
-        final Settings settings = getBaseSettings()
-            .put("path.home", createTempDir())
+        final Settings settings = getBaseSettings().put("path.home", createTempDir())
             .put("xpack.security.transport.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
             .put("xpack.security.transport.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
             .put("transport.profiles.full.xpack.security.ssl.verification_mode", SslVerificationMode.FULL.name())
@@ -44,8 +43,7 @@ public class ProfileConfigurationsTests extends ESTestCase {
 
     public void testGetInsecureTransportProfileConfigurations() {
         assumeFalse("Can't run in a FIPS JVM with verification mode None", inFipsJvm());
-        final Settings settings = getBaseSettings()
-            .put("path.home", createTempDir())
+        final Settings settings = getBaseSettings().put("path.home", createTempDir())
             .put("xpack.security.transport.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
             .put("transport.profiles.none.xpack.security.ssl.verification_mode", SslVerificationMode.NONE.name())
             .build();

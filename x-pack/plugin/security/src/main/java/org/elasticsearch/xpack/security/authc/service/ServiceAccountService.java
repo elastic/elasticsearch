@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
@@ -50,13 +50,17 @@ public class ServiceAccountService {
     private final IndexServiceAccountTokenStore indexServiceAccountTokenStore;
     private final CompositeServiceAccountTokenStore compositeServiceAccountTokenStore;
 
-    public ServiceAccountService(Client client,
-                                 FileServiceAccountTokenStore fileServiceAccountTokenStore,
-                                 IndexServiceAccountTokenStore indexServiceAccountTokenStore) {
+    public ServiceAccountService(
+        Client client,
+        FileServiceAccountTokenStore fileServiceAccountTokenStore,
+        IndexServiceAccountTokenStore indexServiceAccountTokenStore
+    ) {
         this.client = client;
         this.indexServiceAccountTokenStore = indexServiceAccountTokenStore;
         this.compositeServiceAccountTokenStore = new CompositeServiceAccountTokenStore(
-            List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore), client.threadPool().getThreadContext());
+            List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
+            client.threadPool().getThreadContext()
+        );
     }
 
     public static boolean isServiceAccountPrincipal(String principal) {
@@ -73,8 +77,7 @@ public class ServiceAccountService {
 
     /**
      * Parses a token object from the content of a {@link ServiceAccountToken#asBearerString()} bearer string}.
-     * This bearer string would typically be
-     * {@link org.elasticsearch.xpack.security.authc.TokenService#extractBearerTokenFromHeader extracted} from an HTTP authorization header.
+     * This bearer string would typically be extracted from an HTTP authorization header.
      *
      * <p>
      * <strong>This method does not validate the credential, it simply parses it.</strong>
@@ -143,24 +146,31 @@ public class ServiceAccountService {
         }, listener::onFailure));
     }
 
-    public void createIndexToken(Authentication authentication, CreateServiceAccountTokenRequest request,
-                                 ActionListener<CreateServiceAccountTokenResponse> listener) {
+    public void createIndexToken(
+        Authentication authentication,
+        CreateServiceAccountTokenRequest request,
+        ActionListener<CreateServiceAccountTokenResponse> listener
+    ) {
         indexServiceAccountTokenStore.createToken(authentication, request, listener);
     }
 
     public void deleteIndexToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
-       indexServiceAccountTokenStore.deleteToken(request, listener);
+        indexServiceAccountTokenStore.deleteToken(request, listener);
     }
 
-    public void findTokensFor(GetServiceAccountCredentialsRequest request,
-                              ActionListener<GetServiceAccountCredentialsResponse> listener) {
+    public void findTokensFor(GetServiceAccountCredentialsRequest request, ActionListener<GetServiceAccountCredentialsResponse> listener) {
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
         findIndexTokens(accountId, listener);
     }
 
+    // TODO: remove since authentication is dealt centrally by AuthenticationContext and friends
     public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
-        assert authentication.isServiceAccount() : "authentication is not for service account: " + authentication;
+        assert authentication.isAuthenticatedWithServiceAccount() : "authentication is not for service account: " + authentication;
         final String principal = authentication.getUser().principal();
+        getRoleDescriptorForPrincipal(principal, listener);
+    }
+
+    public void getRoleDescriptorForPrincipal(String principal, ActionListener<RoleDescriptor> listener) {
         final ServiceAccount account = ACCOUNTS.get(principal);
         if (account == null) {
             listener.onFailure(
@@ -171,36 +181,60 @@ public class ServiceAccountService {
         listener.onResponse(account.roleDescriptor());
     }
 
-    private Authentication createAuthentication(ServiceAccount account, ServiceAccountToken token, TokenSource tokenSource,
-                                                String nodeName) {
+    private Authentication createAuthentication(
+        ServiceAccount account,
+        ServiceAccountToken token,
+        TokenSource tokenSource,
+        String nodeName
+    ) {
         final User user = account.asUser();
-        final Authentication.RealmRef authenticatedBy =
-            new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName);
-        return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
-            Map.of(TOKEN_NAME_FIELD, token.getTokenName(), TOKEN_SOURCE_FIELD, tokenSource.name().toLowerCase(Locale.ROOT)));
+        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
+            ServiceAccountSettings.REALM_NAME,
+            ServiceAccountSettings.REALM_TYPE,
+            nodeName
+        );
+        return new Authentication(
+            user,
+            authenticatedBy,
+            null,
+            Version.CURRENT,
+            Authentication.AuthenticationType.TOKEN,
+            Map.of(TOKEN_NAME_FIELD, token.getTokenName(), TOKEN_SOURCE_FIELD, tokenSource.name().toLowerCase(Locale.ROOT))
+        );
     }
 
     private ElasticsearchSecurityException createAuthenticationException(ServiceAccountToken serviceAccountToken) {
-        return new ElasticsearchSecurityException("failed to authenticate service account [{}] with token name [{}]",
+        return new ElasticsearchSecurityException(
+            "failed to authenticate service account [{}] with token name [{}]",
             RestStatus.UNAUTHORIZED,
             serviceAccountToken.getAccountId().asPrincipal(),
-            serviceAccountToken.getTokenName());
+            serviceAccountToken.getTokenName()
+        );
     }
 
     private void findIndexTokens(ServiceAccountId accountId, ActionListener<GetServiceAccountCredentialsResponse> listener) {
-        indexServiceAccountTokenStore.findTokensFor(accountId, ActionListener.wrap(indexTokenInfos -> {
-            findFileTokens(indexTokenInfos, accountId, listener);
-        }, listener::onFailure));
+        indexServiceAccountTokenStore.findTokensFor(
+            accountId,
+            ActionListener.wrap(indexTokenInfos -> { findFileTokens(indexTokenInfos, accountId, listener); }, listener::onFailure)
+        );
     }
 
-    private void findFileTokens( Collection<TokenInfo> indexTokenInfos,
-                                 ServiceAccountId accountId,
-                                 ActionListener<GetServiceAccountCredentialsResponse> listener) {
-        executeAsyncWithOrigin(client, SECURITY_ORIGIN,
+    private void findFileTokens(
+        Collection<TokenInfo> indexTokenInfos,
+        ServiceAccountId accountId,
+        ActionListener<GetServiceAccountCredentialsResponse> listener
+    ) {
+        executeAsyncWithOrigin(
+            client,
+            SECURITY_ORIGIN,
             GetServiceAccountNodesCredentialsAction.INSTANCE,
             new GetServiceAccountCredentialsNodesRequest(accountId.namespace(), accountId.serviceName()),
-            ActionListener.wrap(fileTokensResponse -> listener.onResponse(
-                new GetServiceAccountCredentialsResponse(accountId.asPrincipal(), indexTokenInfos, fileTokensResponse)),
-                listener::onFailure));
+            ActionListener.wrap(
+                fileTokensResponse -> listener.onResponse(
+                    new GetServiceAccountCredentialsResponse(accountId.asPrincipal(), indexTokenInfos, fileTokensResponse)
+                ),
+                listener::onFailure
+            )
+        );
     }
 }

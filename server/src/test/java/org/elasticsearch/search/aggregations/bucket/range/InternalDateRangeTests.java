@@ -13,9 +13,9 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,9 +31,9 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        format = randomNumericDocValueFormat();
+        format = randomDateDocValueFormat();
 
-        Function<DateTime, DateTime> interval = randomFrom(
+        Function<ZonedDateTime, ZonedDateTime> interval = randomFrom(
             dateTime -> dateTime.plusSeconds(1),
             dateTime -> dateTime.plusMinutes(1),
             dateTime -> dateTime.plusHours(1),
@@ -45,13 +45,13 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
         final int numRanges = randomNumberOfBuckets();
         final List<Tuple<Double, Double>> listOfRanges = new ArrayList<>(numRanges);
 
-        DateTime date = new DateTime(DateTimeZone.UTC);
-        double start = date.getMillis();
+        ZonedDateTime date = ZonedDateTime.now(ZoneOffset.UTC);
+        double start = date.toInstant().toEpochMilli();
         double end = 0;
         for (int i = 0; i < numRanges; i++) {
-            double from = date.getMillis();
+            double from = date.toInstant().toEpochMilli();
             date = interval.apply(date);
-            double to = date.getMillis();
+            double to = date.toInstant().toEpochMilli();
             if (to > end) {
                 end = to;
             }
@@ -80,7 +80,7 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
             int docCount = randomIntBetween(0, 1000);
             double from = range.v1();
             double to = range.v2();
-            buckets.add(new InternalDateRange.Bucket("range_" + i, from, to, docCount, aggregations, keyed, format));
+            buckets.add(new InternalDateRange.Bucket("range_" + i, from, from, to, to, docCount, aggregations, keyed, format));
         }
         return new InternalDateRange(name, buckets, format, keyed, metadata);
     }
@@ -108,37 +108,35 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
         List<InternalDateRange.Bucket> buckets = instance.getBuckets();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                keyed = keyed == false;
-                break;
-            case 2:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> keyed = keyed == false;
+            case 2 -> {
                 buckets = new ArrayList<>(buckets);
                 double from = randomDouble();
+                double to = from + randomDouble();
                 buckets.add(
                     new InternalDateRange.Bucket(
                         "range_a",
                         from,
-                        from + randomDouble(),
+                        from,
+                        to,
+                        to,
                         randomNonNegativeLong(),
                         InternalAggregations.EMPTY,
                         false,
                         format
                     )
                 );
-                break;
-            case 3:
+            }
+            case 3 -> {
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalDateRange(name, buckets, format, keyed, metadata);
     }

@@ -35,16 +35,22 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "concurrent_rebalance";
 
-    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING =
-        Setting.intSetting("cluster.routing.allocation.cluster_concurrent_rebalance", 2, -1,
-            Property.Dynamic, Property.NodeScope);
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING = Setting.intSetting(
+        "cluster.routing.allocation.cluster_concurrent_rebalance",
+        2,
+        -1,
+        Property.Dynamic,
+        Property.NodeScope
+    );
     private volatile int clusterConcurrentRebalance;
 
     public ConcurrentRebalanceAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.clusterConcurrentRebalance = CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.get(settings);
         logger.debug("using [cluster_concurrent_rebalance] with [{}]", clusterConcurrentRebalance);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
-                this::setClusterConcurrentRebalance);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
+            this::setClusterConcurrentRebalance
+        );
     }
 
     private void setClusterConcurrentRebalance(int concurrentRebalance) {
@@ -63,14 +69,21 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
         }
         int relocatingShards = allocation.routingNodes().getRelocatingShardCount();
         if (relocatingShards >= clusterConcurrentRebalance) {
-            return allocation.decision(Decision.THROTTLE, NAME,
-                    "reached the limit of concurrently rebalancing shards [%d], cluster setting [%s=%d]",
-                    relocatingShards,
-                    CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(),
-                    clusterConcurrentRebalance);
+            return allocation.decision(
+                Decision.THROTTLE,
+                NAME,
+                "reached the limit of concurrently rebalancing shards [%d], cluster setting [%s=%d]",
+                relocatingShards,
+                CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(),
+                clusterConcurrentRebalance
+            );
         }
-        return allocation.decision(Decision.YES, NAME,
-                "below threshold [%d] for concurrent rebalances, current rebalance shard count [%d]",
-                clusterConcurrentRebalance, relocatingShards);
+        return allocation.decision(
+            Decision.YES,
+            NAME,
+            "below threshold [%d] for concurrent rebalances, current rebalance shard count [%d]",
+            clusterConcurrentRebalance,
+            relocatingShards
+        );
     }
 }

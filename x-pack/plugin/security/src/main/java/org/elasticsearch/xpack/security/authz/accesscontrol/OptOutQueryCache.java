@@ -31,10 +31,7 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
     private final ThreadContext context;
     private final String indexName;
 
-    public OptOutQueryCache(
-            final IndexSettings indexSettings,
-            final IndicesQueryCache indicesQueryCache,
-            final ThreadContext context) {
+    public OptOutQueryCache(final IndexSettings indexSettings, final IndicesQueryCache indicesQueryCache, final ThreadContext context) {
         super(indexSettings);
         this.indicesQueryCache = indicesQueryCache;
         this.context = Objects.requireNonNull(context, "threadContext must not be null");
@@ -46,7 +43,6 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
         clear("close");
     }
 
-
     @Override
     public void clear(final String reason) {
         logger.debug("full cache clear, reason [{}]", reason);
@@ -55,8 +51,7 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
 
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
-        IndicesAccessControl indicesAccessControl = context.getTransient(
-                AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        IndicesAccessControl indicesAccessControl = context.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl == null) {
             logger.debug("opting out of the query cache. current request doesn't hold indices permissions");
             return weight;

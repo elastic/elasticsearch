@@ -13,12 +13,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 
 /**
  * A remote exception for an action. A wrapper exception around the actual remote cause and does not fill the
  * stack trace.
- *
- *
  */
 public class RemoteTransportException extends ActionTransportException implements ElasticsearchWrapperException {
 
@@ -28,6 +27,10 @@ public class RemoteTransportException extends ActionTransportException implement
 
     public RemoteTransportException(String name, TransportAddress address, String action, Throwable cause) {
         super(name, address, action, cause);
+    }
+
+    public RemoteTransportException(String name, InetSocketAddress address, String action, Throwable cause) {
+        super(name, address, action, null, cause);
     }
 
     public RemoteTransportException(StreamInput in) throws IOException {

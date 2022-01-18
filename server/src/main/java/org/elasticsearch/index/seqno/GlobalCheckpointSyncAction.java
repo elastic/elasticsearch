@@ -34,34 +34,36 @@ import java.io.IOException;
  * the global checkpoint will never be synced to the replicas.
  */
 public class GlobalCheckpointSyncAction extends TransportReplicationAction<
-        GlobalCheckpointSyncAction.Request,
-        GlobalCheckpointSyncAction.Request,
-        ReplicationResponse> {
+    GlobalCheckpointSyncAction.Request,
+    GlobalCheckpointSyncAction.Request,
+    ReplicationResponse> {
 
     public static String ACTION_NAME = "indices:admin/seq_no/global_checkpoint_sync";
     public static ActionType<ReplicationResponse> TYPE = new ActionType<>(ACTION_NAME, ReplicationResponse::new);
 
     @Inject
     public GlobalCheckpointSyncAction(
-            final Settings settings,
-            final TransportService transportService,
-            final ClusterService clusterService,
-            final IndicesService indicesService,
-            final ThreadPool threadPool,
-            final ShardStateAction shardStateAction,
-            final ActionFilters actionFilters) {
+        final Settings settings,
+        final TransportService transportService,
+        final ClusterService clusterService,
+        final IndicesService indicesService,
+        final ThreadPool threadPool,
+        final ShardStateAction shardStateAction,
+        final ActionFilters actionFilters
+    ) {
         super(
-                settings,
-                ACTION_NAME,
-                transportService,
-                clusterService,
-                indicesService,
-                threadPool,
-                shardStateAction,
-                actionFilters,
-                Request::new,
-                Request::new,
-                ThreadPool.Names.MANAGEMENT);
+            settings,
+            ACTION_NAME,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            Request::new,
+            Request::new,
+            ThreadPool.Names.MANAGEMENT
+        );
     }
 
     @Override
@@ -70,8 +72,11 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     }
 
     @Override
-    protected void shardOperationOnPrimary(Request request, IndexShard indexShard,
-                                           ActionListener<PrimaryResult<Request, ReplicationResponse>> listener) {
+    protected void shardOperationOnPrimary(
+        Request request,
+        IndexShard indexShard,
+        ActionListener<PrimaryResult<Request, ReplicationResponse>> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             maybeSyncTranslog(indexShard);
             return new PrimaryResult<>(request, new ReplicationResponse());
@@ -87,8 +92,8 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     }
 
     private void maybeSyncTranslog(final IndexShard indexShard) throws IOException {
-        if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST &&
-            indexShard.getLastSyncedGlobalCheckpoint() < indexShard.getLastKnownGlobalCheckpoint()) {
+        if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST
+            && indexShard.getLastSyncedGlobalCheckpoint() < indexShard.getLastKnownGlobalCheckpoint()) {
             indexShard.sync();
         }
     }
@@ -105,12 +110,17 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
 
         @Override
         public String toString() {
-            return "GlobalCheckpointSyncAction.Request{" +
-                    "shardId=" + shardId +
-                    ", timeout=" + timeout +
-                    ", index='" + index + '\'' +
-                    ", waitForActiveShards=" + waitForActiveShards +
-                    "}";
+            return "GlobalCheckpointSyncAction.Request{"
+                + "shardId="
+                + shardId
+                + ", timeout="
+                + timeout
+                + ", index='"
+                + index
+                + '\''
+                + ", waitForActiveShards="
+                + waitForActiveShards
+                + "}";
         }
     }
 

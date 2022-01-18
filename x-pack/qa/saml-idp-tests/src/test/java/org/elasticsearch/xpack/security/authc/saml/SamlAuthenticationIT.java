@@ -31,30 +31,26 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -66,6 +62,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.hamcrest.Matchers.contains;
@@ -86,9 +87,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     /**
@@ -111,17 +110,29 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     @Before
     public void setupRoleMapping() throws IOException {
         Request request = new Request("PUT", "/_security/role_mapping/thor-kibana");
-        request.setJsonEntity(Strings.toString(XContentBuilder.builder(XContentType.JSON.xContent())
-            .startObject()
-            .array("roles", new String[]{"kibana_admin"})
+        request.setJsonEntity(
+            Strings.toString(
+                XContentBuilder.builder(XContentType.JSON.xContent())
+                    .startObject()
+                    .array("roles", new String[] { "kibana_admin" })
                     .field("enabled", true)
                     .startObject("rules")
-                        .startArray("all")
-                            .startObject().startObject("field").field("username", "thor").endObject().endObject()
-                            .startObject().startObject("field").field("realm.name", "shibboleth").endObject().endObject()
-                        .endArray() // "all"
+                    .startArray("all")
+                    .startObject()
+                    .startObject("field")
+                    .field("username", "thor")
+                    .endObject()
+                    .endObject()
+                    .startObject()
+                    .startObject("field")
+                    .field("realm.name", "shibboleth")
+                    .endObject()
+                    .endObject()
+                    .endArray() // "all"
                     .endObject() // "rules"
-                .endObject()));
+                    .endObject()
+            )
+        );
         adminClient().performRequest(request);
     }
 
@@ -206,7 +217,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             final Object authentication = result.get("authentication");
             assertThat(authentication, notNullValue());
             assertThat(authentication, instanceOf(Map.class));
-            assertEquals("thor", ((Map)authentication).get("username"));
+            assertEquals("thor", ((Map) authentication).get("username"));
 
             return new Tuple<>((String) accessToken, (String) refreshToken);
         }
@@ -340,8 +351,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         params.add(new BasicNameValuePair("_eventId_proceed", "Accept"));
         form.setEntity(new UrlEncodedFormEntity(params));
 
-        return execute(client, form, context,
-            response -> parseSamlSubmissionForm(response.getEntity().getContent()));
+        return execute(client, form, context, response -> parseSamlSubmissionForm(response.getEntity().getContent()));
     }
 
     /**
@@ -354,13 +364,13 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     private Map<String, Object> submitSamlResponse(String saml, String id, String realmName, boolean shouldSucceed) throws IOException {
         // By POSTing to the ES API directly, we miss the check that the IDP would post this to the ACS that we would expect them to, but
         // we implicitly check this while checking the `Destination` element of the SAML response in the SAML realm.
-        final MapBuilder<String, Object> bodyBuilder = new MapBuilder<String, Object>()
-            .put("content", saml)
+        final MapBuilder<String, Object> bodyBuilder = new MapBuilder<String, Object>().put("content", saml)
             .put("realm", realmName)
             .put("ids", Collections.singletonList(id));
         try {
-            final Response response =
-                client().performRequest(buildRequest("POST", "/_security/saml/authenticate", bodyBuilder.map(), kibanaAuth()));
+            final Response response = client().performRequest(
+                buildRequest("POST", "/_security/saml/authenticate", bodyBuilder.map(), kibanaAuth())
+            );
             if (shouldSucceed) {
                 assertHttpOk(response.getStatusLine());
             }
@@ -404,15 +414,18 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         return convertToMap(XContentType.JSON.xContent(), entity.getContent(), false);
     }
 
-    private <T> T execute(CloseableHttpClient client, HttpRequestBase request,
-                          HttpContext context, CheckedFunction<HttpResponse, T, IOException> body)
-            throws IOException {
+    private <T> T execute(
+        CloseableHttpClient client,
+        HttpRequestBase request,
+        HttpContext context,
+        CheckedFunction<HttpResponse, T, IOException> body
+    ) throws IOException {
         final int timeout = (int) TimeValue.timeValueSeconds(90).millis();
         RequestConfig requestConfig = RequestConfig.custom()
-                .setConnectionRequestTimeout(timeout)
-                .setConnectTimeout(timeout)
-                .setSocketTimeout(timeout)
-                .build();
+            .setConnectionRequestTimeout(timeout)
+            .setConnectTimeout(timeout)
+            .setSocketTimeout(timeout)
+            .build();
         request.setConfig(requestConfig);
         logger.info("Execute HTTP " + request.getMethod() + ' ' + request.getURI());
         try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(request, context))) {

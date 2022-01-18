@@ -74,7 +74,7 @@ public class SizeValueTests extends ESTestCase {
 
     public void testCompareUnits() {
         long number = randomNonNegativeLong();
-        SizeUnit randomUnit = randomValueOtherThan(SizeUnit.PETA, ()->randomFrom(SizeUnit.values()));
+        SizeUnit randomUnit = randomValueOtherThan(SizeUnit.PETA, () -> randomFrom(SizeUnit.values()));
         SizeValue firstValue = new SizeValue(number, randomUnit);
         SizeValue secondValue = new SizeValue(number, SizeUnit.PETA);
         assertTrue(firstValue.compareTo(secondValue) < 0);

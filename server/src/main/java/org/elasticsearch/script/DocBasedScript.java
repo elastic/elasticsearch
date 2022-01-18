@@ -25,7 +25,7 @@ public abstract class DocBasedScript {
 
     public Field<?> field(String fieldName) {
         if (docReader == null) {
-            return new EmptyField<>(fieldName);
+            return new EmptyField(fieldName);
         }
         return docReader.field(fieldName);
     }

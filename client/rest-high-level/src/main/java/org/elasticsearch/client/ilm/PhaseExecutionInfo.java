@@ -8,12 +8,12 @@
 
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -29,8 +29,10 @@ public class PhaseExecutionInfo implements ToXContentObject {
     private static final ParseField MODIFIED_DATE_IN_MILLIS_FIELD = new ParseField("modified_date_in_millis");
 
     private static final ConstructingObjectParser<PhaseExecutionInfo, String> PARSER = new ConstructingObjectParser<>(
-        "phase_execution_info", true,
-        (a, name) -> new PhaseExecutionInfo((String) a[0], (Phase) a[1], (long) a[2], (long) a[3]));
+        "phase_execution_info",
+        true,
+        (a, name) -> new PhaseExecutionInfo((String) a[0], (Phase) a[1], (long) a[2], (long) a[3])
+    );
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), POLICY_NAME_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Phase::parse, PHASE_DEFINITION_FIELD);
@@ -92,10 +94,10 @@ public class PhaseExecutionInfo implements ToXContentObject {
             return false;
         }
         PhaseExecutionInfo other = (PhaseExecutionInfo) obj;
-        return Objects.equals(policyName, other.policyName) &&
-            Objects.equals(phase, other.phase) &&
-            Objects.equals(version, other.version) &&
-            Objects.equals(modifiedDate, other.modifiedDate);
+        return Objects.equals(policyName, other.policyName)
+            && Objects.equals(phase, other.phase)
+            && Objects.equals(version, other.version)
+            && Objects.equals(modifiedDate, other.modifiedDate);
     }
 
     @Override
@@ -116,4 +118,3 @@ public class PhaseExecutionInfo implements ToXContentObject {
         return builder;
     }
 }
-

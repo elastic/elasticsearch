@@ -6,19 +6,19 @@
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.deprecation.LoggingDeprecationAccumulationHandler;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
         return new XContentObjectTransformer<>(registry, (p) -> {
             // Serializing a map creates an object, need to skip the start object for the aggregation parser
             XContentParser.Token token = p.nextToken();
-            assert(XContentParser.Token.START_OBJECT.equals(token));
+            assert (XContentParser.Token.START_OBJECT.equals(token));
             return AggregatorFactories.parseAggregators(p);
         });
     }
@@ -80,12 +80,11 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
             return null;
         }
         LoggingDeprecationAccumulationHandler deprecationLogger = new LoggingDeprecationAccumulationHandler();
-        try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(stringObjectMap);
-            XContentParser parser = XContentType.JSON
-                .xContent()
-                .createParser(registry,
-                    deprecationLogger,
-                    BytesReference.bytes(xContentBuilder).streamInput())) {
+        try (
+            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(stringObjectMap);
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(registry, deprecationLogger, BytesReference.bytes(xContentBuilder).streamInput())
+        ) {
             T retVal = parserFunction.apply(parser);
             deprecationWarnings.addAll(deprecationLogger.getDeprecations());
             return retVal;
@@ -96,7 +95,7 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
         if (object == null) {
             return null;
         }
-        try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder content = object.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             return XContentHelper.convertToMap(BytesReference.bytes(content), true, XContentType.JSON).v2();
         }

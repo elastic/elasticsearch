@@ -73,13 +73,6 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
         final var bundleTask = createBundleTasks(project, extension);
         project.afterEvaluate(project1 -> {
-            project1.getExtensions().getByType(PluginPropertiesExtension.class).getExtendedPlugins().forEach(pluginName -> {
-                // Auto add dependent modules to the test cluster
-                if (project1.findProject(":modules:" + pluginName) != null) {
-                    NamedDomainObjectContainer<ElasticsearchCluster> testClusters = testClusters(project, "testClusters");
-                    testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.module(":modules:" + pluginName));
-                }
-            });
             final var extension1 = project1.getExtensions().getByType(PluginPropertiesExtension.class);
             configurePublishing(project1, extension1);
             var name = extension1.getName();
@@ -120,7 +113,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
         // allow running ES with this plugin in the foreground of a build
         var testClusters = testClusters(project, TestClustersPlugin.EXTENSION_NAME);
-        var runCluster = testClusters.register("runtTask", c -> {
+        var runCluster = testClusters.register("runTask", c -> {
             if (GradleUtils.isModuleProject(project.getPath())) {
                 c.module(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
             } else {
@@ -151,6 +144,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
         var dependencies = project.getDependencies();
         dependencies.add("compileOnly", "org.elasticsearch:elasticsearch:" + VersionProperties.getElasticsearch());
         dependencies.add("testImplementation", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch());
+        dependencies.add("testImplementation", "org.apache.logging.log4j:log4j-core:" + VersionProperties.getVersions().get("log4j"));
 
         // we "upgrade" these optional deps to provided for plugins, since they will run
         // with a full elasticsearch server that includes optional deps
@@ -158,7 +152,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
         dependencies.add("compileOnly", "org.locationtech.jts:jts-core:" + VersionProperties.getVersions().get("jts"));
         dependencies.add("compileOnly", "org.apache.logging.log4j:log4j-api:" + VersionProperties.getVersions().get("log4j"));
         dependencies.add("compileOnly", "org.apache.logging.log4j:log4j-core:" + VersionProperties.getVersions().get("log4j"));
-        dependencies.add("compileOnly", "org.elasticsearch:jna:" + VersionProperties.getVersions().get("jna"));
+        dependencies.add("compileOnly", "net.java.dev.jna:jna:" + VersionProperties.getVersions().get("jna"));
     }
 
     /**

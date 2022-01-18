@@ -10,15 +10,15 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -44,8 +44,7 @@ public class FuzzyOptions implements ToXContentFragment, Writeable {
      *     "max_determinized_states" : INT
      * }
      */
-    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(FUZZY_OPTIONS.getPreferredName(),
-            Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(FUZZY_OPTIONS.getPreferredName(), Builder::new);
     static {
         PARSER.declareInt(Builder::setFuzzyMinLength, MIN_LENGTH_FIELD);
         PARSER.declareInt(Builder::setMaxDeterminizedStates, MAX_DETERMINIZED_STATES_FIELD);
@@ -70,8 +69,14 @@ public class FuzzyOptions implements ToXContentFragment, Writeable {
     private boolean unicodeAware;
     private int maxDeterminizedStates;
 
-    private FuzzyOptions(int editDistance, boolean transpositions, int fuzzyMinLength, int fuzzyPrefixLength,
-                         boolean unicodeAware, int maxDeterminizedStates) {
+    private FuzzyOptions(
+        int editDistance,
+        boolean transpositions,
+        int fuzzyMinLength,
+        int fuzzyPrefixLength,
+        boolean unicodeAware,
+        int maxDeterminizedStates
+    ) {
         this.editDistance = editDistance;
         this.transpositions = transpositions;
         this.fuzzyMinLength = fuzzyMinLength;
@@ -199,8 +204,7 @@ public class FuzzyOptions implements ToXContentFragment, Writeable {
         private boolean unicodeAware = FuzzyCompletionQuery.DEFAULT_UNICODE_AWARE;
         private int maxDeterminizedStates = Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
 
-        public Builder() {
-        }
+        public Builder() {}
 
         /**
          * Sets the level of fuzziness used to create suggestions using a {@link Fuzziness} instance.
@@ -278,8 +282,7 @@ public class FuzzyOptions implements ToXContentFragment, Writeable {
         }
 
         public FuzzyOptions build() {
-            return new FuzzyOptions(editDistance, transpositions, fuzzyMinLength, fuzzyPrefixLength,
-                unicodeAware, maxDeterminizedStates);
+            return new FuzzyOptions(editDistance, transpositions, fuzzyMinLength, fuzzyPrefixLength, unicodeAware, maxDeterminizedStates);
         }
     }
 }

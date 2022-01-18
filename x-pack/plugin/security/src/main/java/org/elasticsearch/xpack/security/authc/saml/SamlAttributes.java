@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
+import org.opensaml.saml.saml2.core.Attribute;
+import org.opensaml.saml.saml2.core.NameIDType;
+
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.Strings;
-import org.opensaml.saml.saml2.core.Attribute;
-import org.opensaml.saml.saml2.core.NameIDType;
 
 /**
  * An lightweight collection of SAML attributes
@@ -50,9 +50,9 @@ public class SamlAttributes {
             return List.of(name.value);
         }
         return attributes.stream()
-                .filter(attr -> attributeId.equals(attr.name) || attributeId.equals(attr.friendlyName))
-                .flatMap(attr -> attr.values.stream())
-                .collect(Collectors.toUnmodifiableList());
+            .filter(attr -> attributeId.equals(attr.name) || attributeId.equals(attr.friendlyName))
+            .flatMap(attr -> attr.values.stream())
+            .collect(Collectors.toUnmodifiableList());
     }
 
     List<SamlAttribute> attributes() {
@@ -78,11 +78,15 @@ public class SamlAttributes {
         final List<String> values;
 
         SamlAttribute(Attribute attribute) {
-            this(attribute.getName(), attribute.getFriendlyName(),
-                    attribute.getAttributeValues().stream()
-                        .map(x -> x.getDOM().getTextContent())
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toUnmodifiableList()));
+            this(
+                attribute.getName(),
+                attribute.getFriendlyName(),
+                attribute.getAttributeValues()
+                    .stream()
+                    .map(x -> x.getDOM().getTextContent())
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toUnmodifiableList())
+            );
         }
 
         SamlAttribute(String name, @Nullable String friendlyName, List<String> values) {

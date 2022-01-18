@@ -10,4 +10,5 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   numberOfNodes = 2
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
+  plugin ':x-pack:qa:freeze-plugin'
 }

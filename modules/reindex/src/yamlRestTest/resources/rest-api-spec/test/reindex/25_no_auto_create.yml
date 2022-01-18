@@ -2,7 +2,7 @@ teardown:
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             action.auto_create_index: null
 
 ---
@@ -15,7 +15,7 @@ teardown:
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             action.auto_create_index: false
   - do:
       catch: /no such index \[dest\] and \[action.auto_create_index\] is \[false\]/
@@ -31,7 +31,7 @@ teardown:
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             action.auto_create_index: test
   - do:
       index:
@@ -52,7 +52,7 @@ teardown:
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             action.auto_create_index: test,-dest
   - do:
       index:

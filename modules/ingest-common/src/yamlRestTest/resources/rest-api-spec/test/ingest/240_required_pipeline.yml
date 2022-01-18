@@ -180,6 +180,11 @@ teardown:
   - match: { docs.5._source.bytes_target_field: 3072 }
   - match: { docs.5._source.ran_script: true }
 
+  # Delete the index
+  - do:
+      indices.delete:
+        index: test
+
 ---
 "Test final pipeline when target index is changed":
   - do:
@@ -273,3 +278,12 @@ teardown:
   - match: { _source.foo: "bar" }
   - match: { _source.final_pipeline_2: true }
   - is_false: _source.final_pipeline_1
+
+  # Delete the index
+  - do:
+      indices.delete:
+        index: index_with_final_pipeline_1
+
+  - do:
+      indices.delete:
+        index: index_with_final_pipeline_2

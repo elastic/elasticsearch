@@ -91,21 +91,6 @@ public class InternalExecutePolicyActionTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("no ingest nodes in this cluster"));
     }
 
-    public void testSelectNodeForPolicyExecutionMixedVersions() {
-        var node1 = newNode(randomAlphaOfLength(4), Version.V_7_14_0);
-        var node2 = newNode(randomAlphaOfLength(4), Version.V_7_14_0);
-        var node3 = newNode(randomAlphaOfLength(4));
-        var discoNodes = DiscoveryNodes.builder()
-            .add(node1)
-            .add(node2)
-            .add(node3)
-            .masterNodeId(node3.getId())
-            .localNodeId(node3.getId())
-            .build();
-        var e = expectThrows(IllegalStateException.class, () -> transportAction.selectNodeForPolicyExecution(discoNodes));
-        assertThat(e.getMessage(), equalTo("no suitable node was found to perform enrich policy execution"));
-    }
-
     public void testSelectNodeForPolicyExecutionPickLocalNodeIfNotElectedMaster() {
         var node1 = newNode(randomAlphaOfLength(4));
         var node2 = newNode(randomAlphaOfLength(4));

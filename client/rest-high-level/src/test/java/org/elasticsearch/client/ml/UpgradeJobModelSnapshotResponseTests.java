@@ -7,18 +7,19 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-
 
 public class UpgradeJobModelSnapshotResponseTests extends AbstractXContentTestCase<UpgradeJobModelSnapshotResponse> {
 
     @Override
     protected UpgradeJobModelSnapshotResponse createTestInstance() {
-        return new UpgradeJobModelSnapshotResponse(randomBoolean() ? null : randomBoolean(),
-            randomBoolean() ? null : randomAlphaOfLength(10));
+        return new UpgradeJobModelSnapshotResponse(
+            randomBoolean() ? null : randomBoolean(),
+            randomBoolean() ? null : randomAlphaOfLength(10)
+        );
     }
 
     @Override

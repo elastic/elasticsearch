@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.sql.proto.core.Tuple;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -39,8 +39,7 @@ class DefaultCursor implements Cursor {
         if (row < rows.size() - 1) {
             row++;
             return true;
-        }
-        else {
+        } else {
             if (cursor.isEmpty() == false) {
                 Tuple<String, List<List<Object>>> nextPage = client.nextPage(cursor, meta);
                 cursor = nextPage.v1();

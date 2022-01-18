@@ -8,17 +8,17 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Holds the end result of what a pipeline did to sample document provided via the simulate api.
@@ -27,31 +27,26 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
     private final WriteableIngestDocument ingestDocument;
     private final Exception failure;
 
-    public static final ConstructingObjectParser<SimulateDocumentBaseResult, Void> PARSER =
-        new ConstructingObjectParser<>(
-          "simulate_document_base_result",
-          true,
-          a -> {
+    public static final ConstructingObjectParser<SimulateDocumentBaseResult, Void> PARSER = new ConstructingObjectParser<>(
+        "simulate_document_base_result",
+        true,
+        a -> {
             if (a[1] == null) {
                 assert a[0] != null;
-                return new SimulateDocumentBaseResult(((WriteableIngestDocument)a[0]).getIngestDocument());
+                return new SimulateDocumentBaseResult(((WriteableIngestDocument) a[0]).getIngestDocument());
             } else {
                 assert a[0] == null;
-                return new SimulateDocumentBaseResult((ElasticsearchException)a[1]);
+                return new SimulateDocumentBaseResult((ElasticsearchException) a[1]);
             }
-          }
-        );
+        }
+    );
     static {
         PARSER.declareObject(
             optionalConstructorArg(),
             WriteableIngestDocument.INGEST_DOC_PARSER,
             new ParseField(WriteableIngestDocument.DOC_FIELD)
         );
-        PARSER.declareObject(
-            optionalConstructorArg(),
-            (p, c) -> ElasticsearchException.fromXContent(p),
-            new ParseField("error")
-        );
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField("error"));
     }
 
     public SimulateDocumentBaseResult(IngestDocument ingestDocument) {

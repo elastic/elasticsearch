@@ -16,16 +16,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTransportTestCase;
 
 import java.util.Collections;
 
 public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecurityTransportTestCase {
 
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/67427")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67427")
     @Override
     public void testThreadContext() {
         // This empty method is here just for the purpose of muting the
@@ -36,16 +36,27 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecu
     protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
-        Settings settings1 = Settings.builder()
-            .put(settings)
-            .put("xpack.security.transport.ssl.enabled", true).build();
-        return new SecurityNetty4ServerTransport(settings1, version, threadPool,
-            networkService, PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
-            new NoneCircuitBreakerService(), null, createSSLService(settings1), new SharedGroupFactory(settings1)) {
+        Settings settings1 = Settings.builder().put(settings).put("xpack.security.transport.ssl.enabled", true).build();
+        return new SecurityNetty4ServerTransport(
+            settings1,
+            version,
+            threadPool,
+            networkService,
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
+            namedWriteableRegistry,
+            new NoneCircuitBreakerService(),
+            null,
+            createSSLService(settings1),
+            new SharedGroupFactory(settings1)
+        ) {
 
             @Override
-            public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile,
-                                         ActionListener<Version> listener) {
+            public void executeHandshake(
+                DiscoveryNode node,
+                TcpChannel channel,
+                ConnectionProfile profile,
+                ActionListener<Version> listener
+            ) {
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.transport;
 
-
 import com.carrotsearch.hppc.IntArrayList;
 
 import java.util.StringTokenizer;
@@ -72,8 +71,6 @@ public class PortsRange {
 
     @Override
     public String toString() {
-        return "PortsRange{" +
-            "portRange='" + portRange + '\'' +
-            '}';
+        return "PortsRange{" + "portRange='" + portRange + '\'' + '}';
     }
 }

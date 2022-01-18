@@ -9,7 +9,7 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.ClearScrollRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -25,9 +25,7 @@ public class RestClearScrollAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(DELETE, "/_search/scroll"),
-            new Route(DELETE, "/_search/scroll/{scroll_id}"));
+        return List.of(new Route(DELETE, "/_search/scroll"), new Route(DELETE, "/_search/scroll/{scroll_id}"));
     }
 
     @Override

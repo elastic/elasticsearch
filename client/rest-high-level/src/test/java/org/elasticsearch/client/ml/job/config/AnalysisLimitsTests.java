@@ -7,12 +7,12 @@
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -26,8 +26,10 @@ public class AnalysisLimitsTests extends AbstractXContentTestCase<AnalysisLimits
     }
 
     public static AnalysisLimits createRandomized() {
-        return new AnalysisLimits(randomBoolean() ? (long) randomIntBetween(1, 1000000) : null,
-                randomBoolean() ? randomNonNegativeLong() : null);
+        return new AnalysisLimits(
+            randomBoolean() ? (long) randomIntBetween(1, 1000000) : null,
+            randomBoolean() ? randomNonNegativeLong() : null
+        );
     }
 
     @Override
@@ -38,7 +40,7 @@ public class AnalysisLimitsTests extends AbstractXContentTestCase<AnalysisLimits
     public void testParseModelMemoryLimitGivenPositiveNumber() throws IOException {
         String json = "{\"model_memory_limit\": 2048}";
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
 
         AnalysisLimits limits = AnalysisLimits.PARSER.apply(parser, null);
 
@@ -48,7 +50,7 @@ public class AnalysisLimitsTests extends AbstractXContentTestCase<AnalysisLimits
     public void testParseModelMemoryLimitGivenStringMultipleOfMBs() throws IOException {
         String json = "{\"model_memory_limit\":\"4g\"}";
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
 
         AnalysisLimits limits = AnalysisLimits.PARSER.apply(parser, null);
 

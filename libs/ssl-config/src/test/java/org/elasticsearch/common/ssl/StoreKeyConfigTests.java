@@ -188,10 +188,10 @@ public class StoreKeyConfigTests extends ESTestCase {
             assertThat(certificate.getIssuerDN().getName(), is("CN=Test CA 1"));
             assertThat(certificate.getSubjectDN().getName(), is("CN=" + name));
             assertThat(certificate.getSubjectAlternativeNames(), iterableWithSize(2));
-            assertThat(certificate.getSubjectAlternativeNames(), containsInAnyOrder(
-                Arrays.asList(DNS_NAME, "localhost"),
-                Arrays.asList(IP_NAME, "127.0.0.1")
-            ));
+            assertThat(
+                certificate.getSubjectAlternativeNames(),
+                containsInAnyOrder(Arrays.asList(DNS_NAME, "localhost"), Arrays.asList(IP_NAME, "127.0.0.1"))
+            );
         }
 
         final List<Tuple<PrivateKey, X509Certificate>> keys = keyConfig.getKeys(true);

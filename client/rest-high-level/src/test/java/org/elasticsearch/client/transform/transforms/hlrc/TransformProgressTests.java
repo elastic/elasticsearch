@@ -9,25 +9,26 @@
 package org.elasticsearch.client.transform.transforms.hlrc;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransformProgressTests extends AbstractResponseTestCase<
-        TransformProgress,
-        org.elasticsearch.client.transform.transforms.TransformProgress> {
+    TransformProgress,
+    org.elasticsearch.client.transform.transforms.TransformProgress> {
 
-    public static TransformProgress fromHlrc(
-            org.elasticsearch.client.transform.transforms.TransformProgress instance) {
+    public static TransformProgress fromHlrc(org.elasticsearch.client.transform.transforms.TransformProgress instance) {
         if (instance == null) {
             return null;
         }
-        return new TransformProgress(instance.getTotalDocs(),
+        return new TransformProgress(
+            instance.getTotalDocs(),
             instance.getRemainingDocs(),
             instance.getDocumentsProcessed(),
-            instance.getDocumentsIndexed());
+            instance.getDocumentsIndexed()
+        );
     }
 
     public static TransformProgress randomTransformProgress() {
@@ -37,7 +38,8 @@ public class TransformProgressTests extends AbstractResponseTestCase<
             totalDocs,
             docsRemaining,
             totalDocs != null ? totalDocs - docsRemaining : randomNonNegativeLong(),
-            randomBoolean() ? null : randomNonNegativeLong());
+            randomBoolean() ? null : randomNonNegativeLong()
+        );
     }
 
     @Override
@@ -51,8 +53,10 @@ public class TransformProgressTests extends AbstractResponseTestCase<
     }
 
     @Override
-    protected void assertInstances(TransformProgress serverTestInstance,
-                                   org.elasticsearch.client.transform.transforms.TransformProgress clientInstance) {
+    protected void assertInstances(
+        TransformProgress serverTestInstance,
+        org.elasticsearch.client.transform.transforms.TransformProgress clientInstance
+    ) {
         assertThat(serverTestInstance.getTotalDocs(), equalTo(clientInstance.getTotalDocs()));
         assertThat(serverTestInstance.getDocumentsProcessed(), equalTo(clientInstance.getDocumentsProcessed()));
         assertThat(serverTestInstance.getPercentComplete(), equalTo(clientInstance.getPercentComplete()));

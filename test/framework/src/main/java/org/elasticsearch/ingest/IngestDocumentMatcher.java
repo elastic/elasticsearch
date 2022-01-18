@@ -20,15 +20,14 @@ public class IngestDocumentMatcher {
      * @param docB second document to compare
      */
     public static void assertIngestDocument(IngestDocument docA, IngestDocument docB) {
-        if ((deepEquals(docA.getIngestMetadata(), docB.getIngestMetadata(), true) &&
-            deepEquals(docA.getSourceAndMetadata(), docB.getSourceAndMetadata(), false)) == false) {
+        if ((deepEquals(docA.getIngestMetadata(), docB.getIngestMetadata(), true)
+            && deepEquals(docA.getSourceAndMetadata(), docB.getSourceAndMetadata(), false)) == false) {
             throw new AssertionError("Expected [" + docA + "] but received [" + docB + "].");
         }
     }
 
     private static boolean deepEquals(Object a, Object b, boolean isIngestMeta) {
-        if (a instanceof Map) {
-            Map<?, ?> mapA = (Map<?, ?>) a;
+        if (a instanceof Map<?, ?> mapA) {
             if (b instanceof Map == false) {
                 return false;
             }
@@ -39,14 +38,12 @@ public class IngestDocumentMatcher {
             for (Map.Entry<?, ?> entry : mapA.entrySet()) {
                 Object key = entry.getKey();
                 // Don't compare the timestamp of ingest metadata since it will differ between executions
-                if ((isIngestMeta && "timestamp".equals(key)) == false
-                    && deepEquals(entry.getValue(), mapB.get(key), false) == false) {
+                if ((isIngestMeta && "timestamp".equals(key)) == false && deepEquals(entry.getValue(), mapB.get(key), false) == false) {
                     return false;
                 }
             }
             return true;
-        } else if (a instanceof List) {
-            List<?> listA = (List<?>) a;
+        } else if (a instanceof List<?> listA) {
             if (b instanceof List == false) {
                 return false;
             }

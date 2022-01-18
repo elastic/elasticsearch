@@ -8,9 +8,9 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.job.results.Influencer;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,7 +25,10 @@ public class GetInfluencersResponse extends AbstractResultResponse<Influencer> {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetInfluencersResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "get_influencers_response", true, a -> new GetInfluencersResponse((List<Influencer>) a[0], (long) a[1]));
+        "get_influencers_response",
+        true,
+        a -> new GetInfluencersResponse((List<Influencer>) a[0], (long) a[1])
+    );
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), Influencer.PARSER, INFLUENCERS);

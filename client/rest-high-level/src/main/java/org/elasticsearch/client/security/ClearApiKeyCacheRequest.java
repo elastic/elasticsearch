@@ -31,12 +31,12 @@ public final class ClearApiKeyCacheRequest implements Validatable {
         return new ClearApiKeyCacheRequest();
     }
 
-    public static ClearApiKeyCacheRequest clearById(String ... ids) {
+    public static ClearApiKeyCacheRequest clearById(String... ids) {
         if (ids.length == 0) {
             throw new IllegalArgumentException("Ids cannot be empty");
         }
         return new ClearApiKeyCacheRequest(ids);
-     }
+    }
 
     /**
      * @return an array of key names that will be evicted
@@ -47,10 +47,8 @@ public final class ClearApiKeyCacheRequest implements Validatable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         ClearApiKeyCacheRequest that = (ClearApiKeyCacheRequest) o;
         return Arrays.equals(ids, that.ids);
     }

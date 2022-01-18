@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.UnsupportedEncodingException;
 import java.util.Collections;
@@ -47,11 +47,12 @@ public final class HttpResponse {
             return this;
         }
 
-        public HttpResponseBuilder withResponseBody(final String responseJson)
-                throws ElasticsearchParseException, UnsupportedEncodingException {
+        public HttpResponseBuilder withResponseBody(final String responseJson) throws ElasticsearchParseException,
+            UnsupportedEncodingException {
             if (responseJson == null || responseJson.trim().isEmpty()) {
                 throw new ElasticsearchParseException(
-                        "Invalid string provided as http response body, Failed to parse content to form response body.");
+                    "Invalid string provided as http response body, Failed to parse content to form response body."
+                );
             }
             this.responseBody = XContentHelper.convertToMap(XContentType.JSON.xContent(), responseJson, false);
             return this;

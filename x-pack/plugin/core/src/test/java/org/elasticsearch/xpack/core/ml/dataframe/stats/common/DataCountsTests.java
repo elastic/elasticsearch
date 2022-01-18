@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ml.dataframe.stats.common;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.junit.Before;
@@ -57,11 +57,6 @@ public class DataCountsTests extends AbstractBWCSerializationTestCase<DataCounts
     }
 
     public static DataCounts createRandom() {
-        return new DataCounts(
-            randomAlphaOfLength(10),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
-        );
+        return new DataCounts(randomAlphaOfLength(10), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 }

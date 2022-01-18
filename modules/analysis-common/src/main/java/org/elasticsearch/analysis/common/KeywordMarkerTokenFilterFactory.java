@@ -46,15 +46,13 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
     KeywordMarkerTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
-        boolean ignoreCase =
-            settings.getAsBoolean("ignore_case", false);
+        boolean ignoreCase = settings.getAsBoolean("ignore_case", false);
         String patternString = settings.get("keywords_pattern");
         if (patternString != null) {
             // a pattern for matching keywords is specified, as opposed to a
             // set of keyword strings to match against
             if (settings.get("keywords") != null || settings.get("keywords_path") != null) {
-                throw new IllegalArgumentException(
-                    "cannot specify both `keywords_pattern` and `keywords` or `keywords_path`");
+                throw new IllegalArgumentException("cannot specify both `keywords_pattern` and `keywords` or `keywords_path`");
             }
             keywordPattern = Pattern.compile(patternString);
             keywordLookup = null;
@@ -62,8 +60,8 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
             Set<?> rules = Analysis.getWordSet(env, settings, "keywords");
             if (rules == null) {
                 throw new IllegalArgumentException(
-                    "keyword filter requires either `keywords`, `keywords_path`, " +
-                    "or `keywords_pattern` to be configured");
+                    "keyword filter requires either `keywords`, `keywords_path`, " + "or `keywords_pattern` to be configured"
+                );
             }
             // a set of keywords (or a path to them) is specified
             keywordLookup = new CharArraySet(rules, ignoreCase);

@@ -12,10 +12,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -49,8 +49,12 @@ public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
         String indexName = index.getName();
 
         if (indexMetadata == null) {
-            String errorMessage = String.format(Locale.ROOT, "[%s] lifecycle action for index [%s] executed but index no longer exists",
-                getKey().getAction(), indexName);
+            String errorMessage = String.format(
+                Locale.ROOT,
+                "[%s] lifecycle action for index [%s] executed but index no longer exists",
+                getKey().getAction(),
+                indexName
+            );
             // Index must have been since deleted
             logger.debug(errorMessage);
             return new Result(false, new Info(errorMessage));
@@ -62,10 +66,16 @@ public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
         IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
             assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
-            if (dataStream.getWriteIndex().getIndex().equals(index)) {
-                String errorMessage = String.format(Locale.ROOT, "index [%s] is the write index for data stream [%s], pausing " +
-                    "ILM execution of lifecycle [%s] until this index is no longer the write index for the data stream via manual or " +
-                    "automated rollover", indexName, dataStream.getName(), policyName);
+            if (dataStream.getWriteIndex().equals(index)) {
+                String errorMessage = String.format(
+                    Locale.ROOT,
+                    "index [%s] is the write index for data stream [%s], pausing "
+                        + "ILM execution of lifecycle [%s] until this index is no longer the write index for the data stream via manual or "
+                        + "automated rollover",
+                    indexName,
+                    dataStream.getName(),
+                    policyName
+                );
                 logger.debug(errorMessage);
                 return new Result(false, new Info(errorMessage));
             }

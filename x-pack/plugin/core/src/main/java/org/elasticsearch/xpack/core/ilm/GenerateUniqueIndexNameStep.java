@@ -11,21 +11,21 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState.Builder;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.Builder;
 
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * Generates a unique index name prefixing the original index name with the configured
@@ -44,8 +44,12 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
     private final String prefix;
     private final BiFunction<String, Builder, Builder> lifecycleStateSetter;
 
-    public GenerateUniqueIndexNameStep(StepKey key, StepKey nextStepKey, String prefix,
-                                       BiFunction<String, Builder, Builder> lifecycleStateSetter) {
+    public GenerateUniqueIndexNameStep(
+        StepKey key,
+        StepKey nextStepKey,
+        String prefix,
+        BiFunction<String, Builder, Builder> lifecycleStateSetter
+    ) {
         super(key, nextStepKey);
         this.prefix = prefix;
         this.lifecycleStateSetter = lifecycleStateSetter;
@@ -75,22 +79,26 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
 
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
 
-        LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
 
         Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
         String policy = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         String generatedIndexName = generateValidIndexName(prefix, index.getName());
         ActionRequestValidationException validationException = validateGeneratedIndexName(generatedIndexName, clusterState);
         if (validationException != null) {
-            logger.warn("unable to generate a valid index name as part of policy [{}] for index [{}] due to [{}]",
-                policy, index.getName(), validationException.getMessage());
+            logger.warn(
+                "unable to generate a valid index name as part of policy [{}] for index [{}] due to [{}]",
+                policy,
+                index.getName(),
+                validationException.getMessage()
+            );
             throw validationException;
         }
         lifecycleStateSetter.apply(generatedIndexName, newCustomData);
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
         indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());
-        newClusterStateBuilder.metadata(Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder));
+        newClusterStateBuilder.metadata(Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder).build(false));
         return newClusterStateBuilder.build();
     }
 

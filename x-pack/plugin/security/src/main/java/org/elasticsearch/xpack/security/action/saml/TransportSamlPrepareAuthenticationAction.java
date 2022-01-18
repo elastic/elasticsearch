@@ -29,21 +29,24 @@ import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.findSamlReal
 /**
  * Transport action responsible for generating a SAML {@code &lt;AuthnRequest&gt;} as a redirect binding URL.
  */
-public final class TransportSamlPrepareAuthenticationAction
-        extends HandledTransportAction<SamlPrepareAuthenticationRequest, SamlPrepareAuthenticationResponse> {
+public final class TransportSamlPrepareAuthenticationAction extends HandledTransportAction<
+    SamlPrepareAuthenticationRequest,
+    SamlPrepareAuthenticationResponse> {
 
     private final Realms realms;
 
     @Inject
     public TransportSamlPrepareAuthenticationAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
-        super(SamlPrepareAuthenticationAction.NAME, transportService, actionFilters, SamlPrepareAuthenticationRequest::new
-        );
+        super(SamlPrepareAuthenticationAction.NAME, transportService, actionFilters, SamlPrepareAuthenticationRequest::new);
         this.realms = realms;
     }
 
     @Override
-    protected void doExecute(Task task, SamlPrepareAuthenticationRequest request,
-                             ActionListener<SamlPrepareAuthenticationResponse> listener) {
+    protected void doExecute(
+        Task task,
+        SamlPrepareAuthenticationRequest request,
+        ActionListener<SamlPrepareAuthenticationResponse> listener
+    ) {
         List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), request.getAssertionConsumerServiceURL());
         if (realms.isEmpty()) {
             listener.onFailure(SamlUtils.samlException("Cannot find any matching realm for [{}]", request));
@@ -58,11 +61,7 @@ public final class TransportSamlPrepareAuthenticationAction
         final AuthnRequest authnRequest = realm.buildAuthenticationRequest();
         try {
             String redirectUrl = new SamlRedirect(authnRequest, realm.getSigningConfiguration()).getRedirectUrl(relayState);
-            listener.onResponse(new SamlPrepareAuthenticationResponse(
-                    realm.name(),
-                    authnRequest.getID(),
-                    redirectUrl
-            ));
+            listener.onResponse(new SamlPrepareAuthenticationResponse(realm.name(), authnRequest.getID(), redirectUrl));
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         }

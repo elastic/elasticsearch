@@ -25,14 +25,16 @@ public class FieldHighlightContext {
     public final boolean forceSource;
     public final Map<String, Object> cache;
 
-    public FieldHighlightContext(String fieldName,
-                                 SearchHighlightContext.Field field,
-                                 MappedFieldType fieldType,
-                                 FetchContext context,
-                                 FetchSubPhase.HitContext hitContext,
-                                 Query query,
-                                 boolean forceSource,
-                                 Map<String, Object> cache) {
+    public FieldHighlightContext(
+        String fieldName,
+        SearchHighlightContext.Field field,
+        MappedFieldType fieldType,
+        FetchContext context,
+        FetchSubPhase.HitContext hitContext,
+        Query query,
+        boolean forceSource,
+        Map<String, Object> cache
+    ) {
         this.fieldName = fieldName;
         this.field = field;
         this.fieldType = fieldType;

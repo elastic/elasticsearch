@@ -102,7 +102,7 @@ Maximum number of tasks permitted in the queue for the current thread pool.
 Configured fixed number of active threads allowed in the current thread pool.
 
 `type`, `t`::
-Type of thread pool. Returned values are `fixed` or `scaling`.
+Type of thread pool. Returned values are `fixed`, `fixed_auto_queue_size`, `direct`, or `scaling`.
 
 --
 

@@ -17,9 +17,10 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
+import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.field.LongDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.LongScriptFieldExistsQuery;
@@ -62,13 +63,14 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         return new Builder(name).createRuntimeField(LongFieldScript.PARSE_FROM_SOURCE);
     }
 
-    public LongScriptFieldType(
-        String name,
-        LongFieldScript.Factory scriptFactory,
-        Script script,
-        Map<String, String> meta
-    ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
+    public LongScriptFieldType(String name, LongFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+        super(
+            name,
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            script,
+            scriptFactory.isResultDeterministic(),
+            meta
+        );
     }
 
     @Override
@@ -92,12 +94,12 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
 
     @Override
     public LongScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new LongScriptFieldData.Builder(name(), leafFactory(searchLookup.get()));
+        return new LongScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), LongDocValuesField::new);
     }
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new LongScriptFieldExistsQuery(script, leafFactory(context)::newInstance, name());
     }
 
@@ -111,7 +113,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         DateMathParser parser,
         SearchExecutionContext context
     ) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return NumberType.longRangeQuery(
             lowerTerm,
             upperTerm,
@@ -126,7 +128,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         if (NumberType.hasDecimalPart(value)) {
             return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
         }
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new LongScriptFieldTermQuery(script, leafFactory(context)::newInstance, name(), NumberType.objectToLong(value, true));
     }
 
@@ -145,7 +147,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         if (terms.isEmpty()) {
             return Queries.newMatchNoDocsQuery("All values have a decimal part");
         }
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new LongScriptFieldTermsQuery(script, leafFactory(context)::newInstance, name(), terms);
     }
 }

@@ -9,16 +9,17 @@
 package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.reflect.ReflectionObjectHandler;
+
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.iterable.Iterables;
 
 import java.lang.reflect.Array;
 import java.util.AbstractMap;
 import java.util.Collection;
-import java.util.Set;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.HashMap;
+import java.util.Set;
 
 final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
 
@@ -53,8 +54,8 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         public Object get(Object key) {
             if ("size".equals(key)) {
                 return size();
-            } else if (key instanceof Number) {
-                return Array.get(array, ((Number) key).intValue());
+            } else if (key instanceof Number number) {
+                return Array.get(array, number.intValue());
             }
             try {
                 int index = Integer.parseInt(key.toString());
@@ -111,8 +112,8 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         public Object get(Object key) {
             if ("size".equals(key)) {
                 return col.size();
-            } else if (key instanceof Number) {
-                return Iterables.get(col, ((Number) key).intValue());
+            } else if (key instanceof Number number) {
+                return Iterables.get(col, number.intValue());
             }
             try {
                 int index = Integer.parseInt(key.toString());

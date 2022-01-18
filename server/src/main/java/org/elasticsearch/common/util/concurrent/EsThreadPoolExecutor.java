@@ -22,48 +22,40 @@ import java.util.stream.Stream;
 public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     private final ThreadContext contextHolder;
-    private volatile ShutdownListener listener;
 
-    private final Object monitor = new Object();
     /**
      * Name used in error reporting.
      */
     private final String name;
 
-    final String getName() {
-        return name;
-    }
-
-    EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-            BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, ThreadContext contextHolder) {
+    EsThreadPoolExecutor(
+        String name,
+        int corePoolSize,
+        int maximumPoolSize,
+        long keepAliveTime,
+        TimeUnit unit,
+        BlockingQueue<Runnable> workQueue,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder
+    ) {
         this(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, new EsAbortPolicy(), contextHolder);
     }
 
     @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
-    EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-            BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, XRejectedExecutionHandler handler,
-            ThreadContext contextHolder) {
+    EsThreadPoolExecutor(
+        String name,
+        int corePoolSize,
+        int maximumPoolSize,
+        long keepAliveTime,
+        TimeUnit unit,
+        BlockingQueue<Runnable> workQueue,
+        ThreadFactory threadFactory,
+        XRejectedExecutionHandler handler,
+        ThreadContext contextHolder
+    ) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
         this.name = name;
         this.contextHolder = contextHolder;
-    }
-
-    @Override
-    protected synchronized void terminated() {
-        super.terminated();
-        synchronized (monitor) {
-            if (listener != null) {
-                try {
-                    listener.onTerminated();
-                } finally {
-                    listener = null;
-                }
-            }
-        }
-    }
-
-    public interface ShutdownListener {
-        void onTerminated();
     }
 
     @Override
@@ -95,8 +87,12 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     private boolean assertDefaultContext(Runnable r) {
-        assert contextHolder.isDefaultContext() : "the thread context is not the default context and the thread [" +
-            Thread.currentThread().getName() + "] is being returned to the pool after executing [" + r + "]";
+        assert contextHolder.isDefaultContext()
+            : "the thread context is not the default context and the thread ["
+                + Thread.currentThread().getName()
+                + "] is being returned to the pool after executing ["
+                + r
+                + "]";
         return true;
     }
 
@@ -113,9 +109,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         StringBuilder b = new StringBuilder();
         b.append(getClass().getSimpleName()).append('[');
         b.append("name = ").append(name).append(", ");
-        if (getQueue() instanceof SizeBlockingQueue) {
-            @SuppressWarnings("rawtypes")
-            SizeBlockingQueue queue = (SizeBlockingQueue) getQueue();
+        if (getQueue()instanceof SizeBlockingQueue<?> queue) {
             b.append("queue capacity = ").append(queue.capacity()).append(", ");
         }
         appendThreadPoolExecutorDetails(b);
@@ -133,9 +127,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
      *
      * @param sb the {@link StringBuilder} to append to
      */
-    protected void appendThreadPoolExecutorDetails(final StringBuilder sb) {
-
-    }
+    protected void appendThreadPoolExecutorDetails(final StringBuilder sb) {}
 
     protected Runnable wrapRunnable(Runnable command) {
         return contextHolder.preserveContext(command);

@@ -175,6 +175,7 @@ def commonPackageConfig(String type, String architecture) {
 
     // ========= config files =========
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
+    configurationFile '/etc/elasticsearch/elasticsearch-plugins.example.yml'
     configurationFile '/etc/elasticsearch/jvm.options'
     configurationFile '/etc/elasticsearch/log4j2.properties'
     configurationFile '/etc/elasticsearch/role_mapping.yml'
@@ -254,7 +255,7 @@ def commonPackageConfig(String type, String architecture) {
   }
 }
 
-// this is package indepdendent configuration
+// this is package independent configuration
 ospackage {
   maintainer 'Elasticsearch Team <info@elastic.co>'
   summary 'Distributed RESTful search engine built for the cloud'
@@ -290,8 +291,10 @@ Closure commonDebConfig(String architecture) {
   return {
     configure(commonPackageConfig('deb', architecture))
 
-    // jdeb does not provide a way to set the License control attribute, and ospackage
-    // silently ignores setting it. Instead, we set the license as "custom field"
+    // jdeb does not provide a way to set the License control attribute, and
+    // ospackage silently ignores setting it. This is probably because `License`
+    // is not actually a field in the Debian control file. So instead, we set
+    // the license as "custom field".
     customFields['License'] = 'Elastic-License'
 
     archiveVersion = project.version.replace('-', '~')

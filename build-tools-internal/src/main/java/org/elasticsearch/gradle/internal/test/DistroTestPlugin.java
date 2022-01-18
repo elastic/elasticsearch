@@ -69,8 +69,8 @@ import static org.elasticsearch.gradle.internal.vagrant.VagrantMachine.convertWi
  * This class defines gradle tasks for testing our various distribution artifacts.
  */
 public class DistroTestPlugin implements Plugin<Project> {
-    private static final String SYSTEM_JDK_VERSION = "11.0.2+9";
-    private static final String SYSTEM_JDK_VENDOR = "openjdk";
+    private static final String SYSTEM_JDK_VERSION = "17.0.1+12";
+    private static final String SYSTEM_JDK_VENDOR = "adoptium";
     private static final String GRADLE_JDK_VERSION = "16.0.2+7";
     private static final String GRADLE_JDK_VENDOR = "adoptium";
 
@@ -113,7 +113,8 @@ public class DistroTestPlugin implements Plugin<Project> {
             String taskname = destructiveDistroTestTaskName(distribution);
             TaskProvider<?> depsTask = project.getTasks().register(taskname + "#deps");
             // explicitly depend on the archive not on the implicit extracted distribution
-            depsTask.configure(t -> t.dependsOn(distribution.getArchiveDependencies(), examplePlugin));
+            depsTask.configure(t -> t.dependsOn(distribution.getArchiveDependencies()));
+            depsTask.configure(t -> t.dependsOn(examplePlugin.getDependencies()));
             depsTasks.put(taskname, depsTask);
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                 t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);
@@ -314,7 +315,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         Configuration examplePlugin = project.getConfigurations().create(EXAMPLE_PLUGIN_CONFIGURATION);
         examplePlugin.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE);
         DependencyHandler deps = project.getDependencies();
-        deps.add(EXAMPLE_PLUGIN_CONFIGURATION, deps.create("org.elasticsearch.examples:custom-settings:1.0.0-SNAPSHOT"));
+        deps.add(EXAMPLE_PLUGIN_CONFIGURATION, deps.project(Map.of("path", ":plugins:analysis-icu", "configuration", "zip")));
         return examplePlugin;
     }
 
@@ -366,9 +367,12 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
 
         for (Architecture architecture : Architecture.values()) {
-            ALL_INTERNAL.stream().forEach(type -> currentDistros.add(
-                createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
-            ));
+            ALL_INTERNAL.stream()
+                .forEach(
+                    type -> currentDistros.add(
+                        createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
+                    )
+                );
         }
 
         for (Architecture architecture : Architecture.values()) {

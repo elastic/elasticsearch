@@ -10,18 +10,18 @@ package org.elasticsearch.client.analytics;
 
 import org.elasticsearch.client.ml.inference.results.FeatureImportance;
 import org.elasticsearch.client.ml.inference.results.TopClassEntry;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This class parses the superset of all possible fields that may be written by
@@ -34,10 +34,11 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class ParsedInference extends ParsedAggregation {
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ParsedInference, Void> PARSER =
-        new ConstructingObjectParser<>(ParsedInference.class.getSimpleName(), true,
-            args -> new ParsedInference(args[0], (List<FeatureImportance>) args[1],
-                (List<TopClassEntry>) args[2], (String) args[3]));
+    private static final ConstructingObjectParser<ParsedInference, Void> PARSER = new ConstructingObjectParser<>(
+        ParsedInference.class.getSimpleName(),
+        true,
+        args -> new ParsedInference(args[0], (List<FeatureImportance>) args[1], (List<TopClassEntry>) args[2], (String) args[3])
+    );
 
     public static final ParseField FEATURE_IMPORTANCE = new ParseField("feature_importance");
     public static final ParseField WARNING = new ParseField("warning");
@@ -54,9 +55,17 @@ public class ParsedInference extends ParsedAggregation {
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 o = p.doubleValue();
             } else {
-                throw new XContentParseException(p.getTokenLocation(),
-                    "[" + ParsedInference.class.getSimpleName() + "] failed to parse field [" + CommonFields.VALUE + "] "
-                        + "value [" + token + "] is not a string, boolean or number");
+                throw new XContentParseException(
+                    p.getTokenLocation(),
+                    "["
+                        + ParsedInference.class.getSimpleName()
+                        + "] failed to parse field ["
+                        + CommonFields.VALUE
+                        + "] "
+                        + "value ["
+                        + token
+                        + "] is not a string, boolean or number"
+                );
             }
             return o;
         }, CommonFields.VALUE, ObjectParser.ValueType.VALUE);
@@ -77,10 +86,7 @@ public class ParsedInference extends ParsedAggregation {
     private final List<TopClassEntry> topClasses;
     private final String warning;
 
-    ParsedInference(Object value,
-                    List<FeatureImportance> featureImportance,
-                    List<TopClassEntry> topClasses,
-                    String warning) {
+    ParsedInference(Object value, List<FeatureImportance> featureImportance, List<TopClassEntry> topClasses, String warning) {
         this.value = value;
         this.warning = warning;
         this.featureImportance = featureImportance;

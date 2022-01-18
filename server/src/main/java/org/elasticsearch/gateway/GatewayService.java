@@ -14,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -37,15 +38,33 @@ import java.util.function.Function;
 public class GatewayService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(GatewayService.class);
 
-    public static final Setting<Integer> EXPECTED_DATA_NODES_SETTING =
-        Setting.intSetting("gateway.expected_data_nodes", -1, -1, Property.NodeScope);
-    public static final Setting<TimeValue> RECOVER_AFTER_TIME_SETTING =
-        Setting.positiveTimeSetting("gateway.recover_after_time", TimeValue.timeValueMillis(0), Property.NodeScope);
-    public static final Setting<Integer> RECOVER_AFTER_DATA_NODES_SETTING =
-        Setting.intSetting("gateway.recover_after_data_nodes", -1, -1, Property.NodeScope);
+    public static final Setting<Integer> EXPECTED_DATA_NODES_SETTING = Setting.intSetting(
+        "gateway.expected_data_nodes",
+        -1,
+        -1,
+        Property.NodeScope
+    );
+    public static final Setting<TimeValue> RECOVER_AFTER_TIME_SETTING = Setting.positiveTimeSetting(
+        "gateway.recover_after_time",
+        TimeValue.timeValueMillis(0),
+        Property.NodeScope
+    );
+    public static final Setting<Integer> RECOVER_AFTER_DATA_NODES_SETTING = Setting.intSetting(
+        "gateway.recover_after_data_nodes",
+        -1,
+        -1,
+        Property.NodeScope
+    );
 
-    public static final ClusterBlock STATE_NOT_RECOVERED_BLOCK = new ClusterBlock(1, "state not recovered / initialized", true, true,
-        false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
+    public static final ClusterBlock STATE_NOT_RECOVERED_BLOCK = new ClusterBlock(
+        1,
+        "state not recovered / initialized",
+        true,
+        true,
+        false,
+        RestStatus.SERVICE_UNAVAILABLE,
+        ClusterBlockLevel.ALL
+    );
 
     static final TimeValue DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET = TimeValue.timeValueMinutes(5);
 
@@ -98,8 +117,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     }
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
     @Override
     public void clusterChanged(final ClusterChangedEvent event) {
@@ -122,8 +140,11 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         if (state.nodes().getMasterNodeId() == null) {
             logger.debug("not recovering from gateway, no master elected yet");
         } else if (recoverAfterDataNodes != -1 && nodes.getDataNodes().size() < recoverAfterDataNodes) {
-            logger.debug("not recovering from gateway, nodes_size (data) [{}] < recover_after_data_nodes [{}]",
-                nodes.getDataNodes().size(), recoverAfterDataNodes);
+            logger.debug(
+                "not recovering from gateway, nodes_size (data) [{}] < recover_after_data_nodes [{}]",
+                nodes.getDataNodes().size(),
+                recoverAfterDataNodes
+            );
         } else {
             boolean enforceRecoverAfterTime;
             String reason;
@@ -188,6 +209,8 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         scheduledRecovery.set(false);
     }
 
+    private static final String TASK_SOURCE = "local-gateway-elected-state";
+
     class RecoverStateUpdateTask extends ClusterStateUpdateTask {
 
         @Override
@@ -198,9 +221,9 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             }
 
             final ClusterState newState = Function.<ClusterState>identity()
-                    .andThen(ClusterStateUpdaters::updateRoutingTable)
-                    .andThen(ClusterStateUpdaters::removeStateNotRecoveredBlock)
-                    .apply(currentState);
+                .andThen(ClusterStateUpdaters::updateRoutingTable)
+                .andThen(ClusterStateUpdaters::removeStateNotRecoveredBlock)
+                .apply(currentState);
 
             return allocationService.reroute(newState, "state recovered");
         }
@@ -214,14 +237,14 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         }
 
         @Override
-        public void onNoLongerMaster(String source) {
-            logger.debug("stepped down as master before recovering state [{}]", source);
+        public void onNoLongerMaster() {
+            logger.debug("stepped down as master before recovering state [{}]", TASK_SOURCE);
             resetRecoveredFlags();
         }
 
         @Override
-        public void onFailure(final String source, final Exception e) {
-            logger.info(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+        public void onFailure(final Exception e) {
+            logger.info(() -> new ParameterizedMessage("unexpected failure during [{}]", TASK_SOURCE), e);
             resetRecoveredFlags();
         }
     }
@@ -232,6 +255,6 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     }
 
     private void runRecovery() {
-        clusterService.submitStateUpdateTask("local-gateway-elected-state", new RecoverStateUpdateTask());
+        clusterService.submitStateUpdateTask(TASK_SOURCE, new RecoverStateUpdateTask(), ClusterStateTaskExecutor.unbatched());
     }
 }

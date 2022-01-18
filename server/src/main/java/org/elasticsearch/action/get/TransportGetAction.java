@@ -9,7 +9,6 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,11 +37,25 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     private final ExecutorSelector executorSelector;
 
     @Inject
-    public TransportGetAction(ClusterService clusterService, TransportService transportService,
-                              IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
-                              IndexNameExpressionResolver indexNameExpressionResolver, ExecutorSelector executorSelector) {
-        super(GetAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                GetRequest::new, ThreadPool.Names.GET);
+    public TransportGetAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ExecutorSelector executorSelector
+    ) {
+        super(
+            GetAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            GetRequest::new,
+            ThreadPool.Names.GET
+        );
         this.indicesService = indicesService;
         this.executorSelector = executorSelector;
     }
@@ -55,18 +68,19 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting()
-                .getShards(clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(),
-                    request.request().preference());
+            .getShards(
+                clusterService.state(),
+                request.concreteIndex(),
+                request.request().id(),
+                request.request().routing(),
+                request.request().preference()
+            );
     }
 
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
         // update the routing (request#index here is possibly an alias)
         request.request().routing(state.metadata().resolveIndexRouting(request.request().routing(), request.request().index()));
-        // Fail fast on the node that received the request.
-        if (request.request().routing() == null && state.getMetadata().routingRequired(request.concreteIndex())) {
-            throw new RoutingMissingException(request.concreteIndex(), request.request().id());
-        }
     }
 
     @Override
@@ -95,8 +109,15 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             indexShard.refresh("refresh_flag_get");
         }
 
-        GetResult result = indexShard.getService().get(request.id(), request.storedFields(),
-                request.realtime(), request.version(), request.versionType(), request.fetchSourceContext());
+        GetResult result = indexShard.getService()
+            .get(
+                request.id(),
+                request.storedFields(),
+                request.realtime(),
+                request.version(),
+                request.versionType(),
+                request.fetchSourceContext()
+            );
         return new GetResponse(result);
     }
 

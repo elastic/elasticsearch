@@ -16,6 +16,8 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('async'))
+
+  internalClusterTestImplementation project(":modules:reindex")
 }
 
 

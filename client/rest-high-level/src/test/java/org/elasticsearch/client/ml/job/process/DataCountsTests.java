@@ -7,22 +7,39 @@
  */
 package org.elasticsearch.client.ml.job.process;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.joda.time.DateTime;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.util.Date;
 
 public class DataCountsTests extends AbstractXContentTestCase<DataCounts> {
 
+    private static Date randomDate() {
+        return Date.from(ZonedDateTime.now(randomZone()).toInstant());
+    }
+
     public static DataCounts createTestInstance(String jobId) {
-        return new DataCounts(jobId, randomIntBetween(1, 1_000_000),
-                randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
-                randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
-                randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
-                new DateTime(randomDateTimeZone()).toDate(), new DateTime(randomDateTimeZone()).toDate(),
-                new DateTime(randomDateTimeZone()).toDate(), new DateTime(randomDateTimeZone()).toDate(),
-                new DateTime(randomDateTimeZone()).toDate(), randomBoolean() ? null : Instant.now());
+        return new DataCounts(
+            jobId,
+            randomIntBetween(1, 1_000_000),
+            randomIntBetween(1, 1_000_000),
+            randomIntBetween(1, 1_000_000),
+            randomIntBetween(1, 1_000_000),
+            randomIntBetween(1, 1_000_000),
+            randomIntBetween(1, 1_000_000),
+            randomIntBetween(1, 1_000_000),
+            randomIntBetween(1, 1_000_000),
+            randomIntBetween(1, 1_000_000),
+            randomIntBetween(1, 1_000_000),
+            randomDate(),
+            randomDate(),
+            randomDate(),
+            randomDate(),
+            randomDate(),
+            randomBoolean() ? null : Instant.now()
+        );
     }
 
     @Override

@@ -13,9 +13,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
@@ -29,9 +34,12 @@ import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static junit.framework.TestCase.assertTrue;
 
 public class StubbableTransport implements Transport {
 
@@ -41,7 +49,7 @@ public class StubbableTransport implements Transport {
     private volatile SendRequestBehavior defaultSendRequest = null;
     private volatile OpenConnectionBehavior defaultConnectBehavior = null;
     private final Transport delegate;
-
+    private final PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
 
     public StubbableTransport(Transport transport) {
         this.delegate = transport;
@@ -75,8 +83,10 @@ public class StubbableTransport implements Transport {
         }
         replacedRequestRegistries.put(actionName, realRegistry);
         final TransportRequestHandler<Request> realHandler = realRegistry.getHandler();
-        final RequestHandlerRegistry<Request> newRegistry = RequestHandlerRegistry.replaceHandler(realRegistry, (request, channel, task) ->
-            behavior.messageReceived(realHandler, request, channel, task));
+        final RequestHandlerRegistry<Request> newRegistry = RequestHandlerRegistry.replaceHandler(
+            realRegistry,
+            (request, channel, task) -> behavior.messageReceived(realHandler, request, channel, task)
+        );
         requestHandlers.forceRegister(newRegistry);
     }
 
@@ -94,9 +104,22 @@ public class StubbableTransport implements Transport {
 
     void clearOutboundBehaviors() {
         this.defaultSendRequest = null;
-        sendBehaviors.clear();
+        final Iterator<SendRequestBehavior> sendBehaviorIterator = sendBehaviors.values().iterator();
+        while (sendBehaviorIterator.hasNext()) {
+            final SendRequestBehavior behavior = sendBehaviorIterator.next();
+            sendBehaviorIterator.remove();
+            behavior.clearCallback();
+        }
+        assertTrue(sendBehaviors.isEmpty());
+
         this.defaultConnectBehavior = null;
-        connectBehaviors.clear();
+        final Iterator<OpenConnectionBehavior> connectBehaviorIterator = connectBehaviors.values().iterator();
+        while (connectBehaviorIterator.hasNext()) {
+            final OpenConnectionBehavior behavior = connectBehaviorIterator.next();
+            connectBehaviorIterator.remove();
+            behavior.clearCallback();
+        }
+        assertTrue(connectBehaviors.isEmpty());
     }
 
     void clearOutboundBehaviors(TransportAddress transportAddress) {
@@ -139,8 +162,9 @@ public class StubbableTransport implements Transport {
         TransportAddress address = node.getAddress();
         OpenConnectionBehavior behavior = connectBehaviors.getOrDefault(address, defaultConnectBehavior);
 
-        ActionListener<Connection> wrappedListener =
-            listener.delegateFailure((delegatedListener, connection) -> delegatedListener.onResponse(new WrappedConnection(connection)));
+        ActionListener<Connection> wrappedListener = listener.delegateFailure(
+            (delegatedListener, connection) -> delegatedListener.onResponse(new WrappedConnection(connection))
+        );
 
         if (behavior == null) {
             delegate.openConnection(node, profile, wrappedListener);
@@ -292,16 +316,20 @@ public class StubbableTransport implements Transport {
     @FunctionalInterface
     public interface OpenConnectionBehavior {
 
-        void openConnection(Transport transport, DiscoveryNode discoveryNode, ConnectionProfile profile,
-                            ActionListener<Connection> listener);
+        void openConnection(
+            Transport transport,
+            DiscoveryNode discoveryNode,
+            ConnectionProfile profile,
+            ActionListener<Connection> listener
+        );
 
         default void clearCallback() {}
     }
 
     @FunctionalInterface
     public interface SendRequestBehavior {
-        void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                         TransportRequestOptions options) throws IOException;
+        void sendRequest(Connection connection, long requestId, String action, TransportRequest request, TransportRequestOptions options)
+            throws IOException;
 
         default void clearCallback() {}
     }
@@ -313,5 +341,10 @@ public class StubbableTransport implements Transport {
             throws Exception;
 
         default void clearCallback() {}
+    }
+
+    @Override
+    public RecyclerBytesStreamOutput newNetworkBytesStream() {
+        return new RecyclerBytesStreamOutput(new BytesRefRecycler(recycler));
     }
 }

@@ -14,9 +14,9 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -68,6 +68,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         );
         assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(responseException.getMessage(), containsString("Operator privileges are required for action"));
+        assertThat(responseException.getMessage(), containsString("because it requires operator privileges"));
     }
 
     public void testOperatorUserWillSucceedToCallOperatorOnlyApi() throws IOException {

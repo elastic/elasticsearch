@@ -15,9 +15,9 @@ public class GeneralCastTests extends ScriptTestCase {
      * Unary operator with explicit cast
      */
     public void testUnaryOperator() {
-        assertEquals((byte)5, exec("long x = 5L; return (byte) (+x);"));
-        assertEquals((short)5, exec("long x = 5L; return (short) (+x);"));
-        assertEquals((char)5, exec("long x = 5L; return (char) (+x);"));
+        assertEquals((byte) 5, exec("long x = 5L; return (byte) (+x);"));
+        assertEquals((short) 5, exec("long x = 5L; return (short) (+x);"));
+        assertEquals((char) 5, exec("long x = 5L; return (char) (+x);"));
         assertEquals(5, exec("long x = 5L; return (int) (+x);"));
         assertEquals(5F, exec("long x = 5L; return (float) (+x);"));
         assertEquals(5L, exec("long x = 5L; return (long) (+x);"));
@@ -28,9 +28,9 @@ public class GeneralCastTests extends ScriptTestCase {
      * Binary operators with explicit cast
      */
     public void testBinaryOperator() {
-        assertEquals((byte)6, exec("long x = 5L; return (byte) (x + 1);"));
-        assertEquals((short)6, exec("long x = 5L; return (short) (x + 1);"));
-        assertEquals((char)6, exec("long x = 5L; return (char) (x + 1);"));
+        assertEquals((byte) 6, exec("long x = 5L; return (byte) (x + 1);"));
+        assertEquals((short) 6, exec("long x = 5L; return (short) (x + 1);"));
+        assertEquals((char) 6, exec("long x = 5L; return (char) (x + 1);"));
         assertEquals(6, exec("long x = 5L; return (int) (x + 1);"));
         assertEquals(6F, exec("long x = 5L; return (float) (x + 1);"));
         assertEquals(6L, exec("long x = 5L; return (long) (x + 1);"));
@@ -41,9 +41,9 @@ public class GeneralCastTests extends ScriptTestCase {
      * Binary compound assignment with explicit cast
      */
     public void testBinaryCompoundAssignment() {
-        assertEquals((byte)6, exec("long x = 5L; return (byte) (x += 1);"));
-        assertEquals((short)6, exec("long x = 5L; return (short) (x += 1);"));
-        assertEquals((char)6, exec("long x = 5L; return (char) (x += 1);"));
+        assertEquals((byte) 6, exec("long x = 5L; return (byte) (x += 1);"));
+        assertEquals((short) 6, exec("long x = 5L; return (short) (x += 1);"));
+        assertEquals((char) 6, exec("long x = 5L; return (char) (x += 1);"));
         assertEquals(6, exec("long x = 5L; return (int) (x += 1);"));
         assertEquals(6F, exec("long x = 5L; return (float) (x += 1);"));
         assertEquals(6L, exec("long x = 5L; return (long) (x += 1);"));
@@ -54,9 +54,9 @@ public class GeneralCastTests extends ScriptTestCase {
      * Binary compound prefix with explicit cast
      */
     public void testBinaryPrefix() {
-        assertEquals((byte)6, exec("long x = 5L; return (byte) (++x);"));
-        assertEquals((short)6, exec("long x = 5L; return (short) (++x);"));
-        assertEquals((char)6, exec("long x = 5L; return (char) (++x);"));
+        assertEquals((byte) 6, exec("long x = 5L; return (byte) (++x);"));
+        assertEquals((short) 6, exec("long x = 5L; return (short) (++x);"));
+        assertEquals((char) 6, exec("long x = 5L; return (char) (++x);"));
         assertEquals(6, exec("long x = 5L; return (int) (++x);"));
         assertEquals(6F, exec("long x = 5L; return (float) (++x);"));
         assertEquals(6L, exec("long x = 5L; return (long) (++x);"));
@@ -67,9 +67,9 @@ public class GeneralCastTests extends ScriptTestCase {
      * Binary compound postifx with explicit cast
      */
     public void testBinaryPostfix() {
-        assertEquals((byte)5, exec("long x = 5L; return (byte) (x++);"));
-        assertEquals((short)5, exec("long x = 5L; return (short) (x++);"));
-        assertEquals((char)5, exec("long x = 5L; return (char) (x++);"));
+        assertEquals((byte) 5, exec("long x = 5L; return (byte) (x++);"));
+        assertEquals((short) 5, exec("long x = 5L; return (short) (x++);"));
+        assertEquals((char) 5, exec("long x = 5L; return (char) (x++);"));
         assertEquals(5, exec("long x = 5L; return (int) (x++);"));
         assertEquals(5F, exec("long x = 5L; return (float) (x++);"));
         assertEquals(5L, exec("long x = 5L; return (long) (x++);"));
@@ -80,9 +80,9 @@ public class GeneralCastTests extends ScriptTestCase {
      * Shift operators with explicit cast
      */
     public void testShiftOperator() {
-        assertEquals((byte)10, exec("long x = 5L; return (byte) (x << 1);"));
-        assertEquals((short)10, exec("long x = 5L; return (short) (x << 1);"));
-        assertEquals((char)10, exec("long x = 5L; return (char) (x << 1);"));
+        assertEquals((byte) 10, exec("long x = 5L; return (byte) (x << 1);"));
+        assertEquals((short) 10, exec("long x = 5L; return (short) (x << 1);"));
+        assertEquals((char) 10, exec("long x = 5L; return (char) (x << 1);"));
         assertEquals(10, exec("long x = 5L; return (int) (x << 1);"));
         assertEquals(10F, exec("long x = 5L; return (float) (x << 1);"));
         assertEquals(10L, exec("long x = 5L; return (long) (x << 1);"));
@@ -93,9 +93,9 @@ public class GeneralCastTests extends ScriptTestCase {
      * Shift compound assignment with explicit cast
      */
     public void testShiftCompoundAssignment() {
-        assertEquals((byte)10, exec("long x = 5L; return (byte) (x <<= 1);"));
-        assertEquals((short)10, exec("long x = 5L; return (short) (x <<= 1);"));
-        assertEquals((char)10, exec("long x = 5L; return (char) (x <<= 1);"));
+        assertEquals((byte) 10, exec("long x = 5L; return (byte) (x <<= 1);"));
+        assertEquals((short) 10, exec("long x = 5L; return (short) (x <<= 1);"));
+        assertEquals((char) 10, exec("long x = 5L; return (char) (x <<= 1);"));
         assertEquals(10, exec("long x = 5L; return (int) (x <<= 1);"));
         assertEquals(10F, exec("long x = 5L; return (float) (x <<= 1);"));
         assertEquals(10L, exec("long x = 5L; return (long) (x <<= 1);"));
@@ -106,42 +106,22 @@ public class GeneralCastTests extends ScriptTestCase {
      * Test that without a cast, we fail when conversions would narrow.
      */
     public void testIllegalConversions() {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("long x = 5L; int y = +x; return y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("long x = 5L; int y = (x + x); return y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("boolean x = true; int y = +x; return y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("boolean x = true; int y = (x ^ false); return y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("long x = 5L; boolean y = +x; return y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("long x = 5L; boolean y = (x + x); return y");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("long x = 5L; int y = +x; return y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("long x = 5L; int y = (x + x); return y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("boolean x = true; int y = +x; return y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("boolean x = true; int y = (x ^ false); return y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("long x = 5L; boolean y = +x; return y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("long x = 5L; boolean y = (x + x); return y"); });
     }
 
     /**
      * Test that even with a cast, some things aren't allowed.
      */
     public void testIllegalExplicitConversions() {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("boolean x = true; int y = (int) +x; return y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("boolean x = true; int y = (int) (x ^ false); return y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("long x = 5L; boolean y = (boolean) +x; return y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("long x = 5L; boolean y = (boolean) (x + x); return y");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("boolean x = true; int y = (int) +x; return y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("boolean x = true; int y = (int) (x ^ false); return y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("long x = 5L; boolean y = (boolean) +x; return y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("long x = 5L; boolean y = (boolean) (x + x); return y"); });
     }
 
     /**
@@ -164,9 +144,9 @@ public class GeneralCastTests extends ScriptTestCase {
      * Unary operators adopt the return value
      */
     public void testUnaryOperatorDef() {
-        assertEquals((byte)5, exec("def x = 5L; return (byte) (+x);"));
-        assertEquals((short)5, exec("def x = 5L; return (short) (+x);"));
-        assertEquals((char)5, exec("def x = 5L; return (char) (+x);"));
+        assertEquals((byte) 5, exec("def x = 5L; return (byte) (+x);"));
+        assertEquals((short) 5, exec("def x = 5L; return (short) (+x);"));
+        assertEquals((char) 5, exec("def x = 5L; return (char) (+x);"));
         assertEquals(5, exec("def x = 5L; return (int) (+x);"));
         assertEquals(5F, exec("def x = 5L; return (float) (+x);"));
         assertEquals(5L, exec("def x = 5L; return (long) (+x);"));
@@ -177,9 +157,9 @@ public class GeneralCastTests extends ScriptTestCase {
      * Binary operators adopt the return value
      */
     public void testBinaryOperatorDef() {
-        assertEquals((byte)6, exec("def x = 5L; return (byte) (x + 1);"));
-        assertEquals((short)6, exec("def x = 5L; return (short) (x + 1);"));
-        assertEquals((char)6, exec("def x = 5L; return (char) (x + 1);"));
+        assertEquals((byte) 6, exec("def x = 5L; return (byte) (x + 1);"));
+        assertEquals((short) 6, exec("def x = 5L; return (short) (x + 1);"));
+        assertEquals((char) 6, exec("def x = 5L; return (char) (x + 1);"));
         assertEquals(6, exec("def x = 5L; return (int) (x + 1);"));
         assertEquals(6F, exec("def x = 5L; return (float) (x + 1);"));
         assertEquals(6L, exec("def x = 5L; return (long) (x + 1);"));
@@ -190,9 +170,9 @@ public class GeneralCastTests extends ScriptTestCase {
      * Binary operators don't yet adopt the return value with compound assignment
      */
     public void testBinaryCompoundAssignmentDef() {
-        assertEquals((byte)6, exec("def x = 5L; return (byte) (x += 1);"));
-        assertEquals((short)6, exec("def x = 5L; return (short) (x += 1);"));
-        assertEquals((char)6, exec("def x = 5L; return (char) (x += 1);"));
+        assertEquals((byte) 6, exec("def x = 5L; return (byte) (x += 1);"));
+        assertEquals((short) 6, exec("def x = 5L; return (short) (x += 1);"));
+        assertEquals((char) 6, exec("def x = 5L; return (char) (x += 1);"));
         assertEquals(6, exec("def x = 5L; return (int) (x += 1);"));
         assertEquals(6F, exec("def x = 5L; return (float) (x += 1);"));
         assertEquals(6L, exec("def x = 5L; return (long) (x += 1);"));
@@ -203,9 +183,9 @@ public class GeneralCastTests extends ScriptTestCase {
      * Binary operators don't yet adopt the return value with compound assignment
      */
     public void testBinaryCompoundAssignmentPrefix() {
-        assertEquals((byte)6, exec("def x = 5L; return (byte) (++x);"));
-        assertEquals((short)6, exec("def x = 5L; return (short) (++x);"));
-        assertEquals((char)6, exec("def x = 5L; return (char) (++x);"));
+        assertEquals((byte) 6, exec("def x = 5L; return (byte) (++x);"));
+        assertEquals((short) 6, exec("def x = 5L; return (short) (++x);"));
+        assertEquals((char) 6, exec("def x = 5L; return (char) (++x);"));
         assertEquals(6, exec("def x = 5L; return (int) (++x);"));
         assertEquals(6F, exec("def x = 5L; return (float) (++x);"));
         assertEquals(6L, exec("def x = 5L; return (long) (++x);"));
@@ -216,9 +196,9 @@ public class GeneralCastTests extends ScriptTestCase {
      * Binary operators don't yet adopt the return value with compound assignment
      */
     public void testBinaryCompoundAssignmentPostfix() {
-        assertEquals((byte)5, exec("def x = 5L; return (byte) (x++);"));
-        assertEquals((short)5, exec("def x = 5L; return (short) (x++);"));
-        assertEquals((char)5, exec("def x = 5L; return (char) (x++);"));
+        assertEquals((byte) 5, exec("def x = 5L; return (byte) (x++);"));
+        assertEquals((short) 5, exec("def x = 5L; return (short) (x++);"));
+        assertEquals((char) 5, exec("def x = 5L; return (char) (x++);"));
         assertEquals(5, exec("def x = 5L; return (int) (x++);"));
         assertEquals(5F, exec("def x = 5L; return (float) (x++);"));
         assertEquals(5L, exec("def x = 5L; return (long) (x++);"));
@@ -229,9 +209,9 @@ public class GeneralCastTests extends ScriptTestCase {
      * Shift operators adopt the return value
      */
     public void testShiftOperatorDef() {
-        assertEquals((byte)10, exec("def x = 5L; return (byte) (x << 1);"));
-        assertEquals((short)10, exec("def x = 5L; return (short) (x << 1);"));
-        assertEquals((char)10, exec("def x = 5L; return (char) (x << 1);"));
+        assertEquals((byte) 10, exec("def x = 5L; return (byte) (x << 1);"));
+        assertEquals((short) 10, exec("def x = 5L; return (short) (x << 1);"));
+        assertEquals((char) 10, exec("def x = 5L; return (char) (x << 1);"));
         assertEquals(10, exec("def x = 5L; return (int) (x << 1);"));
         assertEquals(10F, exec("def x = 5L; return (float) (x << 1);"));
         assertEquals(10L, exec("def x = 5L; return (long) (x << 1);"));
@@ -242,9 +222,9 @@ public class GeneralCastTests extends ScriptTestCase {
      * Shift operators don't yet adopt the return value with compound assignment
      */
     public void testShiftCompoundAssignmentDef() {
-        assertEquals((byte)10, exec("def x = 5L; return (byte) (x <<= 1);"));
-        assertEquals((short)10, exec("def x = 5L; return (short) (x <<= 1);"));
-        assertEquals((char)10, exec("def x = 5L; return (char) (x <<= 1);"));
+        assertEquals((byte) 10, exec("def x = 5L; return (byte) (x <<= 1);"));
+        assertEquals((short) 10, exec("def x = 5L; return (short) (x <<= 1);"));
+        assertEquals((char) 10, exec("def x = 5L; return (char) (x <<= 1);"));
         assertEquals(10, exec("def x = 5L; return (int) (x <<= 1);"));
         assertEquals(10F, exec("def x = 5L; return (float) (x <<= 1);"));
         assertEquals(10L, exec("def x = 5L; return (long) (x <<= 1);"));
@@ -255,24 +235,12 @@ public class GeneralCastTests extends ScriptTestCase {
      * Test that without a cast, we fail when conversions would narrow.
      */
     public void testIllegalConversionsDef() {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = 5L; int y = +x; return y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = 5L; int y = (x + x); return y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = true; int y = +x; return y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = true; int y = (x ^ false); return y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = 5L; boolean y = +x; return y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = 5L; boolean y = (x + x); return y");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 5L; int y = +x; return y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 5L; int y = (x + x); return y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = true; int y = +x; return y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = true; int y = (x ^ false); return y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 5L; boolean y = +x; return y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 5L; boolean y = (x + x); return y"); });
     }
 
     public void testUnboxMethodParameters() {
@@ -294,27 +262,21 @@ public class GeneralCastTests extends ScriptTestCase {
      * (stuff that methodhandles explicitCastArguments would otherwise allow)
      */
     public void testIllegalExplicitConversionsDef() {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = true; int y = (int) +x; return y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = true; int y = (int) (x ^ false); return y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = 5L; boolean y = (boolean) +x; return y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = 5L; boolean y = (boolean) (x + x); return y");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = true; int y = (int) +x; return y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = true; int y = (int) (x ^ false); return y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 5L; boolean y = (boolean) +x; return y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 5L; boolean y = (boolean) (x + x); return y"); });
     }
 
     public void testIllegalVoidCasts() {
-        expectScriptThrows(IllegalArgumentException.class, () -> {
-            exec("def map = ['a': 1,'b': 2,'c': 3]; map.c = Collections.sort(new ArrayList(map.keySet()));");
-        });
-        expectScriptThrows(IllegalArgumentException.class, () -> {
-            exec("Map map = ['a': 1,'b': 2,'c': 3]; def x = new HashMap(); x.put(1, map.clear());");
-        });
+        expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> { exec("def map = ['a': 1,'b': 2,'c': 3]; map.c = Collections.sort(new ArrayList(map.keySet()));"); }
+        );
+        expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> { exec("Map map = ['a': 1,'b': 2,'c': 3]; def x = new HashMap(); x.put(1, map.clear());"); }
+        );
     }
 
     public void testBoxedDefCalls() {
@@ -323,13 +285,16 @@ public class GeneralCastTests extends ScriptTestCase {
         assertEquals(1, exec("int x = 1; def y = 2.0; y.compareTo(x);"));
         assertEquals(-1, exec("Integer x = Integer.valueOf(3); def y = 2.0; y.compareTo(x);"));
         assertEquals(2, exec("def f = new org.elasticsearch.painless.FeatureTestObject(); f.i = (byte)2; f.i"));
-        assertEquals(4.0, exec(
-                "def x = new org.elasticsearch.painless.FeatureTestObject(); " +
-                "Byte i = Byte.valueOf(3); " +
-                "byte j = 1;" +
-                "Short s = Short.valueOf(-2);" +
-                "x.mixedAdd(j, i, (char)2, s)"
-        ));
+        assertEquals(
+            4.0,
+            exec(
+                "def x = new org.elasticsearch.painless.FeatureTestObject(); "
+                    + "Byte i = Byte.valueOf(3); "
+                    + "byte j = 1;"
+                    + "Short s = Short.valueOf(-2);"
+                    + "x.mixedAdd(j, i, (char)2, s)"
+            )
+        );
         assertNull(exec("def f = new org.elasticsearch.painless.FeatureTestObject(); f.i = null; f.i"));
         expectScriptThrows(ClassCastException.class, () -> exec("def x = 2.0; def y = 1; y.compareTo(x);"));
         expectScriptThrows(ClassCastException.class, () -> exec("float f = 1.0f; def y = 1; y.compareTo(f);"));

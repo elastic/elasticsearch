@@ -92,11 +92,10 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         public static final int MAX_SHINGLE_SIZE = 3;
     }
 
-    public static final TypeParser PARSER
-        = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
 
     private static Builder builder(FieldMapper in) {
-        return ((SearchAsYouTypeFieldMapper)in).builder;
+        return ((SearchAsYouTypeFieldMapper) in).builder;
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -107,23 +106,31 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         // This is only here because for some reason the initial impl of this always serialized
         // `doc_values=false`, even though it cannot be set; and so we need to continue
         // serializing it forever because of mapper assertions in mixed clusters.
-        private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> false, false)
-            .addValidator(v -> {
-                if (v) {
-                    throw new MapperParsingException("Cannot set [doc_values] on field of type [search_as_you_type]");
-                }
-            })
-            .alwaysSerialize();
+        private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> false, false).addValidator(v -> {
+            if (v) {
+                throw new MapperParsingException("Cannot set [doc_values] on field of type [search_as_you_type]");
+            }
+        }).alwaysSerialize();
 
-        private final Parameter<Integer> maxShingleSize = Parameter.intParam("max_shingle_size", false,
-            m -> builder(m).maxShingleSize.get(), Defaults.MAX_SHINGLE_SIZE)
-            .addValidator(v -> {
-                if (v < MAX_SHINGLE_SIZE_LOWER_BOUND || v > MAX_SHINGLE_SIZE_UPPER_BOUND) {
-                    throw new MapperParsingException("[max_shingle_size] must be at least [" + MAX_SHINGLE_SIZE_LOWER_BOUND
-                        + "] and at most " + "[" + MAX_SHINGLE_SIZE_UPPER_BOUND + "], got [" + v + "]");
-                }
-            })
-            .alwaysSerialize();
+        private final Parameter<Integer> maxShingleSize = Parameter.intParam(
+            "max_shingle_size",
+            false,
+            m -> builder(m).maxShingleSize.get(),
+            Defaults.MAX_SHINGLE_SIZE
+        ).addValidator(v -> {
+            if (v < MAX_SHINGLE_SIZE_LOWER_BOUND || v > MAX_SHINGLE_SIZE_UPPER_BOUND) {
+                throw new MapperParsingException(
+                    "[max_shingle_size] must be at least ["
+                        + MAX_SHINGLE_SIZE_LOWER_BOUND
+                        + "] and at most "
+                        + "["
+                        + MAX_SHINGLE_SIZE_UPPER_BOUND
+                        + "], got ["
+                        + v
+                        + "]"
+                );
+            }
+        }).alwaysSerialize();
 
         final TextParams.Analyzers analyzers;
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
@@ -137,17 +144,28 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.analyzers = new TextParams.Analyzers(
-                    indexAnalyzers,
-                    m -> builder(m).analyzers.getIndexAnalyzer(),
-                    m -> builder(m).analyzers.positionIncrementGap.getValue()
+                indexAnalyzers,
+                m -> builder(m).analyzers.getIndexAnalyzer(),
+                m -> builder(m).analyzers.positionIncrementGap.getValue()
             );
         }
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(index, store, docValues, maxShingleSize,
-                analyzers.indexAnalyzer, analyzers.searchAnalyzer, analyzers.searchQuoteAnalyzer, similarity,
-                indexOptions, norms, termVectors, meta);
+            return List.of(
+                index,
+                store,
+                docValues,
+                maxShingleSize,
+                analyzers.indexAnalyzer,
+                analyzers.searchAnalyzer,
+                analyzers.searchQuoteAnalyzer,
+                similarity,
+                indexOptions,
+                norms,
+                termVectors,
+                meta
+            );
         }
 
         @Override
@@ -164,8 +182,14 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
 
-            SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(context.buildFullName(name), fieldType, similarity.getValue(),
-                analyzers.getSearchAnalyzer(), analyzers.getSearchQuoteAnalyzer(), meta.getValue());
+            SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(
+                context.buildFullName(name),
+                fieldType,
+                similarity.getValue(),
+                analyzers.getSearchAnalyzer(),
+                analyzers.getSearchQuoteAnalyzer(),
+                meta.getValue()
+            );
 
             indexAnalyzers.put(ft.name(), indexAnalyzer);
 
@@ -176,11 +200,16 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             prefixft.setStored(false);
             final String fullName = context.buildFullName(name);
             // wrap the root field's index analyzer with shingles and edge ngrams
-            final Analyzer prefixIndexWrapper =
-                SearchAsYouTypeAnalyzer.withShingleAndPrefix(indexAnalyzer.analyzer(), maxShingleSize.getValue());
+            final Analyzer prefixIndexWrapper = SearchAsYouTypeAnalyzer.withShingleAndPrefix(
+                indexAnalyzer.analyzer(),
+                maxShingleSize.getValue()
+            );
             // wrap the root field's search analyzer with only shingles
-            final NamedAnalyzer prefixSearchWrapper = new NamedAnalyzer(searchAnalyzer.name(), searchAnalyzer.scope(),
-                SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), maxShingleSize.getValue()));
+            final NamedAnalyzer prefixSearchWrapper = new NamedAnalyzer(
+                searchAnalyzer.name(),
+                searchAnalyzer.scope(),
+                SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), maxShingleSize.getValue())
+            );
             // don't wrap the root field's search quote analyzer as prefix field doesn't support phrase queries
             TextSearchInfo prefixSearchInfo = new TextSearchInfo(prefixft, similarity.getValue(), prefixSearchWrapper, searchAnalyzer);
             final PrefixFieldType prefixFieldType = new PrefixFieldType(fullName, prefixSearchInfo, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
@@ -197,14 +226,26 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 shingleft.setStored(false);
                 String fieldName = getShingleFieldName(context.buildFullName(name), shingleSize);
                 // wrap the root field's index, search, and search quote analyzers with shingles
-                final SearchAsYouTypeAnalyzer shingleIndexWrapper =
-                    SearchAsYouTypeAnalyzer.withShingle(indexAnalyzer.analyzer(), shingleSize);
-                final NamedAnalyzer shingleSearchWrapper = new NamedAnalyzer(searchAnalyzer.name(), searchAnalyzer.scope(),
-                    SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), shingleSize));
-                final NamedAnalyzer shingleSearchQuoteWrapper = new NamedAnalyzer(searchAnalyzer.name(), searchAnalyzer.scope(),
-                    SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), shingleSize));
-                TextSearchInfo textSearchInfo
-                    = new TextSearchInfo(shingleft, similarity.getValue(), shingleSearchWrapper, shingleSearchQuoteWrapper);
+                final SearchAsYouTypeAnalyzer shingleIndexWrapper = SearchAsYouTypeAnalyzer.withShingle(
+                    indexAnalyzer.analyzer(),
+                    shingleSize
+                );
+                final NamedAnalyzer shingleSearchWrapper = new NamedAnalyzer(
+                    searchAnalyzer.name(),
+                    searchAnalyzer.scope(),
+                    SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), shingleSize)
+                );
+                final NamedAnalyzer shingleSearchQuoteWrapper = new NamedAnalyzer(
+                    searchAnalyzer.name(),
+                    searchAnalyzer.scope(),
+                    SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), shingleSize)
+                );
+                TextSearchInfo textSearchInfo = new TextSearchInfo(
+                    shingleft,
+                    similarity.getValue(),
+                    shingleSearchWrapper,
+                    shingleSearchQuoteWrapper
+                );
                 final ShingleFieldType shingleFieldType = new ShingleFieldType(fieldName, shingleSize, textSearchInfo);
                 shingleFieldType.setPrefixFieldType(prefixFieldType);
                 shingleFieldTypes[i] = shingleFieldType;
@@ -214,7 +255,16 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             }
             ft.setPrefixField(prefixFieldType);
             ft.setShingleFields(shingleFieldTypes);
-            return new SearchAsYouTypeFieldMapper(name, ft, copyTo.build(), indexAnalyzers, prefixFieldMapper, shingleFieldMappers, this);
+            return new SearchAsYouTypeFieldMapper(
+                name,
+                ft,
+                copyTo.build(),
+                indexAnalyzers,
+                prefixFieldMapper,
+                shingleFieldMappers,
+                multiFieldsBuilder.build(this, context),
+                this
+            );
         }
     }
 
@@ -242,10 +292,22 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         PrefixFieldType prefixField;
         ShingleFieldType[] shingleFields = new ShingleFieldType[0];
 
-        SearchAsYouTypeFieldType(String name, FieldType fieldType, SimilarityProvider similarity,
-                                 NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer, Map<String, String> meta) {
-            super(name, fieldType.indexOptions() != IndexOptions.NONE, fieldType.stored(), false,
-                new TextSearchInfo(fieldType, similarity, searchAnalyzer, searchQuoteAnalyzer), meta);
+        SearchAsYouTypeFieldType(
+            String name,
+            FieldType fieldType,
+            SimilarityProvider similarity,
+            NamedAnalyzer searchAnalyzer,
+            NamedAnalyzer searchQuoteAnalyzer,
+            Map<String, String> meta
+        ) {
+            super(
+                name,
+                fieldType.indexOptions() != IndexOptions.NONE,
+                fieldType.stored(),
+                false,
+                new TextSearchInfo(fieldType, similarity, searchAnalyzer, searchQuoteAnalyzer),
+                meta
+            );
             this.fieldType = fieldType;
         }
 
@@ -273,8 +335,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
-                                 SearchExecutionContext context) {
+        public Query prefixQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            SearchExecutionContext context
+        ) {
             if (prefixField == null || prefixField.termLengthWithinBounds(value.length()) == false) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             } else {
@@ -296,8 +362,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
-                SearchExecutionContext context) throws IOException {
+        public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
+            throws IOException {
             checkForPositions();
             int numPos = countPosition(stream);
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
@@ -309,8 +375,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
-                SearchExecutionContext context) throws IOException {
+        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
+            throws IOException {
             checkForPositions();
             int numPos = countPosition(stream);
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
@@ -322,15 +388,13 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions,
-                SearchExecutionContext context) throws IOException {
+        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
             int numPos = countPosition(stream);
             if (numPos > 1) {
                 checkForPositions();
             }
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
-                return TextFieldMapper.createPhrasePrefixQuery(stream, name(), slop, maxExpansions,
-                    null, null);
+                return TextFieldMapper.createPhrasePrefixQuery(stream, name(), slop, maxExpansions, null, null);
             }
             final ShingleFieldType shingleField = shingleFieldForPositions(numPos);
             stream = new FixedShingleFilter(stream, shingleField.shingleSize);
@@ -342,8 +406,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             if (prefixField != null && prefixField.termLengthWithinBounds(value.length())) {
                 return new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixField.name(), indexedValueForSearch(value))), name());
             } else {
-                SpanMultiTermQueryWrapper<?> spanMulti =
-                    new SpanMultiTermQueryWrapper<>(new PrefixQuery(new Term(name(), indexedValueForSearch(value))));
+                SpanMultiTermQueryWrapper<?> spanMulti = new SpanMultiTermQueryWrapper<>(
+                    new PrefixQuery(new Term(name(), indexedValueForSearch(value)))
+                );
                 spanMulti.setRewriteMethod(method);
                 return spanMulti;
             }
@@ -372,10 +437,19 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
-                                 SearchExecutionContext context) {
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return false;
+        }
+
+        @Override
+        public Query prefixQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            SearchExecutionContext context
+        ) {
             if (value.length() >= minChars) {
-                if(caseInsensitive) {
+                if (caseInsensitive) {
                     return super.termQueryCaseInsensitive(value, context);
                 }
                 return super.termQuery(value, context);
@@ -388,8 +462,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             Automaton automaton = Operations.concatenate(automata);
             AutomatonQuery query = new AutomatonQuery(new Term(name(), value + "*"), automaton);
             query.setRewriteMethod(method);
-            return new BooleanQuery.Builder()
-                .add(query, BooleanClause.Occur.SHOULD)
+            return new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD)
                 .add(new TermQuery(new Term(parentField, value)), BooleanClause.Occur.SHOULD)
                 .build();
         }
@@ -502,6 +575,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return false;
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
             // parent field in _source. So we don't need to use the parent field name here.
@@ -514,8 +592,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
-                                 SearchExecutionContext context) {
+        public Query prefixQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            SearchExecutionContext context
+        ) {
             if (prefixFieldType == null || prefixFieldType.termLengthWithinBounds(value.length()) == false) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             } else {
@@ -531,25 +613,28 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
-                SearchExecutionContext context) throws IOException {
+        public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
+            throws IOException {
             return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
         }
 
         @Override
-        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
-                SearchExecutionContext context) throws IOException {
+        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
+            throws IOException {
             return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
         }
 
         @Override
-        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions,
-                SearchExecutionContext context) throws IOException {
-            final String prefixFieldName = slop > 0
-                ? null
-                : prefixFieldType.name();
-            return TextFieldMapper.createPhrasePrefixQuery(stream, name(), slop, maxExpansions,
-                prefixFieldName, prefixFieldType::termLengthWithinBounds);
+        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
+            final String prefixFieldName = slop > 0 ? null : prefixFieldType.name();
+            return TextFieldMapper.createPhrasePrefixQuery(
+                stream,
+                name(),
+                slop,
+                maxExpansions,
+                prefixFieldName,
+                prefixFieldType::termLengthWithinBounds
+            );
         }
 
         @Override
@@ -557,8 +642,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             if (prefixFieldType != null && prefixFieldType.termLengthWithinBounds(value.length())) {
                 return new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixFieldType.name(), indexedValueForSearch(value))), name());
             } else {
-                SpanMultiTermQueryWrapper<?> spanMulti =
-                    new SpanMultiTermQueryWrapper<>(new PrefixQuery(new Term(name(), indexedValueForSearch(value))));
+                SpanMultiTermQueryWrapper<?> spanMulti = new SpanMultiTermQueryWrapper<>(
+                    new PrefixQuery(new Term(name(), indexedValueForSearch(value)))
+                );
                 spanMulti.setRewriteMethod(method);
                 return spanMulti;
             }
@@ -570,14 +656,17 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     private final ShingleFieldMapper[] shingleFields;
     private final Builder builder;
 
-    public SearchAsYouTypeFieldMapper(String simpleName,
-                                      SearchAsYouTypeFieldType mappedFieldType,
-                                      CopyTo copyTo,
-                                      Map<String, NamedAnalyzer> indexAnalyzers,
-                                      PrefixFieldMapper prefixField,
-                                      ShingleFieldMapper[] shingleFields,
-                                      Builder builder) {
-        super(simpleName, mappedFieldType, indexAnalyzers, MultiFields.empty(), copyTo, false, null);
+    public SearchAsYouTypeFieldMapper(
+        String simpleName,
+        SearchAsYouTypeFieldType mappedFieldType,
+        CopyTo copyTo,
+        Map<String, NamedAnalyzer> indexAnalyzers,
+        PrefixFieldMapper prefixField,
+        ShingleFieldMapper[] shingleFields,
+        MultiFields multiFields,
+        Builder builder
+    ) {
+        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo, false, null);
         this.prefixField = prefixField;
         this.shingleFields = shingleFields;
         this.maxShingleSize = builder.maxShingleSize.getValue();
@@ -642,7 +731,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         List<Mapper> subIterators = new ArrayList<>();
         subIterators.add(prefixField);
         subIterators.addAll(Arrays.asList(shingleFields));
-        @SuppressWarnings("unchecked") Iterator<Mapper> concat = Iterators.concat(super.iterator(), subIterators.iterator());
+        @SuppressWarnings("unchecked")
+        Iterator<Mapper> concat = Iterators.concat(super.iterator(), subIterators.iterator());
         return concat;
     }
 
@@ -657,9 +747,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         private final int shingleSize;
         private final boolean indexPrefixes;
 
-        private SearchAsYouTypeAnalyzer(Analyzer delegate,
-                                        int shingleSize,
-                                        boolean indexPrefixes) {
+        private SearchAsYouTypeAnalyzer(Analyzer delegate, int shingleSize, boolean indexPrefixes) {
 
             super(delegate.getReuseStrategy());
             this.delegate = Objects.requireNonNull(delegate);

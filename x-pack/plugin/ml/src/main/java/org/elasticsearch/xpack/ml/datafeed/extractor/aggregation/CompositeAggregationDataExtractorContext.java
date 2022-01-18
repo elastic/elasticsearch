@@ -31,19 +31,21 @@ class CompositeAggregationDataExtractorContext {
     final Map<String, Object> runtimeMappings;
     final String compositeAggDateHistogramGroupSourceName;
 
-    CompositeAggregationDataExtractorContext(String jobId,
-                                             String timeField,
-                                             Set<String> fields,
-                                             List<String> indices,
-                                             QueryBuilder query,
-                                             CompositeAggregationBuilder compositeAggregationBuilder,
-                                             String compositeAggDateHistogramGroupSourceName,
-                                             long start,
-                                             long end,
-                                             boolean includeDocCount,
-                                             Map<String, String> headers,
-                                             IndicesOptions indicesOptions,
-                                             Map<String, Object> runtimeMappings) {
+    CompositeAggregationDataExtractorContext(
+        String jobId,
+        String timeField,
+        Set<String> fields,
+        List<String> indices,
+        QueryBuilder query,
+        CompositeAggregationBuilder compositeAggregationBuilder,
+        String compositeAggDateHistogramGroupSourceName,
+        long start,
+        long end,
+        boolean includeDocCount,
+        Map<String, String> headers,
+        IndicesOptions indicesOptions,
+        Map<String, Object> runtimeMappings
+    ) {
         this.jobId = Objects.requireNonNull(jobId);
         this.timeField = Objects.requireNonNull(timeField);
         this.fields = Objects.requireNonNull(fields);

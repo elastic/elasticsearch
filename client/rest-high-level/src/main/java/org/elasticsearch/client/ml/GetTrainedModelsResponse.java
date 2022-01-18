@@ -9,14 +9,14 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class GetTrainedModelsResponse {
 
@@ -24,11 +24,11 @@ public class GetTrainedModelsResponse {
     public static final ParseField COUNT = new ParseField("count");
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<GetTrainedModelsResponse, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "get_trained_model_configs",
-            true,
-            args -> new GetTrainedModelsResponse((List<TrainedModelConfig>) args[0], (Long) args[1]));
+    static final ConstructingObjectParser<GetTrainedModelsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_trained_model_configs",
+        true,
+        args -> new GetTrainedModelsResponse((List<TrainedModelConfig>) args[0], (Long) args[1])
+    );
 
     static {
         PARSER.declareObjectArray(constructorArg(), (p, c) -> TrainedModelConfig.fromXContent(p), TRAINED_MODEL_CONFIGS);
@@ -41,7 +41,6 @@ public class GetTrainedModelsResponse {
 
     private final List<TrainedModelConfig> trainedModels;
     private final Long count;
-
 
     public GetTrainedModelsResponse(List<TrainedModelConfig> trainedModels, Long count) {
         this.trainedModels = trainedModels;

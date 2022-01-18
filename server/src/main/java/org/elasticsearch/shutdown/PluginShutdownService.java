@@ -6,13 +6,6 @@
  * Side Public License, v 1.
  */
 
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
- */
-
 package org.elasticsearch.shutdown;
 
 import org.apache.logging.log4j.LogManager;
@@ -63,9 +56,12 @@ public class PluginShutdownService implements ClusterStateListener {
         Set<SingleNodeShutdownMetadata.Type> types = Arrays.stream(shutdownTypes).collect(Collectors.toSet());
         return NodesShutdownMetadata.getShutdowns(clusterState)
             .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .map(m -> m.entrySet().stream()
-                .filter(e -> types.contains(e.getValue().getType()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
+            .map(
+                m -> m.entrySet()
+                    .stream()
+                    .filter(e -> types.contains(e.getValue().getType()))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            )
             .map(Map::keySet)
             .orElse(Collections.emptySet());
     }

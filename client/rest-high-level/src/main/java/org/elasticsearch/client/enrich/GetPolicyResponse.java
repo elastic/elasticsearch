@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.client.enrich;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,10 +31,12 @@ public final class GetPolicyResponse {
     );
 
     static {
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
-            CONFIG_PARSER::apply, new ParseField("policies"));
-        CONFIG_PARSER.declareObject(ConstructingObjectParser.constructorArg(),
-            (p, c) -> NamedPolicy.fromXContent(p), new ParseField("config"));
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), CONFIG_PARSER::apply, new ParseField("policies"));
+        CONFIG_PARSER.declareObject(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> NamedPolicy.fromXContent(p),
+            new ParseField("config")
+        );
     }
 
     private final List<NamedPolicy> policies;

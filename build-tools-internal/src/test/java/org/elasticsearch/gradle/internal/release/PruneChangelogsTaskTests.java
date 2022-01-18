@@ -12,7 +12,6 @@ import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.release.PruneChangelogsTask.DeleteHelper;
 import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.gradle.api.GradleException;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -23,7 +22,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.gradle.OS.LINUX;
 import static org.elasticsearch.gradle.OS.WINDOWS;
 import static org.elasticsearch.gradle.internal.release.PruneChangelogsTask.findAndDeleteFiles;
 import static org.elasticsearch.gradle.internal.release.PruneChangelogsTask.findPreviousVersion;
@@ -205,7 +203,9 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
             )
         );
 
-        assertThat(e.getMessage(), equalTo("Failed to delete some files:\n\n\tdocs/changelog/1234.yml\n"));
+        // Use a `Path` so that the test works across platforms
+        final Path failedPath = Path.of("docs", "changelog", "1234.yml");
+        assertThat(e.getMessage(), equalTo("Failed to delete some files:\n\n\t" + failedPath + "\n"));
     }
 
     /**

@@ -11,10 +11,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.function.Predicate;
@@ -38,11 +38,19 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
             int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
             int successfulShards = randomIntBetween(0, totalShards);
             int skippedShards = totalShards - successfulShards;
-            InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
+            InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
             SearchResponse.Clusters clusters = randomClusters();
             SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
-            SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
-                    successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
+            SearchResponse searchResponse = new SearchResponse(
+                internalSearchResponse,
+                null,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                tookInMillis,
+                ShardSearchFailure.EMPTY_ARRAY,
+                clusters
+            );
             searchTemplateResponse.setResponse(searchResponse);
             items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
         }
@@ -56,7 +64,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
     }
 
-    private static  MultiSearchTemplateResponse createTestInstanceWithFailures() {
+    private static MultiSearchTemplateResponse createTestInstanceWithFailures() {
         int numItems = randomIntBetween(0, 128);
         long overallTookInMillis = randomNonNegativeLong();
         MultiSearchTemplateResponse.Item[] items = new MultiSearchTemplateResponse.Item[numItems];
@@ -67,11 +75,19 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
                 int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
                 int successfulShards = randomIntBetween(0, totalShards);
                 int skippedShards = totalShards - successfulShards;
-                InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
+                InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
                 SearchResponse.Clusters clusters = randomClusters();
                 SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
-                SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
-                        successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
+                SearchResponse searchResponse = new SearchResponse(
+                    internalSearchResponse,
+                    null,
+                    totalShards,
+                    successfulShards,
+                    skippedShards,
+                    tookInMillis,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    clusters
+                );
                 searchTemplateResponse.setResponse(searchResponse);
                 items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
             } else {
@@ -119,13 +135,22 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
      */
     public void testFromXContentWithFailures() throws IOException {
         Supplier<MultiSearchTemplateResponse> instanceSupplier = MultiSearchTemplateResponseTests::createTestInstanceWithFailures;
-        //with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
-        //but that does not bother our assertions, as we only want to test that we don't break.
+        // with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
+        // but that does not bother our assertions, as we only want to test that we don't break.
         boolean supportsUnknownFields = true;
-        //exceptions are not of the same type whenever parsed back
+        // exceptions are not of the same type whenever parsed back
         boolean assertToXContentEquivalence = false;
-        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, Strings.EMPTY_ARRAY,
-                getRandomFieldsExcludeFilterWhenResultHasErrors(), this::createParser, this::doParseInstance,
-                this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
+        AbstractXContentTestCase.testFromXContent(
+            NUMBER_OF_TEST_RUNS,
+            instanceSupplier,
+            supportsUnknownFields,
+            Strings.EMPTY_ARRAY,
+            getRandomFieldsExcludeFilterWhenResultHasErrors(),
+            this::createParser,
+            this::doParseInstance,
+            this::assertEqualInstances,
+            assertToXContentEquivalence,
+            ToXContent.EMPTY_PARAMS
+        );
     }
 }

@@ -50,8 +50,12 @@ public interface AuthenticationFailureHandler {
      * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException failedAuthentication(TransportMessage message, AuthenticationToken token, String action,
-                                                        ThreadContext context);
+    ElasticsearchSecurityException failedAuthentication(
+        TransportMessage message,
+        AuthenticationToken token,
+        String action,
+        ThreadContext context
+    );
 
     /**
      * The method is called when an exception has occurred while processing the REST request. This could be an error that

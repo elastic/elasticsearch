@@ -29,8 +29,7 @@ public class HeaderWarningAppender extends AbstractAppender {
     public void append(LogEvent event) {
         final Message message = event.getMessage();
 
-        if (message instanceof ESLogMessage) {
-            final ESLogMessage esLogMessage = (ESLogMessage) message;
+        if (message instanceof final ESLogMessage esLogMessage) {
 
             String messagePattern = esLogMessage.getMessagePattern();
             Object[] arguments = esLogMessage.getArguments();
@@ -43,10 +42,7 @@ public class HeaderWarningAppender extends AbstractAppender {
     }
 
     @PluginFactory
-    public static HeaderWarningAppender createAppender(
-        @PluginAttribute("name") String name,
-        @PluginElement("filter") Filter filter
-    ) {
+    public static HeaderWarningAppender createAppender(@PluginAttribute("name") String name, @PluginElement("filter") Filter filter) {
         return new HeaderWarningAppender(name, filter);
     }
 }

@@ -8,19 +8,20 @@
 
 package org.elasticsearch.client.ml.inference.trainedmodel;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 public class ClassificationConfigTests extends AbstractXContentTestCase<ClassificationConfig> {
 
     public static ClassificationConfig randomClassificationConfig() {
-        return new ClassificationConfig(randomBoolean() ? null : randomIntBetween(-1, 10),
+        return new ClassificationConfig(
+            randomBoolean() ? null : randomIntBetween(-1, 10),
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomIntBetween(0, 10)
-            );
+        );
     }
 
     @Override

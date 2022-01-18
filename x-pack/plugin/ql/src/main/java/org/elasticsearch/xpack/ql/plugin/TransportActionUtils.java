@@ -19,15 +19,20 @@ public final class TransportActionUtils {
 
     /**
      * Execute a *QL request and re-try it in case the first request failed with a {@code VersionMismatchException}
-     * 
+     *
      * @param clusterService The cluster service instance
      * @param onFailure On-failure handler in case the request doesn't fail with a {@code VersionMismatchException}
      * @param queryRunner *QL query execution code, typically a Plan Executor running the query
      * @param retryRequest Re-trial logic
      * @param log Log4j logger
      */
-    public static void executeRequestWithRetryAttempt(ClusterService clusterService, Consumer<Exception> onFailure,
-        Consumer<Consumer<Exception>> queryRunner, Consumer<DiscoveryNode> retryRequest, Logger log) {
+    public static void executeRequestWithRetryAttempt(
+        ClusterService clusterService,
+        Consumer<Exception> onFailure,
+        Consumer<Consumer<Exception>> queryRunner,
+        Consumer<DiscoveryNode> retryRequest,
+        Logger log
+    ) {
 
         Holder<Boolean> retrySecondTime = new Holder<Boolean>(false);
         queryRunner.accept(e -> {
@@ -49,8 +54,13 @@ public final class TransportActionUtils {
                 }
                 if (candidateNode != null) {
                     if (log.isDebugEnabled()) {
-                        log.debug("Candidate node to resend the request to: address [{}], id [{}], name [{}], version [{}]",
-                            candidateNode.getAddress(), candidateNode.getId(), candidateNode.getName(), candidateNode.getVersion());
+                        log.debug(
+                            "Candidate node to resend the request to: address [{}], id [{}], name [{}], version [{}]",
+                            candidateNode.getAddress(),
+                            candidateNode.getId(),
+                            candidateNode.getName(),
+                            candidateNode.getVersion()
+                        );
                     }
                     // re-send the request to the older node
                     retryRequest.accept(candidateNode);

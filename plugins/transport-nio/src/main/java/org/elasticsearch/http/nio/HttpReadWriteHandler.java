@@ -15,6 +15,7 @@ import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
+
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpPipelinedRequest;
@@ -46,8 +47,13 @@ public class HttpReadWriteHandler implements NioChannelHandler {
     private boolean requestSinceReadTimeoutTrigger = false;
     private int inFlightRequests = 0;
 
-    public HttpReadWriteHandler(NioHttpChannel nioHttpChannel, NioHttpServerTransport transport, HttpHandlingSettings settings,
-                                TaskScheduler taskScheduler, LongSupplier nanoClock) {
+    public HttpReadWriteHandler(
+        NioHttpChannel nioHttpChannel,
+        NioHttpServerTransport transport,
+        HttpHandlingSettings settings,
+        TaskScheduler taskScheduler,
+        LongSupplier nanoClock
+    ) {
         this.nioHttpChannel = nioHttpChannel;
         this.transport = transport;
         this.taskScheduler = taskScheduler;
@@ -55,8 +61,11 @@ public class HttpReadWriteHandler implements NioChannelHandler {
         this.readTimeoutNanos = TimeUnit.MILLISECONDS.toNanos(settings.getReadTimeoutMillis());
 
         List<ChannelHandler> handlers = new ArrayList<>(8);
-        HttpRequestDecoder decoder = new HttpRequestDecoder(settings.getMaxInitialLineLength(), settings.getMaxHeaderSize(),
-            settings.getMaxChunkSize());
+        HttpRequestDecoder decoder = new HttpRequestDecoder(
+            settings.getMaxInitialLineLength(),
+            settings.getMaxHeaderSize(),
+            settings.getMaxChunkSize()
+        );
         decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
         handlers.add(decoder);
         handlers.add(new HttpContentDecompressor());
@@ -162,11 +171,18 @@ public class HttpReadWriteHandler implements NioChannelHandler {
     }
 
     private static boolean assertMessageTypes(Object message) {
-        assert message instanceof HttpPipelinedResponse : "This channel only supports messages that are of type: "
-            + HttpPipelinedResponse.class + ". Found type: " + message.getClass() + ".";
-        assert ((HttpPipelinedResponse) message).getDelegateRequest() instanceof NioHttpResponse :
-            "This channel only pipelined responses with a delegate of type: " + NioHttpResponse.class +
-                ". Found type: " + ((HttpPipelinedResponse) message).getDelegateRequest().getClass() + ".";
+        assert message instanceof HttpPipelinedResponse
+            : "This channel only supports messages that are of type: "
+                + HttpPipelinedResponse.class
+                + ". Found type: "
+                + message.getClass()
+                + ".";
+        assert ((HttpPipelinedResponse) message).getDelegateRequest() instanceof NioHttpResponse
+            : "This channel only pipelined responses with a delegate of type: "
+                + NioHttpResponse.class
+                + ". Found type: "
+                + ((HttpPipelinedResponse) message).getDelegateRequest().getClass()
+                + ".";
         return true;
     }
 }

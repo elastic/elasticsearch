@@ -35,9 +35,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  * Base {@link StoredFieldVisitor} that retrieves all non-redundant metadata.
  */
 public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
-    private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(
-            IdFieldMapper.NAME,
-            RoutingFieldMapper.NAME));
+    private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(IdFieldMapper.NAME, RoutingFieldMapper.NAME));
 
     private final boolean loadSource;
     private final String sourceFieldName;
@@ -68,11 +66,13 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         if (IgnoredFieldMapper.NAME.equals(fieldInfo.name)) {
             return Status.YES;
         }
+        // support _uid for loading older indices
+        if ("_uid".equals(fieldInfo.name)) {
+            return Status.YES;
+        }
         // All these fields are single-valued so we can stop when the set is
         // empty
-        return requiredFields.isEmpty()
-                ? Status.STOP
-                : Status.NO;
+        return requiredFields.isEmpty() ? Status.STOP : Status.NO;
     }
 
     @Override
@@ -107,9 +107,18 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
 
     @Override
     public void stringField(FieldInfo fieldInfo, String value) {
-        assert IdFieldMapper.NAME.equals(fieldInfo.name) == false : "_id field must go through binaryField";
         assert sourceFieldName.equals(fieldInfo.name) == false : "source field must go through binaryField";
-        addValue(fieldInfo.name, value);
+        if ("_uid".equals(fieldInfo.name)) {
+            // 5.x-only
+            int delimiterIndex = value.indexOf('#'); // type is not allowed to have # in it..., ids can
+            // type = value.substring(0, delimiterIndex);
+            id = value.substring(delimiterIndex + 1);
+        } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
+            // only applies to 5.x indices that have single_type = true
+            id = value;
+        } else {
+            addValue(fieldInfo.name, value);
+        }
     }
 
     @Override

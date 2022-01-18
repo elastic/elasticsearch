@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,8 +32,7 @@ public class GetRollupIndexCapsResponseTests extends RollupCapsResponseTestCase<
 
     @Override
     protected Predicate<String> randomFieldsExcludeFilter() {
-        return (field) ->
-        {
+        return (field) -> {
             // base cannot have extra things in it
             return "".equals(field)
                 // the field list expects to be a nested object of a certain type

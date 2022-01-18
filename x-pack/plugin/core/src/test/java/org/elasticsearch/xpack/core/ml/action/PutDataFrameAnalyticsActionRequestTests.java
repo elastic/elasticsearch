@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction.Request;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests;
@@ -80,11 +80,14 @@ public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializing
     }
 
     public void testValidate_GivenRequestWithIncludedAnalyzedFieldThatIsExcludedInSourceFiltering() {
-        DataFrameAnalyticsSource source = new DataFrameAnalyticsSource(new String[] {"index"}, null,
-            new FetchSourceContext(true, null, new String[] {"excluded"}), null);
-        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[] {"excluded"}, null);
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
-            .setId("foo")
+        DataFrameAnalyticsSource source = new DataFrameAnalyticsSource(
+            new String[] { "index" },
+            null,
+            new FetchSourceContext(true, null, new String[] { "excluded" }),
+            null
+        );
+        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[] { "excluded" }, null);
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId("foo")
             .setSource(source)
             .setAnalysis(OutlierDetectionTests.createRandom())
             .setAnalyzedFields(analyzedFields)
@@ -98,11 +101,14 @@ public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializing
     }
 
     public void testValidate_GivenRequestWithIncludedAnalyzedFieldThatIsIncludedInSourceFiltering() {
-        DataFrameAnalyticsSource source = new DataFrameAnalyticsSource(new String[] {"index"}, null,
-            new FetchSourceContext(true, new String[] {"included"}, null), null);
-        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[] {"included"}, null);
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
-            .setId("foo")
+        DataFrameAnalyticsSource source = new DataFrameAnalyticsSource(
+            new String[] { "index" },
+            null,
+            new FetchSourceContext(true, new String[] { "included" }, null),
+            null
+        );
+        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[] { "included" }, null);
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId("foo")
             .setSource(source)
             .setAnalysis(OutlierDetectionTests.createRandom())
             .setAnalyzedFields(analyzedFields)

@@ -84,9 +84,7 @@ public interface NestedLookup {
             }
             previous = mapper;
         }
-        List<String> nestedPathNames = mappers.stream()
-            .map(NestedObjectMapper::name)
-            .collect(Collectors.toList());
+        List<String> nestedPathNames = mappers.stream().map(NestedObjectMapper::name).collect(Collectors.toList());
         return new NestedLookup() {
 
             @Override

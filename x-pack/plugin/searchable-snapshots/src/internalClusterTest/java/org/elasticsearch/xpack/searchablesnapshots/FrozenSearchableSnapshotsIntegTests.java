@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots;
 
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
@@ -21,10 +20,11 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Priority;
@@ -46,12 +46,10 @@ import org.elasticsearch.indices.IndicesRequestCacheUtils;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 
@@ -62,7 +60,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -272,12 +269,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             final ByteBuffersDirectory inMemoryDir = (ByteBuffersDirectory) unwrappedDir;
             assertThat(inMemoryDir.listAll(), arrayWithSize(1));
 
-            final String segmentsFileName = SegmentInfos.getLastCommitSegmentsFileName(inMemoryDir);
-            assertThat("Fail to find segment file name directory for " + shardRouting.toString(), segmentsFileName, notNullValue());
-            final long extraSegmentFileSize = inMemoryDir.fileLength(segmentsFileName);
-
-            assertThat(shardRouting.toString(), store.getTotalDataSetSize().getBytes(), equalTo(originalSize + extraSegmentFileSize));
-            totalExpectedSize += extraSegmentFileSize;
+            assertThat(shardRouting.toString(), store.getTotalDataSetSize().getBytes(), equalTo(originalSize));
         }
 
         final StoreStats store = indicesStatsResponse.getTotal().getStore();
@@ -300,8 +292,8 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         assertTrue(SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING.exists(settings));
         assertThat(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(settings).toString(), equalTo("false"));
         assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings), equalTo(expectedReplicas));
-        assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings), equalTo(expectedDataTiersPreference));
-        assertTrue(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.get(settings));
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(settings), equalTo(expectedDataTiersPreference));
+        assertTrue(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.get(settings));
         assertTrue(DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings));
         assertThat(IndexSettings.INDEX_CHECK_ON_STARTUP.get(settings), equalTo(indexCheckOnStartup));
 
@@ -311,7 +303,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         // TODO: fix
         // assertSearchableSnapshotStats(restoredIndexName, true, nonCachedExtensions);
         ensureGreen(restoredIndexName);
-        assertShardFolders(restoredIndexName, true);
+        assertBusy(() -> assertShardFolders(restoredIndexName, true));
 
         assertThat(
             client().admin()
@@ -377,10 +369,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         final DiscoveryNode dataNode = randomFrom(
-            StreamSupport.stream(
-                client().admin().cluster().prepareState().get().getState().nodes().getDataNodes().values().spliterator(),
-                false
-            ).map(c -> c.value).toArray(DiscoveryNode[]::new)
+            client().admin().cluster().prepareState().get().getState().nodes().getDataNodes().values()
         );
 
         assertAcked(
@@ -436,7 +425,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                     Settings.builder()
                         .putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
                         .putNull(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey())
-                        .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DataTier.DATA_HOT)
+                        .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
                         .build()
                 )
         );

@@ -12,13 +12,14 @@ import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.utils.ByteBufferUtils;
 import org.elasticsearch.nio.utils.ExceptionsHelper;
 
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.function.IntFunction;
+
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLEngineResult;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSession;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.function.IntFunction;
 
 /**
  * SSLDriver is a class that wraps the {@link SSLEngine} and attempts to simplify the API. The basic usage is
@@ -50,7 +51,7 @@ import java.util.function.IntFunction;
  */
 public class SSLDriver implements AutoCloseable {
 
-    private static final ByteBuffer[] EMPTY_BUFFERS = {ByteBuffer.allocate(0)};
+    private static final ByteBuffer[] EMPTY_BUFFERS = { ByteBuffer.allocate(0) };
     private static final FlushOperation EMPTY_FLUSH_OPERATION = new FlushOperation(EMPTY_BUFFERS, (r, t) -> {});
 
     private final SSLEngine engine;
@@ -299,25 +300,24 @@ public class SSLDriver implements AutoCloseable {
             boolean continueHandshaking = true;
             while (continueHandshaking) {
                 switch (handshakeStatus) {
-                    case NEED_UNWRAP:
+                    case NEED_UNWRAP -> {
                         isHandshaking = true;
                         // We UNWRAP as much as possible immediately after a read. Do not need to do it here.
                         continueHandshaking = false;
-                        break;
-                    case NEED_WRAP:
+                    }
+                    case NEED_WRAP -> {
                         isHandshaking = true;
                         handshakeStatus = wrap(outboundBuffer).getHandshakeStatus();
-                        break;
-                    case NEED_TASK:
+                    }
+                    case NEED_TASK -> {
                         runTasks();
                         isHandshaking = true;
                         handshakeStatus = engine.getHandshakeStatus();
-                        break;
-                    case NOT_HANDSHAKING:
-                    case FINISHED:
+                    }
+                    case NOT_HANDSHAKING, FINISHED -> {
                         isHandshaking = false;
                         continueHandshaking = false;
-                        break;
+                    }
                 }
             }
         }

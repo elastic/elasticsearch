@@ -16,6 +16,7 @@ import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
@@ -117,10 +118,11 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                         }
 
                         @Override
-                        public void onFailure(String source, Exception e) {
+                        public void onFailure(Exception e) {
                             logger.warn("Failed to remove repository cleanup task [{}] from cluster state", repositoryCleanupInProgress);
                         }
-                    }
+                    },
+                    ClusterStateTaskExecutor.unbatched()
                 );
             }
         });
@@ -201,7 +203,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                             );
                         }
                         SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-                        if (snapshots.entries().isEmpty() == false) {
+                        if (snapshots.isEmpty() == false) {
                             throw new IllegalStateException(
                                 "Cannot cleanup [" + repositoryName + "] - a snapshot is currently running in [" + snapshots + "]"
                             );
@@ -217,7 +219,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
+                    public void onFailure(Exception e) {
                         after(e, null);
                     }
 
@@ -266,7 +268,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                 }
 
                                 @Override
-                                public void onFailure(String source, Exception e) {
+                                public void onFailure(Exception e) {
                                     if (failure != null) {
                                         e.addSuppressed(failure);
                                     }
@@ -299,10 +301,12 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                         listener.onFailure(failure);
                                     }
                                 }
-                            }
+                            },
+                            ClusterStateTaskExecutor.unbatched()
                         );
                     }
-                }
+                },
+                ClusterStateTaskExecutor.unbatched()
             );
         }, listener::onFailure);
     }

@@ -18,11 +18,18 @@ public class SecurityServerTransportServiceTests extends SecurityIntegTestCase {
             RequestHandlerRegistry handler = transportService.transport.getRequestHandlers()
                 .getHandler(TransportService.HANDSHAKE_ACTION_NAME);
             assertEquals(
-                    "handler not wrapped by " + SecurityServerTransportInterceptor.ProfileSecuredRequestHandler.class +
-                            "; do all the handler registration methods have overrides?",
-                    handler.toString(),
-                    "ProfileSecuredRequestHandler{action='" + handler.getAction() + "', executorName='" + handler.getExecutor()
-                            + "', forceExecution=" + handler.isForceExecution() + "}");
+                "handler not wrapped by "
+                    + SecurityServerTransportInterceptor.ProfileSecuredRequestHandler.class
+                    + "; do all the handler registration methods have overrides?",
+                handler.toString(),
+                "ProfileSecuredRequestHandler{action='"
+                    + handler.getAction()
+                    + "', executorName='"
+                    + handler.getExecutor()
+                    + "', forceExecution="
+                    + handler.isForceExecution()
+                    + "}"
+            );
         }
     }
 }

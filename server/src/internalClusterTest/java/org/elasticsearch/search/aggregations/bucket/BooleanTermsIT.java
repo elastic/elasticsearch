@@ -13,9 +13,9 @@ import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -43,24 +43,21 @@ public class BooleanTermsIT extends ESIntegTestCase {
             }
             final boolean[] multiValue;
             switch (randomInt(3)) {
-                case 0:
-                    multiValue = new boolean[0];
-                    break;
-                case 1:
+                case 0 -> multiValue = new boolean[0];
+                case 1 -> {
                     numMultiFalses++;
                     multiValue = new boolean[] { false };
-                    break;
-                case 2:
+                }
+                case 2 -> {
                     numMultiTrues++;
                     multiValue = new boolean[] { true };
-                    break;
-                case 3:
+                }
+                case 3 -> {
                     numMultiFalses++;
                     numMultiTrues++;
                     multiValue = new boolean[] { false, true };
-                    break;
-                default:
-                    throw new AssertionError();
+                }
+                default -> throw new AssertionError();
             }
             builders[i] = client().prepareIndex("idx")
                 .setSource(

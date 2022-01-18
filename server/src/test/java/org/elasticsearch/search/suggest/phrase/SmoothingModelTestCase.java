@@ -21,13 +21,13 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -107,8 +107,8 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader ir = DirectoryReader.open(writer);
 
-        WordScorer wordScorer = testModel.buildWordScorerFactory().newScorer(ir, MultiTerms.getTerms(ir, "field"), "field", 0.9d,
-                BytesRefs.toBytesRef(" "));
+        WordScorer wordScorer = testModel.buildWordScorerFactory()
+            .newScorer(ir, MultiTerms.getTerms(ir, "field"), "field", 0.9d, BytesRefs.toBytesRef(" "));
         assertWordScorer(wordScorer, testModel);
     }
 
@@ -136,7 +136,10 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
     }
 
     private SmoothingModel copy(SmoothingModel original) throws IOException {
-        return ESTestCase.copyWriteable(original, namedWriteableRegistry,
-                namedWriteableRegistry.getReader(SmoothingModel.class, original.getWriteableName()));
+        return ESTestCase.copyWriteable(
+            original,
+            namedWriteableRegistry,
+            namedWriteableRegistry.getReader(SmoothingModel.class, original.getWriteableName())
+        );
     }
 }

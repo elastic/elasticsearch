@@ -24,7 +24,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-
 public class RestClusterGetSettingsActionTests extends ESTestCase {
 
     public void testFilterPersistentSettings() {
@@ -36,22 +35,30 @@ public class RestClusterGetSettingsActionTests extends ESTestCase {
     }
 
     private void runTestFilterSettingsTest(
-            final BiConsumer<Metadata.Builder, Settings> md, final Function<ClusterGetSettingsResponse, Settings> s) {
+        final BiConsumer<Metadata.Builder, Settings> md,
+        final Function<ClusterGetSettingsResponse, Settings> s
+    ) {
         final Metadata.Builder mdBuilder = new Metadata.Builder();
         final Settings settings = Settings.builder().put("foo.filtered", "bar").put("foo.non_filtered", "baz").build();
         md.accept(mdBuilder, settings);
         final ClusterState.Builder builder = new ClusterState.Builder(ClusterState.EMPTY_STATE).metadata(mdBuilder);
         final SettingsFilter filter = new SettingsFilter(Collections.singleton("foo.filtered"));
-        final Setting.Property[] properties = {Setting.Property.Dynamic, Setting.Property.Filtered, Setting.Property.NodeScope};
+        final Setting.Property[] properties = { Setting.Property.Dynamic, Setting.Property.Filtered, Setting.Property.NodeScope };
         final Set<Setting<?>> settingsSet = Stream.concat(
-                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
-                Stream.concat(
-                        Stream.of(Setting.simpleString("foo.filtered", properties)),
-                        Stream.of(Setting.simpleString("foo.non_filtered", properties))))
-                .collect(Collectors.toSet());
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
+            Stream.concat(
+                Stream.of(Setting.simpleString("foo.filtered", properties)),
+                Stream.of(Setting.simpleString("foo.non_filtered", properties))
+            )
+        ).collect(Collectors.toSet());
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
-        final ClusterGetSettingsResponse response =
-                RestClusterGetSettingsAction.response(builder.build(), randomBoolean(), filter, clusterSettings, Settings.EMPTY);
+        final ClusterGetSettingsResponse response = RestClusterGetSettingsAction.response(
+            builder.build(),
+            randomBoolean(),
+            filter,
+            clusterSettings,
+            Settings.EMPTY
+        );
         assertFalse(s.apply(response).hasValue("foo.filtered"));
         assertTrue(s.apply(response).hasValue("foo.non_filtered"));
     }

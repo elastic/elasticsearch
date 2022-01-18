@@ -9,12 +9,12 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,7 +48,7 @@ public abstract class ParsedMultiBucketAggregation<B extends ParsedMultiBucketAg
         return builder;
     }
 
-    protected static <A extends ParsedMultiBucketAggregation<T>, T extends ParsedBucket> void declareMultiBucketAggregationFields(
+    public static <A extends ParsedMultiBucketAggregation<T>, T extends ParsedBucket> void declareMultiBucketAggregationFields(
         final ObjectParser<A, Void> objectParser,
         final CheckedFunction<XContentParser, T, IOException> bucketParser,
         final CheckedFunction<XContentParser, T, IOException> keyedBucketParser

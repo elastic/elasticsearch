@@ -81,8 +81,7 @@ public class ConcatFunctionProcessor extends BinaryProcessor {
         }
 
         ConcatFunctionProcessor other = (ConcatFunctionProcessor) obj;
-        return Objects.equals(left(), other.left())
-                && Objects.equals(right(), other.right());
+        return Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
     }
 
     @Override
@@ -91,6 +90,5 @@ public class ConcatFunctionProcessor extends BinaryProcessor {
     }
 
     @Override
-    protected void doWrite(StreamOutput out) throws IOException {
-    }
+    protected void doWrite(StreamOutput out) throws IOException {}
 }

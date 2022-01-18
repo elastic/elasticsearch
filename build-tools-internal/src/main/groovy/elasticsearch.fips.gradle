@@ -31,26 +31,20 @@ if (BuildParams.inFipsJvm) {
         copy 'fips_java.policy'
         copy 'cacerts.bcfks'
       }
+      def extraFipsJarsConfiguration = configurations.detachedConfiguration(bcFips, bcTlsFips)
 
       project.afterEvaluate {
-        def extraFipsJars = configurations.detachedConfiguration(bcFips, bcTlsFips)
         // ensure that bouncycastle is on classpath for the all of test types, must happen in evaluateAfter since the rest tests explicitly
         // set the class path to help maintain pure black box testing, and here we are adding to that classpath
         tasks.withType(Test).configureEach { Test test ->
-          test.setClasspath(test.getClasspath().plus(extraFipsJars))
+          test.setClasspath(test.getClasspath().plus(extraFipsJarsConfiguration))
         }
       }
 
       pluginManager.withPlugin("elasticsearch.testclusters") {
-        afterEvaluate {
-          // This afterEvaluate hooks is required to avoid deprecated configuration resolution
-          // This configuration can be removed once system modules are available
-          def extraFipsJars = configurations.detachedConfiguration(bcFips, bcTlsFips)
-          testClusters.configureEach {
-            extraFipsJars.files.each {
-              extraJarFile it
-            }
-          }
+        // This configuration can be removed once system modules are available
+        testClusters.configureEach {
+            extraJarFiles extraFipsJarsConfiguration
         }
         tasks.withType(TestClustersAware).configureEach {
           dependsOn 'fipsResources'

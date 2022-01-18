@@ -34,12 +34,15 @@ public class DeflateCompressor implements Compressor {
     // It needs to be different from other compressors and to not be specific
     // enough so that no stream starting with these bytes could be detected as
     // a XContent
-    private static final byte[] HEADER = new byte[]{'D', 'F', 'L', '\0'};
+    private static final byte[] HEADER = new byte[] { 'D', 'F', 'L', '\0' };
+
+    public static final int HEADER_SIZE = HEADER.length;
+
     // 3 is a good trade-off between speed and compression ratio
     private static final int LEVEL = 3;
     // We use buffering on the input and output of in/def-laters in order to
     // limit the number of JNI calls
-    private static final int BUFFER_SIZE = 4096;
+    public static final int BUFFER_SIZE = 4096;
 
     @Override
     public boolean isCompressed(BytesReference bytes) {
@@ -102,8 +105,8 @@ public class DeflateCompressor implements Compressor {
         @Override
         public void close() {
             if (Assertions.ENABLED) {
-                assert thread == Thread.currentThread() :
-                        "Opened on [" + thread.getName() + "] but closed on [" + Thread.currentThread().getName() + "]";
+                assert thread == Thread.currentThread()
+                    : "Opened on [" + thread.getName() + "] but closed on [" + Thread.currentThread().getName() + "]";
                 thread = null;
             }
             assert inUse;

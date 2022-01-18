@@ -11,14 +11,14 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractGeometryQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeQueryable;
 
 import java.io.IOException;
@@ -88,8 +88,10 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     @SuppressWarnings({ "rawtypes" })
     public Query buildShapeQuery(SearchExecutionContext context, MappedFieldType fieldType) {
         if ((fieldType instanceof ShapeQueryable) == false) {
-            throw new QueryShardException(context,
-                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query");
+            throw new QueryShardException(
+                context,
+                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
+            );
         }
         final ShapeQueryable ft = (ShapeQueryable) fieldType;
         return new ConstantScoreQuery(ft.shapeQuery(shape, fieldType.name(), relation, context));
@@ -102,12 +104,12 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
 
     @Override
     protected ShapeQueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        return (ShapeQueryBuilder)super.doRewrite(queryRewriteContext);
+        return (ShapeQueryBuilder) super.doRewrite(queryRewriteContext);
     }
 
     @Override
     protected boolean doEquals(ShapeQueryBuilder other) {
-        return super.doEquals((AbstractGeometryQueryBuilder)other);
+        return super.doEquals((AbstractGeometryQueryBuilder) other);
     }
 
     @Override
@@ -138,8 +140,10 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     }
 
     public static ShapeQueryBuilder fromXContent(XContentParser parser) throws IOException {
-        ParsedShapeQueryParams pgsqb = (ParsedShapeQueryParams)AbstractGeometryQueryBuilder.parsedParamsFromXContent(parser,
-            new ParsedShapeQueryParams());
+        ParsedShapeQueryParams pgsqb = (ParsedShapeQueryParams) AbstractGeometryQueryBuilder.parsedParamsFromXContent(
+            parser,
+            new ParsedShapeQueryParams()
+        );
 
         ShapeQueryBuilder builder;
 

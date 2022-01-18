@@ -83,11 +83,12 @@ public class SamlRedirect {
         return URLEncoder.encode(param, StandardCharsets.US_ASCII.name());
     }
 
-    protected String deflateAndBase64Encode(SAMLObject message)
-            throws Exception {
+    protected String deflateAndBase64Encode(SAMLObject message) throws Exception {
         Deflater deflater = new Deflater(Deflater.DEFLATED, true);
-        try (ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
-             DeflaterOutputStream deflaterStream = new DeflaterOutputStream(bytesOut, deflater)) {
+        try (
+            ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
+            DeflaterOutputStream deflaterStream = new DeflaterOutputStream(bytesOut, deflater)
+        ) {
             String messageStr = SamlUtils.toString(XMLObjectSupport.marshall(message));
             deflaterStream.write(messageStr.getBytes(StandardCharsets.UTF_8));
             deflaterStream.finish();

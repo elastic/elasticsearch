@@ -24,8 +24,10 @@ public abstract class AbstractSnapshotRestTestCase extends HttpSmokeTestCase {
      * We use single threaded metadata fetching in some tests to make sure that once the snapshot meta thread is stuck on a blocked repo,
      * no other snapshot meta thread can concurrently finish a request/task
      */
-    protected static final Settings SINGLE_THREADED_SNAPSHOT_META_SETTINGS =
-        Settings.builder().put("thread_pool.snapshot_meta.core", 1).put("thread_pool.snapshot_meta.max", 1).build();
+    protected static final Settings SINGLE_THREADED_SNAPSHOT_META_SETTINGS = Settings.builder()
+        .put("thread_pool.snapshot_meta.core", 1)
+        .put("thread_pool.snapshot_meta.max", 1)
+        .build();
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

@@ -22,8 +22,13 @@ public final class PainlessField {
     public final MethodHandle getterMethodHandle;
     public final MethodHandle setterMethodHandle;
 
-    PainlessField(Field javaField, Class<?> typeParameter, Map<Class<?>, Object> annotations,
-            MethodHandle getterMethodHandle, MethodHandle setterMethodHandle) {
+    PainlessField(
+        Field javaField,
+        Class<?> typeParameter,
+        Map<Class<?>, Object> annotations,
+        MethodHandle getterMethodHandle,
+        MethodHandle setterMethodHandle
+    ) {
 
         this.javaField = javaField;
         this.typeParameter = typeParameter;
@@ -43,11 +48,11 @@ public final class PainlessField {
             return false;
         }
 
-        PainlessField that = (PainlessField)object;
+        PainlessField that = (PainlessField) object;
 
-        return Objects.equals(javaField, that.javaField) &&
-                Objects.equals(typeParameter, that.typeParameter) &&
-                Objects.equals(annotations, that.annotations);
+        return Objects.equals(javaField, that.javaField)
+            && Objects.equals(typeParameter, that.typeParameter)
+            && Objects.equals(annotations, that.annotations);
     }
 
     @Override

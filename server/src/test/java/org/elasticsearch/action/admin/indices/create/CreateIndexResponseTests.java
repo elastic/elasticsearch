@@ -10,9 +10,9 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
@@ -44,8 +44,11 @@ public class CreateIndexResponseTests extends AbstractSerializingTestCase<Create
                 return new CreateIndexResponse(acknowledged, shardsAcknowledged, response.index());
             }
         } else {
-            return new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(),
-                        response.index() + randomAlphaOfLengthBetween(2, 5));
+            return new CreateIndexResponse(
+                response.isAcknowledged(),
+                response.isShardsAcknowledged(),
+                response.index() + randomAlphaOfLengthBetween(2, 5)
+            );
         }
     }
 
@@ -57,13 +60,15 @@ public class CreateIndexResponseTests extends AbstractSerializingTestCase<Create
     public void testToXContent() {
         CreateIndexResponse response = new CreateIndexResponse(true, false, "index_name");
         String output = Strings.toString(response);
-        assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":false,\"index\":\"index_name\"}", output);
+        assertEquals("""
+            {"acknowledged":true,"shards_acknowledged":false,"index":"index_name"}""", output);
     }
 
     public void testToAndFromXContentIndexNull() throws IOException {
         CreateIndexResponse response = new CreateIndexResponse(true, false, null);
         String output = Strings.toString(response);
-        assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":false,\"index\":null}", output);
+        assertEquals("""
+            {"acknowledged":true,"shards_acknowledged":false,"index":null}""", output);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, output)) {
             CreateIndexResponse parsedResponse = CreateIndexResponse.fromXContent(parser);
             assertNull(parsedResponse.index());

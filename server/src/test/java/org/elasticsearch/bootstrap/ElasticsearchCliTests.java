@@ -41,24 +41,26 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
 
     private void runTestThatVersionIsMutuallyExclusiveToOtherOptions(String... args) throws Exception {
         runTestVersion(
-                ExitCodes.USAGE,
-                (output, error) -> assertThat(
-                        error,
-                        allOf(containsString("ERROR:"),
-                              containsString("are unavailable given other options on the command line"))),
-                args);
+            ExitCodes.USAGE,
+            (output, error) -> assertThat(
+                error,
+                allOf(containsString("ERROR:"), containsString("are unavailable given other options on the command line"))
+            ),
+            args
+        );
     }
 
     private void runTestThatVersionIsReturned(String... args) throws Exception {
         runTestVersion(ExitCodes.OK, (output, error) -> {
             assertThat(output, containsString("Version: " + Build.CURRENT.getQualifiedVersion()));
             final String expectedBuildOutput = String.format(
-                    Locale.ROOT,
-                    "Build: %s/%s/%s/%s",
-                    Build.CURRENT.flavor().displayName(),
-                    Build.CURRENT.type().displayName(),
-                    Build.CURRENT.hash(),
-                    Build.CURRENT.date());
+                Locale.ROOT,
+                "Build: %s/%s/%s/%s",
+                Build.CURRENT.flavor().displayName(),
+                Build.CURRENT.type().displayName(),
+                Build.CURRENT.hash(),
+                Build.CURRENT.date()
+            );
             assertThat(output, containsString(expectedBuildOutput));
             assertThat(output, containsString("JVM: " + JvmInfo.jvmInfo().version()));
         }, args);
@@ -74,39 +76,57 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
             false,
             (output, error) -> assertThat(error, containsString("Positional arguments not allowed, found [foo]")),
             (foreground, pidFile, quiet, esSettings) -> {},
-            "foo");
+            "foo"
+        );
         runTest(
             ExitCodes.USAGE,
             false,
             (output, error) -> assertThat(error, containsString("Positional arguments not allowed, found [foo, bar]")),
             (foreground, pidFile, quiet, esSettings) -> {},
-            "foo", "bar");
+            "foo",
+            "bar"
+        );
         runTest(
             ExitCodes.USAGE,
             false,
             (output, error) -> assertThat(error, containsString("Positional arguments not allowed, found [foo]")),
             (foreground, pidFile, quiet, esSettings) -> {},
-            "-E", "foo=bar", "foo", "-E", "baz=qux");
+            "-E",
+            "foo=bar",
+            "foo",
+            "-E",
+            "baz=qux"
+        );
     }
 
     public void testThatPidFileCanBeConfigured() throws Exception {
         Path tmpDir = createTempDir();
         Path pidFile = tmpDir.resolve("pid");
-        runPidFileTest(ExitCodes.USAGE, false,
-            (output, error) -> assertThat(error, containsString("Option p/pidfile requires an argument")), pidFile, "-p");
+        runPidFileTest(
+            ExitCodes.USAGE,
+            false,
+            (output, error) -> assertThat(error, containsString("Option p/pidfile requires an argument")),
+            pidFile,
+            "-p"
+        );
         runPidFileTest(ExitCodes.OK, true, (output, error) -> {}, pidFile, "-p", pidFile.toString());
         runPidFileTest(ExitCodes.OK, true, (output, error) -> {}, pidFile, "--pidfile", tmpDir.toString() + "/pid");
     }
 
-    private void runPidFileTest(final int expectedStatus, final boolean expectedInit, BiConsumer<String, String> outputConsumer,
-                                Path expectedPidFile, final String... args)
-            throws Exception {
+    private void runPidFileTest(
+        final int expectedStatus,
+        final boolean expectedInit,
+        BiConsumer<String, String> outputConsumer,
+        Path expectedPidFile,
+        final String... args
+    ) throws Exception {
         runTest(
-                expectedStatus,
-                expectedInit,
-                outputConsumer,
-                (foreground, pidFile, quiet, esSettings) -> assertThat(pidFile.toString(), equalTo(expectedPidFile.toString())),
-                args);
+            expectedStatus,
+            expectedInit,
+            outputConsumer,
+            (foreground, pidFile, quiet, esSettings) -> assertThat(pidFile.toString(), equalTo(expectedPidFile.toString())),
+            args
+        );
     }
 
     public void testThatParsingDaemonizeWorks() throws Exception {
@@ -117,11 +137,12 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
 
     private void runDaemonizeTest(final boolean expectedDaemonize, final String... args) throws Exception {
         runTest(
-                ExitCodes.OK,
-                true,
-                (output, error) -> {},
-                (foreground, pidFile, quiet, esSettings) -> assertThat(foreground, equalTo(expectedDaemonize == false)),
-                args);
+            ExitCodes.OK,
+            true,
+            (output, error) -> {},
+            (foreground, pidFile, quiet, esSettings) -> assertThat(foreground, equalTo(expectedDaemonize == false)),
+            args
+        );
     }
 
     public void testThatParsingQuietOptionWorks() throws Exception {
@@ -132,51 +153,54 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
 
     private void runQuietTest(final boolean expectedQuiet, final String... args) throws Exception {
         runTest(
-                ExitCodes.OK,
-                true,
-                (output, error) -> {},
-                (foreground, pidFile, quiet, esSettings) -> assertThat(quiet, equalTo(expectedQuiet)),
-                args);
+            ExitCodes.OK,
+            true,
+            (output, error) -> {},
+            (foreground, pidFile, quiet, esSettings) -> assertThat(quiet, equalTo(expectedQuiet)),
+            args
+        );
     }
 
     public void testElasticsearchSettings() throws Exception {
-        runTest(
-                ExitCodes.OK,
-                true,
-                (output, error) -> {},
-                (foreground, pidFile, quiet, env) -> {
-                    Settings settings = env.settings();
-                    assertEquals("bar", settings.get("foo"));
-                    assertEquals("qux", settings.get("baz"));
-                },
-                "-Efoo=bar", "-E", "baz=qux");
+        runTest(ExitCodes.OK, true, (output, error) -> {}, (foreground, pidFile, quiet, env) -> {
+            Settings settings = env.settings();
+            assertEquals("bar", settings.get("foo"));
+            assertEquals("qux", settings.get("baz"));
+        }, "-Efoo=bar", "-E", "baz=qux");
     }
 
     public void testElasticsearchSettingCanNotBeEmpty() throws Exception {
         runTest(
-                ExitCodes.USAGE,
-                false,
-                (output, error) -> assertThat(error, containsString("setting [foo] must not be empty")),
-                (foreground, pidFile, quiet, esSettings) -> {},
-                "-E", "foo=");
+            ExitCodes.USAGE,
+            false,
+            (output, error) -> assertThat(error, containsString("setting [foo] must not be empty")),
+            (foreground, pidFile, quiet, esSettings) -> {},
+            "-E",
+            "foo="
+        );
     }
 
     public void testElasticsearchSettingCanNotBeDuplicated() throws Exception {
         runTest(
-                ExitCodes.USAGE,
-                false,
-                (output, error) -> assertThat(error, containsString("setting [foo] already set, saw [bar] and [baz]")),
-                (foreground, pidFile, quiet, initialEnv) -> {},
-                "-E", "foo=bar", "-E", "foo=baz");
+            ExitCodes.USAGE,
+            false,
+            (output, error) -> assertThat(error, containsString("setting [foo] already set, saw [bar] and [baz]")),
+            (foreground, pidFile, quiet, initialEnv) -> {},
+            "-E",
+            "foo=bar",
+            "-E",
+            "foo=baz"
+        );
     }
 
     public void testUnknownOption() throws Exception {
         runTest(
-                ExitCodes.USAGE,
-                false,
-                (output, error) -> assertThat(error, containsString("network.host is not a recognized option")),
-                (foreground, pidFile, quiet, esSettings) -> {},
-                "--network.host");
+            ExitCodes.USAGE,
+            false,
+            (output, error) -> assertThat(error, containsString("network.host is not a recognized option")),
+            (foreground, pidFile, quiet, esSettings) -> {},
+            "--network.host"
+        );
     }
 
 }

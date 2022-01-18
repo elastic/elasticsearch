@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-put-calendar]]
 = Create calendars API
 ++++

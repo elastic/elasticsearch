@@ -13,14 +13,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTaskState;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -32,9 +32,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
@@ -43,12 +43,14 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
     static final GeoIpTaskState EMPTY = new GeoIpTaskState(Collections.emptyMap());
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<GeoIpTaskState, Void> PARSER =
-        new ConstructingObjectParser<>(GEOIP_DOWNLOADER, true,
-            args -> {
-                List<Tuple<String, Metadata>> databases = (List<Tuple<String, Metadata>>) args[0];
-                return new GeoIpTaskState(databases.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
-            });
+    private static final ConstructingObjectParser<GeoIpTaskState, Void> PARSER = new ConstructingObjectParser<>(
+        GEOIP_DOWNLOADER,
+        true,
+        args -> {
+            List<Tuple<String, Metadata>> databases = (List<Tuple<String, Metadata>>) args[0];
+            return new GeoIpTaskState(databases.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
+        }
+    );
 
     static {
         PARSER.declareNamedObjects(constructorArg(), (p, c, name) -> Tuple.tuple(name, Metadata.fromXContent(p)), DATABASES);
@@ -65,12 +67,10 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
     }
 
     GeoIpTaskState(StreamInput input) throws IOException {
-        databases = Collections.unmodifiableMap(input.readMap(StreamInput::readString,
-            in -> {
-                long lastUpdate = in.readLong();
-                return new Metadata(lastUpdate, in.readVInt(), in.readVInt(), in.readString(),
-                    in.getVersion().onOrAfter(Version.V_7_14_0) ? in.readLong() : lastUpdate);
-            }));
+        databases = Collections.unmodifiableMap(input.readMap(StreamInput::readString, in -> {
+            long lastUpdate = in.readLong();
+            return new Metadata(lastUpdate, in.readVInt(), in.readVInt(), in.readString(), in.readLong());
+        }));
     }
 
     public GeoIpTaskState put(String name, Metadata metadata) {
@@ -135,9 +135,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             o.writeVInt(v.firstChunk);
             o.writeVInt(v.lastChunk);
             o.writeString(v.md5);
-            if (o.getVersion().onOrAfter(Version.V_7_14_0)) {
-                o.writeLong(v.lastCheck);
-            }
+            o.writeLong(v.lastCheck);
         });
     }
 
@@ -150,10 +148,17 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
         private static final ParseField LAST_CHUNK = new ParseField("last_chunk");
         private static final ParseField MD5 = new ParseField("md5");
 
-        private static final ConstructingObjectParser<Metadata, Void> PARSER =
-            new ConstructingObjectParser<>(NAME, true,
-                args -> new Metadata((long) args[0], (int) args[1], (int) args[2], (String) args[3], (long) (args[4] == null ? args[0] :
-                    args[4])));
+        private static final ConstructingObjectParser<Metadata, Void> PARSER = new ConstructingObjectParser<>(
+            NAME,
+            true,
+            args -> new Metadata(
+                (long) args[0],
+                (int) args[1],
+                (int) args[2],
+                (String) args[3],
+                (long) (args[4] == null ? args[0] : args[4])
+            )
+        );
 
         static {
             PARSER.declareLong(constructorArg(), LAST_UPDATE);
@@ -189,7 +194,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             return lastUpdate;
         }
 
-        public boolean isCloseToExpiration(){
+        public boolean isCloseToExpiration() {
             return Instant.ofEpochMilli(lastCheck).isBefore(Instant.now().minus(25, ChronoUnit.DAYS));
         }
 

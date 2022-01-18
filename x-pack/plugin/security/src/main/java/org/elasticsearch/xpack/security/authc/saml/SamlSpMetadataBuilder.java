@@ -176,8 +176,11 @@ public class SamlSpMetadataBuilder {
      * The certificate credential that should be used to send encrypted data to the service provider.
      */
     public SamlSpMetadataBuilder encryptionCredentials(Collection<X509Credential> credentials) {
-        return encryptionCertificates(credentials == null ? Collections.emptyList()
-                : credentials.stream().map(credential -> credential.getEntityCertificate()).collect(Collectors.toList()));
+        return encryptionCertificates(
+            credentials == null
+                ? Collections.emptyList()
+                : credentials.stream().map(credential -> credential.getEntityCertificate()).collect(Collectors.toList())
+        );
     }
 
     /**
@@ -241,7 +244,7 @@ public class SamlSpMetadataBuilder {
         if (organization != null) {
             descriptor.setOrganization(buildOrganization());
         }
-        if(contacts.size() > 0) {
+        if (contacts.size() > 0) {
             contacts.forEach(c -> descriptor.getContactPersons().add(buildContact(c)));
         }
 
@@ -274,9 +277,9 @@ public class SamlSpMetadataBuilder {
         service.setIndex(1);
         service.setIsDefault(true);
         service.getNames().add(buildServiceName());
-        attributeNames.forEach((name, friendlyName) -> {
-            service.getRequestedAttributes().add(buildRequestedAttribute(friendlyName, name));
-        });
+        attributeNames.forEach(
+            (name, friendlyName) -> { service.getRequestedAttributes().add(buildRequestedAttribute(friendlyName, name)); }
+        );
         return service;
     }
 
@@ -318,7 +321,7 @@ public class SamlSpMetadataBuilder {
         if (signingCertificate != null) {
             keys.add(buildKeyDescriptor(signingCertificate, UsageType.SIGNING));
         }
-        for( X509Certificate encryptionCertificate : encryptionCertificates) {
+        for (X509Certificate encryptionCertificate : encryptionCertificates) {
             keys.add(buildKeyDescriptor(encryptionCertificate, UsageType.ENCRYPTION));
         }
         return keys;
@@ -368,7 +371,6 @@ public class SamlSpMetadataBuilder {
         return person;
     }
 
-
     public static class OrganizationInfo {
         public final String organizationName;
         public final String displayName;
@@ -391,14 +393,15 @@ public class SamlSpMetadataBuilder {
     }
 
     public static class ContactInfo {
-        static final Map<String, ContactPersonTypeEnumeration> TYPES =
-                MapBuilder.<String, ContactPersonTypeEnumeration>newMapBuilder(new LinkedHashMap<>())
-                        .put(ContactPersonTypeEnumeration.ADMINISTRATIVE.toString(), ContactPersonTypeEnumeration.ADMINISTRATIVE)
-                        .put(ContactPersonTypeEnumeration.BILLING.toString(), ContactPersonTypeEnumeration.BILLING)
-                        .put(ContactPersonTypeEnumeration.SUPPORT.toString(), ContactPersonTypeEnumeration.SUPPORT)
-                        .put(ContactPersonTypeEnumeration.TECHNICAL.toString(), ContactPersonTypeEnumeration.TECHNICAL)
-                        .put(ContactPersonTypeEnumeration.OTHER.toString(), ContactPersonTypeEnumeration.OTHER)
-                        .map();
+        static final Map<String, ContactPersonTypeEnumeration> TYPES = MapBuilder.<String, ContactPersonTypeEnumeration>newMapBuilder(
+            new LinkedHashMap<>()
+        )
+            .put(ContactPersonTypeEnumeration.ADMINISTRATIVE.toString(), ContactPersonTypeEnumeration.ADMINISTRATIVE)
+            .put(ContactPersonTypeEnumeration.BILLING.toString(), ContactPersonTypeEnumeration.BILLING)
+            .put(ContactPersonTypeEnumeration.SUPPORT.toString(), ContactPersonTypeEnumeration.SUPPORT)
+            .put(ContactPersonTypeEnumeration.TECHNICAL.toString(), ContactPersonTypeEnumeration.TECHNICAL)
+            .put(ContactPersonTypeEnumeration.OTHER.toString(), ContactPersonTypeEnumeration.OTHER)
+            .map();
 
         public final ContactPersonTypeEnumeration type;
         public final String givenName;
@@ -415,8 +418,9 @@ public class SamlSpMetadataBuilder {
         private static ContactPersonTypeEnumeration getType(String name) {
             final ContactPersonTypeEnumeration type = TYPES.get(name.toLowerCase(Locale.ROOT));
             if (type == null) {
-                throw new IllegalArgumentException("Invalid contact type " + name + " allowed values are "
-                        + Strings.collectionToCommaDelimitedString(TYPES.keySet()));
+                throw new IllegalArgumentException(
+                    "Invalid contact type " + name + " allowed values are " + Strings.collectionToCommaDelimitedString(TYPES.keySet())
+                );
             }
             return type;
         }

@@ -30,8 +30,7 @@ public class MultiClusterSearchWithSecurityYamlTestSuiteIT extends ESClientYamlS
         return true;
     }
 
-    public MultiClusterSearchWithSecurityYamlTestSuiteIT(
-            @Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public MultiClusterSearchWithSecurityYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
@@ -43,9 +42,6 @@ public class MultiClusterSearchWithSecurityYamlTestSuiteIT extends ESClientYamlS
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
-        return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }
-

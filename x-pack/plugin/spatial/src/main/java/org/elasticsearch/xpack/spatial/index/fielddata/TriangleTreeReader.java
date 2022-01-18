@@ -20,8 +20,7 @@ import java.io.IOException;
  */
 class TriangleTreeReader {
 
-    private TriangleTreeReader() {
-    }
+    private TriangleTreeReader() {}
 
     /**
      * Visit the Triangle tree using the {@link Visitor} provided.
@@ -31,8 +30,14 @@ class TriangleTreeReader {
         visit(input, visitor, true, thisMaxX, thisMaxY, true);
     }
 
-    private static boolean visit(ByteArrayStreamInput input, TriangleTreeReader.Visitor visitor,
-                                 boolean splitX, int thisMaxX, int thisMaxY, boolean isRoot) throws IOException {
+    private static boolean visit(
+        ByteArrayStreamInput input,
+        TriangleTreeReader.Visitor visitor,
+        boolean splitX,
+        int thisMaxX,
+        int thisMaxY,
+        boolean isRoot
+    ) throws IOException {
         byte metadata = input.readByte();
         int thisMinX;
         int thisMinY;
@@ -85,8 +90,13 @@ class TriangleTreeReader {
         return visitor.push();
     }
 
-    private static boolean pushLeft(ByteArrayStreamInput input, TriangleTreeReader.Visitor visitor,
-                                    int thisMaxX, int thisMaxY, boolean splitX)  throws IOException {
+    private static boolean pushLeft(
+        ByteArrayStreamInput input,
+        TriangleTreeReader.Visitor visitor,
+        int thisMaxX,
+        int thisMaxY,
+        boolean splitX
+    ) throws IOException {
         int nextMaxX = Math.toIntExact(thisMaxX - input.readVLong());
         int nextMaxY = Math.toIntExact(thisMaxY - input.readVLong());
         int size = input.readVInt();
@@ -98,8 +108,16 @@ class TriangleTreeReader {
         }
     }
 
-    private static boolean pushRight(ByteArrayStreamInput input, TriangleTreeReader.Visitor visitor, int thisMaxX,
-                                     int thisMaxY, int thisMinX, int thisMinY, boolean splitX, int rightSize) throws IOException {
+    private static boolean pushRight(
+        ByteArrayStreamInput input,
+        TriangleTreeReader.Visitor visitor,
+        int thisMaxX,
+        int thisMaxY,
+        int thisMinX,
+        int thisMinY,
+        boolean splitX,
+        int rightSize
+    ) throws IOException {
         if ((splitX == false && visitor.pushY(thisMinY)) || (splitX && visitor.pushX(thisMinX))) {
             int nextMaxX = Math.toIntExact(thisMaxX - input.readVLong());
             int nextMaxY = Math.toIntExact(thisMaxY - input.readVLong());
@@ -116,7 +134,7 @@ class TriangleTreeReader {
     }
 
     /** Visitor for triangle interval tree */
-   interface Visitor {
+    interface Visitor {
 
         /** visit a node point. */
         void visitPoint(int x, int y);

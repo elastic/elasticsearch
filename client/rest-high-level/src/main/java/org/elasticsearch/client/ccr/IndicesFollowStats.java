@@ -10,9 +10,9 @@ package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.AbstractMap;
 import java.util.Collections;
@@ -29,31 +29,24 @@ public final class IndicesFollowStats {
     static final ParseField SHARDS_FIELD = new ParseField("shards");
 
     private static final ConstructingObjectParser<Tuple<String, List<ShardFollowStats>>, Void> ENTRY_PARSER =
-        new ConstructingObjectParser<>(
-            "entry",
-            true,
-            args -> {
-                String index = (String) args[0];
-                @SuppressWarnings("unchecked")
-                List<ShardFollowStats> shardFollowStats = (List<ShardFollowStats>) args[1];
-                return new Tuple<>(index, shardFollowStats);
-            }
-        );
+        new ConstructingObjectParser<>("entry", true, args -> {
+            String index = (String) args[0];
+            @SuppressWarnings("unchecked")
+            List<ShardFollowStats> shardFollowStats = (List<ShardFollowStats>) args[1];
+            return new Tuple<>(index, shardFollowStats);
+        });
 
     static {
         ENTRY_PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);
         ENTRY_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), ShardFollowStats.PARSER, SHARDS_FIELD);
     }
 
-    static final ConstructingObjectParser<IndicesFollowStats, Void> PARSER = new ConstructingObjectParser<>(
-        "indices",
-        true,
-        args -> {
-            @SuppressWarnings("unchecked")
-            List<Tuple<String, List<ShardFollowStats>>> entries = (List<Tuple<String, List<ShardFollowStats>>>) args[0];
-            Map<String, List<ShardFollowStats>> shardFollowStats = entries.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-            return new IndicesFollowStats(new TreeMap<>(shardFollowStats));
-        });
+    static final ConstructingObjectParser<IndicesFollowStats, Void> PARSER = new ConstructingObjectParser<>("indices", true, args -> {
+        @SuppressWarnings("unchecked")
+        List<Tuple<String, List<ShardFollowStats>>> entries = (List<Tuple<String, List<ShardFollowStats>>>) args[0];
+        Map<String, List<ShardFollowStats>> shardFollowStats = entries.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+        return new IndicesFollowStats(new TreeMap<>(shardFollowStats));
+    });
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), ENTRY_PARSER, INDICES_FIELD);
@@ -74,7 +67,6 @@ public final class IndicesFollowStats {
     }
 
     public static final class ShardFollowStats {
-
 
         static final ParseField LEADER_CLUSTER = new ParseField("remote_cluster");
         static final ParseField LEADER_INDEX = new ParseField("leader_index");
@@ -107,48 +99,49 @@ public final class IndicesFollowStats {
         static final ParseField FATAL_EXCEPTION = new ParseField("fatal_exception");
 
         @SuppressWarnings("unchecked")
-        static final ConstructingObjectParser<ShardFollowStats, Void> PARSER =
-                new ConstructingObjectParser<>(
-                        "shard-follow-stats",
-                        true,
-                        args -> new ShardFollowStats(
-                                (String) args[0],
-                                (String) args[1],
-                                (String) args[2],
-                                (int) args[3],
-                                (long) args[4],
-                                (long) args[5],
-                                (long) args[6],
-                                (long) args[7],
-                                (long) args[8],
-                                (int) args[9],
-                                (int) args[10],
-                                (int) args[11],
-                                (long) args[12],
-                                (long) args[13],
-                                (long) args[14],
-                                (long) args[15],
-                                (long) args[16],
-                                (long) args[17],
-                                (long) args[18],
-                                (long) args[19],
-                                (long) args[20],
-                                (long) args[21],
-                                (long) args[22],
-                                (long) args[23],
-                                (long) args[24],
-                                (long) args[25],
-                                (long) args[26],
-                                ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[27])
-                                    .stream()
-                                    .collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, Map.Entry::getValue)),
-                                (ElasticsearchException) args[28]));
+        static final ConstructingObjectParser<ShardFollowStats, Void> PARSER = new ConstructingObjectParser<>(
+            "shard-follow-stats",
+            true,
+            args -> new ShardFollowStats(
+                (String) args[0],
+                (String) args[1],
+                (String) args[2],
+                (int) args[3],
+                (long) args[4],
+                (long) args[5],
+                (long) args[6],
+                (long) args[7],
+                (long) args[8],
+                (int) args[9],
+                (int) args[10],
+                (int) args[11],
+                (long) args[12],
+                (long) args[13],
+                (long) args[14],
+                (long) args[15],
+                (long) args[16],
+                (long) args[17],
+                (long) args[18],
+                (long) args[19],
+                (long) args[20],
+                (long) args[21],
+                (long) args[22],
+                (long) args[23],
+                (long) args[24],
+                (long) args[25],
+                (long) args[26],
+                ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[27]).stream()
+                    .collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, Map.Entry::getValue)),
+                (ElasticsearchException) args[28]
+            )
+        );
 
         static final ConstructingObjectParser<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>, Void> READ_EXCEPTIONS_ENTRY_PARSER =
             new ConstructingObjectParser<>(
                 "shard-follow-stats-read-exceptions-entry",
                 true,
-                args -> new AbstractMap.SimpleEntry<>((long) args[0], Tuple.tuple((Integer) args[1], (ElasticsearchException)args[2])));
+                args -> new AbstractMap.SimpleEntry<>((long) args[0], Tuple.tuple((Integer) args[1], (ElasticsearchException) args[2]))
+            );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_CLUSTER);
@@ -179,9 +172,11 @@ public final class IndicesFollowStats {
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), OPERATIONS_WRITTEN);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_SINCE_LAST_READ_MILLIS_FIELD);
             PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), READ_EXCEPTIONS_ENTRY_PARSER, READ_EXCEPTIONS);
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
+            PARSER.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> ElasticsearchException.fromXContent(p),
-                FATAL_EXCEPTION);
+                FATAL_EXCEPTION
+            );
         }
 
         static final ParseField READ_EXCEPTIONS_ENTRY_FROM_SEQ_NO = new ParseField("from_seq_no");
@@ -194,7 +189,8 @@ public final class IndicesFollowStats {
             READ_EXCEPTIONS_ENTRY_PARSER.declareObject(
                 ConstructingObjectParser.constructorArg(),
                 (p, c) -> ElasticsearchException.fromXContent(p),
-                READ_EXCEPTIONS_ENTRY_EXCEPTION);
+                READ_EXCEPTIONS_ENTRY_EXCEPTION
+            );
         }
 
         private final String remoteCluster;
@@ -227,35 +223,37 @@ public final class IndicesFollowStats {
         private final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> readExceptions;
         private final ElasticsearchException fatalException;
 
-        ShardFollowStats(String remoteCluster,
-                         String leaderIndex,
-                         String followerIndex,
-                         int shardId,
-                         long leaderGlobalCheckpoint,
-                         long leaderMaxSeqNo,
-                         long followerGlobalCheckpoint,
-                         long followerMaxSeqNo,
-                         long lastRequestedSeqNo,
-                         int outstandingReadRequests,
-                         int outstandingWriteRequests,
-                         int writeBufferOperationCount,
-                         long writeBufferSizeInBytes,
-                         long followerMappingVersion,
-                         long followerSettingsVersion,
-                         long followerAliasesVersion,
-                         long totalReadTimeMillis,
-                         long totalReadRemoteExecTimeMillis,
-                         long successfulReadRequests,
-                         long failedReadRequests,
-                         long operationsReads,
-                         long bytesRead,
-                         long totalWriteTimeMillis,
-                         long successfulWriteRequests,
-                         long failedWriteRequests,
-                         long operationWritten,
-                         long timeSinceLastReadMillis,
-                         NavigableMap<Long, Tuple<Integer, ElasticsearchException>> readExceptions,
-                         ElasticsearchException fatalException) {
+        ShardFollowStats(
+            String remoteCluster,
+            String leaderIndex,
+            String followerIndex,
+            int shardId,
+            long leaderGlobalCheckpoint,
+            long leaderMaxSeqNo,
+            long followerGlobalCheckpoint,
+            long followerMaxSeqNo,
+            long lastRequestedSeqNo,
+            int outstandingReadRequests,
+            int outstandingWriteRequests,
+            int writeBufferOperationCount,
+            long writeBufferSizeInBytes,
+            long followerMappingVersion,
+            long followerSettingsVersion,
+            long followerAliasesVersion,
+            long totalReadTimeMillis,
+            long totalReadRemoteExecTimeMillis,
+            long successfulReadRequests,
+            long failedReadRequests,
+            long operationsReads,
+            long bytesRead,
+            long totalWriteTimeMillis,
+            long successfulWriteRequests,
+            long failedWriteRequests,
+            long operationWritten,
+            long timeSinceLastReadMillis,
+            NavigableMap<Long, Tuple<Integer, ElasticsearchException>> readExceptions,
+            ElasticsearchException fatalException
+        ) {
             this.remoteCluster = remoteCluster;
             this.leaderIndex = leaderIndex;
             this.followerIndex = followerIndex;

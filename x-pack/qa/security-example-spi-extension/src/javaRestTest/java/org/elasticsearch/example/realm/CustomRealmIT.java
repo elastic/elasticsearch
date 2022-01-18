@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.not;
 public class CustomRealmIT extends ESRestTestCase {
 
     // These are configured in build.gradle
-    public static final String USERNAME= "test_user";
+    public static final String USERNAME = "test_user";
     public static final String PASSWORD = "secret_password";
 
     @Override

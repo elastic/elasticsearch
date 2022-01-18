@@ -27,8 +27,7 @@ public class RequestMatcher extends BaseMatcher<Request> {
 
     @Override
     public boolean matches(Object actual) {
-        if (actual instanceof Request) {
-            Request req = (Request) actual;
+        if (actual instanceof Request req) {
             return method.equals(req.getMethod()) && endpoint.equals(req.getEndpoint());
         }
         return false;
@@ -36,10 +35,6 @@ public class RequestMatcher extends BaseMatcher<Request> {
 
     @Override
     public void describeTo(Description description) {
-        description
-            .appendText("request to ")
-            .appendText(method)
-            .appendText(" ")
-            .appendText(endpoint);
+        description.appendText("request to ").appendText(method).appendText(" ").appendText(endpoint);
     }
 }

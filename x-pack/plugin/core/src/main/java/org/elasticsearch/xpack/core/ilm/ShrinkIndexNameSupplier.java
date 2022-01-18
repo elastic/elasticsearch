@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+
 public final class ShrinkIndexNameSupplier {
 
     public static final String SHRUNKEN_INDEX_PREFIX = "shrink-";
 
-    private ShrinkIndexNameSupplier() {
-    }
+    private ShrinkIndexNameSupplier() {}
 
     /**
      * This could be seen as a getter with a fallback, as it'll attempt to read the shrink index name from the provided lifecycle execution

@@ -8,9 +8,9 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.metrics.ParsedExtendedStats;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 public class ParsedExtendedStatsBucket extends ParsedExtendedStats implements ExtendedStatsBucket {
 

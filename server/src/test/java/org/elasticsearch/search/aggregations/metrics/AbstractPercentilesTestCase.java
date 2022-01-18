@@ -9,13 +9,13 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -112,30 +112,32 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
         builder.endObject();
         String expected;
         if (keyed) {
-            expected = "{\n"
-                + "  \"values\" : {\n"
-                + "    \"1.0\" : null,\n"
-                + "    \"2.0\" : null,\n"
-                + "    \"3.0\" : null\n"
-                + "  }\n"
-                + "}";
+            expected = """
+                {
+                  "values" : {
+                    "1.0" : null,
+                    "2.0" : null,
+                    "3.0" : null
+                  }
+                }""";
         } else {
-            expected = "{\n"
-                + "  \"values\" : [\n"
-                + "    {\n"
-                + "      \"key\" : 1.0,\n"
-                + "      \"value\" : null\n"
-                + "    },\n"
-                + "    {\n"
-                + "      \"key\" : 2.0,\n"
-                + "      \"value\" : null\n"
-                + "    },\n"
-                + "    {\n"
-                + "      \"key\" : 3.0,\n"
-                + "      \"value\" : null\n"
-                + "    }\n"
-                + "  ]\n"
-                + "}";
+            expected = """
+                {
+                  "values" : [
+                    {
+                      "key" : 1.0,
+                      "value" : null
+                    },
+                    {
+                      "key" : 2.0,
+                      "value" : null
+                    },
+                    {
+                      "key" : 3.0,
+                      "value" : null
+                    }
+                  ]
+                }""";
         }
 
         assertThat(Strings.toString(builder), equalTo(expected));

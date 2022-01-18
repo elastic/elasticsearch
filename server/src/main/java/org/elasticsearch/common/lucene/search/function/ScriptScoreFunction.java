@@ -86,12 +86,8 @@ public class ScriptScoreFunction extends ScoreFunction {
                     double score = score(docId, subQueryScore.getValue().floatValue());
                     // info about params already included in sScript
                     String explanation = "script score function, computed with script:\"" + sScript + "\"";
-                    Explanation scoreExp = Explanation.match(
-                        subQueryScore.getValue(), "_score: ",
-                        subQueryScore);
-                    return Explanation.match(
-                        (float) score, explanation,
-                        scoreExp);
+                    Explanation scoreExp = Explanation.match(subQueryScore.getValue(), "_score: ", subQueryScore);
+                    return Explanation.match((float) score, explanation, scoreExp);
                 }
                 return exp;
             }

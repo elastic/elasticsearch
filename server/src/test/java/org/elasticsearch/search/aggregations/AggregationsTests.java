@@ -10,14 +10,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatrixTests;
@@ -74,6 +67,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -273,15 +273,13 @@ public class AggregationsTests extends ESTestCase {
         List<InternalAggregation> aggs = new ArrayList<>(numAggs);
         for (int i = 0; i < numAggs; i++) {
             InternalAggregationTestCase<?> testCase = randomFrom(aggsTests);
-            if (testCase instanceof InternalMultiBucketAggregationTestCase) {
-                InternalMultiBucketAggregationTestCase<?> multiBucketAggTestCase = (InternalMultiBucketAggregationTestCase<?>) testCase;
+            if (testCase instanceof InternalMultiBucketAggregationTestCase<?> multiBucketAggTestCase) {
                 if (currentDepth < maxDepth) {
                     multiBucketAggTestCase.setSubAggregationsSupplier(() -> createTestInstance(0, currentDepth + 1, maxDepth));
                 } else {
                     multiBucketAggTestCase.setSubAggregationsSupplier(() -> InternalAggregations.EMPTY);
                 }
-            } else if (testCase instanceof InternalSingleBucketAggregationTestCase) {
-                InternalSingleBucketAggregationTestCase<?> singleBucketAggTestCase = (InternalSingleBucketAggregationTestCase<?>) testCase;
+            } else if (testCase instanceof InternalSingleBucketAggregationTestCase<?> singleBucketAggTestCase) {
                 if (currentDepth < maxDepth) {
                     singleBucketAggTestCase.subAggregationsSupplier = () -> createTestInstance(0, currentDepth + 1, maxDepth);
                 } else {

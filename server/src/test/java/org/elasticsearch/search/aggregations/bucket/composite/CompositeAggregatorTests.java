@@ -22,6 +22,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -2836,6 +2837,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 config.setIndexSort(indexSort);
                 config.setCodec(TestUtil.getDefaultCodec());
             }
+            if (forceMerge == false) {
+                config.setMergePolicy(NoMergePolicy.INSTANCE);
+            }
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
                 Document document = new Document();
                 int id = 0;
@@ -2845,8 +2849,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     indexWriter.addDocument(document);
                     id++;
                 }
-                if (forceMerge || rarely()) {
-                    // forceMerge randomly or if the collector-per-leaf testing stuff would break the tests.
+                if (forceMerge) {
+                    // forceMerge if the collector-per-leaf testing stuff would break the tests.
                     indexWriter.forceMerge(1);
                 } else {
                     if (dataset.size() > 0) {
@@ -2905,8 +2909,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 } else if (value instanceof InetAddress) {
                     doc.add(new SortedSetDocValuesField(name, new BytesRef(InetAddressPoint.encode((InetAddress) value))));
                     doc.add(new InetAddressPoint(name, (InetAddress) value));
-                } else if (value instanceof GeoPoint) {
-                    GeoPoint point = (GeoPoint) value;
+                } else if (value instanceof GeoPoint point) {
                     doc.add(
                         new SortedNumericDocValuesField(
                             name,
@@ -2997,19 +3000,12 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         } else if (type instanceof DateFieldMapper.DateFieldType) {
             return new SortedNumericSortField(type.name(), SortField.Type.LONG, false);
         } else if (type instanceof NumberFieldMapper.NumberFieldType) {
-            switch (type.typeName()) {
-                case "byte":
-                case "short":
-                case "integer":
-                    return new SortedNumericSortField(type.name(), SortField.Type.INT, false);
-                case "long":
-                    return new SortedNumericSortField(type.name(), SortField.Type.LONG, false);
-                case "float":
-                case "double":
-                    return new SortedNumericSortField(type.name(), SortField.Type.DOUBLE, false);
-                default:
-                    return null;
-            }
+            return switch (type.typeName()) {
+                case "byte", "short", "integer" -> new SortedNumericSortField(type.name(), SortField.Type.INT, false);
+                case "long" -> new SortedNumericSortField(type.name(), SortField.Type.LONG, false);
+                case "float", "double" -> new SortedNumericSortField(type.name(), SortField.Type.DOUBLE, false);
+                default -> null;
+            };
         }
         return null;
     }

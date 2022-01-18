@@ -96,7 +96,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
     }
 
     public void testGeoField() throws IOException {
@@ -386,27 +386,15 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     private static MappedFieldType createMappedFieldType(String name, ValueType valueType) {
-        switch (valueType) {
-            case BOOLEAN:
-                return new BooleanFieldMapper.BooleanFieldType(name);
-            case STRING:
-                return new KeywordFieldMapper.KeywordFieldType(name);
-            case DOUBLE:
-                return new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.DOUBLE);
-            case NUMBER:
-            case NUMERIC:
-            case LONG:
-                return new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.LONG);
-            case DATE:
-                return new DateFieldMapper.DateFieldType(name);
-            case IP:
-                return new IpFieldMapper.IpFieldType(name);
-            case GEOPOINT:
-                return new GeoPointFieldMapper.GeoPointFieldType(name);
-            case RANGE:
-                return new RangeFieldMapper.RangeFieldType(name, RangeType.DOUBLE);
-            default:
-                throw new IllegalArgumentException("Test does not support value type [" + valueType + "]");
-        }
+        return switch (valueType) {
+            case BOOLEAN -> new BooleanFieldMapper.BooleanFieldType(name);
+            case STRING -> new KeywordFieldMapper.KeywordFieldType(name);
+            case DOUBLE -> new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.DOUBLE);
+            case NUMBER, NUMERIC, LONG -> new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.LONG);
+            case DATE -> new DateFieldMapper.DateFieldType(name);
+            case IP -> new IpFieldMapper.IpFieldType(name);
+            case GEOPOINT -> new GeoPointFieldMapper.GeoPointFieldType(name);
+            case RANGE -> new RangeFieldMapper.RangeFieldType(name, RangeType.DOUBLE);
+        };
     }
 }

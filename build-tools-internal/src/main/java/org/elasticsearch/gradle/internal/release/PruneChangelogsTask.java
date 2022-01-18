@@ -19,7 +19,6 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.Internal;
-import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.options.Option;
 import org.gradle.process.ExecOperations;
@@ -30,6 +29,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.inject.Inject;
 
 /**
@@ -146,10 +146,9 @@ public class PruneChangelogsTask extends DefaultTask {
      * @return filenames for changelog files in previous releases, without any path
      */
     private static Set<String> findAllFilesInEarlierVersions(GitWrapper gitWrapper, QualifiedVersion version) {
-        return findPreviousVersion(gitWrapper, version)
-            .flatMap(earlierVersion -> gitWrapper.listFiles("v" + earlierVersion, "docs/changelog"))
-            .map(line -> Path.of(line).getFileName().toString())
-            .collect(Collectors.toSet());
+        return findPreviousVersion(gitWrapper, version).flatMap(
+            earlierVersion -> gitWrapper.listFiles("v" + earlierVersion, "docs/changelog")
+        ).map(line -> Path.of(line).getFileName().toString()).collect(Collectors.toSet());
     }
 
     /**
@@ -166,8 +165,7 @@ public class PruneChangelogsTask extends DefaultTask {
         final int majorSeries = version.getMinor() == 0 && version.getRevision() == 0 ? version.getMajor() - 1 : version.getMajor();
         final String tagPattern = "v" + majorSeries + ".*";
 
-        return gitWrapper.listVersions(tagPattern)
-            .filter(v -> v.isBefore(version));
+        return gitWrapper.listVersions(tagPattern).filter(v -> v.isBefore(version));
     }
 
     /**

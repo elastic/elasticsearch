@@ -23,8 +23,7 @@ public class ClusterStateResponseTests extends AbstractWireSerializingTestCase<C
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(4));
         ClusterState clusterState = null;
         if (randomBoolean()) {
-            ClusterState.Builder clusterStateBuilder = ClusterState.builder(clusterName)
-                .version(randomNonNegativeLong());
+            ClusterState.Builder clusterStateBuilder = ClusterState.builder(clusterName).version(randomNonNegativeLong());
             if (randomBoolean()) {
                 clusterStateBuilder.nodes(DiscoveryNodes.builder().masterNodeId(randomAlphaOfLength(4)).build());
             }

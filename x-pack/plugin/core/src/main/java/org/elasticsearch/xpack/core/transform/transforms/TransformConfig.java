@@ -14,15 +14,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
@@ -44,14 +44,20 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This class holds the configuration details of a data frame transform
  */
 public class TransformConfig extends AbstractDiffable<TransformConfig> implements Writeable, ToXContentObject {
 
+    /**
+     * Version of the last time the config defaults have been changed.
+     * Whenever defaults change, we must re-write the config on update in a way it
+     * does not change behavior.
+     */
+    public static final Version CONFIG_VERSION_LAST_DEFAULTS_CHANGED = Version.V_7_15_0;
     public static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
     /** Version in which {@code FieldCapabilitiesRequest.runtime_fields} field was introduced. */
@@ -83,6 +89,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     private final TimeValue frequency;
     private final SyncConfig syncConfig;
     private final SettingsConfig settings;
+    private final Map<String, Object> metadata;
     private final RetentionPolicyConfig retentionPolicyConfig;
     private final String description;
     // headers store the user context from the creating user, which allows us to run the transform as this user
@@ -126,8 +133,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             if (lenient == false) {
                 // on strict parsing do not allow injection of headers, transform version, or create time
                 validateStrictParsingParams(args[6], HEADERS.getPreferredName());
-                validateStrictParsingParams(args[12], TransformField.CREATE_TIME.getPreferredName());
-                validateStrictParsingParams(args[13], TransformField.VERSION.getPreferredName());
+                validateStrictParsingParams(args[13], TransformField.CREATE_TIME.getPreferredName());
+                validateStrictParsingParams(args[14], TransformField.VERSION.getPreferredName());
                 // exactly one function must be defined
                 if ((args[7] == null) == (args[8] == null)) {
                     throw new IllegalArgumentException(TransformMessages.TRANSFORM_CONFIGURATION_BAD_FUNCTION_COUNT);
@@ -142,7 +149,13 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             LatestConfig latestConfig = (LatestConfig) args[8];
             String description = (String) args[9];
             SettingsConfig settings = (SettingsConfig) args[10];
-            RetentionPolicyConfig retentionPolicyConfig = (RetentionPolicyConfig) args[11];
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> metadata = (Map<String, Object>) args[11];
+
+            RetentionPolicyConfig retentionPolicyConfig = (RetentionPolicyConfig) args[12];
+            Instant createTime = (Instant) args[13];
+            String version = (String) args[14];
 
             return new TransformConfig(
                 id,
@@ -155,9 +168,10 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 latestConfig,
                 description,
                 settings,
+                metadata,
                 retentionPolicyConfig,
-                (Instant) args[12],
-                (String) args[13]
+                createTime,
+                version
             );
         });
 
@@ -172,6 +186,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         parser.declareObject(optionalConstructorArg(), (p, c) -> LatestConfig.fromXContent(p, lenient), Function.LATEST.getParseField());
         parser.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
         parser.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p, lenient), TransformField.SETTINGS);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), TransformField.METADATA);
         parser.declareNamedObject(
             optionalConstructorArg(),
             (p, c, n) -> p.namedObject(RetentionPolicyConfig.class, n, c),
@@ -202,6 +217,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         final LatestConfig latestConfig,
         final String description,
         final SettingsConfig settings,
+        final Map<String, Object> metadata,
         final RetentionPolicyConfig retentionPolicyConfig,
         final Instant createTime,
         final String version
@@ -216,6 +232,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         this.latestConfig = latestConfig;
         this.description = description;
         this.settings = settings == null ? new SettingsConfig() : settings;
+        this.metadata = metadata;
         this.retentionPolicyConfig = retentionPolicyConfig;
         if (this.description != null && this.description.length() > MAX_DESCRIPTION_LENGTH) {
             throw new IllegalArgumentException("[description] must be less than 1000 characters in length.");
@@ -250,6 +267,11 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             settings = new SettingsConfig(in);
         } else {
             settings = new SettingsConfig();
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+            metadata = in.readMap();
+        } else {
+            metadata = null;
         }
         if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
             retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
@@ -291,8 +313,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         return transformVersion;
     }
 
-    public TransformConfig setVersion(Version transformVersion) {
-        this.transformVersion = transformVersion;
+    public TransformConfig setVersion(Version version) {
+        this.transformVersion = version;
         return this;
     }
 
@@ -321,6 +343,10 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
     public SettingsConfig getSettings() {
         return settings;
+    }
+
+    public Map<String, Object> getMetadata() {
+        return metadata;
     }
 
     @Nullable
@@ -372,13 +398,13 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         List<DeprecationIssue> deprecations = new ArrayList<>();
 
         // deprecate beta transforms
-        if (getVersion() == null || getVersion().before(Version.V_7_5_0)) {
+        if (getVersion() == null || getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
             deprecations.add(
                 new DeprecationIssue(
                     Level.CRITICAL,
-                    "Transform [" + id + "] is too old",
-                    TransformDeprecations.BREAKING_CHANGES_BASE_URL,
-                    "The configuration uses an old format, you can use [_update] or [_upgrade] to update",
+                    "Transform [" + id + "] uses an obsolete configuration format",
+                    TransformDeprecations.UPGRADE_TRANSFORM_URL,
+                    TransformDeprecations.ACTION_UPGRADE_TRANSFORMS_API,
                     false,
                     null
                 )
@@ -424,6 +450,9 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         }
         if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             settings.writeTo(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+            out.writeMap(metadata);
         }
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeOptionalNamedWriteable(retentionPolicyConfig);
@@ -476,6 +505,9 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             builder.field(TransformField.DESCRIPTION.getPreferredName(), description);
         }
         builder.field(TransformField.SETTINGS.getPreferredName(), settings);
+        if (metadata != null) {
+            builder.field(TransformField.METADATA.getPreferredName(), metadata);
+        }
         if (retentionPolicyConfig != null) {
             builder.startObject(TransformField.RETENTION_POLICY.getPreferredName());
             builder.field(retentionPolicyConfig.getWriteableName(), retentionPolicyConfig);
@@ -507,6 +539,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             && Objects.equals(this.latestConfig, that.latestConfig)
             && Objects.equals(this.description, that.description)
             && Objects.equals(this.settings, that.settings)
+            && Objects.equals(this.metadata, that.metadata)
             && Objects.equals(this.retentionPolicyConfig, that.retentionPolicyConfig)
             && Objects.equals(this.createTime, that.createTime)
             && Objects.equals(this.transformVersion, that.transformVersion);
@@ -525,6 +558,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             latestConfig,
             description,
             settings,
+            metadata,
             retentionPolicyConfig,
             createTime,
             transformVersion
@@ -556,7 +590,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         // quick check if a rewrite is required, if none found just return the original
         // a failing quick check, does not mean a rewrite is necessary
         if (transformConfig.getVersion() != null
-            && transformConfig.getVersion().onOrAfter(Version.V_7_15_0)
+            && transformConfig.getVersion().onOrAfter(CONFIG_VERSION_LAST_DEFAULTS_CHANGED)
             && (transformConfig.getPivotConfig() == null || transformConfig.getPivotConfig().getMaxPageSearchSize() == null)) {
             return transformConfig;
         }
@@ -587,7 +621,9 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     maxPageSearchSize,
                     builder.getSettings().getDocsPerSecond(),
                     builder.getSettings().getDatesAsEpochMillis(),
-                    builder.getSettings().getAlignCheckpoints()
+                    builder.getSettings().getAlignCheckpoints(),
+                    builder.getSettings().getUsePit(),
+                    builder.getSettings().getDeduceMappings()
                 )
             );
         }
@@ -599,7 +635,9 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     builder.getSettings().getMaxPageSearchSize(),
                     builder.getSettings().getDocsPerSecond(),
                     true,
-                    builder.getSettings().getAlignCheckpoints()
+                    builder.getSettings().getAlignCheckpoints(),
+                    builder.getSettings().getUsePit(),
+                    builder.getSettings().getDeduceMappings()
                 )
             );
         }
@@ -611,7 +649,9 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     builder.getSettings().getMaxPageSearchSize(),
                     builder.getSettings().getDocsPerSecond(),
                     builder.getSettings().getDatesAsEpochMillis(),
-                    false
+                    false,
+                    builder.getSettings().getUsePit(),
+                    builder.getSettings().getDeduceMappings()
                 )
             );
         }
@@ -632,6 +672,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         private PivotConfig pivotConfig;
         private LatestConfig latestConfig;
         private SettingsConfig settings;
+        private Map<String, Object> metadata;
         private RetentionPolicyConfig retentionPolicyConfig;
 
         public Builder() {}
@@ -648,6 +689,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             this.pivotConfig = config.pivotConfig;
             this.latestConfig = config.latestConfig;
             this.settings = config.settings;
+            this.metadata = config.metadata;
             this.retentionPolicyConfig = config.retentionPolicyConfig;
         }
 
@@ -714,6 +756,15 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             return settings;
         }
 
+        public Builder setMetadata(Map<String, Object> metadata) {
+            this.metadata = metadata;
+            return this;
+        }
+
+        Map<String, Object> getMetadata() {
+            return metadata;
+        }
+
         public Builder setHeaders(Map<String, String> headers) {
             this.headers = headers;
             return this;
@@ -767,6 +818,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 latestConfig,
                 description,
                 settings,
+                metadata,
                 retentionPolicyConfig,
                 createTime,
                 transformVersion == null ? null : transformVersion.toString()
@@ -795,6 +847,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 && Objects.equals(this.latestConfig, that.latestConfig)
                 && Objects.equals(this.description, that.description)
                 && Objects.equals(this.settings, that.settings)
+                && Objects.equals(this.metadata, that.metadata)
                 && Objects.equals(this.retentionPolicyConfig, that.retentionPolicyConfig)
                 && Objects.equals(this.createTime, that.createTime)
                 && Objects.equals(this.transformVersion, that.transformVersion);
@@ -813,6 +866,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 latestConfig,
                 description,
                 settings,
+                metadata,
                 retentionPolicyConfig,
                 createTime,
                 transformVersion

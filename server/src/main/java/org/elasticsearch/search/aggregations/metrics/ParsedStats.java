@@ -8,14 +8,14 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalStats.Fields;
 import org.elasticsearch.search.aggregations.metrics.InternalStats.Metrics;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -81,20 +81,13 @@ public class ParsedStats extends ParsedAggregation implements Stats {
     @Override
     public double value(String name) {
         Metrics metrics = Metrics.valueOf(name);
-        switch (metrics) {
-            case min:
-                return min;
-            case max:
-                return max;
-            case avg:
-                return avg;
-            case count:
-                return count;
-            case sum:
-                return sum;
-            default:
-                throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
-        }
+        return switch (metrics) {
+            case min -> min;
+            case max -> max;
+            case avg -> avg;
+            case count -> count;
+            case sum -> sum;
+        };
     }
 
     @Override

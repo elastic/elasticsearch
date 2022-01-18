@@ -8,12 +8,13 @@
 package org.elasticsearch.docker.test;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -43,8 +44,7 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @Override
     protected String getTestRestCluster() {
         String distribution = getDistribution();
-        return new StringBuilder()
-            .append("localhost:")
+        return new StringBuilder().append("localhost:")
             .append(getProperty("test.fixtures.elasticsearch-" + distribution + "-1.tcp.9200"))
             .append(",")
             .append("localhost:")
@@ -72,8 +72,10 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private String getProperty(String key) {
         String value = System.getProperty(key);
         if (value == null) {
-            throw new IllegalStateException("Could not find system properties from test.fixtures. " +
-                "This test expects to run with the elasticsearch.test.fixtures Gradle plugin");
+            throw new IllegalStateException(
+                "Could not find system properties from test.fixtures. "
+                    + "This test expects to run with the elasticsearch.test.fixtures Gradle plugin"
+            );
         }
         return value;
     }
@@ -104,7 +106,7 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @AfterClass
     public static void clearTrustedCert() {
-        trustedCertFile  = null;
+        trustedCertFile = null;
     }
 
     @Override

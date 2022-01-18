@@ -54,6 +54,7 @@ public final class Joiner {
         Optional<JoinFieldType> joinType = fieldTypes.filter(ft -> ft instanceof JoinFieldType).map(ft -> (JoinFieldType) ft).findFirst();
         return joinType.map(JoinFieldType::getJoiner).orElse(null);
     }
+
     private final Map<String, Set<String>> parentsToChildren = new HashMap<>();
     private final Map<String, String> childrenToParents = new HashMap<>();
 

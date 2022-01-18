@@ -49,8 +49,7 @@ public class NestedDocuments {
             this.parentDocumentFilter = null;
         } else {
             this.parentDocumentFilter = filterProducer.apply(Queries.newNonNestedFilter());
-            nestedLookup.getNestedParentFilters()
-                .forEach((k, v) -> parentObjectFilters.put(k, filterProducer.apply(v)));
+            nestedLookup.getNestedParentFilters().forEach((k, v) -> parentObjectFilters.put(k, filterProducer.apply(v)));
             for (String nestedPath : nestedLookup.getNestedMappers().keySet()) {
                 childObjectFilters.put(nestedPath, null);
             }
@@ -74,8 +73,10 @@ public class NestedDocuments {
         if (childObjectFilters.get(path) == null) {
             IndexSearcher searcher = new IndexSearcher(ReaderUtil.getTopLevelContext(ctx));
             NestedObjectMapper childMapper = nestedLookup.getNestedMappers().get(path);
-            childObjectFilters.put(path,
-                searcher.createWeight(searcher.rewrite(childMapper.nestedTypeFilter()), ScoreMode.COMPLETE_NO_SCORES, 1));
+            childObjectFilters.put(
+                path,
+                searcher.createWeight(searcher.rewrite(childMapper.nestedTypeFilter()), ScoreMode.COMPLETE_NO_SCORES, 1)
+            );
         }
         return childObjectFilters.get(path);
     }
@@ -177,8 +178,16 @@ public class NestedDocuments {
                     parentNameLength = 0;
                 } else {
                     if (objectFilters.containsKey(parent) == false) {
-                        throw new IllegalStateException("Cannot find parent mapper " + parent + " for path " + path + " in doc " + doc
-                         + " - known parents are " + objectFilters.keySet());
+                        throw new IllegalStateException(
+                            "Cannot find parent mapper "
+                                + parent
+                                + " for path "
+                                + path
+                                + " in doc "
+                                + doc
+                                + " - known parents are "
+                                + objectFilters.keySet()
+                        );
                     }
                     parentBitSet = objectFilters.get(parent);
                     parentNameLength = parent.length() + 1;

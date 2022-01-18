@@ -40,13 +40,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
             "global.ssl.fastly.net",
             "1"
         );
-        testRegisteredDomainProcessor(
-            buildEvent("www.books.amazon.co.uk"),
-            "www.books.amazon.co.uk",
-            "amazon.co.uk",
-            "co.uk",
-            "www.books"
-        );
+        testRegisteredDomainProcessor(buildEvent("www.books.amazon.co.uk"), "www.books.amazon.co.uk", "amazon.co.uk", "co.uk", "www.books");
     }
 
     public void testUseRoot() throws Exception {
@@ -57,13 +51,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
         String topLevelDomainField = "top_level_domain";
         String subdomainField = "subdomain";
 
-        var processor = new RegisteredDomainProcessor(
-            null,
-            null,
-            "domain",
-            "",
-            false
-        );
+        var processor = new RegisteredDomainProcessor(null, null, "domain", "", false);
 
         IngestDocument input = new IngestDocument(source, Map.of());
         IngestDocument output = processor.execute(input);
@@ -85,16 +73,9 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("unable to set domain information for document"));
         e = expectThrows(
-                IllegalArgumentException.class,
-                () -> testRegisteredDomainProcessor(
-                    buildEvent("$"),
-                    null,
-                    null,
-                    null,
-                    null,
-                    false
-                )
-            );
+            IllegalArgumentException.class,
+            () -> testRegisteredDomainProcessor(buildEvent("$"), null, null, null, null, false)
+        );
         assertThat(e.getMessage(), containsString("unable to set domain information for document"));
     }
 
@@ -121,13 +102,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
         String topLevelDomainField = "url.top_level_domain";
         String subdomainField = "url.subdomain";
 
-        var processor = new RegisteredDomainProcessor(
-            null,
-            null,
-            "domain",
-            "url",
-            ignoreMissing
-        );
+        var processor = new RegisteredDomainProcessor(null, null, "domain", "url", ignoreMissing);
 
         IngestDocument input = new IngestDocument(source, Map.of());
         IngestDocument output = processor.execute(input);

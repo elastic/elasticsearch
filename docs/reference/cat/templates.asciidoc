@@ -26,9 +26,8 @@ and <<mapping,field mappings>> to new indices at creation.
 ==== {api-path-parms-title}
 
 `<template_name>`::
-(Optional, string) Comma-separated list of index template names used to limit
-the request. Accepts wildcard expressions.
-
+(Optional, string) The name of the template to return. Accepts wildcard
+expressions. If omitted, all templates are returned.
 
 [[cat-templates-query-params]]
 ==== {api-query-parms-title}

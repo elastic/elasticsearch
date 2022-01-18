@@ -11,8 +11,8 @@ package org.elasticsearch.test.rest.yaml;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -105,7 +105,7 @@ public class Stash implements ToXContentFragment {
     }
 
     private Object unstash(String key) throws IOException {
-        Object stashedValue = stashObjectPath.evaluate(key);
+        Object stashedValue = stashObjectPath.evaluate(key, this);
         if (stashedValue == null) {
             throw new IllegalArgumentException("stashed value not found for key [" + key + "]");
         }
@@ -122,8 +122,7 @@ public class Stash implements ToXContentFragment {
     }
 
     private Object unstashObject(List<Object> path, Object obj) throws IOException {
-        if (obj instanceof List) {
-            List<?> list = (List<?>) obj;
+        if (obj instanceof List<?> list) {
             List<Object> result = new ArrayList<>();
             int index = 0;
             for (Object o : list) {
@@ -137,8 +136,7 @@ public class Stash implements ToXContentFragment {
             }
             return result;
         }
-        if (obj instanceof Map) {
-            Map<?, ?> map = (Map<?, ?>) obj;
+        if (obj instanceof Map<?, ?> map) {
             Map<String, Object> result = new HashMap<>();
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 String key = (String) entry.getKey();
@@ -154,8 +152,15 @@ public class Stash implements ToXContentFragment {
                 }
                 path.remove(path.size() - 1);
                 if (null != result.putIfAbsent(key, value)) {
-                    throw new IllegalArgumentException("Unstashing has caused a key conflict! The map is [" + result + "] and the key is ["
-                            + entry.getKey() + "] which unstashes to [" + key + "]");
+                    throw new IllegalArgumentException(
+                        "Unstashing has caused a key conflict! The map is ["
+                            + result
+                            + "] and the key is ["
+                            + entry.getKey()
+                            + "] which unstashes to ["
+                            + key
+                            + "]"
+                    );
                 }
             }
             return result;

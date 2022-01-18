@@ -20,40 +20,40 @@ public class NestedLookupTests extends MapperServiceTestCase {
 
     public void testMultiLevelParents() throws IOException {
 
-        String mapping = "{\n" +
-            "  \"_doc\": {\n" +
-            "    \"properties\" : {\n" +
-            "      \"SWufZ\" : {\n" +
-            "        \"type\" : \"nested\",\n" +
-            "        \"properties\" : {\n" +
-            "          \"ZCPoX\" : {\n" +
-            "            \"type\" : \"keyword\"\n" +
-            "          },\n" +
-            "          \"NnUDX\" : {\n" +
-            "            \"properties\" : {\n" +
-            "              \"dljyS\" : {\n" +
-            "                \"type\" : \"nested\",\n" +
-            "                \"properties\" : {\n" +
-            "                  \"JYmZZ\" : {\n" +
-            "                    \"type\" : \"keyword\"\n" +
-            "                  },\n" +
-            "                  \"EvbGO\" : {\n" +
-            "                    \"type\" : \"nested\",\n" +
-            "                    \"properties\" : {\n" +
-            "                      \"LAgoT\" : {\n" +
-            "                        \"type\" : \"keyword\"\n" +
-            "                      }\n" +
-            "                    }\n" +
-            "                  }\n" +
-            "                }\n" +
-            "              }\n" +
-            "            }\n" +
-            "          }\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }\n" +
-            "  }\n" +
-            "}";
+        String mapping = "{\n"
+            + "  \"_doc\": {\n"
+            + "    \"properties\" : {\n"
+            + "      \"SWufZ\" : {\n"
+            + "        \"type\" : \"nested\",\n"
+            + "        \"properties\" : {\n"
+            + "          \"ZCPoX\" : {\n"
+            + "            \"type\" : \"keyword\"\n"
+            + "          },\n"
+            + "          \"NnUDX\" : {\n"
+            + "            \"properties\" : {\n"
+            + "              \"dljyS\" : {\n"
+            + "                \"type\" : \"nested\",\n"
+            + "                \"properties\" : {\n"
+            + "                  \"JYmZZ\" : {\n"
+            + "                    \"type\" : \"keyword\"\n"
+            + "                  },\n"
+            + "                  \"EvbGO\" : {\n"
+            + "                    \"type\" : \"nested\",\n"
+            + "                    \"properties\" : {\n"
+            + "                      \"LAgoT\" : {\n"
+            + "                        \"type\" : \"keyword\"\n"
+            + "                      }\n"
+            + "                    }\n"
+            + "                  }\n"
+            + "                }\n"
+            + "              }\n"
+            + "            }\n"
+            + "          }\n"
+            + "        }\n"
+            + "      }\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
 
         MapperService mapperService = createMapperService(mapping);
 
@@ -78,8 +78,7 @@ public class NestedLookupTests extends MapperServiceTestCase {
         );
 
         NestedLookup lookup = NestedLookup.build(mappers);
-        assertThat(lookup.getNestedParentFilters().keySet(),
-            containsInAnyOrder("a", "a.b", "a.b.c.d"));
+        assertThat(lookup.getNestedParentFilters().keySet(), containsInAnyOrder("a", "a.b", "a.b.c.d"));
     }
 
 }

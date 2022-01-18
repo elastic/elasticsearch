@@ -39,13 +39,16 @@ public class DeleteRoleMappingRequestTests extends ESTestCase {
         final DeleteRoleMappingRequest deleteRoleMappingRequest = new DeleteRoleMappingRequest(name, refreshPolicy);
         assertNotNull(deleteRoleMappingRequest);
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(deleteRoleMappingRequest, (original) -> {
-            return new DeleteRoleMappingRequest(original.getName(), original.getRefreshPolicy());
-        });
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            deleteRoleMappingRequest,
+            (original) -> { return new DeleteRoleMappingRequest(original.getName(), original.getRefreshPolicy()); }
+        );
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(deleteRoleMappingRequest, (original) -> {
-            return new DeleteRoleMappingRequest(original.getName(), original.getRefreshPolicy());
-        }, DeleteRoleMappingRequestTests::mutateTestItem);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            deleteRoleMappingRequest,
+            (original) -> { return new DeleteRoleMappingRequest(original.getName(), original.getRefreshPolicy()); },
+            DeleteRoleMappingRequestTests::mutateTestItem
+        );
 
     }
 
@@ -53,8 +56,9 @@ public class DeleteRoleMappingRequestTests extends ESTestCase {
         if (randomBoolean()) {
             return new DeleteRoleMappingRequest(randomAlphaOfLength(5), original.getRefreshPolicy());
         } else {
-            List<RefreshPolicy> values = Arrays.stream(RefreshPolicy.values()).filter(rp -> rp != original.getRefreshPolicy()).collect(
-                    Collectors.toList());
+            List<RefreshPolicy> values = Arrays.stream(RefreshPolicy.values())
+                .filter(rp -> rp != original.getRefreshPolicy())
+                .collect(Collectors.toList());
             return new DeleteRoleMappingRequest(original.getName(), randomFrom(values));
         }
     }

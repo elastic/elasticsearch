@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -17,9 +18,10 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -35,16 +37,16 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
@@ -67,6 +69,9 @@ import java.util.List;
  *  -  cleaning up state
  */
 public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction<RollupAction.Request> {
+
+    private static final Settings VISIBLE_INDEX_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build();
+    private static final Settings WRITE_BLOCKED_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
 
     private final Client client;
     private final ClusterService clusterService;
@@ -140,17 +145,14 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             "rollup",
             tmpIndexName,
             tmpIndexName
-        ).settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build())
+        ).settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS)
             .mappings(XContentHelper.convertToJson(BytesReference.bytes(mapping), false, XContentType.JSON));
 
         RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(request);
         ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
         resizeRequest.setResizeType(ResizeType.CLONE);
-        resizeRequest.getTargetIndexRequest().settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
-        UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(
-            Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build(),
-            tmpIndexName
-        );
+        resizeRequest.getTargetIndexRequest().settings(VISIBLE_INDEX_SETTINGS);
+        UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(WRITE_BLOCKED_SETTINGS, tmpIndexName);
 
         // 1. validate Rollup Config against Field Caps
         // 2. create hidden temporary index
@@ -240,10 +242,10 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         }, listener::onFailure));
     }
 
@@ -316,7 +318,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             String defaultMetric = metrics.contains("value_count") ? "value_count" : metrics.get(0);
             builder.startObject(metricConfig.getField())
                 .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
-                .array(AggregateDoubleMetricFieldMapper.Names.METRICS, metrics.toArray())
+                .stringListField(AggregateDoubleMetricFieldMapper.Names.METRICS, metrics)
                 .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
                 .endObject();
         }
@@ -358,7 +360,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                         originalDataStream.getTimeStampField(),
                         backingIndices,
                         originalDataStream.getGeneration(),
-                        originalDataStream.getMetadata()
+                        originalDataStream.getMetadata(),
+                        originalDataStream.isHidden(),
+                        originalDataStream.isReplicated(),
+                        originalDataStream.isSystem(),
+                        originalDataStream.isAllowCustomRouting()
                     );
                     metadataBuilder.put(dataStream);
                 }
@@ -366,7 +372,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 deleteTmpIndex(
                     originalIndexName,
                     tmpIndexName,
@@ -374,7 +380,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     new ElasticsearchException("failed to publish new cluster state with rollup metadata", e)
                 );
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     private void deleteTmpIndex(String originalIndex, String tmpIndex, ActionListener<AcknowledgedResponse> listener, Exception e) {

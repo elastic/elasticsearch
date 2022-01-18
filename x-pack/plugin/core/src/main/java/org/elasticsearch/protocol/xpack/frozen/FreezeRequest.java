@@ -20,8 +20,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class FreezeRequest extends AcknowledgedRequest<FreezeRequest>
-    implements IndicesRequest.Replaceable {
+public class FreezeRequest extends AcknowledgedRequest<FreezeRequest> implements IndicesRequest.Replaceable {
     private String[] indices;
     private boolean freeze = true;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
@@ -98,6 +97,7 @@ public class FreezeRequest extends AcknowledgedRequest<FreezeRequest>
     }
 
     @Override
+    @SuppressWarnings("HiddenField")
     public IndicesRequest indices(String... indices) {
         this.indices = indices;
         return this;

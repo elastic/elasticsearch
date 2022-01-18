@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.analytics.stringstats;
 
 import org.elasticsearch.client.analytics.ParsedStringStats;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
@@ -97,27 +97,13 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
         Map<String, Long> charOccurrences = instance.getCharOccurrences();
         boolean showDistribution = instance.getShowDistribution();
         switch (between(0, 6)) {
-            case 0:
-                name = name + "a";
-                break;
-            case 1:
-                count = randomValueOtherThan(count, () -> randomLongBetween(1, Long.MAX_VALUE));
-                break;
-            case 2:
-                totalLength = randomValueOtherThan(totalLength, ESTestCase::randomNonNegativeLong);
-                break;
-            case 3:
-                minLength = randomValueOtherThan(minLength, () -> between(0, Integer.MAX_VALUE));
-                break;
-            case 4:
-                maxLength = randomValueOtherThan(maxLength, () -> between(0, Integer.MAX_VALUE));
-                break;
-            case 5:
-                charOccurrences = randomValueOtherThan(charOccurrences, this::randomCharOccurrences);
-                break;
-            case 6:
-                showDistribution = showDistribution == false;
-                break;
+            case 0 -> name = name + "a";
+            case 1 -> count = randomValueOtherThan(count, () -> randomLongBetween(1, Long.MAX_VALUE));
+            case 2 -> totalLength = randomValueOtherThan(totalLength, ESTestCase::randomNonNegativeLong);
+            case 3 -> minLength = randomValueOtherThan(minLength, () -> between(0, Integer.MAX_VALUE));
+            case 4 -> maxLength = randomValueOtherThan(maxLength, () -> between(0, Integer.MAX_VALUE));
+            case 5 -> charOccurrences = randomValueOtherThan(charOccurrences, this::randomCharOccurrences);
+            case 6 -> showDistribution = showDistribution == false;
         }
         return new InternalStringStats(
             name,

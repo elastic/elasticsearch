@@ -27,8 +27,7 @@ public class CacheInvalidatorRegistry {
     private final Map<String, CacheInvalidator> cacheInvalidators = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> cacheAliases = new ConcurrentHashMap<>();
 
-    public CacheInvalidatorRegistry() {
-    }
+    public CacheInvalidatorRegistry() {}
 
     public void registerCacheInvalidator(String name, CacheInvalidator cacheInvalidator) {
         if (cacheInvalidators.containsKey(name)) {
@@ -55,8 +54,11 @@ public class CacheInvalidatorRegistry {
             }
             final Set<String> names = cacheAliases.get(alias);
             if (false == cacheInvalidators.keySet().containsAll(names)) {
-                throw new IllegalStateException("cache names not found: ["
-                    + Strings.collectionToCommaDelimitedString(Sets.difference(names, cacheInvalidators.keySet())) + "]");
+                throw new IllegalStateException(
+                    "cache names not found: ["
+                        + Strings.collectionToCommaDelimitedString(Sets.difference(names, cacheInvalidators.keySet()))
+                        + "]"
+                );
             }
         }
     }
@@ -66,8 +68,10 @@ public class CacheInvalidatorRegistry {
             || isIndexDeleted(previousState, currentState)
             || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false
             || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
-            cacheInvalidators.values().stream()
-                .filter(CacheInvalidator::shouldClearOnSecurityIndexStateChange).forEach(CacheInvalidator::invalidateAll);
+            cacheInvalidators.values()
+                .stream()
+                .filter(CacheInvalidator::shouldClearOnSecurityIndexStateChange)
+                .forEach(CacheInvalidator::invalidateAll);
         }
     }
 

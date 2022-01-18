@@ -771,8 +771,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 .map(i -> new File(i.getProjectDir(), "build-tools/src/main/resources/" + name))
                 .filter(f -> f.exists())
                 .findFirst()
-                .orElseThrow(() -> new GradleException("Cannot resolve build plugin file " + name +
-                        " from root project " + project.getRootProject()));
+                .orElseThrow(
+                    () -> new GradleException("Cannot resolve build plugin file " + name + " from root project " + project.getRootProject())
+                );
     }
 
     @Override

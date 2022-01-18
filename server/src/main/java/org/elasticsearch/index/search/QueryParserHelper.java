@@ -137,6 +137,10 @@ public final class QueryParserHelper {
                 if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE || fieldType.mayExistInIndex(context) == false) {
                     continue;
                 }
+                // Don't expand doc-value-only fields, as they search very slowly
+                if (fieldType.isIndexed() == false) {
+                    continue;
+                }
             }
 
             // Deduplicate aliases and their concrete fields.

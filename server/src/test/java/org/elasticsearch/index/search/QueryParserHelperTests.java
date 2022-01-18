@@ -57,11 +57,13 @@ public class QueryParserHelperTests extends MapperServiceTestCase {
             b.startObject("field1").field("type", "text").endObject();
             b.startObject("field2").field("type", "text").endObject();
             b.startObject("field3").field("type", "text").endObject();
+            b.startObject("field4").field("type", "long").field("index", false).endObject();
         }));
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.field("field1", "foo");
             b.field("field2", "bar");
+            b.field("field4", 100);
         }));
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {

@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.search.CCSVersionCheckHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumRequest;
@@ -40,6 +41,7 @@ public class RestTermsEnumAction extends BaseRestHandler {
                 parser,
                 Strings.splitStringByCommaToArray(request.param("index"))
             );
+            CCSVersionCheckHelper.checkCCSVersionCompatibility(request, termEnumRequest);
             return channel -> client.execute(TermsEnumAction.INSTANCE, termEnumRequest, new RestToXContentListener<>(channel));
         }
     }

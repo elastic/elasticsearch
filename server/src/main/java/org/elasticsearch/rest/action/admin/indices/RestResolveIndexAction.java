@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.search.CCSVersionCheckHelper;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,6 +41,7 @@ public class RestResolveIndexAction extends BaseRestHandler {
             indices,
             IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS)
         );
+        CCSVersionCheckHelper.checkCCSVersionCompatibility(request, resolveRequest);
         return channel -> client.admin().indices().resolveIndex(resolveRequest, new RestToXContentListener<>(channel));
     }
 }

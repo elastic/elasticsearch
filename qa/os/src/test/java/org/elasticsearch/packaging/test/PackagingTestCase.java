@@ -128,10 +128,10 @@ public abstract class PackagingTestCase extends Assert {
     static {
         Shell initShell = new Shell();
         if (Platforms.WINDOWS) {
-            systemJavaHome = initShell.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+            systemJavaHome = initShell.run("$Env:SYSTEM_JAVA_HOME").stdout().trim();
         } else {
             assert Platforms.LINUX || Platforms.DARWIN;
-            systemJavaHome = initShell.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+            systemJavaHome = initShell.run("echo $SYSTEM_JAVA_HOME").stdout().trim();
         }
     }
 
@@ -355,7 +355,7 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
-        assertThat("Startup command should succeed. Stderr: [" + result + "]", result.exitCode, equalTo(0));
+        assertThat("Startup command should succeed. Stderr: [" + result + "]", result.exitCode(), equalTo(0));
         switch (distribution.packaging) {
             case TAR, ZIP -> Archives.assertElasticsearchStarted(installation);
             case DEB, RPM -> Packages.assertElasticsearchStarted(sh, installation);
@@ -385,7 +385,7 @@ public abstract class PackagingTestCase extends Assert {
             if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
                 String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
                 logger.info("elasticsearch process ({}) failed to start", pid);
-                if (sh.run("jps").stdout.contains(pid)) {
+                if (sh.run("jps").stdout().contains(pid)) {
                     logger.info("Dumping jstack of elasticsearch process ({}) ", pid);
                     sh.runIgnoreExitCode("jstack " + pid);
                 }
@@ -413,15 +413,15 @@ public abstract class PackagingTestCase extends Assert {
         } else if (distribution().isPackage() && Platforms.isSystemd()) {
 
             // For systemd, retrieve the error from journalctl
-            assertThat(result.stderr, containsString("Job for elasticsearch.service failed"));
+            assertThat(result.stderr(), containsString("Job for elasticsearch.service failed"));
             Shell.Result error = journaldWrapper.getLogs();
-            assertThat(error.stdout, anyOf(stringMatchers));
+            assertThat(error.stdout(), anyOf(stringMatchers));
 
         } else if (Platforms.WINDOWS && Files.exists(Archives.getPowershellErrorPath(installation))) {
 
             // In Windows, we have written our stdout and stderr to files in order to run
             // in the background
-            String wrapperPid = result.stdout.trim();
+            String wrapperPid = result.stdout().trim();
             sh.runIgnoreExitCode("Wait-Process -Timeout " + Archives.ES_STARTUP_SLEEP_TIME_SECONDS + " -Id " + wrapperPid);
             sh.runIgnoreExitCode(
                 "Get-EventSubscriber | "
@@ -433,7 +433,7 @@ public abstract class PackagingTestCase extends Assert {
         } else {
 
             // Otherwise, error should be on shell stderr
-            assertThat(result.stderr, anyOf(stringMatchers));
+            assertThat(result.stderr(), anyOf(stringMatchers));
         }
     }
 
@@ -663,7 +663,10 @@ public abstract class PackagingTestCase extends Assert {
                         FileMatcher.file(File, "root", "elasticsearch", p660)
                     )
                 );
-            assertThat(sh.run(es.executables().keystoreTool + " list").stdout, Matchers.containsString("autoconfiguration.password_hash"));
+            assertThat(
+                sh.run(es.executables().keystoreTool + " list").stdout(),
+                Matchers.containsString("autoconfiguration.password_hash")
+            );
             settings = Settings.builder().loadFromPath(es.config("elasticsearch.yml")).build();
         }
         assertThat(settings.get("xpack.security.enabled"), equalTo("true"));
@@ -688,7 +691,7 @@ public abstract class PackagingTestCase extends Assert {
         if (es.distribution.isPackage()) {
             if (Files.exists(es.config("elasticsearch.keystore"))) {
                 assertThat(
-                    sh.run(es.executables().keystoreTool + " list").stdout,
+                    sh.run(es.executables().keystoreTool + " list").stdout(),
                     not(Matchers.containsString("autoconfiguration.password_hash"))
                 );
             }
@@ -711,8 +714,8 @@ public abstract class PackagingTestCase extends Assert {
         } else {
             lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
         }
-        assertNotNull(lsResult.stdout);
-        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("certs")).findFirst();
+        assertNotNull(lsResult.stdout());
+        return Arrays.stream(lsResult.stdout().split("\n")).filter(f -> f.contains("certs")).findFirst();
     }
 
 }

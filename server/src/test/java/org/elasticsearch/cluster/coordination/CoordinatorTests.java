@@ -1132,7 +1132,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 return cs;
             }, new ClusterStateTaskListener() {
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     notifyAdvancer.advanceTime();
                 }
 
@@ -1219,7 +1219,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 return ClusterState.builder(cs).putCustom(customName, new DelayedCustom(contextAdvancer)).build();
             }, new ClusterStateTaskListener() {
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     notifyAdvancer.advanceTime();
                 }
 
@@ -1280,7 +1280,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 return ClusterState.builder(cs).build();
             }, new ClusterStateTaskListener() {
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     fail("shouldn't have processed cluster state");
                 }
 

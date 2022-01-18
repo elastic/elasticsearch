@@ -136,8 +136,8 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                super.clusterStateProcessed(source, oldState, newState);
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                super.clusterStateProcessed(oldState, newState);
                 MigratedEntities entities = migratedEntities.get();
                 listener.onResponse(
                     new MigrateToDataTiersResponse(

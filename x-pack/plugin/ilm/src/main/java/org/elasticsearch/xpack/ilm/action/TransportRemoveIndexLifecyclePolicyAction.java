@@ -76,7 +76,7 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(new Response(failedIndexes));
             }
         }, ClusterStateTaskExecutor.unbatched());

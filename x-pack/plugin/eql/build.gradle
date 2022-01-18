@@ -27,7 +27,6 @@ dependencies {
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
-  testImplementation project(path: ':modules:transport-netty4') // for http in RestEqlCancellationIT
   testImplementation project(path: ':plugins:transport-nio') // for http in RestEqlCancellationIT
 
   testImplementation 'io.ous:jtoml:2.0.0'

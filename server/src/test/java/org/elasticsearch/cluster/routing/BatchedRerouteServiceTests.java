@@ -87,8 +87,8 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
-                throw new AssertionError(source, e);
+            public void onFailure(Exception e) {
+                throw new AssertionError("block master service", e);
             }
         }, ClusterStateTaskExecutor.unbatched());
 
@@ -114,7 +114,6 @@ public class BatchedRerouteServiceTests extends ESTestCase {
         };
         actions.add(rerouteFromPriority.apply(Priority.URGENT)); // ensure at least one URGENT priority reroute
         for (int i = 1; i < iterations; i++) {
-            final int iteration = i;
             if (randomBoolean()) {
                 actions.add(rerouteFromPriority.apply(randomFrom(Priority.LOW, Priority.NORMAL, Priority.HIGH, Priority.URGENT)));
             } else {
@@ -123,45 +122,42 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                 if (submittedConcurrentlyWithReroute == false) {
                     tasksSubmittedCountDown.countDown(); // this task might be submitted later
                 }
+                final String source = "other task " + i + " at " + priority;
                 actions.add(() -> {
-                    clusterService.submitStateUpdateTask(
-                        "other task " + iteration + " at " + priority,
-                        new ClusterStateUpdateTask(priority) {
+                    clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(priority) {
 
-                            @Override
-                            public ClusterState execute(ClusterState currentState) {
-                                switch (priority) {
-                                    case IMMEDIATE:
-                                        if (submittedConcurrentlyWithReroute) {
-                                            assertFalse("should have rerouted after " + priority + " priority task", rerouteExecuted.get());
-                                        } // else this task might be submitted too late to precede the reroute
-                                        break;
-                                    case URGENT:
-                                        // may run either before or after reroute
-                                        break;
-                                    case HIGH:
-                                    case NORMAL:
-                                        assertTrue("should have rerouted before " + priority + " priority task", rerouteExecuted.get());
-                                        break;
-                                    default:
-                                        fail("unexpected priority: " + priority);
-                                        break;
-                                }
-                                return currentState;
+                        @Override
+                        public ClusterState execute(ClusterState currentState) {
+                            switch (priority) {
+                                case IMMEDIATE:
+                                    if (submittedConcurrentlyWithReroute) {
+                                        assertFalse("should have rerouted after " + priority + " priority task", rerouteExecuted.get());
+                                    } // else this task might be submitted too late to precede the reroute
+                                    break;
+                                case URGENT:
+                                    // may run either before or after reroute
+                                    break;
+                                case HIGH:
+                                case NORMAL:
+                                    assertTrue("should have rerouted before " + priority + " priority task", rerouteExecuted.get());
+                                    break;
+                                default:
+                                    fail("unexpected priority: " + priority);
+                                    break;
                             }
+                            return currentState;
+                        }
 
-                            @Override
-                            public void onFailure(String source, Exception e) {
-                                throw new AssertionError(source, e);
-                            }
+                        @Override
+                        public void onFailure(Exception e) {
+                            throw new AssertionError(source, e);
+                        }
 
-                            @Override
-                            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                                tasksCompletedCountDown.countDown();
-                            }
-                        },
-                        ClusterStateTaskExecutor.unbatched()
-                    );
+                        @Override
+                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                            tasksCompletedCountDown.countDown();
+                        }
+                    }, ClusterStateTaskExecutor.unbatched());
                     if (submittedConcurrentlyWithReroute) {
                         tasksSubmittedCountDown.countDown();
                     }

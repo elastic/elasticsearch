@@ -148,7 +148,11 @@ public class PublicationTransportHandler {
                         throw e;
                     }
                     fullClusterStateReceivedCount.incrementAndGet();
-                    logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(), request.bytes().length());
+                    logger.debug(
+                        "received full cluster state version [{}] with size [{}]",
+                        incomingState.version(),
+                        request.bytes().length()
+                    );
                     final PublishWithJoinResponse response = acceptState(incomingState);
                     lastSeenClusterState.set(incomingState);
                     yield response;
@@ -374,7 +378,9 @@ public class PublicationTransportHandler {
                         PublishRequestType.LOCAL.writeTo(stream);
                         stream.writeString(newState.stateUUID());
                     } catch (IOException e) {
-                        listener.onFailure(new ElasticsearchException("failed to serialize cluster state for publishing to local node {}", e, destination));
+                        listener.onFailure(
+                            new ElasticsearchException("failed to serialize cluster state for publishing to local node {}", e, destination)
+                        );
                         return;
                     }
 
@@ -570,7 +576,7 @@ public class PublicationTransportHandler {
         private final byte b;
 
         PublishRequestType(int b) {
-            this.b = (byte)b;
+            this.b = (byte) b;
         }
 
         public static PublishRequestType readFrom(StreamInput in) throws IOException {

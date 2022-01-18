@@ -171,8 +171,10 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
             if (range.toAsStr != null) {
                 to = parser.parseDouble(range.toAsStr, false, context::nowInMillis);
             }
-            String key = range.key != null ? range.key : generateKey(range.originalFrom, range.originalTo, config.format());
-            return new Range(key, from, range.from, range.fromAsStr, to, range.to, range.toAsStr);
+            double originalFrom = range.fromAsStr != null ? from : range.from;
+            double originalTo = range.toAsStr != null ? to : range.to;
+            String key = range.key != null ? range.key : generateKey(originalFrom, originalTo, config.format());
+            return new Range(key, from, originalFrom, range.fromAsStr, to, originalTo, range.toAsStr);
         });
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");

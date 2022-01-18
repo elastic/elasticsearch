@@ -371,6 +371,7 @@ The search returns:
     "hits" : [
       {
         "_index" : "my-index",
+        "_type": "doc",
         "_id" : "1",
         "_score" : 0.0,
         "_source" : {
@@ -383,6 +384,7 @@ The search returns:
       },
       {
         "_index" : "my-index",
+        "_type": "doc",
         "_id" : "2",
         "_score" : 0.0,
         "_source" : {
@@ -448,6 +450,7 @@ The search returns:
     "hits" : [
       {
         "_index" : "my-index",
+        "_type": "doc",
         "_id" : "1",
         "_score" : 0.0,
         "_source" : {

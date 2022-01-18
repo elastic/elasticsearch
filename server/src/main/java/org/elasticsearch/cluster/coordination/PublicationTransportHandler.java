@@ -29,12 +29,10 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasables;
@@ -67,12 +65,6 @@ public class PublicationTransportHandler {
     private final Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest;
 
     private final AtomicReference<ClusterState> lastSeenClusterState = new AtomicReference<>();
-
-    /**
-     * Keeps hold of any ongoing publication to avoid having to de/serialize the whole thing on the master too; instead we send a small
-     * placeholder through the transport service and use the request recorded here.
-     */
-    private final AtomicReference<PublishRequest> currentPublishRequestToSelf = new AtomicReference<>();
 
     private final AtomicLong fullClusterStateReceivedCount = new AtomicLong();
     private final AtomicLong incompatibleClusterStateDiffReceivedCount = new AtomicLong();
@@ -137,36 +129,29 @@ public class PublicationTransportHandler {
             in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
             in.setVersion(request.version());
 
-            return switch (PublishRequestType.readFrom(in)) {
-                case FULL -> {
-                    final ClusterState incomingState;
-                    // Close early to release resources used by the de-compression as early as possible
-                    try (StreamInput input = in) {
-                        incomingState = ClusterState.readFrom(input, transportService.getLocalNode());
-                    } catch (Exception e) {
-                        logger.warn("unexpected error while deserializing an incoming cluster state", e);
-                        assert false : e;
-                        throw e;
-                    }
-                    fullClusterStateReceivedCount.incrementAndGet();
-                    logger.debug(
-                        "received full cluster state version [{}] with size [{}]",
-                        incomingState.version(),
-                        request.bytes().length()
-                    );
-                    final PublishWithJoinResponse response = acceptState(incomingState);
-                    lastSeenClusterState.set(incomingState);
-                    yield response;
+            // If true we received full cluster state - otherwise diffs
+            if (in.readBoolean()) {
+                final ClusterState incomingState;
+                // Close early to release resources used by the de-compression as early as possible
+                try (StreamInput input = in) {
+                    incomingState = ClusterState.readFrom(input, transportService.getLocalNode());
+                } catch (Exception e) {
+                    logger.warn("unexpected error while deserializing an incoming cluster state", e);
+                    assert false : e;
+                    throw e;
                 }
-
-                case DIFF -> {
-                    final ClusterState lastSeen = lastSeenClusterState.get();
-                    if (lastSeen == null) {
-                        logger.debug("received diff for but don't have any local cluster state - requesting full state");
-                        incompatibleClusterStateDiffReceivedCount.incrementAndGet();
-                        throw new IncompatibleClusterStateVersionException("have no local cluster state");
-                    }
-
+                fullClusterStateReceivedCount.incrementAndGet();
+                logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(), request.bytes().length());
+                final PublishWithJoinResponse response = acceptState(incomingState);
+                lastSeenClusterState.set(incomingState);
+                return response;
+            } else {
+                final ClusterState lastSeen = lastSeenClusterState.get();
+                if (lastSeen == null) {
+                    logger.debug("received diff for but don't have any local cluster state - requesting full state");
+                    incompatibleClusterStateDiffReceivedCount.incrementAndGet();
+                    throw new IncompatibleClusterStateVersionException("have no local cluster state");
+                } else {
                     ClusterState incomingState;
                     try {
                         final Diff<ClusterState> diff;
@@ -192,20 +177,9 @@ public class PublicationTransportHandler {
                     );
                     final PublishWithJoinResponse response = acceptState(incomingState);
                     lastSeenClusterState.compareAndSet(lastSeen, incomingState);
-                    yield response;
+                    return response;
                 }
-
-                case LOCAL -> {
-                    final String incomingUUID = in.readString();
-                    final PublishRequest publishRequest = currentPublishRequestToSelf.get();
-                    if (publishRequest == null || publishRequest.getAcceptedState().stateUUID().equals(incomingUUID) == false) {
-                        throw new IllegalStateException("publication to self failed for " + publishRequest);
-                    }
-                    final PublishWithJoinResponse response = handlePublishRequest.apply(publishRequest);
-                    lastSeenClusterState.set(publishRequest.getAcceptedState());
-                    yield response;
-                }
-            };
+            }
         } finally {
             IOUtils.close(in);
         }
@@ -246,7 +220,7 @@ public class PublicationTransportHandler {
                 )
             ) {
                 stream.setVersion(nodeVersion);
-                PublishRequestType.FULL.writeTo(stream);
+                stream.writeBoolean(true);
                 clusterState.writeTo(stream);
                 uncompressedBytes = stream.position();
             } catch (IOException e) {
@@ -281,7 +255,7 @@ public class PublicationTransportHandler {
                 )
             ) {
                 stream.setVersion(nodeVersion);
-                PublishRequestType.DIFF.writeTo(stream);
+                stream.writeBoolean(false);
                 diff.writeTo(stream);
                 uncompressedBytes = stream.position();
             } catch (IOException e) {
@@ -295,28 +269,6 @@ public class PublicationTransportHandler {
                 nodeVersion,
                 result.length()
             );
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                bytesStream.close();
-            }
-        }
-    }
-
-    private ReleasableBytesReference serializeLocalClusterState(ClusterState clusterState) {
-        final RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream();
-        boolean success = false;
-        try {
-            try (StreamOutput stream = new OutputStreamStreamOutput(Streams.flushOnCloseStream(bytesStream))) {
-                stream.setVersion(Version.CURRENT);
-                PublishRequestType.LOCAL.writeTo(stream);
-                stream.writeString(clusterState.stateUUID());
-            } catch (IOException e) {
-                throw new ElasticsearchException("failed to serialize cluster state for publishing to local node {}", e,
-                    clusterState.nodes().getLocalNode());
-            }
-            final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream);
             success = true;
             return result;
         } finally {
@@ -392,8 +344,9 @@ public class PublicationTransportHandler {
                 // requests differently to avoid having to decompress and deserialize the request on the master.
 
                 logger.trace("handling cluster state version [{}] locally on [{}]", newState.version(), destination);
-                transportService.getThreadPool().generic().execute(
-                    ActionRunnable.supply(listener, () -> handlePublishRequest.apply(publishRequest)));
+                transportService.getThreadPool()
+                    .generic()
+                    .execute(ActionRunnable.supply(listener, () -> handlePublishRequest.apply(publishRequest)));
             } else if (sendFullVersion || previousState.nodes().nodeExists(destination) == false) {
                 logger.trace("sending full cluster state version [{}] to [{}]", newState.version(), destination);
                 sendFullClusterState(destination, listener);
@@ -487,7 +440,7 @@ public class PublicationTransportHandler {
                     PUBLISH_STATE_ACTION_NAME,
                     new BytesTransportRequest(bytes, destination.getVersion()),
                     STATE_REQUEST_OPTIONS,
-                    new ActionListenerResponseHandler<PublishWithJoinResponse>(
+                    new ActionListenerResponseHandler<>(
                         ActionListener.runAfter(listener, bytes::decRef),
                         PublishWithJoinResponse::new,
                         ThreadPool.Names.GENERIC
@@ -538,49 +491,6 @@ public class PublicationTransportHandler {
                 totalUncompressedDiffBytes,
                 totalCompressedDiffBytes
             );
-        }
-    }
-
-    private enum PublishRequestType implements Writeable {
-        /**
-         * The rest of the publish request is a diff between the previous and current cluster states.
-         */
-        DIFF(0),
-
-        /**
-         * The rest of the publish request is the current cluster state serialized in full.
-         */
-        FULL(1),
-
-        /**
-         * This publish request is being sent from the master to itself, and only contains the state UUID to validate that the in-memory
-         * state is the right one.
-         */
-        LOCAL(2);
-
-        private final byte b;
-
-        PublishRequestType(int b) {
-            this.b = (byte) b;
-        }
-
-        public static PublishRequestType readFrom(StreamInput in) throws IOException {
-            final byte b = in.readByte();
-            switch (b) {
-                case 0:
-                    return DIFF;
-                case 1:
-                    return FULL;
-                case 2:
-                    return LOCAL;
-                default:
-                    throw new IllegalStateException("unexpected PublishRequestType[" + b + "]");
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte(b);
         }
     }
 

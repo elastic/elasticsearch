@@ -1003,7 +1003,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testDiffBasedPublishing() {
-        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+        try (Cluster cluster = new Cluster(randomIntBetween(2, 5))) {
             cluster.runRandomly();
             cluster.stabilise();
 

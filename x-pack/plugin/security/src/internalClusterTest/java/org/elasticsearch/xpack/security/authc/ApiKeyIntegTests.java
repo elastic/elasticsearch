@@ -1194,7 +1194,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .encodeToString((response1.getId() + ":" + response1.getKey()).getBytes(StandardCharsets.UTF_8));
 
         final CreateApiKeyResponse response2 = new CreateApiKeyRequestBuilder(
-            client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue, "es-security-runas-user", ES_TEST_ROOT_USER))
+            client().filterWithHeader(
+                Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue, "es-security-runas-user", ES_TEST_ROOT_USER)
+            )
         ).setName("create-by run-as user").setRoleDescriptors(List.of(new RoleDescriptor("a", new String[] { "all" }, null, null))).get();
 
         final GetApiKeyResponse getApiKeyResponse = client.execute(

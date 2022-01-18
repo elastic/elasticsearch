@@ -31,9 +31,11 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -241,7 +243,7 @@ class S3Service implements Closeable {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         releaseCachedClients();
         webIdentityTokenCredentialsProvider.shutdown();
     }
@@ -348,10 +350,9 @@ class S3Service implements Closeable {
             }
         }
 
-        public void shutdown() {
+        public void shutdown() throws IOException {
             if (credentialsProvider != null) {
-                credentialsProvider.close();
-                stsClient.shutdown();
+                IOUtils.close(credentialsProvider, () -> stsClient.shutdown());
             }
         }
     }

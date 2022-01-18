@@ -13,9 +13,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
+import java.io.IOException;
+
 public class S3ServiceTests extends ESTestCase {
 
-    public void testCachedClientsAreReleased() {
+    public void testCachedClientsAreReleased() throws IOException {
         final S3Service s3Service = new S3Service(Mockito.mock(Environment.class));
         final Settings settings = Settings.builder().put("endpoint", "http://first").build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);

@@ -18,6 +18,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
@@ -169,7 +170,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(settings.get("other").disableChunkedEncoding, is(true));
     }
 
-    public void testRegionCanBeSet() {
+    public void testRegionCanBeSet() throws IOException {
         final String region = randomAlphaOfLength(5);
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
             Settings.builder().put("s3.client.other.region", region).build()

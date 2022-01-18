@@ -23,6 +23,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -665,7 +666,7 @@ public class IndexResolver {
 
         List<String> resolvedIndices = new ArrayList<>(asList(fieldCapsResponse.getIndices()));
         int mapSize = CollectionUtils.mapSize(resolvedIndices.size() + resolvedAliases.size());
-        Map<String, Fields> indices = new LinkedHashMap<>(mapSize);
+        Map<String, Fields> indices = Maps.newLinkedHashMapWithExpectedSize(mapSize);
         Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
 
         // sort fields in reverse order to build the field hierarchy

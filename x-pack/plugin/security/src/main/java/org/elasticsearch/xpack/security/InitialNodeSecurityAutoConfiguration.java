@@ -372,7 +372,7 @@ public class InitialNodeSecurityAutoConfiguration {
             builder.append(System.lineSeparator());
             builder.append("If you're running in Docker, copy the enrollment token and run:");
             builder.append(System.lineSeparator());
-            builder.append(cmdOn + "docker run --name <node-name> -p <host-http-port>:9200 --net elastic -it");
+            builder.append(cmdOn + "docker run --name <node-name> -p <host-http-port>:9200 --net elastic -it ");
             builder.append("docker.elastic.co/elasticsearch/elasticsearch:" + Version.CURRENT + " /bin/bash -c");
             builder.append("\"/usr/share/elasticsearch/bin/elasticsearch --enrollment-token <token>\"");
         }

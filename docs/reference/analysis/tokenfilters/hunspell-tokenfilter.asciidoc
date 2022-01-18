@@ -236,12 +236,3 @@ If `true`, the loading of Hunspell dictionaries is deferred until a dictionary
 is used. If `false`, the dictionary directory is checked for dictionaries when
 the node starts, and any dictionaries are automatically loaded. Defaults to
 `false`.
-
-[[indices-analysis-hunspell-dictionary-location]]
-`indices.analysis.hunspell.dictionary.location`::
-(Static, string)
-Path to a Hunspell dictionary directory. This path must be absolute or
-relative to the `config` location.
-+
-By default, the `<path.config>/hunspell` directory is used, as described in
-<<analysis-hunspell-tokenfilter-dictionary-config>>.

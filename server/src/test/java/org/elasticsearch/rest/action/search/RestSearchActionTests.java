@@ -150,7 +150,8 @@ public class RestSearchActionTests extends RestActionTestCase {
 
             Exception ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
             assertEquals(
-                "parts of request [POST /some_index/_search] are not compatible in version '8.0.0 and the check_ccs_compatibility' is enabled.",
+                "parts of request [POST /some_index/_search] are not compatible in version '8.0.0 and the check_ccs_compatibility' "
+                + "is enabled.",
                 ex.getMessage()
             );
             assertEquals("This query isn't serializable to nodes on or before 8.0.0", ex.getCause().getMessage());
@@ -169,7 +170,8 @@ public class RestSearchActionTests extends RestActionTestCase {
 
             Exception ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
             assertEquals(
-                "parts of request [POST /some_index/_search] are not compatible in version '8.0.0 and the check_ccs_compatibility' is enabled.",
+                "parts of request [POST /some_index/_search] are not compatible in version '8.0.0 and the check_ccs_compatibility' "
+                + "is enabled.",
                 ex.getMessage()
             );
             assertEquals(

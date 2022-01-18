@@ -85,7 +85,7 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void onFailure(String source, Exception e) {
+    public void onFailure(Exception e) {
         final MessageSupplier messageSupplier = () -> new ParameterizedMessage(
             "policy [{}] for index [{}] failed trying to move from step [{}] to the ERROR step.",
             policy,

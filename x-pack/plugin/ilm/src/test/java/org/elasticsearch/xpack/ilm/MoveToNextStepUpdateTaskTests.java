@@ -177,7 +177,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
             state -> {}
         );
         Exception expectedException = new RuntimeException();
-        task.onFailure(randomAlphaOfLength(10), expectedException);
+        task.onFailure(expectedException);
     }
 
     /**

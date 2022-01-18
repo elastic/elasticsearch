@@ -133,7 +133,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         final Logger taskLogger = LogManager.getLogger(SetStepInfoUpdateTask.class);
         Loggers.addAppender(taskLogger, mockAppender);
         try {
-            task.onFailure(randomAlphaOfLength(10), new RuntimeException("test exception"));
+            task.onFailure(new RuntimeException("test exception"));
             mockAppender.assertAllExpectationsMatched();
         } finally {
             Loggers.removeAppender(taskLogger, mockAppender);

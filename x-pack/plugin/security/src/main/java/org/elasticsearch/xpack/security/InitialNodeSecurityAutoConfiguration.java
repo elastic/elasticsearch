@@ -22,7 +22,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
-import org.elasticsearch.xpack.security.enrollment.BaseEnrollmentTokenGenerator;
 import org.elasticsearch.xpack.security.enrollment.InternalEnrollmentTokenGenerator;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -233,11 +232,27 @@ public class InitialNodeSecurityAutoConfiguration {
         builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());
         if (elasticPassword == null) {
-            builder.append(errorBullet + " Unable to auto-generate the password for the " + boldOnANSI + "elastic" + boldOffANSI +
-                " built-in superuser.");
+            builder.append(
+                errorBullet
+                    + " Unable to auto-generate the password for the "
+                    + boldOnANSI
+                    + "elastic"
+                    + boldOffANSI
+                    + " built-in superuser."
+            );
         } else if (false == Strings.isEmpty(elasticPassword)) {
-            builder.append(successBullet + " Password for the " + boldOnANSI + "elastic" + boldOffANSI +
-                " user (reset with " + cmdOn + "bin/elasticsearch-reset-password -u elastic" + cmdOff + "):");
+            builder.append(
+                successBullet
+                    + " Password for the "
+                    + boldOnANSI
+                    + "elastic"
+                    + boldOffANSI
+                    + " user (reset with "
+                    + cmdOn
+                    + "bin/elasticsearch-reset-password -u elastic"
+                    + cmdOff
+                    + "):"
+            );
             builder.append(System.lineSeparator());
             builder.append("   " + boldOnANSI + elasticPassword + boldOffANSI);
         }
@@ -275,40 +290,82 @@ public class InitialNodeSecurityAutoConfiguration {
             builder.append(System.lineSeparator());
             builder.append(bullet + " On this node:");
             builder.append(System.lineSeparator());
-            builder.append("  " + hyphenBullet + " Create an enrollment token with " + cmdOn +
-                "bin/elasticsearch-create-enrollment-token -s node" + cmdOff + ".");
+            builder.append(
+                "  "
+                    + hyphenBullet
+                    + " Create an enrollment token with "
+                    + cmdOn
+                    + "bin/elasticsearch-create-enrollment-token -s node"
+                    + cmdOff
+                    + "."
+            );
             builder.append(System.lineSeparator());
             builder.append("  " + hyphenBullet + " Restart Elasticsearch.");
             builder.append(System.lineSeparator());
             builder.append(bullet + " On the other node:");
             builder.append(System.lineSeparator());
-            builder.append("  " + hyphenBullet + " Start Elasticsearch on other nodes with " + cmdOn +
-                "bin/elasticsearch --enrollment-token <token>" + cmdOff +
-                ", using the enrollment token that you generated.");
+            builder.append(
+                "  "
+                    + hyphenBullet
+                    + " Start Elasticsearch on other nodes with "
+                    + cmdOn
+                    + "bin/elasticsearch --enrollment-token <token>"
+                    + cmdOff
+                    + ", using the enrollment token that you generated."
+            );
         } else if (Strings.isEmpty(nodeEnrollmentToken)) {
             builder.append(infoBullet + " Configure other nodes to join this cluster:");
             builder.append(System.lineSeparator());
             builder.append(bullet + " On this node:");
             builder.append(System.lineSeparator());
-            builder.append("  " + hyphenBullet + " Create an enrollment token with " + cmdOn +
-                "bin/elasticsearch-create-enrollment-token -s node" + cmdOff + ".");
+            builder.append(
+                "  "
+                    + hyphenBullet
+                    + " Create an enrollment token with "
+                    + cmdOn
+                    + "bin/elasticsearch-create-enrollment-token -s node"
+                    + cmdOff
+                    + "."
+            );
             builder.append(System.lineSeparator());
-            builder.append("  " + hyphenBullet + " Uncomment the " + boldOnANSI +
-                "transport.host" + boldOffANSI + " setting at the end of " + boldOnANSI +
-                "config/elasticsearch.yml" + boldOffANSI + ".");
+            builder.append(
+                "  "
+                    + hyphenBullet
+                    + " Uncomment the "
+                    + boldOnANSI
+                    + "transport.host"
+                    + boldOffANSI
+                    + " setting at the end of "
+                    + boldOnANSI
+                    + "config/elasticsearch.yml"
+                    + boldOffANSI
+                    + "."
+            );
             builder.append(System.lineSeparator());
             builder.append("  " + hyphenBullet + " Restart Elasticsearch.");
             builder.append(System.lineSeparator());
             builder.append(bullet + " On the other node:");
             builder.append(System.lineSeparator());
-            builder.append("  " + hyphenBullet + " Start Elasticsearch on other nodes with " + cmdOn +
-                "bin/elasticsearch --enrollment-token <token>" + cmdOff +
-                ", using the enrollment token that you generated.");
+            builder.append(
+                "  "
+                    + hyphenBullet
+                    + " Start Elasticsearch on other nodes with "
+                    + cmdOn
+                    + "bin/elasticsearch --enrollment-token <token>"
+                    + cmdOff
+                    + ", using the enrollment token that you generated."
+            );
         } else {
             builder.append(infoBullet + " Configure other nodes to join this cluster:");
             builder.append(System.lineSeparator());
-            builder.append(bullet + " Copy the following enrollment token and start new Elasticsearch nodes with " +
-                cmdOn + "bin/elasticsearch --enrollment-token <token>" + cmdOff + " (valid for the next 30 minutes):");
+            builder.append(
+                bullet
+                    + " Copy the following enrollment token and start new Elasticsearch nodes with "
+                    + cmdOn
+                    + "bin/elasticsearch --enrollment-token <token>"
+                    + cmdOff
+                    + " (valid for the next 30 minutes):"
+            );
             builder.append(System.lineSeparator());
             builder.append("  " + boldOnANSI + nodeEnrollmentToken + boldOffANSI);
             builder.append(System.lineSeparator());

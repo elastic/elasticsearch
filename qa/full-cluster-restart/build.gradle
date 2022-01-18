@@ -15,9 +15,14 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.bwc-test'
 
-BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
+BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
   def baseCluster = testClusters.register(baseName) {
-      versions =  [bwcVersion.toString(), project.version]
+      if (bwcVersion.before(BuildParams.bwcVersions.minimumWireCompatibleVersion)) {
+        // When testing older versions we have to first upgrade to 7.last
+        versions = [bwcVersion.toString(), BuildParams.bwcVersions.minimumWireCompatibleVersion.toString(), project.version]
+      } else {
+        versions = [bwcVersion.toString(), project.version]
+      }
       numberOfNodes = 2
       // some tests rely on the translog not being flushed
       setting 'indices.memory.shard_inactive_time', '60m'
@@ -46,6 +51,10 @@ BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
         baseCluster.get().systemProperty 'es.index_mode_feature_flag_registered', 'true'
       }
       baseCluster.get().goToNextVersion()
+      if (bwcVersion.before(BuildParams.bwcVersions.minimumWireCompatibleVersion)) {
+        // When doing a full cluster restart of older versions we actually have to upgrade twice. First to 7.last, then to the current version.
+        baseCluster.get().goToNextVersion()
+      }
     }
     systemProperty 'tests.is_old_cluster', 'false'
   }

@@ -49,29 +49,24 @@ public class ExplainLifecycleRequestTests extends ESTestCase {
         String[] indices = instance.getIndices();
         IndicesOptions indicesOptions = instance.indicesOptions();
         switch (between(0, 1)) {
-            case 0:
-                indices = randomValueOtherThanMany(
-                    i -> Arrays.equals(i, instance.getIndices()),
-                    () -> generateRandomStringArray(20, 10, false, false)
-                );
-                break;
-            case 1:
-                indicesOptions = randomValueOtherThan(
-                    indicesOptions,
-                    () -> IndicesOptions.fromOptions(
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean()
-                    )
-                );
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> indices = randomValueOtherThanMany(
+                i -> Arrays.equals(i, instance.getIndices()),
+                () -> generateRandomStringArray(20, 10, false, false)
+            );
+            case 1 -> indicesOptions = randomValueOtherThan(
+                instance.indicesOptions(),
+                () -> IndicesOptions.fromOptions(
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean()
+                )
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         ExplainLifecycleRequest newRequest = new ExplainLifecycleRequest(indices);
         newRequest.indicesOptions(indicesOptions);

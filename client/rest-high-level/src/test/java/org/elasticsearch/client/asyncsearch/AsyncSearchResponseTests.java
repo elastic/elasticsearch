@@ -36,7 +36,7 @@ public class AsyncSearchResponseTests extends AbstractResponseTestCase<
         SearchResponse searchResponse = randomBoolean()
             ? null
             : new SearchResponse(
-                InternalSearchResponse.empty(),
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                 randomAlphaOfLength(10),
                 1,
                 1,

@@ -174,7 +174,6 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Maximum number of processed documents. Defaults to -1 meaning process all
      * documents.
      */
-    @SuppressWarnings("HiddenField")
     public Self setMaxDocs(int maxDocs) {
         if (maxDocs < 0) {
             throw new IllegalArgumentException("[max_docs] parameter cannot be negative, found [" + maxDocs + "]");
@@ -206,14 +205,13 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     public void setConflicts(String conflicts) {
         switch (conflicts) {
-            case "proceed":
+            case "proceed" -> {
                 setAbortOnVersionConflict(false);
-                return;
-            case "abort":
+            }
+            case "abort" -> {
                 setAbortOnVersionConflict(true);
-                return;
-            default:
-                throw new IllegalArgumentException("conflicts may only be \"proceed\" or \"abort\" but was [" + conflicts + "]");
+            }
+            default -> throw new IllegalArgumentException("conflicts may only be \"proceed\" or \"abort\" but was [" + conflicts + "]");
         }
     }
 
@@ -331,7 +329,6 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
      * make sure that it contains any time that we might wait.
      */
-    @SuppressWarnings("HiddenField")
     public Self setRequestsPerSecond(float requestsPerSecond) {
         if (requestsPerSecond <= 0) {
             throw new IllegalArgumentException(

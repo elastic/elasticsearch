@@ -111,15 +111,13 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
 
     public void infer(Map<String, Object> doc, InferenceConfigUpdate update, TimeValue timeout, ActionListener<InferenceResults> listener) {
         if (inferenceConfigHolder.get() == null) {
-            listener.onFailure(
-                ExceptionsHelper.conflictStatusException("[{}] inference not possible against uninitialized model", params.getModelId())
-            );
+            listener.onFailure(ExceptionsHelper.conflictStatusException("Trained model [{}] is not initialized", params.getModelId()));
             return;
         }
         if (update.isSupported(inferenceConfigHolder.get()) == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "[{}] inference not possible. Task is configured with [{}] but received update of type [{}]",
+                    "Trained model [{}] is configured for task [{}] but called with task [{}]",
                     RestStatus.FORBIDDEN,
                     params.getModelId(),
                     inferenceConfigHolder.get().getName(),

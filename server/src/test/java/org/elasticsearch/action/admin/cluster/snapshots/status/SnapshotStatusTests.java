@@ -47,23 +47,11 @@ public class SnapshotStatusTests extends AbstractXContentTestCase<SnapshotStatus
         int totalShards = 1;
 
         switch (shardStage) {
-            case INIT:
-                initializingShards++;
-                break;
-            case STARTED:
-                startedShards++;
-                break;
-            case FINALIZE:
-                finalizingShards++;
-                break;
-            case DONE:
-                doneShards++;
-                break;
-            case FAILURE:
-                failedShards++;
-                break;
-            default:
-                break;
+            case INIT -> initializingShards++;
+            case STARTED -> startedShards++;
+            case FINALIZE -> finalizingShards++;
+            case DONE -> doneShards++;
+            case FAILURE -> failedShards++;
         }
 
         String expected = """

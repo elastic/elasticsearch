@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -31,7 +32,6 @@ import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
@@ -189,9 +189,15 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
         assertNotNull(indexLifecycleService.getScheduledJob());
         assertBusy(() -> {
-            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(
-                client().admin().cluster().prepareState().execute().actionGet().getState().getMetadata().index("test")
-            );
+            LifecycleExecutionState lifecycleState = client().admin()
+                .cluster()
+                .prepareState()
+                .execute()
+                .actionGet()
+                .getState()
+                .getMetadata()
+                .index("test")
+                .getLifecycleExecutionState();
             assertThat(lifecycleState.getStep(), equalTo("complete"));
         });
     }
@@ -452,9 +458,15 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         assertBusy(() -> assertTrue(indexExists("test")));
         assertBusy(() -> {
-            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(
-                client().admin().cluster().prepareState().execute().actionGet().getState().getMetadata().index("test")
-            );
+            LifecycleExecutionState lifecycleState = client().admin()
+                .cluster()
+                .prepareState()
+                .execute()
+                .actionGet()
+                .getState()
+                .getMetadata()
+                .index("test")
+                .getLifecycleExecutionState();
             assertThat(lifecycleState.getStep(), equalTo("complete"));
         });
     }

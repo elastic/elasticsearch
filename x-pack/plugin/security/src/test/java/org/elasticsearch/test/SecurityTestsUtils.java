@@ -8,6 +8,7 @@ package org.elasticsearch.test;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matcher;
@@ -38,7 +39,24 @@ public class SecurityTestsUtils {
     }
 
     public static void assertThrowsAuthorizationException(LuceneTestCase.ThrowingRunnable throwingRunnable, String action, String user) {
-        assertThrowsAuthorizationException(throwingRunnable, containsString("[" + action + "] is unauthorized for user [" + user + "]"));
+        assertThrowsAuthorizationException(null, throwingRunnable, action, user);
+    }
+
+    public static void assertThrowsAuthorizationException(
+        String context,
+        LuceneTestCase.ThrowingRunnable throwingRunnable,
+        String action,
+        String user
+    ) {
+        String message = "Expected authorization failure for user=[" + user + "], action=[" + action + "]";
+        if (Strings.hasText(context)) {
+            message += " - " + context;
+        }
+        assertThrowsAuthorizationException(
+            message,
+            throwingRunnable,
+            containsString("[" + action + "] is unauthorized for user [" + user + "]")
+        );
     }
 
     public static void assertThrowsAuthorizationExceptionRunAs(
@@ -48,6 +66,7 @@ public class SecurityTestsUtils {
         String runAs
     ) {
         assertThrowsAuthorizationException(
+            "Expected authorization failure for user=[" + user + "], run-as=[" + runAs + "], action=[" + action + "]",
             throwingRunnable,
             containsString("[" + action + "] is unauthorized for user [" + user + "] run as [" + runAs + "]")
         );
@@ -70,10 +89,15 @@ public class SecurityTestsUtils {
     }
 
     public static void assertThrowsAuthorizationException(
+        String failureMessageIfNoException,
         LuceneTestCase.ThrowingRunnable throwingRunnable,
         Matcher<String> messageMatcher
     ) {
-        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class, throwingRunnable);
+        ElasticsearchSecurityException securityException = expectThrows(
+            ElasticsearchSecurityException.class,
+            failureMessageIfNoException,
+            throwingRunnable
+        );
         assertAuthorizationException(securityException, messageMatcher);
     }
 

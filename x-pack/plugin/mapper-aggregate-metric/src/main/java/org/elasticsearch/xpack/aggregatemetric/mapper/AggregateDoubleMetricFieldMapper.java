@@ -324,6 +324,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return delegateFieldType().mayExistInIndex(context);    // TODO how does searching actually work here?
+        }
+
+        @Override
         public Query existsQuery(SearchExecutionContext context) {
             return delegateFieldType().existsQuery(context);
         }

@@ -24,8 +24,8 @@ import org.elasticsearch.rest.RestRequest;
  */
 public class CCSVersionCheckHelper {
 
-    public final static String CCS_VERSION_CHECK_FLAG = "check_ccs_compatibility";
-    public final static Version checkVersion = Version.CURRENT.previousFirstMinor();
+    public static final String CCS_VERSION_CHECK_FLAG = "check_ccs_compatibility";
+    public static final Version checkVersion = Version.CURRENT.previousFirstMinor();
 
     /**
      * run the writeableRequest through serialization to the previous minor version if the 'check_ccs_compatibility' is set on the request

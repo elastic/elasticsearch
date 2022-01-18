@@ -267,7 +267,7 @@ public final class SearchPhaseController {
         IntFunction<SearchPhaseResult> resultsLookup
     ) {
         if (reducedQueryPhase.isEmptyResult) {
-            return InternalSearchResponse.empty();
+            return InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
         }
         ScoreDoc[] sortedDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
         SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResults, resultsLookup);

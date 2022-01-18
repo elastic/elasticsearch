@@ -230,7 +230,7 @@ class TopHitsAggregator extends MetricsAggregator {
             subSearchContext.from(),
             subSearchContext.size(),
             new TopDocsAndMaxScore(topDocs, Float.NaN),
-            SearchHits.empty(),
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
             metadata()
         );
     }

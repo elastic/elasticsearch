@@ -296,7 +296,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     long[] range = new long[] { Long.MIN_VALUE, Long.MAX_VALUE };
 
                     // Check the search index for bounds
-                    if (fieldContext.fieldType().isSearchable()) {
+                    if (fieldContext.fieldType().isIndexed()) {
                         /*
                          * We can't look up the min and max date without both the
                          * search index (isSearchable) and the resolution which

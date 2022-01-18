@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -215,6 +217,23 @@ public class AuthenticationTests extends ESTestCase {
             VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT),
             AuthenticationType.API_KEY,
             metadata
+        );
+    }
+
+    public static Authentication randomServiceAccountAuthentication() {
+        final RealmRef realmRef = new RealmRef("_service_account", "_service_account", randomAlphaOfLengthBetween(3, 8));
+        return new Authentication(
+            new User(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8)),
+            realmRef,
+            null,
+            Version.CURRENT,
+            AuthenticationType.TOKEN,
+            Map.of(
+                "_token_name",
+                randomAlphaOfLength(8),
+                "_token_source",
+                randomFrom(TokenInfo.TokenSource.values()).name().toLowerCase(Locale.ROOT)
+            )
         );
     }
 

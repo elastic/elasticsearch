@@ -40,7 +40,7 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
             // In which case, this `actionGet` should throw a more useful exception than the verify below.
             responseFuture.actionGet();
         }
-        verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
+        verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class), any());
     }
 
     public void testFIPSCheckWithoutAllowedLicense() throws Exception {
@@ -80,6 +80,6 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
             // In which case, this `actionGet` should throw a more useful exception than the verify below.
             responseFuture.actionGet();
         }
-        verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
+        verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class), any());
     }
 }

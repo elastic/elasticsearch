@@ -68,6 +68,9 @@ local and remote nodes.
 include::remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
 ====
 
+IMPORTANT: Elastic only supports {ccs} on a subset of these configurations. See
+<<ccs-supported-configurations>>.
+
 * *role*: By default, any non-<<master-node,master-eligible>> node can act as a
 gateway node. Dedicated master nodes are never selected as gateway nodes.
 
@@ -97,6 +100,9 @@ Proxy mode has the same version compatibility requirements as sniff mode.
 ====
 include::remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
 ====
+
+IMPORTANT: Elastic only supports {ccs} on a subset of these configurations. See
+<<ccs-supported-configurations>>.
 
 include::cluster/remote-clusters-security.asciidoc[]
 include::cluster/remote-clusters-connect.asciidoc[]

@@ -82,23 +82,6 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     private final boolean system;
     private final boolean allowCustomRouting;
 
-    public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation, Map<String, Object> metadata) {
-        this(name, timeStampField, indices, generation, metadata, false, false, false, false);
-    }
-
-    public DataStream(
-        String name,
-        TimestampField timeStampField,
-        List<Index> indices,
-        long generation,
-        Map<String, Object> metadata,
-        boolean hidden,
-        boolean replicated,
-        boolean allowCustomRouting
-    ) {
-        this(name, timeStampField, indices, generation, metadata, hidden, replicated, false, System::currentTimeMillis, allowCustomRouting);
-    }
-
     public DataStream(
         String name,
         TimestampField timeStampField,
@@ -149,10 +132,6 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         this.system = system;
         this.allowCustomRouting = allowCustomRouting;
         assert indices.size() > 0;
-    }
-
-    public DataStream(String name, TimestampField timeStampField, List<Index> indices) {
-        this(name, timeStampField, indices, indices.size(), null);
     }
 
     public String getName() {
@@ -407,7 +386,17 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(0, index);
         assert backingIndices.size() == indices.size() + 1;
-        return new DataStream(name, timeStampField, backingIndices, generation + 1, metadata, hidden, replicated, system);
+        return new DataStream(
+            name,
+            timeStampField,
+            backingIndices,
+            generation + 1,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting
+        );
     }
 
     public DataStream promoteDataStream() {

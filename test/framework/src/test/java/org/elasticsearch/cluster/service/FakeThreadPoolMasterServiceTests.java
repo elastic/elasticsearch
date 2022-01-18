@@ -86,13 +86,13 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 assertFalse(firstTaskCompleted.get());
                 firstTaskCompleted.set(true);
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError();
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -126,13 +126,13 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 assertFalse(secondTaskCompleted.get());
                 secondTaskCompleted.set(true);
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError();
             }
         }, ClusterStateTaskExecutor.unbatched());

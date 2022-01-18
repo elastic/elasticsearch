@@ -472,6 +472,241 @@ the [`Types.forciblyCast`](libs/core/src/main/java/org/elasticsearch/core/Types.
 utility method. As the name suggests, you can coerce any type to any other type,
 so please use it as a last resort.
 
+### Logging
+
+The Elasticsearch server logs are vitally useful for diagnosing problems in a
+running cluster. You should make sure that your contribution uses logging
+appropriately: log enough detail to inform users about key events and help them
+understand what happened when things go wrong without logging so much detail
+that the logs fill up with noise and the useful signal is lost.
+
+Elasticsearch uses Log4J for logging. In most cases you should log via a
+`Logger` named after the class that is writing the log messages, which you can
+do by declaring a static field of the class as follows:
+
+    private static final Logger logger = LogManager.getLogger();
+
+In rare situations you may want to configure your `Logger` slightly
+differently, perhaps specifying a different class or maybe using one of the
+methods on `org.elasticsearch.common.logging.Loggers` instead.
+
+If the log message includes values from your code then you must use use
+placeholders rather than constructing the string yourself using simple
+concatenation. Consider wrapping the values in `[...]` to help distinguish them
+from the static part of the message:
+
+    logger.debug("operation failed [{}] times in [{}]ms", failureCount, elapsedMillis);
+
+You can also pass in an exception to log it including its stack trace, and any
+causes and their causes, as well as any suppressed exceptions and so on:
+
+    logger.debug("operation failed", exception);
+
+If you wish to use placeholders and an exception at the same time, construct a
+`ParameterizedMessage`:
+
+    logger.debug(new ParameterizedMessage("failed at offset [{}]", offset), exception);
+
+You can also use a `Supplier<ParameterizedMessage>` to avoid constructing
+expensive messages that will usually be discarded:
+
+    logger.debug(() -> new ParameterizedMessage("rarely seen output [{}]", expensiveMethod()));
+
+Logging is an important behaviour of the system and sometimes deserves its own
+unit tests, especially if there is complex logic for computing what is logged
+and when to log it. You can use a `org.elasticsearch.test.MockLogAppender` to
+make assertions about the logs that are being emitted.
+
+Logging is a powerful diagnostic technique but it is not the only possibility.
+You should also consider exposing some information about your component via an
+API instead of in logs. For instance you can implement APIs to report its
+current status, various statistics, and maybe even details of recent failures.
+
+#### Log levels
+
+Each log message is written at a particular _level_. By default Elasticsearch
+will suppress messages at the two most verbose levels, `TRACE` and `DEBUG`, and
+will output messages at all other levels. Users can configure which levels of
+message are written by each logger at runtime, but you should expect everyone
+to run with the default configuration almost all of the time and choose your
+levels accordingly.
+
+The guidance in this section is subjective in some areas. When in doubt,
+discuss your choices with reviewers.
+
+##### `TRACE`
+
+This is the most verbose level, disabled by default, and it is acceptable if it
+generates a very high volume of logs. The target audience of `TRACE` logs
+comprises developers who are trying to deeply understand some unusual runtime
+behaviour of a system. For instance `TRACE` logs may be useful when
+understanding an unexpected interleaving of concurrent actions or some
+unexpected consequences of a delayed response from a remote node.
+
+`TRACE` logs will normally only make sense when read alongside the code, and
+typically they will be read as a whole sequence of messages rather than in
+isolation. For example, the `InternalClusterInfoService` uses `TRACE` logs to
+record certain key events in its periodic refresh process:
+
+    logger.trace("starting async refresh");
+    // ...
+    logger.trace("received node stats response");
+    // ...
+    logger.trace("received indices stats response");
+    // ...
+    logger.trace("stats all received, computing cluster info and notifying listeners");
+    // ...
+    logger.trace("notifying [{}] of new cluster info", listener);
+
+Even though `TRACE` logs may be very verbose, you should still exercise some
+judgement when deciding when to use them. In many cases it will be easier to
+understand the behaviour of the system using tests or by analysing the code
+itself rather than by trawling through hundreds of trivial log messages.
+
+It may not be easy, or even possible, to obtain `TRACE` logs from a production
+system. Therefore they are not appropriate for information that you would
+normally expect to be useful in diagnosing problems in production.
+
+##### `DEBUG`
+
+This is the next least verbose level and is also disabled by default. The
+target audience of this level typically comprises users or developers who are
+trying to diagnose an unexpected problem in a production system, perhaps to
+help determine whether a fault lies within Elasticsearch or elsewhere.
+
+Users should expect to be able to enable `DEBUG` logging on their production
+systems for a whole subsystem for an extended period of time without
+overwhelming the system or filling up their disks with logs, so it is important
+to limit the volume of messages logged at this level. On the other hand, these
+messages must still provide enough detail to diagnose the sorts of problems
+that you expect Elasticsearch to encounter. In some cases it works well to
+collect information over a period of time and then log a complete summary,
+rather than recording every step of a process in its own message.
+
+For example, the `Coordinator` uses `DEBUG` logs to record a change in mode,
+including various internal details for context, because this event is fairly
+rare but not important enough to notify users by default:
+
+    logger.debug(
+        "{}: coordinator becoming CANDIDATE in term {} (was {}, lastKnownLeader was [{}])",
+        method,
+        getCurrentTerm(),
+        mode,
+        lastKnownLeader
+    );
+
+It's possible that the reader of `DEBUG` logs is also reading the code, but
+that is less likely than for `TRACE` logs. Strive to avoid terminology that
+only makes sense when reading the code, and also aim for messages at this level
+to be self-contained rather than intending them to be read as a sequence.
+
+It's often useful to log exceptions and other deviations from the "happy path"
+at `DEBUG` level. Exceptions logged at `DEBUG` should generally include the
+complete stack trace.
+
+##### `INFO`
+
+This is the next least verbose level, and the first level that is enabled by
+default. It is appropriate for recording important events in the life of the
+cluster, such as an index being created or deleted or a snapshot starting or
+completing. Users will mostly ignore log messages at `INFO` level, but may use
+these messages to construct a high-level timeline of events leading up to an
+incident.
+
+For example, the `MetadataIndexTemplateService` uses `INFO` logs to record when
+an index template is created or updated:
+
+    logger.info(
+        "{} index template [{}] for index patterns {}",
+        existing == null ? "adding" : "updating",
+        name,
+        template.indexPatterns()
+    );
+
+`INFO`-level logging is enabled by default so its target audience is the
+general population of users and administrators. You should use user-facing
+terminology and ensure that messages at this level are self-contained. In
+general you shouldn't log unusual events, particularly exceptions with stack
+traces, at `INFO` level. If the event is relatively benign then use `DEBUG`,
+whereas if the user should be notified then use `WARN`.
+
+Bear in mind that users will be reading the logs when they're trying to
+determine why their node is not behaving the way they expect. If a log message
+sounds like an error then some users will interpret it as one, even if it is
+logged at `INFO` level. Where possible, `INFO` messages should prefer factual
+over judgemental language, for instance saying `Did not find ...` rather than
+`Failed to find ...`.
+
+##### `WARN`
+
+This is the next least verbose level, and is also enabled by default. Ideally a
+healthy cluster will emit no `WARN`-level logs, but this is the appropriate
+level for recording events that the cluster administrator should investigate,
+or which indicate a bug. Some production environments require the cluster to
+emit no `WARN`-level logs during acceptance testing, so you must ensure that
+any logs at this level really do indicate a problem that needs addressing.
+
+As with the `INFO` level, you should use user-facing terminology at the `WARN`
+level, and also ensure that messages are self-contained. Strive to make them
+actionable too since you should be logging at this level when the user should
+take some investigative action.
+
+For example, the `DiskThresholdMonitor` uses `WARN` logs to record that a disk
+threshold has been breached:
+
+    logger.warn(
+        "flood stage disk watermark [{}] exceeded on {}, all indices on this node will be marked read-only",
+        diskThresholdSettings.describeFloodStageThreshold(),
+        usage
+    );
+
+Unlike at the `INFO` level, it is often appropriate to log an exception,
+complete with stack trace, at `WARN` level. Although the stack trace may not be
+useful to the user, it may contain information that is vital for a developer to
+fully understand the problem and its wider context.
+
+In a situation where occasional transient failures are expected and handled,
+but a persistent failure requires the user's attention, consider implementing a
+mechanism to detect that a failure is unacceptably persistent and emit a
+corresponding `WARN` log. For example, it may be helpful to log every tenth
+consecutive failure at `WARN` level, or log at `WARN` if an operation has not
+completed within a certain time limit. This is much more user-friendly than
+failing persistently and silently by default and requiring the user to enable
+`DEBUG` logging to investigate the problem.
+
+If an exception occurs as a direct result of a request received from a client
+then it should only be logged as a `WARN` if the server administrator is the
+right person to address it. In most cases the server administrator cannot do
+anything about faulty client requests, and the person running the client is
+often unable to see the server logs, so you should include the exception in the
+response back to the client and not log a warning. Bear in mind that clients
+may submit requests at a high rate, so any per-request logging can easily flood
+the logs.
+
+##### `ERROR`
+
+This is the next least verbose level after `WARN`. In theory it is possible for
+users to suppress messages at `WARN` and below, believing this to help them
+focus on the most important `ERROR` messages, but in practice in Elasticsearch
+this will hide so much useful information that the resulting logs will be
+useless, so we do not expect users to do this kind of filtering.
+
+On the other hand, users may be familiar with the `ERROR` level from elsewhere.
+Log4J for instance documents this level as meaning "an error in the
+application, possibly recoverable". The implication here is that the error is
+possibly _not_ recoverable too, and we do encounter users that get very worried
+by logs at `ERROR` level for this reason.
+
+Therefore you should try and avoid logging at `ERROR` level unless the error
+really does indicate that Elasticsearch is now running in a degraded state from
+which it will not recover. For instance, the `FsHealthService` uses `ERROR`
+logs to record that the data path failed some basic health checks and hence the
+node cannot continue to operate as a member of the cluster:
+
+    logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
+
+Errors like this should be very rare. When in doubt, prefer `WARN` to `ERROR`.
+
 ### Creating A Distribution
 
 Run all build commands from within the root directory:

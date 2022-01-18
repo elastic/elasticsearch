@@ -91,7 +91,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         assertThat(lifecycleState.getPhaseTime(), equalTo(now));
         assertThat(lifecycleState.getActionTime(), equalTo(now));
         assertThat(lifecycleState.getStepTime(), equalTo(now));
-        task.clusterStateProcessed("source", clusterState, newState);
+        task.clusterStateProcessed(clusterState, newState);
         assertTrue(changed.get());
     }
 
@@ -156,7 +156,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         assertThat(lifecycleState.getPhaseTime(), equalTo(now));
         assertThat(lifecycleState.getActionTime(), equalTo(now));
         assertThat(lifecycleState.getStepTime(), equalTo(now));
-        task.clusterStateProcessed("source", clusterState, newState);
+        task.clusterStateProcessed(clusterState, newState);
         assertTrue(changed.get());
     }
 
@@ -177,7 +177,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
             state -> {}
         );
         Exception expectedException = new RuntimeException();
-        task.onFailure(randomAlphaOfLength(10), expectedException);
+        task.onFailure(expectedException);
     }
 
     /**

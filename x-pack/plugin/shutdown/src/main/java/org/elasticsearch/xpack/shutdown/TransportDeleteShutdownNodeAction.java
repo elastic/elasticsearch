@@ -84,13 +84,13 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 logger.error(new ParameterizedMessage("failed to delete shutdown for node [{}]", request.getNodeId()), e);
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 clusterService.getRerouteService()
                     .reroute("node registered for removal from cluster", Priority.NORMAL, new ActionListener<ClusterState>() {
                         @Override

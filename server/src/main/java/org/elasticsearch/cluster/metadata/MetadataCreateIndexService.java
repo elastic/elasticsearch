@@ -304,13 +304,13 @@ public class MetadataCreateIndexService {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     if (e instanceof ResourceAlreadyExistsException) {
                         logger.trace(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
                     } else {
                         logger.debug(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
                     }
-                    super.onFailure(source, e);
+                    super.onFailure(e);
                 }
             },
             ClusterStateTaskExecutor.unbatched()

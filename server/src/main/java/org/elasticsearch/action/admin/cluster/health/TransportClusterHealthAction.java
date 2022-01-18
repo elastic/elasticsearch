@@ -108,10 +108,11 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         final long endTimeRelativeMillis
     ) {
         assert request.waitForEvents() != null;
+        final String source = "cluster_health (wait_for_events [" + request.waitForEvents() + "])";
         if (request.local()) {
             new LocalMasterServiceTask(request.waitForEvents()) {
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     final long timeoutInMillis = Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis());
                     final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
                     request.timeout(newTimeout);
@@ -125,63 +126,55 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                     listener.onFailure(e);
                 }
-            }.submit(clusterService.getMasterService(), "cluster_health (wait_for_events [" + request.waitForEvents() + "])");
+            }.submit(clusterService.getMasterService(), source);
         } else {
             final TimeValue taskTimeout = TimeValue.timeValueMillis(Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis()));
-            clusterService.submitStateUpdateTask(
-                "cluster_health (wait_for_events [" + request.waitForEvents() + "])",
-                new ClusterStateUpdateTask(request.waitForEvents(), taskTimeout) {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        return currentState;
-                    }
+            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(request.waitForEvents(), taskTimeout) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return currentState;
+                }
 
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        final long timeoutInMillis = Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis());
-                        final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
-                        request.timeout(newTimeout);
+                @Override
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                    final long timeoutInMillis = Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis());
+                    final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
+                    request.timeout(newTimeout);
 
-                        // we must use the state from the applier service, because if the state-not-recovered block is in place then the
-                        // applier service has a different view of the cluster state from the one supplied here
-                        final ClusterState appliedState = clusterService.state();
-                        assert newState.stateUUID().equals(appliedState.stateUUID())
-                            : newState.stateUUID() + " vs " + appliedState.stateUUID();
-                        executeHealth(
-                            request,
-                            appliedState,
-                            listener,
-                            waitCount,
-                            observedState -> waitForEventsAndExecuteHealth(request, listener, waitCount, endTimeRelativeMillis)
-                        );
-                    }
+                    // we must use the state from the applier service, because if the state-not-recovered block is in place then the
+                    // applier service has a different view of the cluster state from the one supplied here
+                    final ClusterState appliedState = clusterService.state();
+                    assert newState.stateUUID().equals(appliedState.stateUUID()) : newState.stateUUID() + " vs " + appliedState.stateUUID();
+                    executeHealth(
+                        request,
+                        appliedState,
+                        listener,
+                        waitCount,
+                        observedState -> waitForEventsAndExecuteHealth(request, listener, waitCount, endTimeRelativeMillis)
+                    );
+                }
 
-                    @Override
-                    public void onNoLongerMaster(String source) {
-                        logger.trace(
-                            "stopped being master while waiting for events with priority [{}]. retrying.",
-                            request.waitForEvents()
-                        );
-                        // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
-                        listener.onFailure(new NotMasterException("no longer master. source: [" + source + "]"));
-                    }
+                @Override
+                public void onNoLongerMaster() {
+                    logger.trace("stopped being master while waiting for events with priority [{}]. retrying.", request.waitForEvents());
+                    // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
+                    listener.onFailure(new NotMasterException("no longer master. source: [" + source + "]"));
+                }
 
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        if (e instanceof ProcessClusterEventTimeoutException) {
-                            listener.onResponse(getResponse(request, clusterService.state(), waitCount, TimeoutState.TIMED_OUT));
-                        } else {
-                            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-                            listener.onFailure(e);
-                        }
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof ProcessClusterEventTimeoutException) {
+                        listener.onResponse(getResponse(request, clusterService.state(), waitCount, TimeoutState.TIMED_OUT));
+                    } else {
+                        logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                        listener.onFailure(e);
                     }
-                },
-                ClusterStateTaskExecutor.unbatched()
-            );
+                }
+            }, ClusterStateTaskExecutor.unbatched());
         }
     }
 

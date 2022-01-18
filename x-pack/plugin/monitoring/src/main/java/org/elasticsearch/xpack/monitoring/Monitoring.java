@@ -278,42 +278,12 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return map -> {
             // Check that each required template exists, with the correct version
-            final List<String> missingTemplates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS).filter(id -> {
-                IndexTemplateMetadata templateMetadata = map.get(templateName(id));
-                return templateMetadata == null
-                    || (templateMetadata.version() != null && (templateMetadata.version() >= LAST_UPDATED_VERSION == false));
-            }).collect(Collectors.toList());
-
-            if (missingTemplates.isEmpty() == false) {
-                for (String templateId : missingTemplates) {
-                    final String templateName = MonitoringTemplateUtils.templateName(templateId);
-                    final String templateSource = MonitoringTemplateUtils.loadTemplate(templateId);
-                    try (
-                        XContentParser parser = XContentType.JSON.xContent()
-                            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, templateSource)
-                    ) {
-                        IndexTemplateMetadata updatedTemplate = IndexTemplateMetadata.Builder.fromXContent(parser, templateName);
-                        logger.info("updated template [{}] to version [{}]", templateName, MonitoringTemplateUtils.TEMPLATE_VERSION);
-                        map.put(templateName, updatedTemplate);
-                    } catch (IOException e) {
-                        logger.error("unable to update template [" + templateName + "]", e);
-                    }
-                }
+            List<IndexTemplateMetadata> monitoringTemplates = createMonitoringTemplates(getMissingMonitoringTemplateIds(map));
+            for (IndexTemplateMetadata newTemplate : monitoringTemplates) {
+                map.put(newTemplate.getName(), newTemplate);
             }
 
-            map.entrySet().removeIf(templateEntry -> {
-                String templateName = templateEntry.getKey();
-                if (templateName.startsWith("apm-6.")) {
-                    ImmutableOpenMap<String, CompressedXContent> mappings = templateEntry.getValue().getMappings();
-                    if (mappings != null && mappings.get("doc") != null) {
-                        // this is an old APM mapping that still uses the `doc` type so let's remove it as the later 7.x APM versions
-                        // would've installed an APM template (versioned) that doesn't contain any type
-                        logger.info("removing typed legacy template [{}]", templateName);
-                        return true;
-                    }
-                }
-                return false;
-            });
+            map.entrySet().removeIf(Monitoring::isTypedAPMTemplate);
 
             // this template was not migrated to typeless due to the possibility of the old /_monitoring/bulk API being used
             // see {@link org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils#OLD_TEMPLATE_VERSION}
@@ -322,5 +292,60 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
             map.remove(".monitoring-alerts");
             return map;
         };
+    }
+
+    /**
+     * Returns a list of template IDs (as defined by {@link MonitoringTemplateUtils#TEMPLATE_IDS}) that are not present in the provided
+     * map or don't have at least {@link MonitoringTemplateUtils#LAST_UPDATED_VERSION} version
+     */
+    static List<String> getMissingMonitoringTemplateIds(Map<String, IndexTemplateMetadata> map) {
+        return Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS).filter(id -> {
+            IndexTemplateMetadata templateMetadata = map.get(templateName(id));
+            return templateMetadata == null
+                || (templateMetadata.version() != null && (templateMetadata.version() >= LAST_UPDATED_VERSION == false));
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * Creates the monitoring templates with the provided IDs (must be some of {@link MonitoringTemplateUtils#TEMPLATE_IDS}).
+     * Other ids are ignored.
+     */
+    static List<IndexTemplateMetadata> createMonitoringTemplates(List<String> missingTemplateIds) {
+        List<IndexTemplateMetadata> createdTemplates = new ArrayList<>();
+        if (missingTemplateIds.isEmpty() == false) {
+            for (String templateId : missingTemplateIds) {
+                try {
+                    final String templateName = MonitoringTemplateUtils.templateName(templateId);
+                    final String templateSource = MonitoringTemplateUtils.loadTemplate(templateId);
+                    try (
+                        XContentParser parser = XContentType.JSON.xContent()
+                            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, templateSource)
+                    ) {
+                        IndexTemplateMetadata updatedTemplate = IndexTemplateMetadata.Builder.fromXContent(parser, templateName);
+                        logger.info("updated template [{}] to version [{}]", templateName, MonitoringTemplateUtils.TEMPLATE_VERSION);
+                        createdTemplates.add(updatedTemplate);
+                    } catch (IOException e) {
+                        logger.error("unable to update template [" + templateName + "]", e);
+                    }
+                } catch (Exception e) {
+                    logger.error("unable to create monitoring template", e);
+                }
+            }
+        }
+        return createdTemplates;
+    }
+
+    static boolean isTypedAPMTemplate(Map.Entry<String, IndexTemplateMetadata> templateEntry) {
+        String templateName = templateEntry.getKey();
+        if (templateName.startsWith("apm-6.")) {
+            ImmutableOpenMap<String, CompressedXContent> mappings = templateEntry.getValue().getMappings();
+            if (mappings != null && mappings.get("doc") != null) {
+                // this is an old APM mapping that still uses the `doc` type so let's remove it as the later 7.x APM versions
+                // would've installed an APM template (versioned) that doesn't contain any type
+                logger.info("removing typed legacy template [{}]", templateName);
+                return true;
+            }
+        }
+        return false;
     }
 }

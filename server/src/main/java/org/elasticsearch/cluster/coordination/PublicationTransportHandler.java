@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
@@ -303,6 +304,28 @@ public class PublicationTransportHandler {
         }
     }
 
+    private ReleasableBytesReference serializeLocalClusterState(ClusterState clusterState) {
+        final RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream();
+        boolean success = false;
+        try {
+            try (StreamOutput stream = new OutputStreamStreamOutput(Streams.flushOnCloseStream(bytesStream))) {
+                stream.setVersion(Version.CURRENT);
+                PublishRequestType.LOCAL.writeTo(stream);
+                stream.writeString(clusterState.stateUUID());
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to serialize cluster state for publishing to local node {}", e,
+                    clusterState.nodes().getLocalNode());
+            }
+            final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                bytesStream.close();
+            }
+        }
+    }
+
     /**
      * Publishing a cluster state typically involves sending the same cluster state (or diff) to every node, so the work of diffing,
      * serializing, and compressing the state can be done once and the results shared across publish requests. The
@@ -369,46 +392,8 @@ public class PublicationTransportHandler {
                 // requests differently to avoid having to decompress and deserialize the request on the master.
 
                 logger.trace("handling cluster state version [{}] locally on [{}]", newState.version(), destination);
-
-                final RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream();
-                boolean success = false;
-                try {
-                    try (StreamOutput stream = new OutputStreamStreamOutput(Streams.flushOnCloseStream(bytesStream))) {
-                        stream.setVersion(Version.CURRENT);
-                        PublishRequestType.LOCAL.writeTo(stream);
-                        stream.writeString(newState.stateUUID());
-                    } catch (IOException e) {
-                        listener.onFailure(
-                            new ElasticsearchException("failed to serialize cluster state for publishing to local node {}", e, destination)
-                        );
-                        return;
-                    }
-
-                    final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream);
-
-                    final PublishRequest previousRequest = currentPublishRequestToSelf.getAndSet(publishRequest);
-                    assert previousRequest == null || previousRequest.getAcceptedState().term() < publishRequest.getAcceptedState().term();
-
-                    sendClusterState(destination, result, new ActionListener<>() {
-                        @Override
-                        public void onResponse(PublishWithJoinResponse publishWithJoinResponse) {
-                            currentPublishRequestToSelf.compareAndSet(publishRequest, null); // only clean-up our mess
-                            listener.onResponse(publishWithJoinResponse);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            currentPublishRequestToSelf.compareAndSet(publishRequest, null); // only clean-up our mess
-                            listener.onFailure(e);
-                        }
-                    });
-
-                    success = true;
-                } finally {
-                    if (success == false) {
-                        bytesStream.close();
-                    }
-                }
+                transportService.getThreadPool().generic().execute(
+                    ActionRunnable.supply(listener, () -> handlePublishRequest.apply(publishRequest)));
             } else if (sendFullVersion || previousState.nodes().nodeExists(destination) == false) {
                 logger.trace("sending full cluster state version [{}] to [{}]", newState.version(), destination);
                 sendFullClusterState(destination, listener);

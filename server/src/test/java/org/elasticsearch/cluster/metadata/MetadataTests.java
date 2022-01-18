@@ -1086,7 +1086,7 @@ public class MetadataTests extends ESTestCase {
 
         builder.removeCustomIf((key, value) -> Objects.equals(key, "custom1"));
 
-        var metadata =builder.build();
+        var metadata = builder.build();
         assertThat(metadata.custom("custom1"), nullValue());
         assertThat(metadata.custom("custom2"), sameInstance(custom2));
     }

@@ -386,7 +386,6 @@ public class Node implements Closeable {
              * values, no matter they ask for them from.
              */
             this.environment = new Environment(settings, initialEnvironment.configFile());
-
             Environment.assertEquivalent(initialEnvironment, this.environment);
             nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
             logger.info(

@@ -581,11 +581,8 @@ public final class NodeEnvironment implements Closeable {
             final NodeMetadata legacyMetadata = NodeMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths);
             if (legacyMetadata == null) {
                 assert nodeIds.isEmpty() : nodeIds;
-                Version oldestIndexVersion = legacyMetadata.oldestIndexVersion();
-                if (oldestIndexVersion == null) {
-                    oldestIndexVersion = Version.CURRENT;
-                }
-                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT, oldestIndexVersion);
+                // If we couldn't find legacy metadata, we set the latest index version to this version
+                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT, Version.CURRENT);
             } else {
                 assert nodeIds.equals(Collections.singleton(legacyMetadata.nodeId())) : nodeIds + " doesn't match " + legacyMetadata;
                 metadata = legacyMetadata;

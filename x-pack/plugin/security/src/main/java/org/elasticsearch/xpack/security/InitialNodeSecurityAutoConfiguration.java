@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -261,8 +262,8 @@ public class InitialNodeSecurityAutoConfiguration {
             builder.append(System.lineSeparator());
             builder.append("  " + boldOnANSI + kibanaEnrollmentToken + boldOffANSI);
         } else {
-            // TODO
-            builder.append(errorBullet + " Unable to generate an enrollment token for Kibana instances.");
+            builder.append(errorBullet + " Unable to generate an enrollment token for Kibana instances, ");
+            builder.append("try invoking " + cmdOn + "bin/elasticsearch-create-enrollment-token -s kibana" + cmdOff + ".");
         }
         builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());
@@ -284,7 +285,6 @@ public class InitialNodeSecurityAutoConfiguration {
             builder.append("  " + hyphenBullet + " Start Elasticsearch on other nodes with " + cmdOn +
                 "bin/elasticsearch --enrollment-token <token>" + cmdOff +
                 ", using the enrollment token that you generated.");
-            builder.append(System.lineSeparator());
         } else if (Strings.isEmpty(nodeEnrollmentToken)) {
             builder.append(infoBullet + " Configure other nodes to join this cluster:");
             builder.append(System.lineSeparator());
@@ -304,7 +304,6 @@ public class InitialNodeSecurityAutoConfiguration {
             builder.append("  " + hyphenBullet + " Start Elasticsearch on other nodes with " + cmdOn +
                 "bin/elasticsearch --enrollment-token <token>" + cmdOff +
                 ", using the enrollment token that you generated.");
-            builder.append(System.lineSeparator());
         } else {
             builder.append(infoBullet + " Configure other nodes to join this cluster:");
             builder.append(System.lineSeparator());
@@ -312,8 +311,16 @@ public class InitialNodeSecurityAutoConfiguration {
                 cmdOn + "bin/elasticsearch --enrollment-token <token>" + cmdOff + " (valid for the next 30 minutes):");
             builder.append(System.lineSeparator());
             builder.append("  " + boldOnANSI + nodeEnrollmentToken + boldOffANSI);
+            builder.append(System.lineSeparator());
+            builder.append(System.lineSeparator());
+            builder.append("If you're running in Docker, copy the enrollment token and run:");
+            builder.append(System.lineSeparator());
+            builder.append(cmdOn + "docker run --name <node-name> -p <host-http-port>:9200 --net elastic -it");
+            builder.append("docker.elastic.co/elasticsearch/elasticsearch:" + Version.CURRENT + " /bin/bash -c");
+            builder.append("\"/usr/share/elasticsearch/bin/elasticsearch --enrollment-token <token>\"");
         }
 
+        builder.append(System.lineSeparator());
         builder.append(horizontalLine.repeat(horizontalLineLength));
         builder.append(System.lineSeparator());
 
